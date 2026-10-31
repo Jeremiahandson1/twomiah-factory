@@ -421,6 +421,13 @@
       "when": 1793473242578,
       "tag": "0059_care_pickup_rewards",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793474431615,
+      "tag": "0060_care_family_alerts",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@
 //   GET|PUT /text-wording { arrivalText, departureText }                   the arrival / finish text, in the agency's words
 //   GET  /email-templates   PUT|DELETE /email-templates/:kind              the four portal emails (DELETE = back to our wording)
 //   GET  /consent-wording                                                  the words a relative agrees to, as stored with their yes
+//   GET|POST /alert-rules, GET /alert-rules/options, PUT|DELETE /alert-rules/:id   the agency's own alert rules (row 7 extras; core/alertRules.ts)
 // All of it is care-portal:update, like the relatives' own accounts; the feature gates the mount.
 import { Hono } from 'hono'
 import { familyTextLog } from '../../../data/homecareFamilyTexts.ts'
@@ -15,12 +16,13 @@ import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { addDays, isYmd } from '../core/agencyTime.ts'
 import { consentWording, emailConsentWording, REQUEST_KINDS } from '../core/familyComms.ts'
+import { AUDIENCE_CHANNELS, AUDIENCE_LABELS, RULE_AUDIENCES, RULE_TOKENS, RULE_TRIGGERS, TRIGGER_LABELS } from '../core/alertRules.ts'
 
 export const TEXT_STATUS_LABELS: Record<string, string> = {
   sent: 'Sent', failed: 'Not sent', pending: 'Waiting to send', skipped_quiet: 'Held (quiet hours)', skipped_late: 'Held (too late to be news)',
 }
-const EVENT_LABELS: Record<string, string> = { clock_in: 'Arrival', clock_out: 'Finish' }
-const CHANNEL_LABELS: Record<string, string> = { sms: 'Text', email: 'Email' }
+const EVENT_LABELS: Record<string, string> = { clock_in: 'Arrival', clock_out: 'Finish', late_clock_in: 'Late arrival' }
+const CHANNEL_LABELS: Record<string, string> = { sms: 'Text', email: 'Email', push: 'App notice' }
 const MAX_DAYS = 92
 
 export function createFamilyCommsRoutes(core: HomecareCore, d: CrmDeps) {
@@ -82,6 +84,25 @@ export function createFamilyCommsRoutes(core: HomecareCore, d: CrmDeps) {
     const agency = await core.profile.agencyShortName(cid(c))
     return one(c, { text: consentWording(agency), email: emailConsentWording(agency) })
   })
+
+  // ── Alert rules (row 7 extras) ──
+  const bad = (c: any, p: { problem: string; field: string }) => fail(c, 400, p.problem, 'bad_rule', { [p.field]: p.problem })
+  const shown = (r: any) => ({ ...r, triggerLabel: TRIGGER_LABELS[r.trigger], audienceLabel: AUDIENCE_LABELS[r.audience] })
+  app.get('/alert-rules', gate, async (c) => listAll(c, (await core.alertRules.list(cid(c))).map(shown)))
+  app.get('/alert-rules/options', gate, async (c) => one(c, {
+    triggers: RULE_TRIGGERS.map((id) => ({ id, label: TRIGGER_LABELS[id] })),
+    audiences: RULE_AUDIENCES.map((id) => ({ id, label: AUDIENCE_LABELS[id], channels: AUDIENCE_CHANNELS[id] })),
+    tokens: [...RULE_TOKENS, 'minutes'],
+  }))
+  app.post('/alert-rules', requirePermission('care-portal:create'), async (c) => {
+    const out = await core.alertRules.create(cid(c), (c.get('user') as any).id, await c.req.json().catch(() => ({})))
+    return 'problem' in out ? bad(c, out) : one(c, shown(out), 201)
+  })
+  app.put('/alert-rules/:id', gate, async (c) => {
+    const out = await core.alertRules.update(cid(c), c.req.param('id')!, await c.req.json().catch(() => ({})))
+    return out === null ? fail(c, 404, 'Rule not found') : 'problem' in out ? bad(c, out) : one(c, shown(out))
+  })
+  app.delete('/alert-rules/:id', gate, async (c) => (await core.alertRules.remove(cid(c), c.req.param('id')!)) ? done(c) : fail(c, 404, 'Rule not found'))
 
   return app
 }

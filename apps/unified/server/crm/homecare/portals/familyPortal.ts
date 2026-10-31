@@ -25,7 +25,7 @@ import jwt from 'jsonwebtoken'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { createActorName } from '@twomiah/tenant-backend'
 import {
-  clients, company, familyMembers, familyMessages, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
+  clients, company, familyMembers, familyMessages, familyPushSubscription, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
 } from '../../../db/schema/index.ts'
 import { fail, one, done, listAll } from '../../../http/reply.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
@@ -33,7 +33,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { familyEmailTaken, familyMemberForLogin, familyScheduleRows, caregiversServingClient } from '../../../data/homecarePortals.ts'
 import { addDays } from '../core/agencyTime.ts'
 import { mimeOf, UPCOMING_DAYS } from '../core/familyContent.ts'
-import { consentWording, REQUEST_KINDS } from '../core/familyComms.ts'
+import { consentWording, emailConsentWording, REQUEST_KINDS } from '../core/familyComms.ts'
 import { activePlanWhere } from '../core/carePlanStatus.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -62,6 +62,7 @@ const memberColumns = {
   visitTextOptOutAt: familyMembers.visitTextOptOutAt,
   visitEmailOptIn: familyMembers.visitEmailOptIn,
   visitEmailOptInAt: familyMembers.visitEmailOptInAt,
+  visitEmailConsentWording: familyMembers.visitEmailConsentWording,
   canViewSchedule: familyMembers.canViewSchedule,
   canViewCarePlan: familyMembers.canViewCarePlan,
   canViewMedications: familyMembers.canViewMedications,
@@ -163,6 +164,8 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       visitTextConsentWording: b.visitTextOptIn === true && !!b.phone ? consentWording(await agencyName(me.companyId)) : null,
       visitEmailOptIn: b.visitEmailOptIn === true,
       visitEmailOptInAt: b.visitEmailOptIn === true ? new Date() : null,
+      // The exact words the relative agreed to for the emails, kept with that yes too.
+      visitEmailConsentWording: b.visitEmailOptIn === true ? emailConsentWording(await agencyName(me.companyId)) : null,
       isActive: true,
     }).returning(memberColumns)
     // Welcome email with the login. The account stands even if the email cannot go out.
@@ -259,8 +262,11 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       } else { patch.visitTextOptIn = false; patch.visitTextOptInAt = null; patch.visitTextConsentWording = null }
     }
     if (typeof b?.visitEmailOptIn === 'boolean') {
-      patch.visitEmailOptIn = b.visitEmailOptIn
-      patch.visitEmailOptInAt = b.visitEmailOptIn ? new Date() : null
+      // A yes already on keeps its date and the words it was given under; a new yes is dated now, with today's words.
+      const [was] = await db.select({ on: familyMembers.visitEmailOptIn }).from(familyMembers)
+        .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId))).limit(1)
+      if (!b.visitEmailOptIn) { patch.visitEmailOptIn = false; patch.visitEmailOptInAt = null; patch.visitEmailConsentWording = null }
+      else if (!was?.on) { patch.visitEmailOptIn = true; patch.visitEmailOptInAt = new Date(); patch.visitEmailConsentWording = emailConsentWording(await agencyName(me.companyId)) }
     }
     const [row] = await db.update(familyMembers).set({ ...patch, updatedAt: new Date() })
       .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId)))
@@ -608,6 +614,32 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     const r = await core.familyComms.createRequest(companyId, { id: m.id, clientId: c.get('familyClientId'), name: m.name }, b)
     if (!r.ok) return fail(c, 400, r.message, r.code, r.fields)
     return one(c, { id: r.id, kinds: REQUEST_KINDS }, 201)
+  })
+
+  // ── App notices on the relative's own phone or browser (care_family_comms, row 7 extras): web push they turn on themselves ───────
+  app.get('/portal/notices', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    const m = c.get('familyMember') as any
+    const subs = await db.select({ id: familyPushSubscription.id }).from(familyPushSubscription)
+      .where(and(eq(familyPushSubscription.familyMemberId, m.id), eq(familyPushSubscription.companyId, companyId), eq(familyPushSubscription.isActive, true)))
+    return one(c, { textOptIn: !!m.visitTextOptIn, emailOptIn: !!m.visitEmailOptIn, pushDevices: subs.length, vapidPublicKey: process.env.VAPID_PUBLIC_KEY || null })
+  })
+  app.post('/portal/push-subscription', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    const { subscription } = await c.req.json().catch(() => ({})) as any
+    if (!subscription || typeof subscription.endpoint !== 'string' || !/^https:\/\//.test(subscription.endpoint)) return fail(c, 400, 'This device did not give a valid notice address.', 'bad_subscription')
+    await db.insert(familyPushSubscription).values({ companyId, familyMemberId: c.get('familyMember').id, subscription, endpoint: subscription.endpoint, isActive: true })
+      .onConflictDoUpdate({ target: [familyPushSubscription.companyId, familyPushSubscription.endpoint], set: { familyMemberId: c.get('familyMember').id, subscription, isActive: true } })
+    return done(c, 'This device will get a notice when a caregiver arrives and leaves.')
+  })
+  app.post('/portal/push-subscription/off', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    await db.update(familyPushSubscription).set({ isActive: false })
+      .where(and(eq(familyPushSubscription.familyMemberId, c.get('familyMember').id), eq(familyPushSubscription.companyId, companyId)))
+    return done(c, 'App notices are off on your devices.')
   })
 
   // Visit notes are part of the care-plan tier.

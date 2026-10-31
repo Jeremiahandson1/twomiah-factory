@@ -2133,6 +2133,8 @@ export const familyMembers = pgTable('family_members', {
   visitTextOptOutAt: timestamp('visit_text_optout_at'),
   visitEmailOptIn: boolean('visit_email_optin').default(false).notNull(),
   visitEmailOptInAt: timestamp('visit_email_optin_at'),
+  // The exact words the relative agreed to for the emails, kept with that yes (row 7 extras).
+  visitEmailConsentWording: text('visit_email_consent_wording'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2287,10 +2289,12 @@ export const familyVisitText = pgTable('family_visit_text', {
   // care_family_comms: how it was sent (sms | email), and why it was not when it was not (plain words for the office's screen)
   channel: text('channel').default('sms').notNull(),
   reason: text('reason'),
+  // The agency alert rule this notice came from ('' = the built-in arrival / finish notice), so a rule and the built-in notice each send once.
+  ruleId: text('rule_id').default('').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('family_visit_text_company_id_idx').on(t.companyId),
-  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event, t.channel),
+  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event, t.channel, t.ruleId),
 ])
 
 // A relative's request to the office (care_family_comms): a change to a visit, a change to the service, or a new visit. It becomes an office task
@@ -3337,4 +3341,54 @@ export const visitMeal = pgTable('visit_meal', {
   index('visit_meal_client_idx').on(t.clientId, t.servedAt),
   // one record per meal per visit; saving again replaces it
   uniqueIndex('visit_meal_once_idx').on(t.timeEntryId, t.meal),
+])
+
+// A relative's own phone or browser that agreed to arrival notices as web push (care_family_comms, row 7 extras).
+export const familyPushSubscription = pgTable('family_push_subscription', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
+  subscription: json('subscription').notNull(),
+  endpoint: text('endpoint').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_push_subscription_member_idx').on(t.familyMemberId),
+  uniqueIndex('family_push_subscription_endpoint_idx').on(t.companyId, t.endpoint),
+])
+
+// An alert rule the agency wrote (care_family_comms, row 7 extras; core/alertRules.ts): when something happens on a visit, tell these
+// people by these channels, in the agency's words.
+export const familyAlertRule = pgTable('family_alert_rule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // clock_in | clock_out | late_clock_in
+  minutes: integer('minutes'), // late_clock_in: how many minutes after the scheduled start
+  audience: text('audience').notNull(), // relatives | office | caregiver
+  channels: json('channels').notNull(), // ['sms','email','push']
+  message: text('message'), // the agency's wording with {caregiver} {client} {time} {agency} ({minutes}); empty = a plain default
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_alert_rule_company_idx').on(t.companyId, t.trigger),
+])
+
+// What an agency alert rule did for the office or the caregiver of a visit (a relative's goes in family_visit_text): one row per rule,
+// visit, person and channel, so a replayed punch never alerts twice.
+export const alertRuleLog = pgTable('alert_rule_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  ruleId: text('rule_id').notNull().references(() => familyAlertRule.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  recipientId: text('recipient_id').notNull(),
+  channel: text('channel').notNull(),
+  status: text('status').notNull(),
+  detail: text('detail'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('alert_rule_log_company_idx').on(t.companyId, t.createdAt),
+  uniqueIndex('alert_rule_log_key').on(t.ruleId, t.timeEntryId, t.recipientId, t.channel),
 ])

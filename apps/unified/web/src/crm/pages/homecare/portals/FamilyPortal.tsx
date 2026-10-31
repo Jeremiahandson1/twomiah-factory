@@ -630,8 +630,59 @@ function RequestsView() {
   )
 }
 
+// ── Notices (care_family_comms, row 7 extras): an app notice on this phone or browser when a caregiver arrives and leaves ──────────────
+interface NoticeSettings { textOptIn: boolean; emailOptIn: boolean; pushDevices: number; vapidPublicKey: string | null }
+
+function NoticesView() {
+  const portal = usePortal()
+  const [s, setS] = useState<NoticeSettings | null>(null)
+  const [note, setNote] = useState('')
+  const [problem, setProblem] = useState('')
+  const load = useCallback(() => { portal.get<NoticeSettings>('/api/family-portal/portal/notices').then((r) => { if (r) setS(r) }).catch(() => {}) }, [portal])
+  useEffect(() => { load() }, [load])
+  const fail = (err: unknown) => { const m = (err as Error).message; setProblem(m === SESSION_EXPIRED ? 'Your session has ended — please sign in again.' : (m || 'That did not save.')) }
+  const pushSupported = typeof navigator !== 'undefined' && 'serviceWorker' in navigator && typeof window !== 'undefined' && 'PushManager' in window
+  const turnOn = async () => {
+    setProblem(''); setNote('')
+    try {
+      if (!s?.vapidPublicKey) { setProblem('App notices are not set up for this agency yet. Ask the office.'); return }
+      if ((await Notification.requestPermission()) !== 'granted') { setProblem('Your browser did not allow notices. You can allow them in its settings.'); return }
+      const reg = await navigator.serviceWorker.ready
+      const pad = '='.repeat((4 - (s.vapidPublicKey.length % 4)) % 4)
+      const raw = atob((s.vapidPublicKey + pad).replace(/-/g, '+').replace(/_/g, '/'))
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (ch) => ch.charCodeAt(0)) })
+      await portal.send('POST', '/api/family-portal/portal/push-subscription', { subscription: sub.toJSON() })
+      setNote('This device will get a notice when a caregiver arrives and leaves.'); load()
+    } catch (err) { fail(err) }
+  }
+  const turnOff = async () => {
+    setProblem(''); setNote('')
+    try { await portal.send('POST', '/api/family-portal/portal/push-subscription/off'); setNote('App notices are off on your devices.'); load() } catch (err) { fail(err) }
+  }
+  if (!s) return <div style={MUTED}>Loading...</div>
+  const btn: CSSProperties = { padding: '8px 18px', borderRadius: '6px', border: 'none', background: 'var(--hcp-forest)', color: '#fff', cursor: 'pointer' }
+  return (
+    <div>
+      <div style={CARD}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '1.05rem' }}>When a caregiver arrives and leaves</h3>
+        <div style={SOFT}>Texts: {s.textOptIn ? 'on' : 'off'} · Emails: {s.emailOptIn ? 'on' : 'off'} — the office records these with your yes. Ask them to change either.</div>
+      </div>
+      <div style={CARD}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '1.05rem' }}>On this phone or browser</h3>
+        <div style={SOFT}>{s.pushDevices > 0 ? `Notices are on for ${s.pushDevices} device${s.pushDevices === 1 ? '' : 's'}.` : 'Notices are off.'} They are held back in the agency's quiet hours, like texts.</div>
+        {problem && <div role="alert" style={{ color: 'var(--hc-danger-ink)', margin: '8px 0' }}>{problem}</div>}
+        {note && <div role="status" style={{ color: 'var(--hc-success-ink)', margin: '8px 0' }}>{note}</div>}
+        <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {pushSupported ? <button type="button" onClick={turnOn} style={btn}>Turn on for this device</button> : <span style={SOFT}>This browser cannot receive app notices.</span>}
+          {s.pushDevices > 0 && <button type="button" onClick={turnOff} style={{ ...btn, background: 'var(--hc-subtle)', color: 'var(--hc-ink)' }}>Turn off</button>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Overview ──────────────────────────────────────────────────
-type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'requests' | 'messages'
+type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'requests' | 'notices' | 'messages'
 interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; careContent: boolean; careComms: boolean; canMessage: boolean }
 
 function OverviewView({ client, userName, permissions, setActiveTab }: { client: FamilyClient | null; userName: string; permissions: Permissions; setActiveTab: (k: TabKey) => void }) {
@@ -752,6 +803,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
   if (permissions.canViewVitals) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
   if (permissions.canViewDocuments) tabs.push({ key: 'documents', label: 'Documents', icon: '📁' })
   if (permissions.canMessage && permissions.careComms) tabs.push({ key: 'requests', label: 'Requests', icon: '✉️' })
+  if (permissions.careComms) tabs.push({ key: 'notices', label: 'Notices', icon: '🔔' })
   if (permissions.canMessage) tabs.push({ key: 'messages', label: 'Messages', icon: '💬' })
   const tabKeys = tabs.map((t) => t.key).join()
 
@@ -773,6 +825,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
       case 'vitals': return permissions.canViewVitals ? <VitalsView /> : null
       case 'documents': return permissions.canViewDocuments ? <DocumentsView /> : null
       case 'requests': return permissions.canMessage && permissions.careComms ? <RequestsView /> : null
+      case 'notices': return permissions.careComms ? <NoticesView /> : null
       case 'messages': return permissions.canMessage ? <MessagesView canMessage /> : null
       default: return <OverviewView client={client} userName={userName} permissions={permissions} setActiveTab={setActiveTab} />
     }

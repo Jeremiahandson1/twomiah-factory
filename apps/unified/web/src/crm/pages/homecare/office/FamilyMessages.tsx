@@ -3,6 +3,7 @@
 //   Texts & emails  every arrival and finish notice sent or held back, and why (GET /api/family-comms/texts)
 //   Wording         the arrival and finish text in the agency's own words, with {caregiver} {client} {time} {agency}
 //   Emails          the four portal emails (account created, forgot password, access granted, access revoked) in the agency's words
+//   Alert rules     when something happens on a visit, who is told and how, in the agency's words (row 7 extras; /api/family-comms/alert-rules)
 // Server: server/crm/homecare/portals/familyComms.ts on /api/family-comms (care-portal:update).
 import { useCallback, useEffect, useState } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
@@ -17,7 +18,11 @@ interface Req { id: string; kind: string; kindLabel: string; visitDate: string |
 interface Msg { id: string; event: string; eventLabel: string; status: string; statusLabel: string; channelLabel: string; reason: string | null; createdAt: string; relativeName: string; clientFirst: string; clientLast: string; caregiverFirst: string; caregiverLast: string }
 interface Wording { arrivalText: string; departureText: string; tags: string[]; defaults: { arrivalText: string; departureText: string } }
 interface Tpl { kind: string; label: string; tags: string[]; switchable: boolean; enabled: boolean; subject: string; body: string; custom: boolean }
-type Tab = 'requests' | 'texts' | 'wording' | 'emails'
+type Tab = 'requests' | 'texts' | 'wording' | 'emails' | 'rules'
+interface Rule { id: string; name: string; trigger: string; triggerLabel: string; minutes: number | null; audience: string; audienceLabel: string; channels: string[]; message: string | null; isActive: boolean }
+interface RuleOptions { triggers: { id: string; label: string }[]; audiences: { id: string; label: string; channels: string[] }[]; tokens: string[] }
+const CHANNEL_NAMES: Record<string, string> = { sms: 'Text', email: 'Email', push: 'App notice' }
+const BLANK_RULE = { name: '', trigger: 'clock_in', minutes: '15', audience: 'office', channels: ['push'] as string[], message: '' }
 
 function Requests() {
   const toast = useToast()
@@ -175,9 +180,103 @@ function EmailsTab() {
   )
 }
 
+function RulesTab() {
+  const toast = useToast()
+  const ask = useConfirm()
+  const [rules, setRules] = useState<Rule[] | null>(null)
+  const [opts, setOpts] = useState<RuleOptions | null>(null)
+  const [form, setForm] = useState<(typeof BLANK_RULE & { id?: string }) | null>(null)
+  const [problem, setProblem] = useState<Record<string, string>>({})
+  const load = useCallback(() => api.get('/api/family-comms/alert-rules').then((r) => setRules(rows<Rule>(r))).catch((e) => toast.error(errorMessage(e))), [toast])
+  useEffect(() => { load(); api.get('/api/family-comms/alert-rules/options').then((r) => setOpts(r as RuleOptions)).catch(() => { /* the form stays closed */ }) }, [load])
+  const channelsFor = (audience: string) => opts?.audiences.find((a) => a.id === audience)?.channels ?? []
+  const save = async () => {
+    if (!form) return
+    const payload = { name: form.name, trigger: form.trigger, minutes: form.trigger === 'late_clock_in' ? Number(form.minutes) : undefined, audience: form.audience, channels: form.channels, message: form.message }
+    try {
+      if (form.id) await api.put(`/api/family-comms/alert-rules/${form.id}`, payload); else await api.post('/api/family-comms/alert-rules', payload)
+      toast.success('Rule saved'); setForm(null); setProblem({}); load()
+    } catch (e) { setProblem((e as any)?.data?.fields || {}); toast.error(errorMessage(e)) }
+  }
+  const toggle = async (r: Rule) => { try { await api.put(`/api/family-comms/alert-rules/${r.id}`, { isActive: !r.isActive }); load() } catch (e) { toast.error(errorMessage(e)) } }
+  const remove = async (r: Rule) => {
+    if (!(await ask(`"${r.name}" will stop sending. The notices it already sent stay on the list.`, { title: 'Remove this rule?', confirmText: 'Remove' }))) return
+    try { await api.delete(`/api/family-comms/alert-rules/${r.id}`); load() } catch (e) { toast.error(errorMessage(e)) }
+  }
+  const note = (k: string) => (problem[k] ? <div style={{ color: 'var(--hc-danger-ink, #b91c1c)' }} className="text-sm">{problem[k]}</div> : null)
+  if (!rules || !opts) return <div className={card}>Loading…</div>
+  return (
+    <div>
+      <div className={card}>
+        <p className={soft}>Say when something happens on a visit, who is told, and how. Relatives are only reached the way they agreed to (text, email, or an app notice they turned on themselves). The office always gets a notice in the app as well. The standard arrival and finish notices keep going without any rule.</p>
+        <button className="hc-btn hc-btn-primary" onClick={() => { setForm({ ...BLANK_RULE }); setProblem({}) }}>+ New rule</button>
+      </div>
+      {rules.length === 0 ? <div className={card}><span className={soft}>No rules yet.</span></div> : (
+        <div className={card}>
+          <table className="hc-table">
+            <thead><tr><th>Rule</th><th>When</th><th>Who is told</th><th>How</th><th>On</th><th /></tr></thead>
+            <tbody>
+              {rules.map((r) => (
+                <tr key={r.id}>
+                  <td><strong>{r.name}</strong>{r.message && <div className={soft}>{r.message}</div>}</td>
+                  <td>{r.triggerLabel}{r.trigger === 'late_clock_in' ? ` (${r.minutes}+ minutes after the scheduled start)` : ''}</td>
+                  <td>{r.audienceLabel}</td>
+                  <td>{r.channels.map((c) => CHANNEL_NAMES[c] ?? c).join(', ')}</td>
+                  <td><input type="checkbox" aria-label={`${r.name} is on`} checked={r.isActive} onChange={() => toggle(r)} /></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setForm({ id: r.id, name: r.name, trigger: r.trigger, minutes: String(r.minutes ?? 15), audience: r.audience, channels: r.channels, message: r.message ?? '' }); setProblem({}) }}>Edit</button>{' '}
+                    <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => remove(r)}>Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {form && (
+        <div className={card} role="dialog" aria-label={form.id ? 'Edit rule' : 'New rule'}>
+          <h3 style={{ marginTop: 0 }}>{form.id ? 'Edit rule' : 'New rule'}</h3>
+          <div style={{ marginBottom: 12 }}><label className="block text-sm font-semibold mb-1" htmlFor="ar-name">Name</label><input id="ar-name" className={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />{note('name')}</div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="block text-sm font-semibold mb-1" htmlFor="ar-trigger">When</label>
+            <select id="ar-trigger" className={inp} value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })}>{opts.triggers.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select>{note('trigger')}
+          </div>
+          {form.trigger === 'late_clock_in' && (
+            <div style={{ marginBottom: 12 }}><label className="block text-sm font-semibold mb-1" htmlFor="ar-min">Minutes after the scheduled start</label><input id="ar-min" className={inp} type="number" min={1} max={240} value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} />{note('minutes')}</div>
+          )}
+          <div style={{ marginBottom: 12 }}>
+            <label className="block text-sm font-semibold mb-1" htmlFor="ar-aud">Who is told</label>
+            <select id="ar-aud" className={inp} value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value, channels: form.channels.filter((c) => channelsFor(e.target.value).includes(c)) })}>{opts.audiences.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select>{note('audience')}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div className="block text-sm font-semibold mb-1">How</div>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {channelsFor(form.audience).map((c) => (
+                <label key={c} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={form.channels.includes(c)} onChange={(e) => setForm({ ...form, channels: e.target.checked ? [...form.channels, c] : form.channels.filter((x) => x !== c) })} />
+                  {CHANNEL_NAMES[c] ?? c}
+                </label>
+              ))}
+            </div>{note('channels')}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="block text-sm font-semibold mb-1" htmlFor="ar-msg">Message (optional)</label>
+            <textarea id="ar-msg" className={inp} rows={3} maxLength={300} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Leave empty for a plain message" />
+            <div className={soft}>You can use {opts.tokens.filter((t) => t !== 'minutes' || form.trigger === 'late_clock_in').map((t) => `{${t}}`).join(', ')}.</div>{note('message')}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="hc-btn hc-btn-primary" onClick={save}>Save rule</button>
+            <button className="hc-btn hc-btn-secondary" onClick={() => setForm(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function FamilyMessages() {
   const [tab, setTab] = useState<Tab>('requests')
-  const tabs: Array<[Tab, string]> = [['requests', 'Requests'], ['texts', 'Texts & emails sent'], ['wording', 'Text wording'], ['emails', 'Portal emails']]
+  const tabs: Array<[Tab, string]> = [['requests', 'Requests'], ['texts', 'Texts & emails sent'], ['wording', 'Text wording'], ['emails', 'Portal emails'], ['rules', 'Alert rules']]
   return (
     <div>
       <h2 style={{ marginTop: 0 }}>Family messages</h2>
@@ -186,7 +285,7 @@ export default function FamilyMessages() {
           <button key={k} role="tab" aria-selected={tab === k} className={`hc-btn ${tab === k ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => setTab(k)}>{label}</button>
         ))}
       </div>
-      {tab === 'requests' ? <Requests /> : tab === 'texts' ? <Texts /> : tab === 'wording' ? <WordingTab /> : <EmailsTab />}
+      {tab === 'requests' ? <Requests /> : tab === 'texts' ? <Texts /> : tab === 'wording' ? <WordingTab /> : tab === 'emails' ? <EmailsTab /> : <RulesTab />}
     </div>
   )
 }

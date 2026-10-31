@@ -58,6 +58,8 @@ interface Member {
   visitTextConsentWording?: string | null
   visitTextOptOutAt?: string | null
   visitEmailOptIn?: boolean | null
+  visitEmailOptInAt?: string | null
+  visitEmailConsentWording?: string | null
   canViewSchedule: boolean | null
   canViewCarePlan: boolean | null
   canViewMedications: boolean | null
@@ -739,8 +741,9 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
   const editContentOn = useAuth().hasFeature('care_family_content')
   const commsOn = useAuth().hasFeature('care_family_comms')
   const [words, setWords] = useState('')
+  const [emailWords, setEmailWords] = useState('')
   useEffect(() => {
-    if (commsOn && textsOn) api.get('/api/family-comms/consent-wording').then((r: any) => setWords(r?.text || '')).catch(() => {})
+    if (commsOn) api.get('/api/family-comms/consent-wording').then((r: any) => { setWords(r?.text || ''); setEmailWords(r?.email || '') }).catch(() => {})
   }, [commsOn, textsOn])
   const [saving, setSaving] = useState(false)
 
@@ -812,6 +815,13 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
             Email them when the caregiver arrives and when they leave
           </label>
           <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Goes to their login email.</small>
+          <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: 'var(--hc-ink-soft)' }}>
+            {member.visitEmailOptIn && member.visitEmailConsentWording
+              ? <>What they agreed to, kept with their yes{member.visitEmailOptInAt ? ` on ${formatDateTime(member.visitEmailOptInAt)}` : ''}: &ldquo;{member.visitEmailConsentWording}&rdquo;</>
+              : member.visitEmailOptIn
+                ? <>Their yes was recorded before the words were kept.</>
+                : emailWords ? <>Ticking this records their yes to: &ldquo;{emailWords}&rdquo; Read it to them first.</> : null}
+          </div>
         </div>
       )}
       <div className="modal-actions">

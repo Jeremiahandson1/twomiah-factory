@@ -98,6 +98,21 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
     return sent
   }
 
+  // ── Web push to a relative's own browser or phone (family_push_subscription; row 7 extras) ──────────────────────────
+  // 'sent' | 'gone' (the browser dropped the subscription: stop using it) | 'failed'.
+  let sendWebPushToImpl = async (subscription: unknown, payload: Record<string, unknown>): Promise<'sent' | 'gone' | 'failed'> => {
+    const pub = process.env.VAPID_PUBLIC_KEY, priv = process.env.VAPID_PRIVATE_KEY
+    if (!pub || !priv) return 'failed'
+    const webpush: any = (await import('web-push')).default
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:noreply@example.com', pub, priv)
+    try { await webpush.sendNotification(subscription, JSON.stringify(payload)); return 'sent' } catch (e: any) {
+      return e?.statusCode === 404 || e?.statusCode === 410 ? 'gone' : 'failed'
+    }
+  }
+  const sendWebPushTo = async (subscription: unknown, payload: Record<string, unknown>): Promise<'sent' | 'gone' | 'failed'> => {
+    try { return await sendWebPushToImpl(subscription, payload) } catch (e: any) { log('family push failed', e); return 'failed' }
+  }
+
   // ── Expo push (the caregiver app): the shared sender, core/phonePush.ts ──────────────────
   const sendExpoPush = (userId: string, payload: Record<string, unknown>): Promise<number> =>
     d.phonePush.send(null, [userId], {
@@ -133,7 +148,7 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
   async function sendCaregiverAlert(a: {
     companyId: string
     userId: string | null | undefined
-    alertType: 'shift_reminder' | 'overtime_alert' | 'cert_reminder' | 'medication_reminder'
+    alertType: 'shift_reminder' | 'overtime_alert' | 'cert_reminder' | 'medication_reminder' | 'agency_rule'
     channel: 'push' | 'sms'
     phone?: unknown
     body: string
@@ -149,11 +164,12 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
   }
 
   return {
-    notifyUser, notifyAdmins, notifyClient, sendText, sendExpoPush, sendPush, recordAudit, sendCaregiverAlert,
+    notifyUser, notifyAdmins, notifyClient, sendText, sendExpoPush, sendPush, sendWebPushTo, recordAudit, sendCaregiverAlert,
     toE164, isExpoToken, OFFICE_ROLES, EXPO_PUSH_URL,
     /** Test hooks. */
     _setSmsSender(fn: typeof sendSmsImpl) { sendSmsImpl = fn },
     _setPushSender(fn: typeof sendPushImpl) { sendPushImpl = fn },
+    _setFamilyPushSender(fn: typeof sendWebPushToImpl) { sendWebPushToImpl = fn },
     _setExpoTransport(fn: ExpoTransport) { d.phonePush.setTransport(fn) },
   }
 }
