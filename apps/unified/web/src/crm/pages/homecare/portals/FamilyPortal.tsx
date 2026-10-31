@@ -30,6 +30,7 @@ import { serviceLabel } from '../lib/serviceTypes'
 import { saveBlob } from '../lib/http'
 import { createPortalClient, listRows, PortalContext, SESSION_EXPIRED, usePortal } from './portalHttp'
 import CaregiverBackgroundChecks from './CaregiverBackgroundChecks'
+import PaymentMethodPanel from './PaymentMethodPanel'
 import './portals.css'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -44,6 +45,10 @@ export interface FamilyMember {
   canViewMedications?: boolean | null
   canViewVitals?: boolean | null
   canViewDocuments?: boolean | null
+  /** row 22: this relative may save, replace or remove the card or bank account that pays the invoices */
+  canManagePayments?: boolean | null
+  /** care_autopay is on: the agency takes a saved card or bank account, so the Payments tab exists */
+  payments?: boolean | null
   /** care_family_content is on for this agency: the Daily care and Documents tabs exist, and vitals have their own switch */
   careContent?: boolean | null
   /** care_family_comms is on: the Requests tab exists */
@@ -576,6 +581,18 @@ function DocumentsView() {
 interface MyRequest { id: string; kind: string; kindLabel: string; visitDate: string | null; details: string; status: string; statusLabel: string; handledNote: string | null; createdAt: string }
 const REQUEST_CHOICES: Array<[string, string]> = [['visit_change', 'Change a visit'], ['service_change', 'Change the service'], ['new_visit', 'Ask for a new visit']]
 
+// Row 22 (care_autopay): the card or bank account that pays the invoices, saved or replaced on Stripe's own page.
+function PaymentsView() {
+  const saved = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('saved') === '1'
+  return (
+    <div>
+      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Payments</h3>
+      {saved && <div style={{ ...CARD, color: 'var(--hc-success-ink)' }}>Thank you — it was saved. Each invoice is paid from it as it is sent.</div>}
+      <PaymentMethodPanel base="/api/family-portal/portal" />
+    </div>
+  )
+}
+
 function RequestsView() {
   const portal = usePortal()
   const [list, setList] = useState<MyRequest[]>([])
@@ -682,8 +699,8 @@ function NoticesView() {
 }
 
 // ── Overview ──────────────────────────────────────────────────
-type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'requests' | 'notices' | 'messages'
-interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; careContent: boolean; careComms: boolean; canMessage: boolean }
+type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'payments' | 'requests' | 'notices' | 'messages'
+interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; careContent: boolean; careComms: boolean; canMessage: boolean }
 
 function OverviewView({ client, userName, permissions, setActiveTab }: { client: FamilyClient | null; userName: string; permissions: Permissions; setActiveTab: (k: TabKey) => void }) {
   const quickLinks: Array<{ key: TabKey; label: string; icon: string; color: string }> = []
@@ -791,6 +808,8 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
     careComms: !!member?.careComms,
     canViewVitals: member?.careContent ? !!member?.canViewVitals : !!member?.canViewMedications,
     canViewDocuments: !!member?.careContent && !!member?.canViewDocuments,
+    // Row 22: the Payments tab needs the agency's autopay (care_autopay) and this relative's own switch.
+    canManagePayments: !!member?.payments && !!member?.canManagePayments,
     canMessage: !!member?.canMessage,
   }
 
@@ -802,6 +821,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
   if (permissions.canViewMedications) tabs.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'Medications', icon: '💊' })
   if (permissions.canViewVitals) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
   if (permissions.canViewDocuments) tabs.push({ key: 'documents', label: 'Documents', icon: '📁' })
+  if (permissions.canManagePayments) tabs.push({ key: 'payments', label: 'Payments', icon: '💳' })
   if (permissions.canMessage && permissions.careComms) tabs.push({ key: 'requests', label: 'Requests', icon: '✉️' })
   if (permissions.careComms) tabs.push({ key: 'notices', label: 'Notices', icon: '🔔' })
   if (permissions.canMessage) tabs.push({ key: 'messages', label: 'Messages', icon: '💬' })
@@ -824,6 +844,7 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
       case 'medications': return permissions.canViewMedications ? <MedicationsView medicineList={permissions.careContent} /> : null
       case 'vitals': return permissions.canViewVitals ? <VitalsView /> : null
       case 'documents': return permissions.canViewDocuments ? <DocumentsView /> : null
+      case 'payments': return permissions.canManagePayments ? <PaymentsView /> : null
       case 'requests': return permissions.canMessage && permissions.careComms ? <RequestsView /> : null
       case 'notices': return permissions.careComms ? <NoticesView /> : null
       case 'messages': return permissions.canMessage ? <MessagesView canMessage /> : null

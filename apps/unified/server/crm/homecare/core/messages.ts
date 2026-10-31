@@ -239,25 +239,80 @@ If you would rather sign on paper, or have questions about anything in it, conta
   homecareAutopayFailed: (data, b, appUrl) => {
     const n = nameOf(data, b)
     const link = invoiceLink(data, appUrl)
-    const next = data.retryOn ? `We will try the card again on ${data.retryOn}.` : 'We will not try this card again.'
+    const thing = data.bank ? 'bank account' : 'card'
+    const next = data.retryOn ? `We will try the ${thing} again on ${data.retryOn}.` : `We will not try this ${thing} again.`
+    // Row 22: the same words again as a reminder while the bank still waits for the owner's approval.
+    const reminder = data.reminder ? 'This is a reminder: the payment below is still waiting for you. ' : ''
     return {
-      subject: `We could not take your card payment — Invoice #${data.invoiceNumber}`,
+      subject: `${data.reminder ? 'Reminder: ' : ''}We could not take your ${thing} payment — Invoice #${data.invoiceNumber}`,
       html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
       <body><div class="container">
         <div class="header"><h1 style="margin:0;">${escHtml(n)}</h1></div>
         <div class="content">
           <p>Hello ${escHtml(data.contactName)},</p>
+          ${reminder ? `<p><strong>${escHtml(reminder.trim())}</strong></p>` : ''}
           <div class="highlight"><p style="margin:0;"><strong>Your automatic payment of $${escHtml(data.amountDue)} for invoice #${escHtml(data.invoiceNumber)} did not go through.</strong></p></div>
           <p>The reason: ${escHtml(data.reason)}.</p>
-          <p>${escHtml(next)} You can also pay now, with this or another card.</p>
+          <p>${escHtml(next)} You can also pay now, with this or another ${thing}.</p>
           ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">Pay $${escHtml(data.amountDue)} now</a></p>` : ''}
           <p><small>If you have already paid, thank you — please disregard this notice. Questions? Contact our office.</small></p>
         </div>
         <div class="footer">${escHtml(n)}</div>
       </div></body></html>
     `,
-      text: `Hello ${data.contactName}, your automatic payment of $${data.amountDue} for invoice #${data.invoiceNumber} did not go through. The reason: ${data.reason}. ${next} ${link ? `Pay now: ${link}` : 'Please contact our office to pay another way.'}`,
+      text: `Hello ${data.contactName}, ${reminder}your automatic payment of $${data.amountDue} for invoice #${data.invoiceNumber} did not go through. The reason: ${data.reason}. ${next} ${link ? `Pay now: ${link}` : 'Please contact our office to pay another way.'}`,
+    }
+  },
+
+  // Row 22 (care_autopay): the receipt after a successful automatic payment — what was paid, with what, and what is still owed.
+  homecareAutopayReceipt: (data, b, appUrl) => {
+    const n = nameOf(data, b)
+    const link = invoiceLink(data, appUrl)
+    const left = Number(data.stillOwed) > 0 ? `$${data.stillOwed} is still owed on this invoice.` : 'This invoice is now paid in full.'
+    return {
+      subject: `Receipt: $${data.amount} paid on invoice #${data.invoiceNumber}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(n)}</h1><p style="margin:4px 0 0;opacity:0.9;">Payment receipt</p></div>
+        <div class="content">
+          <p>Hello ${escHtml(data.contactName)},</p>
+          <div class="highlight">
+            <p style="margin:0;"><strong>$${escHtml(data.amount)}</strong> was paid on <strong>${escHtml(data.paidOn)}</strong> for invoice #${escHtml(data.invoiceNumber)}.</p>
+            <p style="margin:4px 0 0;">Paid with: ${escHtml(data.paidWith)}</p>
+          </div>
+          <p>${escHtml(left)}</p>
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View the invoice</a></p>` : ''}
+          <p><small>Keep this email for your records. Questions about this payment? Contact our office.</small></p>
+        </div>
+        <div class="footer">${escHtml(n)}</div>
+      </div></body></html>
+    `,
+      text: `Hello ${data.contactName}, $${data.amount} was paid on ${data.paidOn} for invoice #${data.invoiceNumber} (paid with ${data.paidWith}). ${left} ${link ? `View the invoice: ${link}` : ''}`,
+    }
+  },
+
+  // Row 22 (care_autopay): about a month before the card on file expires.
+  homecareCardExpiring: (data, b) => {
+    const n = nameOf(data, b)
+    return {
+      subject: `Your card on file with ${n} expires ${data.expires}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(n)}</h1></div>
+        <div class="content">
+          <p>Hello ${escHtml(data.contactName)},</p>
+          <div class="highlight"><p style="margin:0;"><strong>The ${escHtml(data.cardLabel)} that pays your care invoices expires ${escHtml(data.expires)}.</strong></p></div>
+          <p>To keep your payments going without a gap, save a new card before then — from your portal, or by calling our office. Nothing is charged when a card is saved.</p>
+          ${data.portalUrl ? `<p style="text-align:center;"><a href="${escHtml(data.portalUrl)}" class="button">Open my portal</a></p>` : ''}
+          <p><small>If you have already saved a new card, thank you — please disregard this notice.</small></p>
+        </div>
+        <div class="footer">${escHtml(n)}</div>
+      </div></body></html>
+    `,
+      text: `Hello ${data.contactName}, the ${data.cardLabel} that pays your care invoices with ${n} expires ${data.expires}. Save a new card before then from your portal${data.portalUrl ? ` (${data.portalUrl})` : ''} or by calling our office.`,
     }
   },
 
@@ -345,6 +400,8 @@ export const HOMECARE_TEMPLATE_NAMES: Record<string, string> = {
   invoiceEmail: 'homecareInvoiceEmail',
   invoiceReminder: 'homecareInvoiceReminder',
   autopayFailed: 'homecareAutopayFailed',
+  autopayReceipt: 'homecareAutopayReceipt',
+  cardExpiring: 'homecareCardExpiring',
   familyPortalWelcome: 'homecareFamilyPortalWelcome',
   familyPasswordReset: 'homecareFamilyPasswordReset',
   passwordReset: 'homecarePasswordReset',
@@ -369,6 +426,8 @@ export function homecareEmail(email: Pick<EmailService, 'send' | 'sendRaw' | 'pr
     sendInvoiceEmail: named('invoiceEmail'),
     sendInvoiceReminder: named('invoiceReminder'),
     sendAutopayFailed: named('autopayFailed'),
+    sendAutopayReceipt: named('autopayReceipt'),
+    sendCardExpiring: named('cardExpiring'),
     sendFamilyPortalWelcome: named('familyPortalWelcome'),
     sendFamilyPasswordReset: named('familyPasswordReset'),
     sendFamilyPasswordSetByAdmin: named('familyPasswordSetByAdmin'),

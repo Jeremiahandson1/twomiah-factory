@@ -68,14 +68,15 @@ const memberColumns = {
   canViewMedications: familyMembers.canViewMedications,
   canViewVitals: familyMembers.canViewVitals,
   canViewDocuments: familyMembers.canViewDocuments,
+  canManagePayments: familyMembers.canManagePayments,
   canMessage: familyMembers.canMessage,
   lastLogin: familyMembers.lastLoginAt,
   createdAt: familyMembers.createdAt,
   updatedAt: familyMembers.updatedAt,
 }
-type Member = { id: string; clientId: string; name: string; canViewSchedule: boolean | null; canViewCarePlan: boolean | null; canViewMedications: boolean | null; canViewVitals: boolean | null; canViewDocuments: boolean | null; canMessage: boolean | null } & Record<string, unknown>
+type Member = { id: string; clientId: string; name: string; canViewSchedule: boolean | null; canViewCarePlan: boolean | null; canViewMedications: boolean | null; canViewVitals: boolean | null; canViewDocuments: boolean | null; canManagePayments: boolean | null; canMessage: boolean | null } & Record<string, unknown>
 type FamilyEnv = { Variables: AppEnv['Variables'] & { familyMember: Member; familyClientId: string; familyCompanyId: string } }
-type Permission = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canMessage'
+type Permission = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canManagePayments' | 'canMessage'
 
 /** "Mary" + "Smith" → "Mary Smith"; a single `name` is taken as given. */
 const composeName = (b: any): string =>
@@ -155,6 +156,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       // Vitals have their own switch (care_family_content); a new relative who may see medicines is shown vitals too unless the office says otherwise.
       canViewVitals: b.canViewVitals === undefined ? b.canViewMedications === true : b.canViewVitals === true,
       canViewDocuments: b.canViewDocuments === true,
+      canManagePayments: b.canManagePayments === true,
       canMessage: b.canMessage !== false,
       isPrimaryContact: b.isPrimaryContact === true,
       // The relative's yes to arrival/departure texts, recorded by the office; never assumed.
@@ -246,7 +248,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     }
     if (typeof b?.phone === 'string') patch.phone = b.phone.trim() || null
     if (typeof b?.relationship === 'string') patch.relationship = b.relationship.trim() || null
-    for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canViewVitals', 'canViewDocuments', 'canMessage', 'isPrimaryContact'] as const) {
+    for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canViewVitals', 'canViewDocuments', 'canManagePayments', 'canMessage', 'isPrimaryContact'] as const) {
       if (typeof b?.[k] === 'boolean') patch[k] = b[k]
     }
     // Arrival/departure texts: turning them on needs a phone number on the relative (the one being saved, or the one on file).
@@ -471,7 +473,11 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   // ════ THE FAMILY'S PORTAL ═══════════════════════════════════════════════════════════════
 
   // careContent: the agency has the daily-care tabs on (care_family_content) — the portal shows them and wording like "Medicine list".
-  app.get('/portal/me', familyAuth, async (c) => one(c, { ...c.get('familyMember'), careContent: await core.familyContent.enabled(c.get('familyCompanyId')), careComms: await core.familyComms.enabled(c.get('familyCompanyId')) }))
+  app.get('/portal/me', familyAuth, async (c) => one(c, {
+    ...c.get('familyMember'), careContent: await core.familyContent.enabled(c.get('familyCompanyId')), careComms: await core.familyComms.enabled(c.get('familyCompanyId')),
+    // Row 22: the agency takes a saved card or bank account (care_autopay) — the Payments tab exists for a relative with the switch.
+    payments: await d.features.isFeatureEnabled(c.get('familyCompanyId'), 'care_autopay'),
+  }))
 
   app.get('/portal/client', familyAuth, async (c) => {
     const companyId = c.get('familyCompanyId')
@@ -597,6 +603,31 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       'Content-Disposition': `attachment; filename="${String(doc.fileName || 'document').replace(/[^\w.\- ]/g, '_')}"`,
       'X-Content-Type-Options': 'nosniff',
     } })
+  })
+
+  // ── The card or bank account that pays the invoices (row 22, care_autopay) ───────────────────────────────────────────────────
+  // A relative with the "manage payments" switch sees what is on file (brand / bank and last four only), opens Stripe's own
+  // page to save or replace it, or removes it. Without care_autopay the routes are not there (404). Nothing here takes a number.
+  const paymentsOff = async (c: Context<FamilyEnv>) => (await d.features.isFeatureEnabled(c.get('familyCompanyId'), 'care_autopay')) ? null : fail(c, 404, 'Not found')
+  app.get('/portal/payment-method', familyAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (!allowed(c, 'canManagePayments')) return fail(c, 403, 'Access denied')
+    return one(c, await core.autopay.portalStatus(c.get('familyCompanyId'), c.get('familyClientId')))
+  })
+  app.post('/portal/payment-method/setup', familyAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (!allowed(c, 'canManagePayments')) return fail(c, 403, 'Access denied')
+    const b = await c.req.json().catch(() => ({} as any))
+    const base = familyLoginUrl()
+    const out = await core.autopay.startSetup(c.get('familyCompanyId'), c.get('familyClientId'), { success: `${base}?saved=1`, cancel: `${base}?cancelled=1` }, null, { method: b?.method ? String(b.method) : 'card', by: 'family' })
+    if ('problem' in out) return fail(c, out.status as any, out.problem, out.code)
+    return one(c, out)
+  })
+  app.delete('/portal/payment-method', familyAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (!allowed(c, 'canManagePayments')) return fail(c, 403, 'Access denied')
+    if (!(await core.autopay.remove(c.get('familyCompanyId'), c.get('familyClientId')))) return fail(c, 404, 'There is no card or bank account on file.')
+    return done(c)
   })
 
   // ── Requests to the office (care_family_comms): change a visit, change the service, ask for a new visit ────────────────────

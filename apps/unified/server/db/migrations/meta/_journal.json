@@ -456,6 +456,13 @@
       "when": 1793479714423,
       "tag": "0064_care_reports_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1793480552900,
+      "tag": "0065_care_autopay_finished",
+      "breakpoints": true
     }
   ]
 }

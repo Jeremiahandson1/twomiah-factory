@@ -2179,6 +2179,8 @@ export const familyMembers = pgTable('family_members', {
   // care_family_content: vitals have their own switch (they followed the medicines one), and so do the documents the agency shares.
   canViewVitals: boolean('can_view_vitals').default(false).notNull(),
   canViewDocuments: boolean('can_view_documents').default(false).notNull(),
+  // Row 22 (care_autopay): this relative may save, replace or remove the card or bank account that pays the client's invoices.
+  canManagePayments: boolean('can_manage_payments').default(false).notNull(),
   canMessage: boolean('can_message').default(true).notNull(),
   isPrimaryContact: boolean('is_primary_contact').default(false).notNull(),
   // Asked for by the relative: a text from the agency when the caregiver arrives and when they leave (core/familyTexts.ts). Off until the office records the yes; visitTextOptInAt is when.
@@ -3331,6 +3333,14 @@ export const clientAutopay = pgTable('client_autopay', {
   setupSessionId: text('setup_session_id'),
   consentText: text('consent_text'),
   consentAt: timestamp('consent_at'),
+  // Row 22: what is on file — 'card', a US bank account ('us_bank_account', ACH debit) or a Canadian one ('acss_debit',
+  // pre-authorized debit); the bank's name for the office; Stripe's mandate for a bank debit; who saved it ('office',
+  // 'family', 'client'); and the card expiry month ('YYYY-MM') a warning was already sent for.
+  method: text('method').default('card').notNull(),
+  bankName: text('bank_name'),
+  mandateId: text('mandate_id'),
+  savedBy: text('saved_by'),
+  expiryWarnedFor: text('expiry_warned_for'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -3356,11 +3366,39 @@ export const autopayAttempt = pgTable('autopay_attempt', {
   hardDecline: boolean('hard_decline').default(false).notNull(),
   nextAttemptAt: timestamp('next_attempt_at'),
   notifiedAt: timestamp('notified_at'),
+  // Row 22: the scheduled charge (autopay_schedule) this try was for, null for the charge on issue; the reminders sent after a
+  // "bank needs the owner" notice; when the receipt went out after a success.
+  scheduleId: text('schedule_id'),
+  remindersSent: integer('reminders_sent').default(0).notNull(),
+  lastReminderAt: timestamp('last_reminder_at'),
+  receiptSentAt: timestamp('receipt_sent_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('autopay_attempt_key').on(t.invoiceId, t.attemptNo),
   index('autopay_attempt_company_idx').on(t.companyId, t.status),
+])
+
+// Row 22 (care_autopay): a charge the office set for a later day — the whole balance on a chosen date, or a part of it (an
+// instalment plan is several rows on one invoice). An invoice with a plan is charged only by its plan, never on issue.
+// Each row is charged once (its tries are autopay_attempt rows carrying schedule_id); 'charged' when the money landed,
+// 'failed' when its tries ended, 'cancelled' when the office took it back.
+export const autopaySchedule = pgTable('autopay_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  chargeOn: date('charge_on').notNull(),
+  // null = whatever is still owed on the day
+  amountCents: integer('amount_cents'),
+  label: text('label'),
+  status: text('status').default('waiting').notNull(), // 'waiting' | 'charged' | 'failed' | 'cancelled'
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('autopay_schedule_due_idx').on(t.companyId, t.status, t.chargeOn),
+  index('autopay_schedule_invoice_idx').on(t.invoiceId),
 ])
 
 // Item 3 (care_ltc_billing): a client's long-term-care insurance policy, for the claim packet the payer asks for.

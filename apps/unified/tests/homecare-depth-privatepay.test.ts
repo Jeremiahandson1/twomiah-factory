@@ -170,7 +170,7 @@ describe('charging an invoice as it is sent', () => {
     expect((await release(inv.id)).status).toBe(200)
     expect(piCalls()).toHaveLength(1)
     const pi = piCalls()[0]
-    expect(pi.args).toMatchObject({ amount: 12000, currency: 'usd', customer: 'cus_1', payment_method: 'pm_seti_1', off_session: true, confirm: true })
+    expect(pi.args).toMatchObject({ amount: 12000, currency: 'usd', customer: 'cus_1', payment_method: 'pm_seti_1', off_session: 'one_off', confirm: true }) // row 22: the stored-credential usage type rides on off_session
     expect(pi.opts).toEqual({ stripeAccount: 'acct_agency', idempotencyKey: `autopay-${inv.id}-1` })
     expect(pi.args.metadata).toMatchObject({ kind: 'homecare_autopay', invoice_id: inv.id, company_id: companyId })
     const after = await row(inv.id)

@@ -27,7 +27,7 @@ import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { PasswordInput } from '../../../../shared'
 
-type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canMessage'
+type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canManagePayments' | 'canMessage'
 // A relative's switches: [the API's name, the label].
 const PERMISSIONS: Array<[PermKey, string]> = [
   ['canViewSchedule', 'Schedule'],
@@ -35,14 +35,18 @@ const PERMISSIONS: Array<[PermKey, string]> = [
   ['canViewMedications', 'Medications & vitals'],
   ['canMessage', 'Messages'],
 ]
-// With care_family_content on, vitals and documents are their own switches and the medicines one says so.
-const permissionsFor = (content: boolean): Array<[PermKey, string]> => !content ? PERMISSIONS : [
-  ['canViewSchedule', 'Schedule'],
-  ['canViewCarePlan', 'Care plan and daily care'],
-  ['canViewMedications', 'Medicine list'],
-  ['canViewVitals', 'View vitals'],
-  ['canViewDocuments', 'View documents'],
-  ['canMessage', 'Messages'],
+// With care_family_content on, vitals and documents are their own switches and the medicines one says so. With care_autopay on
+// (row 22), a relative can be let manage the card or bank account that pays the invoices.
+const permissionsFor = (content: boolean, payments = false): Array<[PermKey, string]> => [
+  ...(!content ? PERMISSIONS : [
+    ['canViewSchedule', 'Schedule'],
+    ['canViewCarePlan', 'Care plan and daily care'],
+    ['canViewMedications', 'Medicine list'],
+    ['canViewVitals', 'View vitals'],
+    ['canViewDocuments', 'View documents'],
+    ['canMessage', 'Messages'],
+  ] as Array<[PermKey, string]>),
+  ...(payments ? [['canManagePayments', 'Manage payments (card or bank on file)']] as Array<[PermKey, string]> : []),
 ]
 
 interface Member {
@@ -65,6 +69,7 @@ interface Member {
   canViewMedications: boolean | null
   canViewVitals?: boolean | null
   canViewDocuments?: boolean | null
+  canManagePayments?: boolean | null
   canMessage: boolean | null
   lastLogin: string | null
   clientFirstName: string | null
@@ -141,6 +146,7 @@ export default function FamilyPortalAdmin() {
   const mayCreate = can('care-portal:create')
   const showQuietHours = useAuth().hasFeature('care_family_texts') && can('care-portal:update')
   const contentOn = useAuth().hasFeature('care_family_content')
+  const paymentsOn = useAuth().hasFeature('care_autopay')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [messages, setMessages] = useState<FamilyMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -413,7 +419,7 @@ export default function FamilyPortalAdmin() {
                       <td>
                         {/* What the relative can see; changed in ✏️ Edit (one door, saved together). */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                          {permissionsFor(contentOn).map(([key, label]) => {
+                          {permissionsFor(contentOn, paymentsOn).map(([key, label]) => {
                             const on = !!member[key]
                             return <span key={key}>{on ? '✓' : '✗'} {label}{on ? '' : ' (off)'}</span>
                           })}
@@ -609,16 +615,17 @@ export default function FamilyPortalAdmin() {
 // ── Add a relative ──
 interface AddForm {
   clientId: string; firstName: string; lastName: string; email: string; phone: string; relationship: string; password: string
-  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canMessage: boolean
+  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; canMessage: boolean
 }
 
 function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[]; onSubmit: (f: AddForm) => void; onCancel: () => void }) {
   const toast = useToast()
   const [formData, setFormData] = useState<AddForm>({
     clientId: '', firstName: '', lastName: '', email: '', phone: '', relationship: 'child', password: '',
-    canViewSchedule: true, canViewCarePlan: true, canViewMedications: false, canViewVitals: false, canViewDocuments: false, canMessage: true,
+    canViewSchedule: true, canViewCarePlan: true, canViewMedications: false, canViewVitals: false, canViewDocuments: false, canManagePayments: false, canMessage: true,
   })
   const contentOn = useAuth().hasFeature('care_family_content')
+  const addPaymentsOn = useAuth().hasFeature('care_autopay')
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -700,6 +707,7 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
           {box('canViewMedications', contentOn ? 'View Medicine list' : 'View Medications')}
           {contentOn && box('canViewVitals', 'View vitals')}
           {contentOn && box('canViewDocuments', 'View documents')}
+          {addPaymentsOn && box('canManagePayments', 'Manage payments (card or bank on file)')}
           {box('canMessage', 'Send Messages')}
         </div>
       </div>
@@ -716,7 +724,7 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'guardian', 'other']
 interface EditPatch {
   name: string; phone: string; relationship: string
-  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canMessage: boolean; isPrimaryContact: boolean
+  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; canMessage: boolean; isPrimaryContact: boolean
   visitTextOptIn: boolean
   visitEmailOptIn: boolean
 }
@@ -732,6 +740,7 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
     canViewMedications: !!member.canViewMedications,
     canViewVitals: !!member.canViewVitals,
     canViewDocuments: !!member.canViewDocuments,
+    canManagePayments: !!member.canManagePayments,
     canMessage: !!member.canMessage,
     isPrimaryContact: !!member.isPrimaryContact,
     visitTextOptIn: !!member.visitTextOptIn,
@@ -739,6 +748,7 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
   })
   const textsOn = useAuth().hasFeature('care_family_texts')
   const editContentOn = useAuth().hasFeature('care_family_content')
+  const editPaymentsOn = useAuth().hasFeature('care_autopay')
   const commsOn = useAuth().hasFeature('care_family_comms')
   const [words, setWords] = useState('')
   const [emailWords, setEmailWords] = useState('')
@@ -775,7 +785,7 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
       <div className="form-group">
         <label>What they can see in the family portal</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-          {permissionsFor(editContentOn).map(([key, label]) => (
+          {permissionsFor(editContentOn, editPaymentsOn).map(([key, label]) => (
             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <input type="checkbox" checked={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} />
               {label}

@@ -84,17 +84,18 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
     return row && isClientVisibleInvoice(row.invoice) ? row : null
   }
 
-  /** A Stripe Checkout page for what is still owed, on the agency's own account. */
-  async function checkoutFor(row: NonNullable<Awaited<ReturnType<typeof invoiceWithClient>>>, urls: { success: string; cancel: string }, extra: Record<string, string> = {}) {
+  /** A Stripe Checkout page for what is still owed — or, from the invoice's page, a part of it (row 22) — on the agency's own account. */
+  async function checkoutFor(row: NonNullable<Awaited<ReturnType<typeof invoiceWithClient>>>, urls: { success: string; cancel: string }, extra: Record<string, string> = {}, amountCents?: number) {
     const { invoice, firstName, lastName, clientEmail } = row
     const stripe = await stripeClient(logger)
+    const part = amountCents != null && amountCents < Math.round(visitInvoiceOwed(invoice) * 100)
     return stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
           currency: 'usd',
-          product_data: { name: `Invoice #${invoice.seqNumber ?? invoice.invoiceNumber}`, description: `Home Care Services - ${firstName} ${lastName}` },
-          unit_amount: Math.round(visitInvoiceOwed(invoice) * 100),
+          product_data: { name: `Invoice #${invoice.seqNumber ?? invoice.invoiceNumber}${part ? ' (part payment)' : ''}`, description: `Home Care Services - ${firstName} ${lastName}` },
+          unit_amount: amountCents ?? Math.round(visitInvoiceOwed(invoice) * 100),
         },
         quantity: 1,
       }],
@@ -156,19 +157,27 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
     })
   })
 
-  // POST /document/:token/pay — a checkout from the invoice's page, on the agency's account. Refused, in the CRM's words,
-  // when the agency can't take a card.
+  // POST /document/:token/pay { amountCents? } — a checkout from the invoice's page, on the agency's account, for what is owed
+  // or (row 22) a part of it. Refused, in the CRM's words, when the agency can't take a card.
   app.post('/document/:token/pay', async (c) => {
     const token = c.req.param('token')
     const row = await invoiceByToken(token)
     if (!row) return fail(c, 404, LINK_GONE)
-    if (row.invoice.paymentStatus === 'paid' || visitInvoiceOwed(row.invoice) <= 0) return fail(c, 400, 'This invoice has nothing left to pay.')
+    const owedCents = Math.round(visitInvoiceOwed(row.invoice) * 100)
+    if (row.invoice.paymentStatus === 'paid' || owedCents <= 0) return fail(c, 400, 'This invoice has nothing left to pay.')
     if (!(await stripeClient(logger)) || !(await canTakeCards(row.invoice.companyId).catch(() => false))) return fail(c, 400, NOT_ONLINE, 'payments_unavailable')
+    const b = await c.req.json().catch(() => ({} as any))
+    let amountCents: number | undefined
+    if (b?.amountCents !== undefined && b?.amountCents !== null && b?.amountCents !== '') {
+      amountCents = Number(b.amountCents)
+      if (!Number.isInteger(amountCents) || amountCents < 100) return fail(c, 400, 'A part payment is at least $1.00.', 'bad_amount')
+      if (amountCents > owedCents) return fail(c, 400, `Only $${(owedCents / 100).toFixed(2)} is owed on this invoice.`, 'over_owed')
+    }
     const origin = originOf(c)
     const session = await checkoutFor(row, {
       success: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&doc=${token}`,
       cancel: `${origin}/d/${token}?cancelled=true`,
-    })
+    }, {}, amountCents)
     await db.update(invoices).set({ stripePaymentIntentId: session.id, updatedAt: new Date() })
       .where(and(eq(invoices.id, row.invoice.id), eq(invoices.companyId, row.invoice.companyId)))
     return one(c, { url: session.url })
