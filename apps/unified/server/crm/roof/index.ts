@@ -16,6 +16,7 @@ import { createRoofCommissions } from './commissions.ts'
 import { createRoofMoneyRoutes } from './moneySettings.ts'
 import { createJobPeopleRoutes } from './jobPeople.ts'
 import { createCommissionDrawRoutes } from './commissionDraws.ts'
+import { createCommissionDisclaimerRoutes } from './commissionDisclaimer.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
@@ -37,6 +38,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
     { path: '/api/roof-money', access: 'user', feature: 'commission_tracking', router: createRoofMoneyRoutes(d) },
     // The other people whose commission a job carries — estimator, canvasser, office, production and sales manager (./jobPeople.ts).
     { path: '/api/job-people', access: 'user', feature: 'commission_tracking', router: createJobPeopleRoutes(d) },
+    // The commission disclaimer a person accepts before seeing their own commissions (./commissionDisclaimer.ts).
+    { path: '/api/commission-disclaimer', access: 'user', feature: 'commission_tracking', router: createCommissionDisclaimerRoutes(d) },
     // Pre-commission draws — a part of a commission paid in advance when a job is turned in, taken off the commission later (./commissionDraws.ts).
     { path: '/api/commission-draws', access: 'user', feature: 'commission_tracking', router: createCommissionDrawRoutes(d) },
     // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.

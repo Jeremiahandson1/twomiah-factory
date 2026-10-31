@@ -153,6 +153,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [records, setRecords] = useState<any[]>([])
   const [plans, setPlans] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [disclaimerPending, setDisclaimerPending] = useState(false)
+  const [myDisclaimer, setMyDisclaimer] = useState<any | null>(null)
   const [busy, setBusy] = useState(false)
 
   const [planOpen, setPlanOpen] = useState(false)
@@ -176,7 +178,14 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
    * earnings, so a refusal on the pay structure must not take their earnings with it.
    */
   const load = useCallback(async () => {
-    try { setRecords(listOf(await api.get('/api/commissions'))) } catch (e) { toast.error(errMsg(e, 'Could not load commissions')) }
+    try {
+      const res = await api.get('/api/commissions')
+      setRecords(listOf(res))
+      // Roofing: the company's disclaimer, not yet accepted — the person's own lines are withheld until they accept it.
+      const pending = !!(res as any)?.disclaimerRequired
+      setDisclaimerPending(pending)
+      if (pending) { try { setMyDisclaimer(await api.get('/api/commission-disclaimer')) } catch { setMyDisclaimer(null) } }
+    } catch (e) { toast.error(errMsg(e, 'Could not load commissions')) }
     if (mayReadPlans) {
       try { setPlans(listOf(await api.get('/api/commissions/plans'))) } catch (e) { toast.error(errMsg(e, 'Could not load commission plans')) }
       // Names for the people each plan pays (and the forms' lists).
@@ -190,6 +199,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [rules, setRules] = useState<any | null>(null)
   const [minKind, setMinKind] = useState<'none' | 'percent' | 'amount'>('none')
   const [minValue, setMinValue] = useState('')
+  const [disclaimerText, setDisclaimerText] = useState('')
+  const [acceptances, setAcceptances] = useState<any[]>([])
   const [viewerRoles, setViewerRoles] = useState<string[]>(['manager'])
   const loadRules = useCallback(async () => {
     try {
@@ -198,6 +209,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       setMinKind(r?.minProfit?.kind || 'none')
       setMinValue(r?.minProfit ? String(r.minProfit.value) : '')
       setViewerRoles(Array.isArray(r?.commissionViewerRoles) ? r.commissionViewerRoles : ['manager'])
+      setDisclaimerText(r?.commissionDisclaimer || '')
+      try { setAcceptances(listOf(await api.get('/api/commission-disclaimer/acceptances'))) } catch { setAcceptances([]) }
     } catch (e) { setRules(null); toast.error(errMsg(e, 'Could not load the commission rules')) }
   }, [api])
   useEffect(() => { if (config.moneyRules && mayReadPlans) loadRules() }, [config.moneyRules, mayReadPlans, loadRules])
@@ -211,6 +224,19 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     } catch (err) { toast.error(errMsg(err, 'The rules could not be saved')) } finally { setBusy(false) }
   }
 
+  const saveDisclaimer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      setRules(await api.put('/api/roof-money/settings', { commissionDisclaimer: disclaimerText.trim() ? disclaimerText : null }))
+      try { setAcceptances(listOf(await api.get('/api/commission-disclaimer/acceptances'))) } catch { /* the list stays as it was */ }
+      toast.success('Disclaimer saved')
+    } catch (err) { toast.error(errMsg(err, 'The disclaimer could not be saved')) } finally { setBusy(false) }
+  }
+  const acceptDisclaimer = async () => {
+    setBusy(true)
+    try { await api.post('/api/commission-disclaimer/accept', {}); toast.success('Thank you — accepted'); await load() } catch (err) { toast.error(errMsg(err, 'This could not be saved')) } finally { setBusy(false) }
+  }
   const saveViewers = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -440,6 +466,24 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           </div>
           {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
         </form>
+        <form onSubmit={saveDisclaimer} className="bg-white border border-gray-200 rounded-lg p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Commission disclaimer</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400">Words everyone who collects a commission accepts before they see their own. Leave it empty for none. Changing the words asks everyone to accept them again.</p>
+          <Field label="Disclaimer">
+            <textarea rows={5} disabled={!mayUpdate} value={disclaimerText} onChange={(e) => setDisclaimerText(e.target.value)} className={inputCls} />
+          </Field>
+          {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
+          {rules?.commissionDisclaimer && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Who has accepted</h3>
+              {acceptances.length === 0
+                ? <p className="text-sm text-gray-600 dark:text-slate-400">Nobody has a commission yet.</p>
+                : <ul className="text-sm text-gray-800 dark:text-slate-200 divide-y divide-gray-100 dark:divide-slate-800">
+                    {acceptances.map((a) => <li key={a.userId} className="flex justify-between py-1"><span>{a.userName}</span><span>{a.accepted ? `Accepted ${instantDay(a.acceptedAt)}` : 'Not yet'}</span></li>)}
+                  </ul>}
+            </div>
+          )}
+        </form>
         <form onSubmit={saveViewers} className="bg-white border border-gray-200 rounded-lg p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100">Who sees commissions</h2>
           <p className="text-sm text-gray-600 dark:text-slate-400">Owners and admins always see everyone&rsquo;s commissions and how they are worked out. Choose who else does. Everyone sees their own earnings whatever is chosen. A change reaches people signed in at their next sign-in.</p>
@@ -475,6 +519,13 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           ) : null)}
       />
 
+      {disclaimerPending && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4 dark:bg-amber-950/30 dark:border-amber-800" data-card="commission-disclaimer">
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Before you see your commissions</h2>
+          <p className="text-sm text-gray-800 whitespace-pre-line mt-1 dark:text-slate-200">{myDisclaimer?.text}</p>
+          <div className="flex justify-end mt-3"><Button onClick={acceptDisclaimer} disabled={busy}>I accept</Button></div>
+        </div>
+      )}
       <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-slate-700" role="tablist">
         <button role="tab" aria-selected={tab === 'records'} onClick={() => setTab('records')} className={tabCls(tab === 'records')}>Earnings</button>
         {mayReadPlans && <button role="tab" aria-selected={tab === 'plans'} onClick={() => setTab('plans')} className={tabCls(tab === 'plans')}>Plans</button>}

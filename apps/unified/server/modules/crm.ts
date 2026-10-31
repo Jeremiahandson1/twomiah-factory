@@ -6,6 +6,7 @@
 // Access: a module whose router signs people in itself AND answers a provider or a customer without a session
 // (texting's and Stripe's webhooks, QuickBooks' callback, a review link, an unsubscribe link) is mounted public, as the
 // template mounted it; every other one is mounted for signed-in users, and the registry signs them in first.
+import { createCommissionDisclaimer } from '../crm/roof/commissionDisclaimer.ts'
 import { checkAvailability } from '../data/techAvailability.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -467,7 +468,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
-    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.roof ? { ownWithheld: createCommissionDisclaimer(own).pendingFor } : {}), ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },

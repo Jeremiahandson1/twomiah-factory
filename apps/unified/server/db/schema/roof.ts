@@ -490,9 +490,27 @@ export const roofMoneySetting = pgTable('roof_money_setting', {
   // The roles below owner/admin that see EVERYONE's commissions and the pay structure (a list of role ids); null = the default, the
   // manager. Everyone always sees their own earnings.
   commissionViewerRoles: json('commission_viewer_roles'),
+  // The disclaimer a person who collects commissions accepts before seeing their own (./commissionDisclaimer.ts). Null: none. The
+  // version goes up whenever the words change, so a changed disclaimer is accepted again.
+  commissionDisclaimer: text('commission_disclaimer'),
+  commissionDisclaimerVersion: integer('commission_disclaimer_version').default(0).notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('roof_money_setting_company_id_idx').on(t.companyId),
+])
+
+// Who accepted which version of the company's commission disclaimer, and the words they accepted (kept as they were, so a later edit
+// never rewrites what a person agreed to).
+export const commissionDisclaimerAcceptance = pgTable('commission_disclaimer_acceptance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  version: integer('version').notNull(),
+  disclaimerText: text('disclaimer_text').notNull(),
+  acceptedAt: timestamp('accepted_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('commission_disclaimer_acceptance_user_version_idx').on(t.userId, t.version),
+  index('commission_disclaimer_acceptance_company_id_idx').on(t.companyId),
 ])
 
 // A job's inspection report (docs/parity/roof-inspection-report.md): a branded write-up built from the job's photos, in

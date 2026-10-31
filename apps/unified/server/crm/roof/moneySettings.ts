@@ -9,6 +9,9 @@
 //               The default is the manager, as it always was; field and viewer seats can be added and the manager taken off. Everyone
 //               always sees their own earnings. Applied by ./commissionViewers.ts through the shared permissions.
 //
+//   commissionDisclaimer    the words a person who collects commissions accepts before seeing their own (./commissionDisclaimer.ts);
+//               null = none. Changing the words raises commissionDisclaimerVersion, so a changed disclaimer is accepted again.
+//
 // GET is commissions:read (a manager reads the rules; nobody below that does). The registry gates the feature
 // (commission_tracking, an existing id: nothing new is advertised).
 import { Hono } from 'hono'
@@ -27,8 +30,10 @@ export const DEFAULT_COMMISSION_VIEWERS: string[] = ['manager']
 export interface RoofMoneySettings {
   minProfit: MinProfit | null
   commissionViewerRoles: string[]
+  commissionDisclaimer: string | null
+  commissionDisclaimerVersion: number
 }
-export const DEFAULT_MONEY_SETTINGS = (): RoofMoneySettings => ({ minProfit: null, commissionViewerRoles: [...DEFAULT_COMMISSION_VIEWERS] })
+export const DEFAULT_MONEY_SETTINGS = (): RoofMoneySettings => ({ minProfit: null, commissionViewerRoles: [...DEFAULT_COMMISSION_VIEWERS], commissionDisclaimer: null, commissionDisclaimerVersion: 0 })
 
 const minProfitSchema = z.object({
   kind: z.enum(['percent', 'amount'], { error: 'Choose percent or dollars for the minimum profit.' }),
@@ -38,6 +43,7 @@ const minProfitSchema = z.object({
 const settingsSchema = z.object({
   minProfit: minProfitSchema.nullable().optional(),
   commissionViewerRoles: z.array(z.enum(COMMISSION_VIEWER_CHOICES, { error: 'Choose roles from the list.' })).max(3).optional(),
+  commissionDisclaimer: z.string().max(5000, 'Keep the disclaimer under 5,000 characters.').nullable().optional(),
 })
 
 const num = (v: unknown) => Number(v || 0)
@@ -51,6 +57,8 @@ export function createRoofMoneySettings(d: CrmDeps) {
     if (!row) return out
     if (row.minProfitKind === 'percent' || row.minProfitKind === 'amount') out.minProfit = { kind: row.minProfitKind, value: num(row.minProfitValue) }
     if (Array.isArray(row.commissionViewerRoles)) out.commissionViewerRoles = (row.commissionViewerRoles as unknown[]).filter((r): r is string => (COMMISSION_VIEWER_CHOICES as readonly string[]).includes(String(r)))
+    out.commissionDisclaimer = row.commissionDisclaimer || null
+    out.commissionDisclaimerVersion = Number(row.commissionDisclaimerVersion || 0)
     return out
   }
 
@@ -60,6 +68,11 @@ export function createRoofMoneySettings(d: CrmDeps) {
     if (patch.minProfit !== undefined) {
       set.minProfitKind = patch.minProfit ? patch.minProfit.kind : null
       set.minProfitValue = patch.minProfit ? String(patch.minProfit.value) : null
+    }
+    if (patch.commissionDisclaimer !== undefined) {
+      const words = patch.commissionDisclaimer === null ? null : patch.commissionDisclaimer.trim() || null
+      const now = await read(companyId)
+      if (words !== now.commissionDisclaimer) { set.commissionDisclaimer = words; set.commissionDisclaimerVersion = now.commissionDisclaimerVersion + 1 }
     }
     if (patch.commissionViewerRoles !== undefined) set.commissionViewerRoles = [...new Set(patch.commissionViewerRoles)]
     await db.insert(roofMoneySetting).values({ companyId, ...set } as any)

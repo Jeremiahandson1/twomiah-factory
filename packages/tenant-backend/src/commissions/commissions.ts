@@ -42,6 +42,12 @@ export interface CommissionRoutesDeps {
   requirePermission: (permission: string) => any
   /** hasPermission(role, permission, extraPermissions) with the caller's per-user grants already resolved. */
   canSee: (role: string, permission: string, userId?: string) => Promise<boolean>
+  /**
+   * Roofing's commission disclaimer: true while the person has not accepted the company's current words. Their OWN commissions are
+   * then withheld from the list (flagged disclaimerRequired) and the statement is refused (403, code disclaimer_required). Absent:
+   * nothing is withheld, as in every other trade.
+   */
+  ownWithheld?: (companyId: string, userId: string) => Promise<boolean>
   /** The app's audit service (log({ action, entity, … req })): void and reassign are recorded with what changed. Optional. */
   audit?: { log: (entry: any) => any }
   /**
@@ -394,7 +400,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     else if (userId) conditions.push(eq(t.commission.userId, userId))
     if (status) conditions.push(eq(t.commission.status, status))
 
-    const rows = await db.select().from(t.commission).where(and(...conditions)).orderBy(desc(t.commission.earnedAt))
+    const all = await db.select().from(t.commission).where(and(...conditions)).orderBy(desc(t.commission.earnedAt))
+    const withheld = deps.ownWithheld ? await deps.ownWithheld(currentUser.companyId, currentUser.userId) : false
+    const rows = withheld ? all.filter((r: any) => r.userId !== currentUser.userId) : all
     const ids = [...new Set(rows.map((r: any) => r.userId).filter(Boolean))] as string[]
     const people = ids.length
       ? await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email })
@@ -402,7 +410,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       : []
     const nameOf = Object.fromEntries(people.map((p: any) => [p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email]))
     const numbered = await withJobNumbers(currentUser.companyId, rows)
-    return c.json({ data: numbered.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })) })
+    return c.json({ data: numbered.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })), ...(withheld ? { disclaimerRequired: true } : {}) })
   })
 
   /**
@@ -569,6 +577,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const userId = c.req.query('userId') || currentUser.userId
     const canSeeEveryone = await canSee(currentUser.role, 'commissions:read', currentUser.userId)
     if (userId !== currentUser.userId && !canSeeEveryone) return c.json({ error: 'You can see your own statement only.' }, 403)
+    if (userId === currentUser.userId && deps.ownWithheld && await deps.ownWithheld(companyId, currentUser.userId)) {
+      return c.json({ error: 'Accept the commission disclaimer to see your statement.', code: 'disclaimer_required' }, 403)
+    }
     const person = await owned(t.user, userId, companyId)
     if (!person) return c.json({ error: 'That person is not on this account' }, 404)
     const day = /^\d{4}-\d{2}-\d{2}$/

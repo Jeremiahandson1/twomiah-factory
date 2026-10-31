@@ -321,3 +321,45 @@ describe('who sees commissions (row 4)', () => {
     root.unmount()
   })
 })
+
+describe('the commission disclaimer (row 4)', () => {
+  test('the Rules tab saves the words and lists who has accepted', async () => {
+    const { api, calls } = fakeApi({
+      ...BASE_ROUTES,
+      '/api/roof-money/settings': { minProfit: null, commissionViewerRoles: ['manager'], commissionDisclaimer: 'Paid on collected money.', commissionDisclaimerVersion: 1 },
+      '/api/commission-disclaimer/acceptances': { data: [{ userId: 'u1', userName: 'Rita Seat', accepted: true, acceptedAt: '2026-10-30T12:00:00' }, { userId: 'u2', userName: 'Mo Seat', accepted: false, acceptedAt: null }] },
+      'PUT /api/roof-money/settings': (b: any) => ({ minProfit: null, commissionViewerRoles: ['manager'], commissionDisclaimerVersion: 2, ...b }),
+    })
+    const root = await mount(api)
+    await click(tab('Rules'))
+    const area = document.querySelector('textarea') as HTMLTextAreaElement
+    expect(area.value).toBe('Paid on collected money.')
+    expect(text()).toContain('Rita Seat')
+    expect(text()).toContain('Not yet')
+    await inputValue(area, 'Paid on collected money, less refunds.')
+    const form = Array.from(document.querySelectorAll('form')).find((f) => f.textContent?.includes('Commission disclaimer'))!
+    await act(async () => { form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true })) })
+    await settle()
+    expect(calls.find((c) => c.method === 'PUT' && c.path === '/api/roof-money/settings')?.body).toEqual({ commissionDisclaimer: 'Paid on collected money, less refunds.' })
+    root.unmount()
+  })
+
+  test('a person who has not accepted sees the words and I accept, not their commissions; accepting is sent to the server', async () => {
+    let accepted = false
+    const { api, calls } = fakeApi({
+      ...BASE_ROUTES,
+      '/api/commissions': () => (accepted ? { data: [{ id: 'c1', userName: 'Rita Seat', userId: 'u1', jobNumber: 'JOB-00001', baseAmount: '100', commissionAmount: '8', earnedAt: '2026-10-30T12:00:00', status: 'pending', source: 'manual' }] } : { data: [], disclaimerRequired: true }),
+      '/api/commission-disclaimer': { text: 'Paid on collected money.', version: 1, accepted: false },
+      'POST /api/commission-disclaimer/accept': () => { accepted = true; return { text: 'Paid on collected money.', version: 1, accepted: true } },
+    })
+    const root = await mount(api, ['commissions:read-own'])
+    expect(text()).toContain('Before you see your commissions')
+    expect(text()).toContain('Paid on collected money.')
+    expect(text()).not.toContain('JOB-00001')
+    await click(Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === 'I accept'))
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/api/commission-disclaimer/accept')).toBe(true)
+    expect(text()).not.toContain('Before you see your commissions')
+    expect(text()).toContain('JOB-00001')
+    root.unmount()
+  })
+})
