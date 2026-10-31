@@ -89,7 +89,7 @@ export const eventPayment = pgTable('event_payment', {
   reminderOverdueAt: timestamp('reminder_overdue_at'),
   // The card-on-file charge on the due date: tried once a day at most, and what came of it.
   autopayAttemptedAt: timestamp('autopay_attempted_at'),
-  autopayStatus: text('autopay_status'),                   // succeeded / failed
+  autopayStatus: text('autopay_status'),                   // succeeded / failed / processing (a bank debit that has not settled yet)
   autopayError: text('autopay_error'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -259,6 +259,8 @@ export const eventAutopay = pgTable('event_autopay', {
   setupIntentId: text('setup_intent_id'),
   brand: text('brand'),
   last4: text('last4'),
+  method: text('method').default('card').notNull(),        // card / us_bank_account — what the saved payment method is
+  setupMethod: text('setup_method'),                       // what a setup in progress will save (a bank account is verified over days)
   status: text('status').default('pending').notNull(),     // pending (card not saved yet) / active / stopped
   consentAt: timestamp('consent_at'),
   consentIp: text('consent_ip'),
@@ -314,4 +316,39 @@ export const eventProposalSigner = pgTable('event_proposal_signer', {
   uniqueIndex('event_proposal_signer_position_idx').on(t.proposalId, t.position),
   index('event_proposal_signer_token_idx').on(t.token),
   index('event_proposal_signer_company_id_idx').on(t.companyId),
+])
+
+// A client's payment from a US bank account (ACH) toward one instalment (restaurant-bar parity #3). A bank debit is not paid when
+// the client confirms it: it is processing for up to four business days and then succeeds or comes back failed. This row follows
+// that on the venue's own Stripe account; the instalment is recorded on the invoice only when it succeeds, never before.
+export const eventBankPayment = pgTable('event_bank_payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  eventId: text('event_id').notNull().references(() => event.id, { onDelete: 'cascade' }),
+  eventPaymentId: text('event_payment_id').notNull().references(() => eventPayment.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull(),
+  paymentIntentId: text('payment_intent_id').notNull(),
+  stripeAccount: text('stripe_account').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  source: text('source').notNull(),                        // pay_link / proposal_page / autopay
+  status: text('status').default('awaiting').notNull(),    // awaiting (client has not finished) / requires_action (verify the bank) / processing / succeeded / failed / canceled
+  keepForAutopay: boolean('keep_for_autopay').default(false).notNull(), // the client asked to keep this account for the later payments
+  consentAt: timestamp('consent_at'),
+  consentIp: text('consent_ip'),
+  consentText: text('consent_text'),
+  bankName: text('bank_name'),
+  last4: text('last4'),
+  verifyUrl: text('verify_url'),                           // Stripe's page where the client verifies the micro-deposits
+  failureCode: text('failure_code'),
+  failureMessage: text('failure_message'),
+  initiatedAt: timestamp('initiated_at'),
+  settledAt: timestamp('settled_at'),
+  failedAt: timestamp('failed_at'),
+  noticeSentAt: timestamp('notice_sent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_bank_payment_intent_idx').on(t.paymentIntentId),
+  index('event_bank_payment_event_payment_idx').on(t.eventPaymentId),
+  index('event_bank_payment_company_id_idx').on(t.companyId),
 ])

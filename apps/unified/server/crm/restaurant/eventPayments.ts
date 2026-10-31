@@ -8,6 +8,8 @@
 //   · AUTOPAY     the client may leave a card for the event (a Stripe SetupIntent on the venue's account, with their
 //                 consent kept); each instalment is charged to it on its due date, off session, once a day at most,
 //                 retried a few days if it fails, and the client told. The card number never reaches us.
+//   · BANK (ACH)  the same pay link, proposal page and autopay can use a US bank account instead (eventBank.ts, behind
+//                 'event_bank_payments'): a bank debit is PROCESSING for days and is recorded on the invoice only when it settles.
 //
 // Money rule: every Stripe call carries the venue's connected account (company.integrations.stripeAccountId); nothing is
 // ever charged on the platform's account. A payment is recorded on the invoice (recordInvoicePayment) by PaymentIntent id,
@@ -27,6 +29,7 @@ import { platformStripe } from '../platformStripe.ts'
 import { cardPaymentsFor } from '../cardPayments.ts'
 import { loadEventLedger, syncEventInvoiceDueDate } from './eventLedger.ts'
 import { bookOnDeposit, venueToday, eventDayWords, EXIT_STATUSES } from './eventBooking.ts'
+import { bankInFlight, bankBlocksAutopay, bankOffer, mountBankPaying, startBankDebit, runBankSettlement, BANK_AUTOPAY_CONSENT } from './eventBank.ts'
 import { getEventSettings } from './eventSettings.ts'
 import { dayBefore } from './eventGuarantee.ts'
 
@@ -38,12 +41,12 @@ const RETRY_DAYS = 3
 
 const dayAfter = (date: string, days: number) => dayBefore(date, -days)
 
-async function connectedAccount(d: CrmDeps, companyId: string): Promise<string | null> {
+export async function connectedAccount(d: CrmDeps, companyId: string): Promise<string | null> {
   return d.services.stripeService.connectedAccountFor(companyId)
 }
 
 /** An instalment with its pay-link token, minted now if it has none. */
-async function payTokenFor(db: any, paymentId: string): Promise<string> {
+export async function payTokenFor(db: any, paymentId: string): Promise<string> {
   const [row] = await db.select({ t: eventPayment.payToken }).from(eventPayment).where(eq(eventPayment.id, paymentId)).limit(1)
   if (row?.t) return row.t
   const t = tokenNew()
@@ -53,9 +56,9 @@ async function payTokenFor(db: any, paymentId: string): Promise<string> {
 }
 
 /** Record a card payment Stripe says succeeded on the event's invoice, once per PaymentIntent, then move the event along. */
-export async function recordInstalmentPayment(d: CrmDeps, pi: { id: string; amount: number; created?: number }, invoiceId: string, note: string): Promise<{ ok: boolean; duplicate?: boolean; error?: string }> {
+export async function recordInstalmentPayment(d: CrmDeps, pi: { id: string; amount: number; created?: number }, invoiceId: string, note: string, method: 'card' | 'bank_transfer' = 'card'): Promise<{ ok: boolean; duplicate?: boolean; error?: string }> {
   const out = await recordInvoicePayment(d.db, { invoice, payment }, false, {
-    invoiceId, amount: round2(pi.amount / 100), method: 'card', reference: pi.id, notes: note,
+    invoiceId, amount: round2(pi.amount / 100), method, reference: pi.id, notes: note,
     paidAt: pi.created ? new Date(pi.created * 1000) : new Date(), allowOverpayment: true, idempotentByReference: true,
   })
   if (!out.ok) return { ok: false, error: out.error }
@@ -101,7 +104,8 @@ export async function paymentOffer(d: CrmDeps, m: InstalmentModel) {
   return {
     label: m.inst.label, dueDate: m.inst.dueDate, amount: m.inst.amount, owed: m.owed, state: m.inst.state,
     canPayByCard: await cardPaymentsFor(d)(m.row.companyId),
-    autopay: auto ? { brand: auto.brand, last4: auto.last4 } : null, autopayConsent: AUTOPAY_CONSENT,
+    autopay: auto ? { brand: auto.brand, last4: auto.last4, bank: auto.method === 'us_bank_account' } : null, autopayConsent: AUTOPAY_CONSENT,
+    ...(await bankOffer(d, m)),
   }
 }
 
@@ -129,7 +133,7 @@ export function createEventPaymentRoutes(d: CrmDeps) {
       })
     }
     const [auto] = await db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, ev.id), eq(eventAutopay.companyId, u.companyId))).limit(1)
-    return one(c, { instalments, autopay: auto ? { status: auto.status, brand: auto.brand, last4: auto.last4, consentAt: auto.consentAt } : null, cardsOn: await cardPaymentsFor(d)(u.companyId) })
+    return one(c, { instalments, autopay: auto ? { status: auto.status, brand: auto.brand, last4: auto.last4, bank: auto.method === 'us_bank_account', consentAt: auto.consentAt } : null, cardsOn: await cardPaymentsFor(d)(u.companyId) })
   })
 
   // POST /event-payments/:eventId/autopay/stop — the card is forgotten here and detached at Stripe.
@@ -154,7 +158,7 @@ export function createEventPaymentRoutes(d: CrmDeps) {
   return app
 }
 
-async function stopAutopay(d: CrmDeps, auto: any) {
+export async function stopAutopay(d: CrmDeps, auto: any) {
   await d.db.update(eventAutopay).set({ status: 'stopped', updatedAt: new Date() }).where(eq(eventAutopay.id, auto.id))
   const stripe = platformStripe(d.services.testStripeClient)
   if (stripe && auto.paymentMethodId) { try { await stripe.paymentMethods.detach(auto.paymentMethodId, {}, { stripeAccount: auto.stripeAccount }) } catch { /* already gone */ } }
@@ -168,6 +172,8 @@ async function sendReminder(d: CrmDeps, p: any, kind: Kind): Promise<{ ok: true 
   const m = await instalmentByToken(d, await payTokenFor(d.db, p.id))
   if (!m || m.owed <= 0.005) return { ok: false, error: 'That payment is already paid.' }
   if (EXIT_STATUSES.includes(m.ev.status)) return { ok: false, error: 'This event is no longer on the books.' }
+  // A bank debit already on its way is the payment: reminding the client to pay it again is how it gets paid twice.
+  if (await bankInFlight(d.db, m.row.id)) return { ok: false, error: 'A bank payment for this is already on its way.' }
   const [client] = m.ev.contactId ? await d.db.select().from(contact).where(eq(contact.id, m.ev.contactId)).limit(1) : [null]
   if (!client?.email) return { ok: false, error: 'The client has no email address.' }
   if (client.emailOptOut) return { ok: false, error: 'The client has asked not to be emailed.' }
@@ -177,7 +183,7 @@ async function sendReminder(d: CrmDeps, p: any, kind: Kind): Promise<{ ok: true 
   const headline = kind === 'overdue' ? `${m.inst.label} for ${m.ev.name} is past due.`
     : kind === 'due' ? `${m.inst.label} for ${m.ev.name} is due today.` : `${m.inst.label} for ${m.ev.name} is coming up.`
   const body = `${money(m.owed)} ${due ? (kind === 'overdue' ? `was due ${due}.` : kind === 'due' ? 'is due today.' : `is due ${due}.`) : 'is due.'}` +
-    (auto && kind !== 'overdue' ? ` We will charge the ${auto.brand || 'card'} ending ${auto.last4} you left for this event on that day.` : ' You can pay by card with the button below.')
+    (auto && kind !== 'overdue' ? (auto.method === 'us_bank_account' ? ` We will debit the bank account ending ${auto.last4} you left for this event on that day.` : ` We will charge the ${auto.brand || 'card'} ending ${auto.last4} you left for this event on that day.`) : ' You can pay with the button below.')
   await d.services.emailService.send(client.email, 'eventNote', {
     companyName: co?.name || 'The venue', contactName: client.name || 'there', subject: `${m.inst.label}: ${money(m.owed)} ${kind === 'overdue' ? 'past due' : 'for ' + m.ev.name}`,
     headline, body, button: auto && kind !== 'overdue' ? 'See your payment' : 'Pay now', path: `/event-pay/${m.row.payToken}`,
@@ -258,20 +264,30 @@ export async function runAutopay(d: CrmDeps, now = new Date()): Promise<number> 
       if (owed <= 0.005) continue
       const cents = Math.round(Math.min(owed, invoiceBalance(ledger.invoice)) * 100)
       if (cents <= 0) continue
+      // A bank debit of this instalment is already on its way (it takes days to settle), or the bank sent one back: no second one today.
+      if (await bankBlocksAutopay(d.db, inst.id)) continue
+      const bank = auto.method === 'us_bank_account'
+      const what = bank ? `The bank account ending ${auto.last4}` : `The card ending ${auto.last4}`
       await d.db.update(eventPayment).set({ autopayAttemptedAt: now }).where(eq(eventPayment.id, inst.id))
       try {
         const pi = await stripe.paymentIntents.create({
           amount: cents, currency: 'usd', customer: auto.stripeCustomerId, payment_method: auto.paymentMethodId!, off_session: true, confirm: true,
+          ...(bank ? { payment_method_types: ['us_bank_account'] } : {}),
           description: `${inst.label} — ${ev.name} (autopay)`,
           metadata: { invoice_id: ledger.invoice.id, company_id: auto.companyId, event_id: ev.id, event_payment_id: inst.id, kind: 'event_autopay' },
         }, { stripeAccount: auto.stripeAccount, idempotencyKey: `autopay-${inst.id}-${now.toISOString().slice(0, 10)}` })
-        if (pi.status !== 'succeeded') throw Object.assign(new Error(`The card needs the cardholder to act (${pi.status}).`), { code: 'authentication_required' })
-        const rec = await recordInstalmentPayment(d, pi as any, ledger.invoice.id, `${inst.label} — charged to the card on file`)
+        // A bank debit is accepted, not paid: it is processing until the bank settles it, and nothing is recorded until then.
+        if (bank && pi.status === 'processing') {
+          await startBankDebit(d, { auto, ev, inst, invoiceId: ledger.invoice.id, pi: pi as any, cents, now })
+          continue
+        }
+        if (pi.status !== 'succeeded') throw Object.assign(new Error(bank ? `The bank account needs its owner to act (${pi.status}).` : `The card needs the cardholder to act (${pi.status}).`), { code: 'authentication_required' })
+        const rec = await recordInstalmentPayment(d, pi as any, ledger.invoice.id, bank ? `${inst.label} — debited from the bank account on file` : `${inst.label} — charged to the card on file`, bank ? 'bank_transfer' : 'card')
         if (!rec.ok) d.logger.error('[events] autopay charged but not recorded', { payment: inst.id, pi: pi.id, error: rec.error })
         await d.db.update(eventPayment).set({ autopayStatus: 'succeeded', autopayError: null }).where(eq(eventPayment.id, inst.id))
         charged++
       } catch (err: any) {
-        const why = String(err?.raw?.message || err?.message || 'The card was declined.').slice(0, 300)
+        const why = String(err?.raw?.message || err?.message || (bank ? 'The bank account was not debited.' : 'The card was declined.')).slice(0, 300)
         await d.db.update(eventPayment).set({ autopayStatus: 'failed', autopayError: why }).where(eq(eventPayment.id, inst.id))
         d.logger.warn('[events] autopay failed', { payment: inst.id, error: why })
         try {
@@ -280,8 +296,8 @@ export async function runAutopay(d: CrmDeps, now = new Date()): Promise<number> 
           const [co] = await d.db.select({ name: company.name }).from(company).where(eq(company.id, auto.companyId)).limit(1)
           if (client?.email && !client.emailOptOut) {
             await d.services.emailService.send(client.email, 'eventNote', {
-              companyName: co?.name || 'The venue', contactName: client.name || 'there', subject: `We could not charge your card for ${ev.name}`,
-              headline: `The card ending ${auto.last4} did not go through for ${inst.label}.`, body: `${money(owed)} is due. Please pay with another card with the button below.`, button: 'Pay now', path: `/event-pay/${token}`,
+              companyName: co?.name || 'The venue', contactName: client.name || 'there', subject: bank ? `We could not debit your bank account for ${ev.name}` : `We could not charge your card for ${ev.name}`,
+              headline: `${what} did not go through for ${inst.label}.`, body: `${money(owed)} is due. Please pay with the button below.`, button: 'Pay now', path: `/event-pay/${token}`,
             })
           }
         } catch { /* the failure is on the event either way */ }
@@ -307,12 +323,10 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
       event: { name: m.ev.name, dateWords: eventDayWords(m.ev.eventDate) }, ...(await paymentOffer(d, m)),
     })
   })
-  const paying = new Hono<AppEnv>()
-  mountInstalmentPaying(paying, d, async (c) => {
+  mountInstalmentPaying(app, d, '/:token', async (c) => {
     const m = await instalmentByToken(d, c.req.param('token'))
     return m ? { m } : { res: fail(c, 404, 'This payment link is not valid.') }
   })
-  app.route('/:token', paying)
   return app
 }
 
@@ -321,17 +335,18 @@ export function createEventPayLinkRoutes(d: CrmDeps) {
  * signature (/api/proposal-links/<token>/pay — sign and pay in one flow). `resolve` says which instalment the request is for, or why
  * not; everything below is the same for both, so a payment made from either is recorded once, on the venue's own Stripe.
  */
-export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c: any) => Promise<{ m: InstalmentModel; via?: string } | { res: Response }>) {
+export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, at: string, resolve: (c: any) => Promise<{ m: InstalmentModel; via?: string } | { res: Response }>) {
   const { db } = d
   const stripeOf = () => platformStripe(d.services.testStripeClient)
 
   // POST /intent — a PaymentIntent for what is still owed on this instalment, on the venue's own account.
-  app.post('/intent', async (c) => {
+  app.post(`${at}/intent`, async (c) => {
     const r = await resolve(c); if ('res' in r) return r.res
     const { m } = r
     if (EXIT_STATUSES.includes(m.ev.status)) return fail(c, 409, 'This event is no longer on the books.')
     if (m.owed <= 0.005) return fail(c, 409, 'This payment has been made. Thank you!')
     if (!(await cardPaymentsFor(d)(m.row.companyId))) return fail(c, 409, 'Card payments are not set up for this venue yet. Please pay them directly.', 'cards_off')
+    if (await bankInFlight(d.db, m.row.id)) return fail(c, 409, 'A bank payment for this is already on its way. Please wait for it to clear.', 'bank_in_flight')
     const stripe = stripeOf(), acct = await connectedAccount(d, m.row.companyId)
     if (!stripe || !acct || !m.ledger.invoice) return fail(c, 503, 'Card payments are not available right now.')
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -350,7 +365,7 @@ export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c
   })
 
   // POST /confirm { paymentIntentId, saveCard?, consent? } — the browser says it paid; Stripe is asked.
-  app.post('/confirm', async (c) => {
+  app.post(`${at}/confirm`, async (c) => {
     const r = await resolve(c); if ('res' in r) return r.res
     const { m, via } = r
     if (!m.ledger.invoice) return fail(c, 404, 'This payment link is not valid.')
@@ -365,13 +380,13 @@ export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c
     if (!rec.ok) return fail(c, 409, rec.error || 'The payment could not be recorded.')
     // A card kept for the rest of the event, if the client asked: only with their consent, and only a card Stripe holds.
     if (body.saveCard === true && body.consent === true && pi.payment_method) {
-      await activateAutopay(d, m.ev, acct, stripe, String(pi.payment_method), c)
+      await activateAutopay(d, m.ev, acct, stripe, String(pi.payment_method), consentOf(c))
     }
     return one(c, { success: true, duplicate: !!rec.duplicate })
   })
 
   // POST /autopay — leave a card for the rest of the event without paying now: a SetupIntent on the venue's account.
-  app.post('/autopay', async (c) => {
+  app.post(`${at}/autopay`, async (c) => {
     const r = await resolve(c); if ('res' in r) return r.res
     const { m } = r
     if (!(await cardPaymentsFor(d)(m.row.companyId))) return fail(c, 409, 'Card payments are not set up for this venue yet.', 'cards_off')
@@ -385,7 +400,7 @@ export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c
     return one(c, { clientSecret: si.client_secret, setupIntentId: si.id, publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '', stripeAccount: acct })
   })
 
-  app.post('/autopay/confirm', async (c) => {
+  app.post(`${at}/autopay/confirm`, async (c) => {
     const r = await resolve(c); if ('res' in r) return r.res
     const { m } = r
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -395,12 +410,12 @@ export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c
     if (!auto) return fail(c, 400, 'That card setup is not for this event.')
     const si = await stripe.setupIntents.retrieve(body.setupIntentId, { stripeAccount: acct })
     if (si.status !== 'succeeded' || !si.payment_method) return fail(c, 409, 'Stripe has not confirmed the card yet.')
-    await activateAutopay(d, m.ev, acct, stripe, String(si.payment_method), c)
+    await activateAutopay(d, m.ev, acct, stripe, String(si.payment_method), consentOf(c))
     return one(c, { success: true })
   })
 
   // POST /autopay/stop — the client takes their card off the event.
-  app.post('/autopay/stop', async (c) => {
+  app.post(`${at}/autopay/stop`, async (c) => {
     const r = await resolve(c); if ('res' in r) return r.res
     const { m } = r
     const [auto] = await db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, m.ev.id), eq(eventAutopay.status, 'active'))).limit(1)
@@ -408,10 +423,13 @@ export function mountInstalmentPaying(app: Hono<AppEnv>, d: CrmDeps, resolve: (c
     await stopAutopay(d, auto)
     return one(c, { success: true })
   })
+
+  // Paying from a US bank account instead (eventBank.ts): the same instalment, the same resolve, recorded only when the bank settles.
+  mountBankPaying(app, d, at, resolve)
 }
 
 /** The event's autopay row, with a Stripe customer on the venue's account (made once). */
-async function ensureAutopayRow(d: CrmDeps, ev: any, acct: string, stripe: any) {
+export async function ensureAutopayRow(d: CrmDeps, ev: any, acct: string, stripe: any) {
   const [existing] = await d.db.select().from(eventAutopay).where(and(eq(eventAutopay.eventId, ev.id), ne(eventAutopay.status, 'stopped'))).limit(1)
   if (existing && existing.stripeAccount === acct) return existing
   const [client] = ev.contactId ? await d.db.select().from(contact).where(eq(contact.id, ev.contactId)).limit(1) : [null]
@@ -420,20 +438,36 @@ async function ensureAutopayRow(d: CrmDeps, ev: any, acct: string, stripe: any) 
   return row
 }
 
-async function activateAutopay(d: CrmDeps, ev: any, acct: string, stripe: any, paymentMethodId: string, c: any) {
-  const auto = await ensureAutopayRow(d, ev, acct, stripe)
-  let brand: string | null = null, last4: string | null = null
-  try { const pm: any = await stripe.paymentMethods.retrieve(paymentMethodId, { stripeAccount: acct }); brand = pm.card?.brand || null; last4 = pm.card?.last4 || null } catch { /* shown without them */ }
+/** Who agreed to the autopay terms, and when: from the request that carried the agreement. */
+export interface AutopayConsent { at: Date; ip: string | null; text?: string }
+export function consentOf(c: any): AutopayConsent {
   const f = c.req.header('x-forwarded-for')
+  return { at: new Date(), ip: f ? f.split(',')[0].trim() : c.req.header('x-real-ip') || null }
+}
+
+/**
+ * The event's autopay row made active on a payment method Stripe holds: a card, or a US bank account (told apart by what Stripe says
+ * the method is). `consent` is the agreement just given; null keeps the one already on the row (a bank account verified days later).
+ */
+export async function activateAutopay(d: CrmDeps, ev: any, acct: string, stripe: any, paymentMethodId: string, consent: AutopayConsent | null) {
+  const auto = await ensureAutopayRow(d, ev, acct, stripe)
+  let brand: string | null = null, last4: string | null = null, bank = false
+  try {
+    const pm: any = await stripe.paymentMethods.retrieve(paymentMethodId, { stripeAccount: acct })
+    bank = pm.type === 'us_bank_account'
+    brand = bank ? pm.us_bank_account?.bank_name || null : pm.card?.brand || null
+    last4 = bank ? pm.us_bank_account?.last4 || null : pm.card?.last4 || null
+  } catch { /* shown without them */ }
   await d.db.update(eventAutopay).set({
-    status: 'active', paymentMethodId, brand, last4, consentAt: new Date(), consentIp: f ? f.split(',')[0].trim() : c.req.header('x-real-ip') || null, consentText: AUTOPAY_CONSENT, updatedAt: new Date(),
+    status: 'active', paymentMethodId, brand, last4, method: bank ? 'us_bank_account' : 'card', setupMethod: null, updatedAt: new Date(),
+    ...(consent ? { consentAt: consent.at, consentIp: consent.ip, consentText: consent.text ?? (bank ? BANK_AUTOPAY_CONSENT : AUTOPAY_CONSENT) } : {}),
   }).where(eq(eventAutopay.id, auto.id))
 }
 
 /** The hourly pass: reminders from 8am on the venue's clock, and the day's autopay charges. Started by the CRM's job runner. */
 export function startEventPaymentJobs(d: CrmDeps) {
   const pass = async () => {
-    try { await runPaymentReminders(d, new Date(), { fromHour: 8 }); await runAutopay(d) } catch (err: any) { d.logger.error('[events] payment pass failed', { error: err?.message }) }
+    try { await runPaymentReminders(d, new Date(), { fromHour: 8 }); await runAutopay(d); await runBankSettlement(d) } catch (err: any) { d.logger.error('[events] payment pass failed', { error: err?.message }) }
   }
   setTimeout(pass, 90_000)
   setInterval(pass, 60 * 60 * 1000)

@@ -12,17 +12,20 @@ export interface StripeCall { method: string; path: string; params: URLSearchPar
 /** Stripe's form encoding as the SDK sends it: a[b][c]=v. */
 const param = (p: URLSearchParams, k: string) => p.get(k)
 /** An array as the SDK sends it: a[0]=x&a[1]=y (or a[]=x). */
+/** Stripe's test bank accounts as payment methods: pm_bank_* are us_bank_account methods (the browser's confirm made one). */
+const isBank = (pm: string | null | undefined) => !!pm && pm.startsWith('pm_bank')
 export const arr = (p: URLSearchParams, k: string) => [...p.entries()].filter(([key]) => key === k + '[]' || (key.startsWith(k + '[') && /^\[\d+\]$/.test(key.slice(k.length)))).map(([, v]) => v)
 
 export function terminalStripeFake() {
   const calls: StripeCall[] = []
-  const state = { n: 0, offline: false, declineIncrement: false }
+  const state = { n: 0, offline: false, declineIncrement: false, bankCapability: true }
   const readers = new Map<string, any>()
   const intents = new Map<string, any>()
   const sessions = new Map<string, any>()
   // Every refund, as Stripe keeps them: GET /v1/refunds?payment_intent= lists them (newest first, as Stripe does).
   const refunds: any[] = []
   const setups = new Map<string, any>()
+  const mandates = new Map<string, any>()
   const detached: string[] = []
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'request-id': 'req_test' } })
   const err = (status: number, message: string, code?: string) => json({ error: { type: 'invalid_request_error', message, ...(code ? { code } : {}) } }, status)
@@ -83,20 +86,36 @@ export function terminalStripeFake() {
     // Customers, saved cards and SetupIntents (the event depth: a card left for the rest of an event, charged off session).
     if (p === '/v1/customers' && method === 'POST') return json({ id: `cus_${++state.n}`, object: 'customer', name: param(params, 'name') })
     if (p === '/v1/setup_intents' && method === 'POST') {
-      const si: any = { id: `seti_${++state.n}`, object: 'setup_intent', client_secret: `seti_secret_${state.n}`, status: 'requires_payment_method', customer: param(params, 'customer'), payment_method: null }
+      const si: any = { id: `seti_${++state.n}`, object: 'setup_intent', client_secret: `seti_secret_${state.n}`, status: 'requires_payment_method', customer: param(params, 'customer'), payment_method: null, payment_method_types: arr(params, 'payment_method_types'), usage: param(params, 'usage'), mandate: null, next_action: null, metadata: {} as Record<string, string> }
+      for (const [k, v] of params) { const mm = k.match(/^metadata\[(.+)\]$/); if (mm) si.metadata[mm[1]] = v }
       setups.set(si.id, si)
       return json(si)
     }
     if ((m = p.match(/^\/v1\/setup_intents\/([^/]+)$/)) && method === 'GET') { const si = setups.get(m[1]); return si ? json(si) : err(404, 'No such setup_intent') }
     if ((m = p.match(/^\/v1\/payment_methods\/([^/]+)\/detach$/)) && method === 'POST') { detached.push(m[1]); return json({ id: m[1], object: 'payment_method', customer: null }) }
-    if ((m = p.match(/^\/v1\/payment_methods\/([^/]+)$/)) && method === 'GET') return json({ id: m[1], object: 'payment_method', card: { brand: 'visa', last4: m[1] === 'pm_declined' ? '0002' : '4242' } })
+    if ((m = p.match(/^\/v1\/payment_methods\/([^/]+)$/)) && method === 'GET') {
+      // A bank account (Stripe's us_bank_account payment method): its bank's name and last four, never the number.
+      if (isBank(m[1])) return json({ id: m[1], object: 'payment_method', type: 'us_bank_account', us_bank_account: { bank_name: 'STRIPE TEST BANK', last4: '6789', account_holder_type: 'individual', account_type: 'checking', routing_number: '110000000' } })
+      return json({ id: m[1], object: 'payment_method', type: 'card', card: { brand: 'visa', last4: m[1] === 'pm_declined' ? '0002' : '4242' } })
+    }
+    // A mandate, as Stripe keeps one for a bank account saved with a SetupIntent (or a PaymentIntent with setup_future_usage).
+    if ((m = p.match(/^\/v1\/mandates\/([^/]+)$/)) && method === 'GET') { const md = mandates.get(m[1]); return md ? json(md) : err(404, 'No such mandate') }
+    // The connected account itself: whether bank debits are switched on for it (capabilities.us_bank_account_ach_payments).
+    if ((m = p.match(/^\/v1\/accounts\/([^/]+)$/)) && method === 'GET') return json({ id: m[1], object: 'account', capabilities: { card_payments: 'active', transfers: 'active', us_bank_account_ach_payments: state.bankCapability ? 'active' : 'inactive' } })
     if (p === '/v1/payment_intents' && method === 'POST') {
-      const pi: any = { id: `pi_${++state.n}`, object: 'payment_intent', created: Math.floor(Date.now() / 1000), client_secret: `pi_secret_${state.n}`, payment_method: param(params, 'payment_method'), amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), metadata: {} as Record<string, string>, amount_details: {} }
+      const pi: any = { id: `pi_${++state.n}`, object: 'payment_intent', created: Math.floor(Date.now() / 1000), client_secret: `pi_secret_${state.n}`, payment_method: param(params, 'payment_method'), amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), customer: param(params, 'customer'), setup_future_usage: param(params, 'setup_future_usage'), metadata: {} as Record<string, string>, amount_details: {}, last_payment_error: null, next_action: null }
       // confirm=true with a saved card is an off-session charge: the declining test card fails the way Stripe's does.
       if (param(params, 'confirm') === 'true') {
-        if (pi.payment_method === 'pm_declined') return err(402, 'Your card was declined.', 'card_declined')
-        pi.status = 'succeeded'; pi.amount_received = pi.amount
-      }
+        if (isBank(pi.payment_method)) {
+          // A saved bank account debited off session: Stripe takes the request and the debit is PROCESSING — it settles (or fails) days later.
+          if (!pi.payment_method_types.includes('us_bank_account')) return err(400, 'The payment method us_bank_account is not in payment_method_types.', 'payment_intent_invalid_parameter')
+          if (!state.bankCapability) return err(400, 'The us_bank_account payment method type is not enabled for this account.', 'payment_method_unactivated')
+          pi.status = 'processing'
+        } else {
+          if (pi.payment_method === 'pm_declined') return err(402, 'Your card was declined.', 'card_declined')
+          pi.status = 'succeeded'; pi.amount_received = pi.amount
+        }
+      } else if (pi.payment_method_types.includes('us_bank_account') && !state.bankCapability) return err(400, 'The us_bank_account payment method type is not enabled for this account.', 'payment_method_unactivated')
       for (const [k, v] of params) { const mm = k.match(/^metadata\[(.+)\]$/); if (mm) pi.metadata[mm[1]] = v }
       intents.set(pi.id, pi)
       return json(pi)
@@ -147,9 +166,40 @@ export function terminalStripeFake() {
   const completeSetup = (id: string, pm: string) => { Object.assign(setups.get(id), { status: 'succeeded', payment_method: pm }) }
   /** The cardholder paid a PaymentIntent in the browser. */
   const succeedIntent = (id: string, pm = 'pm_card') => { const pi = intents.get(id); Object.assign(pi, { status: 'succeeded', amount_received: pi.amount, payment_method: pm }) }
+  // ── Bank debits (ACH), as Stripe documents them (docs.stripe.com/payments/ach-direct-debit): confirming a us_bank_account
+  // PaymentIntent leaves it PROCESSING (up to four business days; `payment_intent.processing`); it then SUCCEEDS
+  // (`payment_intent.succeeded`) or goes back to requires_payment_method with last_payment_error (`payment_intent.payment_failed`).
+  // A bank that must be verified with micro-deposits sits in requires_action (next_action.verify_with_microdeposits) until verified.
+  const mandateFor = (pm: string) => { const md = { id: `mandate_${++state.n}`, object: 'mandate', status: 'active', type: 'multi_use', payment_method: pm, customer_acceptance: { type: 'online', accepted_at: Math.floor(Date.now() / 1000), online: { ip_address: '203.0.113.7', user_agent: 'test' } }, payment_method_details: { type: 'us_bank_account', us_bank_account: { collection_method: 'paperless' } } }; mandates.set(md.id, md); return md.id }
+  /** The client confirmed a PaymentIntent with their bank account in the browser: processing, or (micro-deposits) waiting to be verified. */
+  const confirmBankIntent = (id: string, pm = 'pm_bank_ok', opts: { microdeposits?: boolean } = {}) => {
+    const pi = intents.get(id)
+    Object.assign(pi, { payment_method: pm, last_payment_error: null })
+    if (opts.microdeposits) Object.assign(pi, { status: 'requires_action', next_action: { type: 'verify_with_microdeposits', verify_with_microdeposits: { arrival_date: Math.floor(Date.now() / 1000) + 2 * 86400, hosted_verification_url: `https://payments.stripe.com/microdeposit/pacs_test_${pi.id}` } } })
+    else Object.assign(pi, { status: 'processing', next_action: null })
+    if (pi.setup_future_usage) pi.mandate = mandateFor(pm)
+    return pi
+  }
+  /** The client verified the micro-deposits: the debit is now processing. */
+  const verifyBankIntent = (id: string) => Object.assign(intents.get(id), { status: 'processing', next_action: null })
+  /** The bank settled the debit. */
+  const settleBank = (id: string) => { const pi = intents.get(id); return Object.assign(pi, { status: 'succeeded', amount_received: pi.amount, latest_charge: `ch_${pi.id}`, next_action: null }) }
+  /** The bank returned the debit (or the micro-deposits were never verified): back to requires_payment_method with the reason. */
+  const failBank = (id: string, code = 'insufficient_funds', message = 'The customer\u2019s account has insufficient funds to cover the payment.') => Object.assign(intents.get(id), { status: 'requires_payment_method', payment_method: null, next_action: null, last_payment_error: { type: 'invalid_request_error', code, message } })
+  /** The cardholder-equivalent for a SetupIntent: the bank account was linked and the mandate accepted (or must be verified first). */
+  const confirmBankSetup = (id: string, pm = 'pm_bank_ok', opts: { microdeposits?: boolean } = {}) => {
+    const si = setups.get(id)
+    Object.assign(si, { payment_method: pm, mandate: mandateFor(pm) })
+    if (opts.microdeposits) Object.assign(si, { status: 'requires_action', next_action: { type: 'verify_with_microdeposits', verify_with_microdeposits: { hosted_verification_url: `https://payments.stripe.com/microdeposit/pacs_test_${si.id}` } } })
+    else Object.assign(si, { status: 'succeeded', next_action: null })
+    return si
+  }
+  const verifyBankSetup = (id: string) => Object.assign(setups.get(id), { status: 'succeeded', next_action: null })
+  /** The event Stripe sends (through the Factory's Connect forwarder) when an object changes: the object as it is now. */
+  const eventFor = (type: string, object: any, account = 'acct_biz') => ({ id: `evt_${++state.n}`, object: 'event', type, account, data: { object: JSON.parse(JSON.stringify(object)) } })
   /** A refund made in Stripe's own dashboard (not through this app): no metadata. */
   const dashboardRefund = (paymentIntent: string, amount: number) => { const r = { id: `re_${++state.n}`, object: 'refund', status: 'succeeded', amount, payment_intent: paymentIntent, metadata: {}, created: Math.floor(Date.now() / 1000) + state.n }; refunds.push(r); return r }
-  return { calls, state, readers, intents, sessions, setups, refunds, dashboardRefund, detached, completeSetup, succeedIntent, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
+  return { calls, state, readers, intents, sessions, setups, mandates, refunds, dashboardRefund, detached, completeSetup, succeedIntent, confirmBankIntent, verifyBankIntent, settleBank, failBank, confirmBankSetup, verifyBankSetup, eventFor, handle, paySession, posts: (path: string) => calls.filter((c) => c.method === 'POST' && c.path === path) }
 }
 
 /**

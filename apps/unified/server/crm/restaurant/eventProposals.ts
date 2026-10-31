@@ -492,13 +492,11 @@ export function createProposalLinkRoutes(d: CrmDeps) {
     const m = await payTarget(p, signer)
     return { ...view, pay: m ? await paymentOffer(d, m) : null }
   }
-  const payApp = new Hono<AppEnv>()
-  mountInstalmentPaying(payApp, d, async (c) => {
+  mountInstalmentPaying(app, d, '/:token/pay', async (c) => {
     const o = await open(c); if ('res' in o) return { res: o.res as Response }
     const m = await payTarget(o.p, o.signer)
     return m ? { m, via: 'the proposal page' } : { res: fail(c, 409, 'There is nothing to pay on this proposal right now.', 'nothing_to_pay') }
   })
-  app.route('/:token/pay', payApp)
 
   app.get('/:token', async (c) => {
     const { p, signer, signers, res } = await open(c); if (res) return res

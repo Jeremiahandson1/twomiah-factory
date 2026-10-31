@@ -6,7 +6,7 @@
 // Stripe from the browser; this page and our server never see it.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { Loader2, Check, FileSignature, CreditCard, AlertCircle, Download } from 'lucide-react'
+import { Loader2, Check, FileSignature, CreditCard, Landmark, AlertCircle, Download } from 'lucide-react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { SignaturePad } from '@twomiah/tenant-ui/src/portal/SignaturePad'
 import { getStripe } from '@twomiah/tenant-ui/src/portal/PaymentForm'
@@ -186,7 +186,7 @@ export function ProposalPage() {
 interface PayView {
   brand: { name?: string; phone?: string; color?: string | null; logo?: string | null }
   event: { name: string; dateWords: string }; label: string; dueDate: string | null; amount: number; owed: number; state: string
-  canPayByCard: boolean; autopay: { brand: string | null; last4: string | null } | null; autopayConsent: string
+  canPayByCard: boolean; autopay: { brand: string | null; last4: string | null; bank?: boolean } | null; autopayConsent: string
 }
 interface Started { clientSecret: string; stripeAccount: string; publishableKey: string; paymentIntentId?: string; setupIntentId?: string }
 
@@ -216,18 +216,29 @@ function CardForm({ kind, onDone, label }: { kind: 'pay' | 'setup'; onDone: () =
 }
 
 /** What the panel needs to take one payment: the amount owed and how it can be paid (the pay page's own fields, and the proposal's `pay`). */
-export interface PayOffer { label: string; dueDate: string | null; owed: number; canPayByCard: boolean; autopay: { brand: string | null; last4: string | null } | null; autopayConsent: string }
+export interface PayOffer {
+  label: string; dueDate: string | null; owed: number; canPayByCard: boolean; autopay: { brand: string | null; last4: string | null; bank?: boolean } | null; autopayConsent: string
+  // Paying from a US bank account (only when the venue has it on): the debit takes days, so a payment on its way is shown, not "paid".
+  canPayByBank?: boolean; bankConsent?: string; bankAutopayConsent?: string
+  bankPending?: { amount: number; waitingToVerify: boolean; verifyUrl: string | null; bank: string | null; last4: string | null } | null
+  bankFailed?: { message: string | null } | null
+}
+
+type StartKind = 'pay' | 'setup' | 'bank' | 'banksetup'
 
 /**
- * Taking one payment on a page: pay by card with the option to keep the card for the rest of the event, or leave a card without
- * paying now. `base` is the API prefix (/api/event-pay/<token> or, after the signature, /api/proposal-links/<token>/pay), so the
+ * Taking one payment on a page: pay by card or from a bank account, with the option to keep it for the rest of the event, or leave one
+ * without paying now. `base` is the API prefix (/api/event-pay/<token> or, after the signature, /api/proposal-links/<token>/pay), so the
  * pay link and the proposal page take money the same way. `onChanged` reloads the page's own view after a payment or a stop.
+ * A bank payment is "on its way" when the client has done their part: it is paid only when the bank settles it.
  */
 export function PayPanel({ base, offer, onChanged }: { base: string; offer: PayOffer; onChanged: () => void }) {
   const [err, setErr] = useState('')
-  const [started, setStarted] = useState<(Started & { kind: 'pay' | 'setup'; save: boolean }) | null>(null)
+  const [started, setStarted] = useState<(Started & { kind: StartKind; save: boolean }) | null>(null)
   const [save, setSave] = useState(false)
+  const [bankSave, setBankSave] = useState(false)
   const [done, setDone] = useState('')
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null)
   const [stripePromise, setStripePromise] = useState<ReturnType<typeof getStripe> | null>(null)
   useEffect(() => { setStripePromise(started ? getStripe(started.publishableKey, started.stripeAccount) : null) }, [started])
   const startPay = async () => {
@@ -238,37 +249,78 @@ export function PayPanel({ base, offer, onChanged }: { base: string; offer: PayO
     setErr('')
     try { const r = await call(`${base}/autopay`, 'POST', { consent: true }); setStarted({ ...r, kind: 'setup', save: true }) } catch (e) { setErr((e as Error).message) }
   }
+  const startBank = async () => {
+    setErr('')
+    try { const r = await call(`${base}/bank/intent`, 'POST', { consent: true, ...(bankSave ? { saveBank: true, autopayConsent: true } : {}) }); setStarted({ ...r, kind: 'bank', save: bankSave }) } catch (e) { setErr((e as Error).message) }
+  }
+  const startBankSetup = async () => {
+    setErr('')
+    try { const r = await call(`${base}/bank/autopay`, 'POST', { consent: true }); setStarted({ ...r, kind: 'banksetup', save: true }) } catch (e) { setErr((e as Error).message) }
+  }
   const finish = async () => {
     if (!started) return
     try {
       if (started.kind === 'pay') await call(`${base}/confirm`, 'POST', { paymentIntentId: started.paymentIntentId, ...(started.save ? { saveCard: true, consent: true } : {}) })
-      else await call(`${base}/autopay/confirm`, 'POST', { setupIntentId: started.setupIntentId })
+      else if (started.kind === 'setup') await call(`${base}/autopay/confirm`, 'POST', { setupIntentId: started.setupIntentId })
+      else if (started.kind === 'bank') {
+        const r = await call(`${base}/bank/confirm`, 'POST', { paymentIntentId: started.paymentIntentId })
+        setDone(r.message); setVerifyUrl(r.verifyUrl || null); setStarted(null); onChanged(); return
+      } else {
+        const r = await call(`${base}/bank/autopay/confirm`, 'POST', { setupIntentId: started.setupIntentId })
+        setDone(r.saved ? 'Your bank account is saved. We will debit it on each due date.' : r.message); setVerifyUrl(r.verifyUrl || null); setStarted(null); onChanged(); return
+      }
       setDone(started.kind === 'pay' ? 'Thank you — your payment has been received.' : 'Your card is saved. We will charge it on each due date.')
       setStarted(null); onChanged()
     } catch (e) { setErr((e as Error).message) }
   }
-  const stop = async () => { try { await call(`${base}/autopay/stop`, 'POST', {}); setDone('Your card was removed.'); onChanged() } catch (e) { setErr((e as Error).message) } }
+  const stop = async () => { try { await call(`${base}/autopay/stop`, 'POST', {}); setDone(offer.autopay?.bank ? 'Your bank account was removed.' : 'Your card was removed.'); onChanged() } catch (e) { setErr((e as Error).message) } }
+  const onItsWay = offer.bankPending
+  const canPay = offer.owed > 0.005 && !onItsWay
+  const saved = offer.autopay ? (offer.autopay.bank ? `bank account at ${offer.autopay.brand || 'your bank'}` : `${offer.autopay.brand || 'card'}`) : ''
   return (
     <>
-      {done && <p role="status" className="flex items-center gap-2 text-green-800 dark:text-green-300"><Check className="w-4 h-4" />{done}</p>}
+      {done && <p role="status" className="flex items-center gap-2 text-green-800 dark:text-green-300"><Check className="w-4 h-4" />{done}{verifyUrl && <a className="underline ml-1" href={verifyUrl} target="_blank" rel="noreferrer">Verify your bank account</a>}</p>}
       {err && <Err>{err}</Err>}
-      {offer.canPayByCard && !started && (
+      {onItsWay && (
+        <section className={`${box} space-y-1`} role="status">
+          <p className="font-medium">Your {money(onItsWay.amount)} bank payment is on its way.</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400">{onItsWay.waitingToVerify
+            ? 'Your bank still has to verify the account with two small deposits. Once that is done the payment starts.'
+            : 'A bank debit can take up to four business days to clear. This page shows it as paid when your bank has settled it, and we will email you.'}</p>
+          {onItsWay.waitingToVerify && onItsWay.verifyUrl && <p className="text-sm"><a className="underline" href={onItsWay.verifyUrl} target="_blank" rel="noreferrer">Verify your bank account</a></p>}
+        </section>
+      )}
+      {offer.bankFailed && !onItsWay && <Err>{`Your last bank payment did not go through${offer.bankFailed.message ? ` — ${offer.bankFailed.message.replace(/^The bank returned the payment: /, 'your bank returned it: ')}` : ''} You can try again below.`}</Err>}
+      {(offer.canPayByCard || offer.canPayByBank) && !started && (
         <section className={`${box} space-y-3`}>
-          {offer.owed > 0.005 && (
+          {canPay && offer.canPayByCard && (
             <>
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={save} onChange={(e) => setSave(e.target.checked)} />Keep this card for the rest of my event’s payments. <span className="text-gray-600 dark:text-slate-400">{offer.autopayConsent}</span></label>
               <button type="button" onClick={startPay} className="px-4 py-2 rounded-lg bg-orange-600 text-white inline-flex items-center gap-2"><CreditCard className="w-4 h-4" />Pay {money(offer.owed)} by card</button>
             </>
           )}
+          {canPay && offer.canPayByBank && (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600 dark:text-slate-400">{offer.bankConsent}</p>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={bankSave} onChange={(e) => setBankSave(e.target.checked)} />Keep this bank account for the rest of my event’s payments. <span className="text-gray-600 dark:text-slate-400">{offer.bankAutopayConsent}</span></label>
+              <button type="button" onClick={startBank} className="px-4 py-2 rounded-lg border border-orange-600 text-orange-700 dark:text-orange-300 inline-flex items-center gap-2"><Landmark className="w-4 h-4" />Pay {money(offer.owed)} from my bank account</button>
+            </div>
+          )}
           {offer.autopay
-            ? <p className="text-sm">A {offer.autopay.brand || 'card'} ending {offer.autopay.last4} is saved for this event. <button type="button" className="underline" onClick={stop}>Remove it</button></p>
-            : offer.owed > 0.005 && <p className="text-sm"><button type="button" className="underline" onClick={startSetup}>Leave a card on file without paying now</button> <span className="text-gray-600 dark:text-slate-400">— {offer.autopayConsent}</span></p>}
+            ? <p className="text-sm">A {saved} ending {offer.autopay.last4} is saved for this event. <button type="button" className="underline" onClick={stop}>Remove it</button></p>
+            : canPay && (
+              <p className="text-sm space-x-1">
+                {offer.canPayByCard && <><button type="button" className="underline" onClick={startSetup}>Leave a card on file without paying now</button> <span className="text-gray-600 dark:text-slate-400">— {offer.autopayConsent}</span></>}
+                {offer.canPayByBank && <span className="block"><button type="button" className="underline" onClick={startBankSetup}>Leave a bank account on file without paying now</button> <span className="text-gray-600 dark:text-slate-400">— {offer.bankAutopayConsent}</span></span>}
+              </p>
+            )}
         </section>
       )}
       {started && stripePromise && (
         <section className={box}>
           <Elements stripe={stripePromise} options={{ clientSecret: started.clientSecret }}>
-            <CardForm kind={started.kind} onDone={finish} label={started.kind === 'pay' ? `Pay ${money(offer.owed)}` : 'Save this card'} />
+            <CardForm kind={started.kind === 'pay' || started.kind === 'bank' ? 'pay' : 'setup'} onDone={finish}
+              label={started.kind === 'pay' ? `Pay ${money(offer.owed)}` : started.kind === 'bank' ? `Pay ${money(offer.owed)} from this account` : started.kind === 'banksetup' ? 'Save this bank account' : 'Save this card'} />
           </Elements>
         </section>
       )}
@@ -293,7 +345,7 @@ export function PayPage() {
           ? <p className="text-3xl font-bold mt-1">{money(v.owed)}<span className="text-base font-normal text-gray-600 dark:text-slate-400">{v.dueDate ? ` due ${v.dueDate}` : ''}</span></p>
           : <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium mt-1"><Check className="w-5 h-5" />This payment has been made. Thank you!</p>}
       </section>
-      {v.owed > 0.005 && !v.canPayByCard && <section className={box}><p>This venue takes card payments in person or by arrangement{v.brand.phone ? ` — please call ${v.brand.phone}` : ''}.</p></section>}
+      {v.owed > 0.005 && !v.canPayByCard && !(v as any).canPayByBank && <section className={box}><p>This venue takes card payments in person or by arrangement{v.brand.phone ? ` — please call ${v.brand.phone}` : ''}.</p></section>}
       <PayPanel base={base} offer={v} onChanged={load} />
     </Page>
   )

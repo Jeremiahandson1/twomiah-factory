@@ -25,6 +25,7 @@ import { createEventReportRoutes } from './eventReports.ts'
 import { createEventProposalRoutes, createProposalLinkRoutes, previewContract } from './eventProposals.ts'
 import { createEventContractRoutes } from './eventContracts.ts'
 import { createEventPaymentRoutes, createEventPayLinkRoutes, startEventPaymentJobs, runPaymentReminders, runAutopay } from './eventPayments.ts'
+import { createEventBankRoutes, bankEventClaim, runBankSettlement } from './eventBank.ts'
 import { runGuaranteeReminders } from './eventGuarantee.ts'
 
 export function restaurantMounts(d: CrmDeps): Mount[] {
@@ -32,7 +33,10 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     runGuaranteeReminders: (now?: Date) => runGuaranteeReminders(d, now),
     runPaymentReminders: (now?: Date, opts?: { fromHour?: number }) => runPaymentReminders(d, now, opts),
     runAutopay: (now?: Date) => runAutopay(d, now),
+    runBankSettlement: (now?: Date) => runBankSettlement(d, now),
   })
+  // Stripe's events for a bank debit this module started (processing, settled, returned) come first to it, not to the shared card handler.
+  d.services.useConnectedEvents?.(bankEventClaim(d))
   // The reminders and the day's card charges, hourly, started with the CRM's other timed work (never in a test).
   d.services.addJob(() => {
     startEventPaymentJobs(d)
@@ -58,6 +62,7 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     { path: '/api/proposal-links', access: 'public', feature: 'event_proposals', router: createProposalLinkRoutes(d) },
     { path: '/api/event-contracts', access: 'user', feature: 'event_contracts', router: createEventContractRoutes(d, (companyId, eventId, body) => previewContract(d.db, companyId, eventId, body)) },
     { path: '/api/event-payments', access: 'user', feature: 'event_payment_automation', router: createEventPaymentRoutes(d) },
+    { path: '/api/event-bank-payments', access: 'user', feature: 'event_bank_payments', router: createEventBankRoutes(d) },
     { path: '/api/event-pay', access: 'public', feature: 'event_payment_automation', router: createEventPayLinkRoutes(d) },
   ]
 }

@@ -4,7 +4,7 @@
 // feature on (all of them not ready) and asks the permission its server route asks.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2, ArrowUp, ArrowDown, Check, ScrollText } from 'lucide-react'
+import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2, ArrowUp, ArrowDown, Check, ScrollText, Landmark, RefreshCw } from 'lucide-react'
 import { api } from '../api'
 import { useAuth, useToast, useConfirm, usePrompt, errorText } from '../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -258,7 +258,7 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
   const toast = useToast()
   const ask = useConfirm()
   const show = hasFeature('event_payment_automation') && can('invoices:read')
-  const [data, setData] = useState<{ instalments: Instalment[]; autopay: { status: string; brand: string | null; last4: string | null; consentAt: string | null } | null; cardsOn: boolean } | null>(null)
+  const [data, setData] = useState<{ instalments: Instalment[]; autopay: { status: string; brand: string | null; last4: string | null; bank?: boolean; consentAt: string | null } | null; cardsOn: boolean } | null>(null)
   const load = useCallback(async () => { try { setData(await client.get(`/api/event-payments/${eventId}`)) } catch (e) { toast.error(errorText(e, 'Could not load the payment reminders')) } }, [eventId, toast])
   useEffect(() => { if (show) load() }, [show, load])
   if (!show) return null
@@ -277,7 +277,7 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
       <ul className="space-y-2">
         {data?.instalments.map((i) => (
           <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-            <span><strong>{i.label}</strong> {money(i.amount)}{i.dueDate ? ` · due ${i.dueDate}` : ''} <span className={muted}>· {i.state === 'paid' ? 'paid' : last(i)}</span>{i.autopayStatus === 'failed' && <span className="ml-2 text-red-700 dark:text-red-300">card declined{i.autopayError ? `: ${i.autopayError}` : ''}</span>}</span>
+            <span><strong>{i.label}</strong> {money(i.amount)}{i.dueDate ? ` · due ${i.dueDate}` : ''} <span className={muted}>· {i.state === 'paid' ? 'paid' : last(i)}</span>{i.autopayStatus === 'failed' && <span className="ml-2 text-red-700 dark:text-red-300">autopay failed{i.autopayError ? `: ${i.autopayError}` : ''}</span>}{i.autopayStatus === 'processing' && <span className="ml-2 text-amber-800 dark:text-amber-300">bank debit on its way</span>}</span>
             {i.state !== 'paid' && i.state !== 'void' && (
               <span className="flex gap-2">
                 {i.payPath && <button type="button" className={btn} onClick={() => copy(toast, abs(i.payPath!))}><Link2 className="w-4 h-4" />Copy pay link</button>}
@@ -291,11 +291,38 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
         <p className="mt-3 flex flex-wrap items-center gap-2">
           <CreditCard className="w-4 h-4" />
           {data.autopay?.status === 'active'
-            ? <>The client left a {data.autopay.brand || 'card'} ending {data.autopay.last4}; each payment is charged to it on its due date.{mayEdit && <button type="button" className={btn} onClick={stop}>Stop</button>}</>
+            ? <>The client left {data.autopay.bank ? `a bank account at ${data.autopay.brand || 'their bank'}` : `a ${data.autopay.brand || 'card'}`} ending {data.autopay.last4}; each payment is {data.autopay.bank ? 'debited from' : 'charged to'} it on its due date.{mayEdit && <button type="button" className={btn} onClick={stop}>Stop</button>}</>
             : data.cardsOn ? <span className={muted}>No card on file. The client can leave one from any pay link.</span> : <span className={muted}>Card payments are not switched on for this business, so pay links show the amount only.</span>}
         </p>
       )}
+      {hasFeature('event_bank_payments') && <BankPaymentsList eventId={eventId} />}
     </section>
+  )
+}
+
+// A bank debit takes days: this lists each one on the event with where it stands, so "processing" is never mistaken for paid.
+interface BankRow { id: string; label: string; amount: number; status: string; source: string; bank: string | null; last4: string | null; startedAt: string | null; settledAt: string | null; failedAt: string | null; note: string | null; verifyUrl: string | null }
+const BANK_STATUS: Record<string, string> = { processing: 'Processing — not paid until the bank settles it', requires_action: 'Waiting for the client to verify the bank account', succeeded: 'Cleared and recorded', failed: 'Returned by the bank — not paid' }
+function BankPaymentsList({ eventId }: { eventId: string }) {
+  const { can } = useAuth()
+  const toast = useToast()
+  const [rows, setRows] = useState<BankRow[] | null>(null)
+  const load = useCallback(async () => { try { setRows((await client.get(`/api/event-bank-payments/${eventId}`)).payments) } catch (e) { toast.error(errorText(e, 'Could not load the bank payments')) } }, [eventId, toast])
+  useEffect(() => { load() }, [load])
+  const refresh = async (r: BankRow) => { try { await client.post(`/api/event-bank-payments/${eventId}/${r.id}/refresh`); await load() } catch (e) { toast.error(errorText(e, 'Could not check with Stripe')) } }
+  if (!rows || rows.length === 0) return <p className={`${muted} mt-3 flex items-center gap-2`}><Landmark className="w-4 h-4" />No bank payments yet.</p>
+  return (
+    <div className="mt-3" data-testid="bank-payments">
+      <h4 className="font-medium flex items-center gap-2 mb-1"><Landmark className="w-4 h-4" />Bank payments</h4>
+      <ul className="space-y-1">
+        {rows.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span>{r.label} {money(r.amount)}{r.bank ? ` from ${r.bank}` : ''}{r.last4 ? ` ending ${r.last4}` : ''}{r.source === 'autopay' ? ' (autopay)' : ''} <span className={r.status === 'failed' ? 'text-red-700 dark:text-red-300' : muted}>· {BANK_STATUS[r.status] || 'In progress'}{r.status === 'failed' && r.note ? `. ${r.note}` : ''}{r.settledAt ? ` · ${whenDateTime(r.settledAt)}` : r.failedAt ? ` · ${whenDateTime(r.failedAt)}` : ''}</span></span>
+            {(r.status === 'processing' || r.status === 'requires_action') && can('invoices:update') && <button type="button" className={btn} onClick={() => refresh(r)}><RefreshCw className="w-4 h-4" />Check now</button>}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

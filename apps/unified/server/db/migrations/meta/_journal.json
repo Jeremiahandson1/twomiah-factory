@@ -372,6 +372,13 @@
       "when": 1793467889060,
       "tag": "0052_event_contracts",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793468911525,
+      "tag": "0053_event_bank_payments",
+      "breakpoints": true
     }
   ]
 }
