@@ -22,10 +22,13 @@ const KINDS: Array<[RegExp, string]> = [
   [/\/api\/photo-markup\//, 'Photo marks'], [/\/clock-in$|\/clock\/in$/, 'Clock in'], [/\/clock-out$|\/clock\/out$/, 'Clock out'],
 ]
 
-/** The record this save is about, as a screen: a job's saves lead to the job. */
+/** The record this save is about, as a screen: a job's saves lead to the job, a claim's to the claim. */
 export const openFor = (item: Pick<ItemView, 'recordKey' | 'path'>): string | null => {
   const m = /^job:(.+)$/.exec(item.recordKey || '')
-  return m ? `/(details)/job/${m[1]}` : null
+  if (m) return `/(details)/job/${m[1]}`
+  // A job's insurance claim (src/insurance/claim.ts): its saves lead to the claim screen.
+  const c = /^claim:(.+)$/.exec(item.recordKey || '')
+  return c ? `/(details)/job/claim?id=${c[1]}` : null
 }
 
 export function describeItem(item: ItemView): ItemLine {

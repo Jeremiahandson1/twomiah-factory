@@ -59,7 +59,7 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const t = useTheme()
-  const { vertical } = useVertical()
+  const { vertical, hasFeature } = useVertical()
   const { stageName } = useStageName()
   const { can } = useAuth()
   const isRoof = vertical === 'roofing'
@@ -334,6 +334,12 @@ export default function JobDetailScreen() {
               {job.claimNumber ? <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Claim #: {job.claimNumber}</Text> : null}
               {job.adjusterName ? <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Adjuster: {job.adjusterName}{job.adjusterPhone ? ` • ${job.adjusterPhone}` : ''}</Text> : null}
               {!job.insuranceCompany && !job.claimNumber ? <Text style={{ color: t.textMuted, fontSize: 13 }}>No claim details yet</Text> : null}
+              {/* The claim itself — supplements, the mortgage company's checks, held depreciation (app/(details)/job/claim.tsx) */}
+              {hasFeature('insurance_workflow') ? (
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open the claim" style={{ marginTop: 12, minHeight: 44, justifyContent: 'center' }} onPress={() => router.push(`/(details)/job/claim?id=${id}` as any)}>
+                  <Text style={{ color: t.primaryText, fontSize: 15, fontWeight: '600' }}>Open the claim</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </AnimatedCard>
         ) : null}
