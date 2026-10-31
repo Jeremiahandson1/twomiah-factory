@@ -1,0 +1,4 @@
+# Native folders and the Expo cache are generated (expo prebuild / EAS builds them from app.config.ts) — never commit
+android/
+ios/
+.expo/

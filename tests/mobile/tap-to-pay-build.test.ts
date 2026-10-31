@@ -109,8 +109,8 @@ for (const name of profiles) {
 }
 
 // ── the generated native folders never reach git ──────────────────────────────────────────────────────────────────────
-const gitignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8')
-check('.gitignore: apps/mobile/android, ios and .expo are generated and ignored', ['apps/mobile/android/', 'apps/mobile/ios/', 'apps/mobile/.expo/'].every((l) => gitignore.split('\n').includes(l)))
+const gitignore = fs.readFileSync(path.join(ROOT, 'apps/mobile/.gitignore'), 'utf8')
+check('apps/mobile/.gitignore: android, ios and .expo are generated and ignored (the root .gitignore is fenced)', ['android/', 'ios/', '.expo/'].every((l) => gitignore.split('\n').includes(l)))
 
 // ── the doc tells the owner what is left ──────────────────────────────────────────────────────────────────────────────
 const doc = fs.readFileSync(path.join(ROOT, 'docs/parity/tap-to-pay.md'), 'utf8')
