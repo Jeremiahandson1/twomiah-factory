@@ -85,6 +85,8 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
   pausedForPaymentAt: timestamp('paused_for_payment_at'),
   /** The private link in the member's email that opens Stripe's card page for a new card (/membership/card/<token>); cleared on resume. */
   cardUpdateToken: text('card_update_token'),
+  /** Who sold it (a login or a chair-only team member's id): each period's bill is credited to them for commission (salon row 15). */
+  soldBy: text('sold_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -777,4 +779,19 @@ export const salonRetailSale = pgTable('salon_retail_sale', {
   uniqueIndex('salon_retail_sale_line_key').on(t.lineItemId),
   index('salon_retail_sale_product_idx').on(t.productId),
   index('salon_retail_sale_invoice_idx').on(t.invoiceId),
+])
+
+/**
+ * Who sold a package, gift card or membership bill (salon row 15): one person per bill, a login's id or a chair-only team member's id. The bill's
+ * line is paid commission to them by the plans that cover that kind of sale. A bill raised from a visit needs none: the visit's stylist sold it.
+ */
+export const salonSaleSeller = pgTable('salon_sale_seller', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  payeeId: text('payee_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_sale_seller_invoice_key').on(t.invoiceId),
+  index('salon_sale_seller_company_idx').on(t.companyId),
 ])

@@ -36,6 +36,7 @@ import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity, notGiftCardSale } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
+import { createSalonPayees, createSalonPlanClash } from '../crm/salon/commissionPlans.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
 import { createEventsDashboardRoutes } from '../crm/restaurant/eventsDashboard.ts'
@@ -471,7 +472,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
-    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },

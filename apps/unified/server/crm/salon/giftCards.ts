@@ -21,7 +21,7 @@
 import { Hono } from 'hono'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, like, lt } from 'drizzle-orm'
 import { invoiceBalance, recordInvoicePayment, round2 } from '@twomiah/tenant-backend'
-import { invoice, invoiceLineItem, payment, company, contact, salonGiftCard, salonGiftCardLedger } from '../../db/schema/index.ts'
+import { invoice, invoiceLineItem, payment, company, contact, salonGiftCard, salonGiftCardLedger, salonSaleSeller } from '../../db/schema/index.ts'
 import { putBackOnSalonCard, takeFromSalonCard } from '../../data/salon.ts'
 import { generateCode, normalizeCode, prefixFromName } from '../bar/barGiftCards.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -29,6 +29,7 @@ import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { SalonServices } from './services.ts'
 import { shiftDays } from './days.ts'
+import { payeeExists } from './commissionPlans.ts'
 import { bonusExpired, bonusSentence, lastDayOf, OFFERS_KEY, parseOffers, readOffers, spendableCents, splitSpend, type GiftOffer } from './giftBonus.ts'
 import { settingsOf } from './patchTest.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
@@ -97,10 +98,13 @@ export function createSalonGiftCards(d: CrmDeps, s: SalonServices) {
     offerId?: unknown
     /** The salon's day to email the recipient; empty = at once. */
     deliverOn?: unknown
+    /** Who sold it at the desk (a login or a chair-only team member): paid commission by a plan on gift cards (salon row 15). */
+    soldBy?: unknown
   }
   interface Plan {
     cents: number; bonusCents: number; bonusExpiresOn: string | null; deliverOn: string | null; contactId: string | null
     purchaserName: string | null; purchaserEmail: string | null; recipientName: string | null; recipientEmail: string | null; message: string | null
+    soldBy: string | null
   }
 
   /** Check what a sale asks for — the amount, an offer's bonus, the day to send, who it is for — and say it as a plan, or throw the reason. */
@@ -132,7 +136,12 @@ export function createSalonGiftCards(d: CrmDeps, s: SalonServices) {
       if (!ct) throw new GiftCardError('That client was not found.', 404)
       contactId = ct.id
     }
-    return { cents, bonusCents, bonusExpiresOn, deliverOn, contactId, purchaserName: text(input.purchaserName, 120), purchaserEmail, recipientName: text(input.recipientName, 120), recipientEmail, message: text(input.message, 400) }
+    let soldBy: string | null = null
+    if (input.soldBy != null && input.soldBy !== '') {
+      if (!(await payeeExists(db, companyId, String(input.soldBy)))) throw new GiftCardError('Choose someone who works here as the seller.', 400, 'BAD_SELLER')
+      soldBy = String(input.soldBy)
+    }
+    return { cents, bonusCents, bonusExpiresOn, deliverOn, contactId, soldBy, purchaserName: text(input.purchaserName, 120), purchaserEmail, recipientName: text(input.recipientName, 120), recipientEmail, message: text(input.message, 400) }
   }
 
   /** A fresh unused code, inside the transaction that will keep it. */
@@ -215,6 +224,7 @@ export function createSalonGiftCards(d: CrmDeps, s: SalonServices) {
     const price = round2(p.cents / 100)
     // The sale first (open, no tax: a gift card is not a taxable good), then the payment — which issues the card in its own transaction.
     const sale = await openSale(companyId, p.contactId, p.cents, 'Gift card sold at the desk', 'Gift card')
+    if (p.soldBy) await db.insert(salonSaleSeller).values({ companyId, invoiceId: sale.id, payeeId: p.soldBy }).onConflictDoNothing()
     let issued: SalonCard | null = null
     const outcome = await recordInvoicePayment(db, { invoice, payment }, true, {
       invoiceId: sale.id, companyId, amount: price, method, notes: 'Gift card sold', tipAmount: 0,
@@ -233,6 +243,8 @@ export function createSalonGiftCards(d: CrmDeps, s: SalonServices) {
     } catch (e: any) { logger.warn('[gift-cards] sale not audited', { error: e?.message }) }
     // The recipient gets the code by email when the desk gave an address — now, or on the day chosen. The buyer's own copy is the desk's receipt.
     const emailed = card.deliverOn ? false : await deliver(card)
+    // Whoever sold it earns on it under a plan for gift cards (salon row 15).
+    if (p.soldBy) void d.services.earnCommission(sale.id).catch(() => {})
     return { card, invoiceId: sale.id, emailed, scheduled: card.deliverOn }
   }
 
@@ -244,6 +256,7 @@ export function createSalonGiftCards(d: CrmDeps, s: SalonServices) {
     const p = await plan(companyId, input)
     if (source === 'online' && !p.purchaserEmail) throw new GiftCardError('Enter your email so we can send your receipt.', 400, 'BAD_EMAIL')
     const sale = await openSale(companyId, p.contactId, p.cents, source === 'online' ? 'Gift card bought online' : 'Gift card sold on the card reader', 'Gift card')
+    if (p.soldBy && source === 'reader') await db.insert(salonSaleSeller).values({ companyId, invoiceId: sale.id, payeeId: p.soldBy }).onConflictDoNothing()
     const card = await db.transaction((tx: Tx) => issueIn(tx, companyId, p, sale.id, source === 'online' ? 'Online' : nameOf(actor), source, 'pending', sessionId))
     return { card, invoiceId: sale.id }
   }

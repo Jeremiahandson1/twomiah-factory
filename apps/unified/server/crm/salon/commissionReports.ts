@@ -7,7 +7,7 @@
 // A period is the salon's own days, by the day the commission was earned. The payroll file takes only APPROVED, unpaid commissions unless asked
 // otherwise, so a file taken twice for the same period cannot pay a commission that was already marked paid in between.
 import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm'
-import { commission, commissionPlan, contact, invoice, user, company } from '../../db/schema/index.ts'
+import { commission, commissionPlan, contact, invoice, teamMember, user, company } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import { calendarDateIn, createSalonClock, salonDayStart, shiftDays } from './days.ts'
 
@@ -52,18 +52,19 @@ export function createCommissionReports(d: CrmDeps) {
     if (opts.userId) where.push(eq(commission.userId, opts.userId))
     if (opts.statuses) where.push(inArray(commission.status, [...opts.statuses]))
     const rows = await db.select({
-      c: commission, plan: commissionPlan.name, firstName: user.firstName, lastName: user.lastName, email: user.email, bill: invoice.number, client: contact.name,
+      c: commission, plan: commissionPlan.name, firstName: user.firstName, lastName: user.lastName, email: user.email, memberName: teamMember.name, bill: invoice.number, client: contact.name,
     }).from(commission)
       .leftJoin(commissionPlan, eq(commission.planId, commissionPlan.id))
       .leftJoin(user, eq(commission.userId, user.id))
+      .leftJoin(teamMember, eq(commission.userId, teamMember.id))     // a chair-only stylist is paid under their team-member id (salon row 15)
       .leftJoin(invoice, eq(commission.invoiceId, invoice.id))
       .leftJoin(contact, eq(invoice.contactId, contact.id))
       .where(and(...where)).orderBy(asc(commission.earnedAt), asc(commission.id)).limit(LINE_CAP + 1)
     const truncated = rows.length > LINE_CAP
     const lines = (truncated ? rows.slice(0, LINE_CAP) : rows).map((r: any): CommissionLine => ({
       id: r.c.id, date: calendarDateIn(new Date(r.c.earnedAt), w.tz), bill: r.bill ?? null, client: r.client ?? null, stylistId: r.c.userId,
-      stylist: [r.firstName, r.lastName].filter(Boolean).join(' ').trim() || r.email || 'Former team member', plan: r.plan ?? null,
-      kind: r.c.source === 'reversal' ? 'Taken back' : r.c.source === 'manual' ? 'Entered by hand' : 'Earned on a paid bill',
+      stylist: [r.firstName, r.lastName].filter(Boolean).join(' ').trim() || r.email || r.memberName || 'Former team member', plan: r.plan ?? null,
+      kind: r.c.source === 'reversal' ? 'Taken back' : r.c.source === 'refund' ? 'Taken back in part' : r.c.source === 'manual' ? 'Entered by hand' : 'Earned on a paid bill',
       sales: money(Number(r.c.baseAmount || 0)), rate: r.c.rateApplied == null ? null : Number(r.c.rateApplied), amount: money(Number(r.c.commissionAmount || 0)), status: r.c.status, note: r.c.notes ?? null,
     }))
     return { lines, truncated }
@@ -102,7 +103,8 @@ export function createCommissionReports(d: CrmDeps) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { problem: 'Send the file numbers as { loginId: number }.' }
     const ids = Object.keys(raw as object)
     const people = ids.length ? await db.select({ id: user.id }).from(user).where(and(eq(user.companyId, companyId), inArray(user.id, ids))) : []
-    const known = new Set(people.map((p: any) => p.id))
+    const members = ids.length ? await db.select({ id: teamMember.id }).from(teamMember).where(and(eq(teamMember.companyId, companyId), inArray(teamMember.id, ids))) : []
+    const known = new Set([...people, ...members].map((p: any) => p.id))
     const out: Record<string, string> = {}
     for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
       if (!known.has(id)) return { problem: 'One of those people is not on your team.' }
@@ -133,6 +135,12 @@ export function createCommissionReports(d: CrmDeps) {
     const owed = [...by.values()].filter((e) => e.total !== 0).sort((a, b) => a.name.localeCompare(b.name))
     const people = owed.length ? await db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email }).from(user).where(and(eq(user.companyId, companyId), inArray(user.id, owed.map((e) => e.id)))) : []
     const person = new Map<string, any>(people.map((p: any) => [p.id, p]))
+    // Someone with no login: their name is the one name on the team page, split at the first space; no email unless the team page has one.
+    const rest = owed.filter((e) => !person.has(e.id))
+    if (rest.length) for (const m of await db.select().from(teamMember).where(and(eq(teamMember.companyId, companyId), inArray(teamMember.id, rest.map((e) => e.id))))) {
+      const [first, ...last] = String((m as any).name || '').trim().split(/\s+/)
+      person.set((m as any).id, { id: (m as any).id, firstName: first || '', lastName: last.join(' '), email: (m as any).email || '' })
+    }
     const warnings: string[] = []
     let csv: string, filename: string
     if (format === 'gusto') {

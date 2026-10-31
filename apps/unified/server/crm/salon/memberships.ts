@@ -11,6 +11,7 @@ import { roundsToNothing } from '@twomiah/tenant-backend'
 import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, company } from '../../db/schema/index.ts'
 import { MEMBERSHIP_RETRY_KEY, RETRY_DEFAULTS, RETRY_LIMITS, nextTryAt, parseRetry, readRetry } from './membershipRetry.ts'
 import { settingsOf } from './patchTest.ts'
+import { payeeExists } from './commissionPlans.ts'
 import { takeMembershipCredit } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -140,6 +141,10 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
       return fail(c, 409, `${ct.name || 'This client'} is already on ${plan.name}${existingEnrolment.startDate ? ` (since ${String(existingEnrolment.startDate).slice(0, 10)})` : ''}. Cancel that membership first if they are starting a new one.`, 'ALREADY_ENROLLED')
     }
 
+    // Who sold it (salon row 15): each period's bill is credited to them for commission, by a plan for memberships (or prepaid packages).
+    const soldBy = body.soldBy ? String(body.soldBy) : null
+    if (soldBy && !(await payeeExists(db, currentUser.companyId, soldBy))) return fail(c, 400, 'Choose someone who works here as the seller.', 'BAD_SELLER')
+
     let autoCharge = false
     if (body.autoCharge === true) {
       const refused = await refuseAutoCharge(c, currentUser, body.contactId, body)
@@ -156,6 +161,7 @@ export function createMembershipRoutes(d: CrmDeps, salon: SalonServices) {
       contactId: body.contactId,
       status: body.status || 'active',
       creditsRemaining: body.creditsRemaining ?? plan.creditsTotal ?? null,
+      soldBy,
       // The day the client signed up, on the SHOP's calendar. (T25 N2)
       startDate: body.startDate || (await clock.salonToday(currentUser.companyId)),
       renewsAt: body.renewsAt || null,

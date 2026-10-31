@@ -7,7 +7,7 @@
 // period and only matches a row not yet billed for it, so two runs can only produce one invoice per period.
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, notInArray, or } from 'drizzle-orm'
 import { dueDateFromTerms, addMonthsClamped, recordInvoicePayment } from '@twomiah/tenant-backend'
-import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, invoiceLineItem, payment, company, user } from '../../db/schema/index.ts'
+import { membershipPlan, membershipEnrollment, membershipCharge, contact, invoice, invoiceLineItem, payment, company, user, salonSaleSeller } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { SalonClock } from './days.ts'
 import type { SalonCheckout } from './checkout.ts'
@@ -110,10 +110,12 @@ export function createMembershipBilling(d: CrmDeps, clock: SalonClock, checkout:
         notes: `Membership — ${planName}${ct?.name ? ` for ${ct.name}` : ''}`,
       } as any).returning()
 
+      // The line says what was sold (a prepaid package of visits or a membership), so a commission plan can be paid on it; and who sold it.
       await tx.insert(invoiceLineItem).values({
-        invoiceId: created.id, description: `${planName} (${period}, per ${unit})`, quantity: '1',
+        invoiceId: created.id, description: `${planName} (${period}, per ${unit})`, type: plan?.creditsTotal != null ? 'package' : 'membership', quantity: '1',
         unitPrice: price.toString(), total: price.toString(), sortOrder: 0,
       } as any)
+      if (row.soldBy) await tx.insert(salonSaleSeller).values({ companyId: row.companyId, invoiceId: created.id, payeeId: row.soldBy }).onConflictDoNothing()
 
       await tx.update(membershipEnrollment)
         .set({ lastInvoiceId: created.id, renewsAt, ...(credits != null ? { creditsRemaining: credits } : {}), updatedAt: new Date() })

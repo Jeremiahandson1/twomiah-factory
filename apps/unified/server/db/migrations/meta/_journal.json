@@ -449,6 +449,13 @@
       "when": 1793476619438,
       "tag": "0063_retail_sale_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793477290398,
+      "tag": "0064_commission_depth",
+      "breakpoints": true
     }
   ]
 }

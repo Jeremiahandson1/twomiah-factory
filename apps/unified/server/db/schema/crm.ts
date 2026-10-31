@@ -12,7 +12,7 @@ import { patient } from './vet.ts'
 import { booking } from './booking.ts'
 import { crew, measurementReport } from './roof.ts'
 import { company, user } from './core.ts'
-import { commissionIsAuto, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
+import { commissionIsAuto, commissionIsRefund, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
 
 export const contact = pgTable('contact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -1015,6 +1015,13 @@ export const commissionPlan = pgTable('commission_plan', {
   userIds: json('user_ids').default([]).notNull(),
   // Which sales the plan is paid on, where the business offers the choice (salon): 'all', 'services' or 'retail'. Others leave it 'all'.
   salesKind: text('sales_kind').default('all').notNull(),
+  // Salon row 15. What a tiered plan's brackets measure: 'sales' (money sold in the period) or 'count' (services / items sold), and the period
+  // they are counted over: 'week', 'fortnight', 'month' or 'quarter'. Other verticals leave the defaults.
+  tierBasis: text('tier_basis').default('sales').notNull(),
+  tierCadence: text('tier_cadence').default('month').notNull(),
+  // Salon row 15. The one thing the plan is for: {serviceIds, serviceCategories, productIds, productCategories}. Empty = every line of its sales kind;
+  // an item beats a category, a category beats a general plan.
+  scope: json('scope').default({}).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1044,6 +1051,13 @@ export const commission = pgTable('commission', {
   // A commission recorded in error is VOIDED, not deleted (status 'void'): the row stays, with why, when and by whom, so
   // the history of what was owed is never rewritten (contractor live re-test 3, 2026-10-24). packages/tenant-backend
   // commissions.ts POST /:id/void.
+  // Salon row 15. Items the commission was earned on (a volume tier counts them), what it was before a partial refund reduced it (so a second
+  // refund works from the original), the share of the sale refunded so far, and for a 'refund' row (a paid commission taken back in part) the
+  // share of the sale refunded once that row was written.
+  units: integer('units').default(0).notNull(),
+  originalBase: decimal('original_base', { precision: 12, scale: 2 }),
+  originalAmount: decimal('original_amount', { precision: 12, scale: 2 }),
+  refundedRatio: decimal('refunded_ratio', { precision: 6, scale: 5 }).default('0').notNull(),
   voidReason: text('void_reason'),
   voidedAt: timestamp('voided_at'),
   voidedById: text('voided_by_id'),
@@ -1056,6 +1070,7 @@ export const commission = pgTable('commission', {
   // An invoice earns a plan's commission for a person ONCE, however many times the sweep or a webhook sees it paid.
   uniqueIndex('commission_auto_once').on(t.invoiceId, t.planId, t.userId).where(commissionIsAuto),
   uniqueIndex('commission_reversal_once').on(t.reversalOf).where(commissionIsReversal),
+  uniqueIndex('commission_refund_once').on(t.reversalOf, t.refundedRatio).where(commissionIsRefund),
 ])
 
 export const staffAccountEntry = pgTable('staff_account_entry', {

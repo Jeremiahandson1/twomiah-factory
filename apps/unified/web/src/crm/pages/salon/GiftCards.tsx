@@ -8,6 +8,7 @@ import { api, useAuth, useToast, usePermissions, useConfirm, usePrompt, money } 
 import { Button, Field, Modal, inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import ClientPicker from './ClientPicker'
+import { SoldBy } from './SoldBy'
 import { ChairCheckoutPanel } from './ChairCheckout'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
@@ -113,6 +114,7 @@ function SellModal({ onClose, onSold }: { onClose: () => void; onSold: () => voi
   const offers = useOffers()
   const [offerId, setOfferId] = useState('')
   const [deliverOn, setDeliverOn] = useState('')
+  const [soldBy, setSoldBy] = useState('')
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [problem, setProblem] = useState('')
@@ -124,7 +126,7 @@ function SellModal({ onClose, onSold }: { onClose: () => void; onSold: () => voi
     if (!Number.isFinite(dollars) || dollars <= 0) { setErrors({ amount: 'Enter the amount of the gift card.' }); return }
     setBusy(true); setErrors({}); setProblem('')
     try {
-      const r = await api.post('/api/salon-gift-cards/sell', { amountCents: Math.round(dollars * 100), method, contactId: contactId || undefined, offerId: offerId || undefined, deliverOn: deliverOn || undefined, ...f })
+      const r = await api.post('/api/salon-gift-cards/sell', { amountCents: Math.round(dollars * 100), method, contactId: contactId || undefined, offerId: offerId || undefined, deliverOn: deliverOn || undefined, soldBy: soldBy || undefined, ...f })
       setDone({ code: r.card.code, emailed: !!r.emailed, scheduled: r.scheduled || null, amountCents: r.card.initialCents, bonusCents: r.card.bonusCents })
       onSold()
     } catch (e: any) {
@@ -165,6 +167,7 @@ function SellModal({ onClose, onSold }: { onClose: () => void; onSold: () => voi
           </Field>
         )}
         <Field label="How was it paid?"><select value={method} onChange={(e) => setMethod(e.target.value)} className={inputCls}>{METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+        <SoldBy value={soldBy} onChange={setSoldBy} />
         <Field label="Bought by (a client, if they are one)"><ClientPicker value={contactId} onChange={(id, c) => { setContactId(id); if (c && !f.purchaserName) set('purchaserName', c.name || [c.firstName, c.lastName].filter(Boolean).join(' ')) }} /></Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Buyer's name"><input value={f.purchaserName} onChange={(e) => set('purchaserName', e.target.value)} className={inputCls} /></Field>
