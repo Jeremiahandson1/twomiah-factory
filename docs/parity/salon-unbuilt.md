@@ -10,7 +10,7 @@ exclusions, and the edges each parity file lists as "Not built" — so nothing r
 
 - **Reserve with Google** — needs Google's partner onboarding (an approved aggregator/partner agreement and a bookings feed in their format). Not something the app can do alone.
 - **A branded client app** and **a marketplace** — Twomiah takes no commission on a salon's own clients.
-- **Booth-rent collection** — moves money per renter.
+- ~~**Booth-rent collection**~~ — built on `cloud/salon-parity` (row 24): see `salon-booth-rent.md`.
 
 ## Built, but with edges left out (the full lists are in each file)
 

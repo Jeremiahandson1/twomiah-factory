@@ -35,6 +35,7 @@ import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
 import { createCardOnFileRoutes } from './cardOnFile.ts'
 import { createMemberCardRoutes } from './cardPages.ts'
+import { createBoothRentRoutes, createRenterCardRoutes } from './boothRentRoutes.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
 import { asc } from 'drizzle-orm'
@@ -61,6 +62,17 @@ export async function settleMembershipsForAll(d: CrmDeps) {
   return billed
 }
 
+/** One timed pass: every business with Booth rent on has its due rent invoiced (claimed, once per renter and period) and its declined charges tried again. */
+export async function settleBoothRentForAll(d: CrmDeps) {
+  const s = salonServicesFor(d)
+  let billed = 0
+  for (const co of await d.db.select({ id: company.id }).from(company)) {
+    if (!(await d.features.isFeatureEnabled(co.id, 'booth_rent'))) continue
+    billed += (await s.boothRent.settle(co.id).catch((e: any) => { d.logger.error('[booth-rent] timed billing failed', { company: co.id, error: e?.message }); return [] })).length
+  }
+  return billed
+}
+
 /** /api/dashboard for a salon (CrmSettings.dashboard 'salon'). */
 export const createSalonDashboard = (d: CrmDeps) => createSalonDashboardRoutes(d, salonServicesFor(d))
 
@@ -80,6 +92,12 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   if (salonBook) d.services.addJob(() => {
     const tick = () => settleMembershipsForAll(d)
     setTimeout(() => { void tick() }, 5 * 60_000)
+    setInterval(() => { void tick() }, 6 * 3600_000)
+  })
+  // Booth rent comes due on its own: every 6 hours, each business with Booth rent on has its due rent invoiced and its declined charges tried again. Boot only, never in tests.
+  if (salonBook) d.services.addJob(() => {
+    const tick = () => settleBoothRentForAll(d)
+    setTimeout(() => { void tick() }, 6 * 60_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
   // Retail: products, stock by place, suppliers and purchase orders (retail.ts, retailStock.ts). A product reaching its level emails the salon.
@@ -168,6 +186,11 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
     // The paused member's private card page, linked from the email (404 while Card on file is off).
     ...(salonBook ? [{ path: '/api/member-card', access: 'public', feature: 'card_on_file', router: createMemberCardRoutes(d, s.cards) } as Mount] : []),
+    // Chair renters' rent and the renter's own card page (not ready: owner tests it first).
+    ...(salonBook ? [
+      { path: '/api/booth-rent', access: 'user', feature: 'booth_rent', router: createBoothRentRoutes(d, s, s.boothRent) } as Mount,
+      { path: '/api/renter-card', access: 'public', feature: 'booth_rent', router: createRenterCardRoutes(d, s.cards) } as Mount,
+    ] : []),
     ...(settings.loyalty ? [] : [{ path: '/api/loyalty', access: 'user', feature: 'loyalty_rewards', router: createLoyaltyRoutes(d) } as Mount]),
   ]
 }

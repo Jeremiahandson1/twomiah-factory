@@ -477,6 +477,13 @@
       "when": 1793480587457,
       "tag": "0067_offer_codes_and_tier_moves",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1793482857009,
+      "tag": "0068_booth_rent",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,9 @@ export function createSaleReceipts(d: CrmDeps, lateTips: LateTips) {
     if (!(await d.features.isFeatureEnabled(inv.companyId, 'chair_checkout'))) return 'off'
     const settings = await presets.settings(inv.companyId)
     if (opts.auto && !settings.sendReceipts) return 'off'
+    // Chair rent is not a sale to a client: its own receipt (boothRentCharged) goes out, and there is no tip to add.
+    const [rentLine] = await db.select({ id: invoiceLineItem.id }).from(invoiceLineItem).where(and(eq(invoiceLineItem.invoiceId, inv.id), eq(invoiceLineItem.type, 'booth_rent'))).limit(1)
+    if (rentLine) return 'off'
     const [c] = inv.contactId ? await db.select({ name: contact.name, email: contact.email }).from(contact).where(eq(contact.id, inv.contactId)).limit(1) : []
     if (!c?.email) return 'no_email'
     if (opts.auto) {

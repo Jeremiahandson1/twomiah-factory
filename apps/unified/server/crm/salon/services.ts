@@ -13,6 +13,7 @@ import { createVisitClosing } from './visit.ts'
 import { createBookScope } from './bookScope.ts'
 import { createCardOnFile } from './cardOnFile.ts'
 import { createPatchTests } from './patchTests.ts'
+import { createBoothRent } from './boothRent.ts'
 
 export function createSalonServices(d: CrmDeps) {
   const clock = createSalonClock(d.db)
@@ -34,6 +35,8 @@ export function createSalonServices(d: CrmDeps) {
     patchTests: createPatchTests(d.db, clock),
     /** Cards kept on file and the no-show / late-cancel fees charged to them (cardOnFile.ts). */
     cards,
+    /** Chair renters' rent: invoices on schedule, autopay, ledger and statement (boothRent.ts). */
+    boothRent: createBoothRent(d, clock, checkout, cards),
   }
 }
 

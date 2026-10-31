@@ -865,3 +865,92 @@ export const salonSaleSeller = pgTable('salon_sale_seller', {
   uniqueIndex('salon_sale_seller_invoice_key').on(t.invoiceId),
   index('salon_sale_seller_company_idx').on(t.companyId),
 ])
+
+/**
+ * A chair renter (salon row 24; hidden feature `booth_rent`): a Team member who rents a chair and pays the salon rent on a schedule.
+ * `rentCents` is the amount for each period (weekly or monthly); a change applies to periods not yet invoiced. `dueWeekday` (0 = Sunday)
+ * is the day a weekly rent falls due, `dueDay` (1–31, clamped to the month's last day) the day a monthly one does. `nextDue` is the next
+ * period not yet invoiced — an invoice is raised on that day. The renter is billed through `contactId`, a contact of type 'other' made for
+ * them, so their rent, card and statement are an ordinary client's but they are never listed among the salon's clients. Autopay needs the
+ * renter's agreement (`autoChargeConsentAt`) and a card on file on the salon's own Stripe account; after the last failed try the renter is
+ * paused (`pausedForPaymentAt`) and sent a private link (`cardUpdateToken`) to give a new card.
+ */
+export const boothRenter = pgTable('booth_renter', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  teamMemberId: text('team_member_id').notNull().references(() => teamMember.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** 'active' | 'paused' (the card was declined on every try) | 'ended' */
+  status: text('status').notNull().default('active'),
+  rentCents: integer('rent_cents').notNull(),
+  /** 'weekly' | 'monthly' */
+  frequency: text('frequency').notNull(),
+  dueWeekday: integer('due_weekday'),
+  dueDay: integer('due_day'),
+  startDate: date('start_date').notNull(),
+  /** The next period not yet invoiced (null once ended). */
+  nextDue: date('next_due'),
+  endedOn: date('ended_on'),
+  autoCharge: boolean('auto_charge').notNull().default(false),
+  autoChargeConsentAt: timestamp('auto_charge_consent_at'),
+  /** 'staff' (the renter agreed in person and a person recorded it) | 'renter_online' (the renter ticked the agreement on their private card page) */
+  autoChargeConsentVia: text('auto_charge_consent_via'),
+  autoChargeConsentUserId: text('auto_charge_consent_user_id').references(() => user.id, { onDelete: 'set null' }),
+  pausedForPaymentAt: timestamp('paused_for_payment_at'),
+  /** The private link's token (give a card / give a new card); cleared once it has done its job. */
+  cardToken: text('card_token'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('booth_renter_company_member_idx').on(t.companyId, t.teamMemberId),
+  index('booth_renter_company_status_idx').on(t.companyId, t.status),
+  uniqueIndex('booth_renter_card_token_idx').on(t.cardToken),
+])
+
+/**
+ * One rent period of one renter: the claim that makes a period billable once (unique renter + period). 'invoiced' = an invoice was raised
+ * for it (`amountCents` is what that invoice charged); 'waived' = the salon waived it (no invoice, or the unpaid one was voided) with a reason.
+ */
+export const boothRentPeriod = pgTable('booth_rent_period', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  renterId: text('renter_id').notNull().references(() => boothRenter.id, { onDelete: 'cascade' }),
+  /** The day the period fell due. */
+  period: date('period').notNull(),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  amountCents: integer('amount_cents').notNull(),
+  /** 'invoiced' | 'waived' */
+  status: text('status').notNull(),
+  waivedReason: text('waived_reason'),
+  waivedByUserId: text('waived_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('booth_rent_period_renter_period_idx').on(t.renterId, t.period),
+  index('booth_rent_period_invoice_idx').on(t.invoiceId),
+  index('booth_rent_period_company_idx').on(t.companyId),
+])
+
+/** One try to take a rent invoice from the renter's card — the same ledger as membership_charge, one row per invoice and attempt. */
+export const boothRentCharge = pgTable('booth_rent_charge', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  renterId: text('renter_id').notNull().references(() => boothRenter.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  cardId: text('card_id').references(() => clientCard.id, { onDelete: 'set null' }),
+  period: date('period').notNull(),
+  attempt: integer('attempt').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  /** 'pending' (claimed, Stripe not answered) | 'succeeded' | 'declined' | 'needs_action' */
+  status: text('status').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  failureMessage: text('failure_message'),
+  backupTried: boolean('backup_tried').notNull().default(false),
+  retriedByUserId: text('retried_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('booth_rent_charge_invoice_attempt_idx').on(t.invoiceId, t.attempt),
+  index('booth_rent_charge_company_idx').on(t.companyId),
+  index('booth_rent_charge_renter_idx').on(t.renterId),
+])
