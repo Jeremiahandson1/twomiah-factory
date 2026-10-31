@@ -8,6 +8,7 @@
 //   · a failed read or save says so in words — never a list that looks empty;
 //   · the counts come from the server, from the same query a campaign's audience uses;
 //   · deleting asks twice on the page (no native dialog); money is typed in dollars and sent as cents.
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 import { useCallback, useEffect, useState } from 'react'
 import { Filter } from 'lucide-react'
 import { api } from '../../../../api'
@@ -52,7 +53,7 @@ function definitionOf(f: Form): Definition {
 /** In plain words, what a saved segment asks. */
 function describe(d: Definition, choices: Choices | null): string {
   const bits: string[] = []
-  const money = (c: number) => `$${(c / 100).toFixed(2)}`
+  const money = (c: number) => formatMoney(c / 100)
   if (d.spend?.minCents != null && d.spend?.maxCents != null) bits.push(`spent ${money(d.spend.minCents)} to ${money(d.spend.maxCents)}`)
   else if (d.spend?.minCents != null) bits.push(`spent ${money(d.spend.minCents)} or more`)
   else if (d.spend?.maxCents != null) bits.push(`spent ${money(d.spend.maxCents)} or less`)
