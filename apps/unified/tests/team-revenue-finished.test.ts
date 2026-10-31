@@ -22,7 +22,7 @@ const FEATURES = ['contacts', 'jobs', 'quotes', 'invoices', 'reports', 'time_tra
 describe('the arithmetic', () => {
   test('a split never loses or gains a cent, for any shares', () => {
     for (const total of [1, 2, 3, 100, 10001, 33333, 99999, -10001]) {
-      for (const shares of [{ a: 0.5, b: 0.5 }, { a: 1 / 3, b: 1 / 3, c: 1 / 3 }, { a: 0.6, b: 0.4 }, { a: 0.75, b: 0.25 }, { a: 0.07, b: 0.93 }]) {
+      for (const shares of [{ a: 0.5, b: 0.5 }, { a: 1 / 3, b: 1 / 3, c: 1 / 3 }, { a: 0.6, b: 0.4 }, { a: 0.75, b: 0.25 }, { a: 0.07, b: 0.93 }] as Array<Record<string, number>>) {
         const keys = Object.keys(shares)
         const cut = splitCents(total, keys, shares)
         expect({ total, shares, sum: Object.values(cut).reduce((n, v) => n + v, 0) }).toEqual({ total, shares, sum: total })
