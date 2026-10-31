@@ -132,6 +132,7 @@ const roof: VerticalSettings = {
       roleWords: { technician: 'Crew', sales_rep: 'Sales rep', manager: 'Manager', all: 'Everyone' },
       planExample: 'Sales rep, 8% of the contract',
       salesRepAutoEarn: true,
+      moneyRules: true,
       planTypeWords: { flat_rate: 'Flat amount per job', percent_of_invoice: '% of the contract (before tax)', percent_of_margin: '% of gross profit' },
       planBaseWords: { percent_of_invoice: 'the contract before tax', percent_of_margin: 'the job\u2019s gross profit' },
     },

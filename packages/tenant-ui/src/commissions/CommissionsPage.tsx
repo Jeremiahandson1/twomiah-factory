@@ -43,6 +43,11 @@ export interface CommissionsConfig {
    * included, since the server works their margin out — and says so on the card. Absent: the three choices every trade has.
    */
   salesRepAutoEarn?: boolean
+  /**
+   * The company's money rules (roofing: /api/roof-money/settings) get a Rules tab: the minimum profit under which no plan pays, and —
+   * as they are built — the commission disclaimer and who sees commissions.
+   */
+  moneyRules?: boolean
   /** The plan types in this trade's words (roofing: "% of the contract", "% of gross profit"); absent ones keep the default. */
   planTypeWords?: Partial<Record<'flat_rate' | 'percent_of_invoice' | 'percent_of_margin' | 'tiered', string>>
   /** What the percentage is of, on a plan's card: { percent_of_invoice: 'the contract before tax', percent_of_margin: 'the job’s gross profit' }. */
@@ -114,7 +119,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       // a salon pays the stylist of a visit (salesKinds); every other trade the job's person, and roofing its seller too
       : { ...(config.salesKinds ? SALON_AUTO_WORDS : AUTO_WORDS), ...(salesRepAuto ? SALES_REP_AUTO_WORDS : {}) }
 
-  const [tab, setTab] = useState<'records' | 'plans' | 'statements'>('records')
+  const [tab, setTab] = useState<'records' | 'plans' | 'statements' | 'rules'>('records')
   const [stmtWho, setStmtWho] = useState('')
   const [stmtFrom, setStmtFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` })
   const [stmtTo, setStmtTo] = useState(() => companyTodayKey())
@@ -151,6 +156,29 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     setLoading(false)
   }, [api, mayReadPlans])
   useEffect(() => { load() }, [load])
+
+  // ── the company's rules (roofing): the minimum profit ──
+  const [rules, setRules] = useState<any | null>(null)
+  const [minKind, setMinKind] = useState<'none' | 'percent' | 'amount'>('none')
+  const [minValue, setMinValue] = useState('')
+  const loadRules = useCallback(async () => {
+    try {
+      const r = await api.get('/api/roof-money/settings')
+      setRules(r)
+      setMinKind(r?.minProfit?.kind || 'none')
+      setMinValue(r?.minProfit ? String(r.minProfit.value) : '')
+    } catch (e) { setRules(null); toast.error(errMsg(e, 'Could not load the commission rules')) }
+  }, [api])
+  useEffect(() => { if (config.moneyRules && mayReadPlans) loadRules() }, [config.moneyRules, mayReadPlans, loadRules])
+  const saveRules = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      const minProfit = minKind === 'none' ? null : { kind: minKind, value: Number(minValue || 0) }
+      setRules(await api.put('/api/roof-money/settings', { minProfit }))
+      toast.success('Commission rules saved')
+    } catch (err) { toast.error(errMsg(err, 'The rules could not be saved')) } finally { setBusy(false) }
+  }
 
   // ── plans ──
   // The people a plan can name: the team's logins (switched-off ones only where a plan already names them).
@@ -325,6 +353,33 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     )
   }
 
+  // The company's rules, a render function like the statement (a component declared here would remount on every keystroke).
+  function rulesView() {
+    return (
+      <div className="space-y-4 max-w-2xl">
+        <form onSubmit={saveRules} className="bg-white border border-gray-200 rounded-lg p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Minimum profit</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400">A job that kept less profit than this pays no commission plan at all, whatever the plan says. Profit is the contract less what the job cost. It is checked each time a job is followed up, so a job held back pays once its figures clear the minimum.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Minimum is">
+              <select value={minKind} disabled={!mayUpdate} onChange={(e) => setMinKind(e.target.value as any)} className={inputCls}>
+                <option value="none">No minimum</option>
+                <option value="percent">A percent of the contract</option>
+                <option value="amount">Dollars of profit</option>
+              </select>
+            </Field>
+            {minKind !== 'none' && (
+              <Field label={minKind === 'percent' ? 'Percent of the contract (%)' : 'Dollars of profit ($)'}>
+                <input type="number" min="0" max={minKind === 'percent' ? 100 : undefined} step="0.01" required disabled={!mayUpdate} value={minValue} onChange={(e) => setMinValue(e.target.value)} className={inputCls} />
+              </Field>
+            )}
+          </div>
+          {mayUpdate && <div className="flex justify-end"><Button type="submit" disabled={busy || !rules}>Save</Button></div>}
+        </form>
+      </div>
+    )
+  }
+
   const tabCls = (on: boolean) => `px-4 py-2 border-b-2 text-sm ${on ? 'border-orange-500 text-gray-900 font-semibold dark:text-slate-100' : 'border-transparent text-gray-600 dark:text-slate-400'}`
 
   return (
@@ -341,9 +396,12 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
         <button role="tab" aria-selected={tab === 'records'} onClick={() => setTab('records')} className={tabCls(tab === 'records')}>Earnings</button>
         {mayReadPlans && <button role="tab" aria-selected={tab === 'plans'} onClick={() => setTab('plans')} className={tabCls(tab === 'plans')}>Plans</button>}
         <button role="tab" aria-selected={tab === 'statements'} onClick={() => setTab('statements')} className={tabCls(tab === 'statements')}>Statements</button>
+        {config.moneyRules && mayReadPlans && <button role="tab" aria-selected={tab === 'rules'} onClick={() => setTab('rules')} className={tabCls(tab === 'rules')}>Rules</button>}
       </div>
 
-      {tab === 'statements' ? (
+      {tab === 'rules' && config.moneyRules ? (
+        rulesView()
+      ) : tab === 'statements' ? (
         statementView()
       ) : tab === 'records' ? (
         <div className="relative bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
