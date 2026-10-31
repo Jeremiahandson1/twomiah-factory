@@ -24,7 +24,7 @@ describe('the arithmetic', () => {
     for (const total of [1, 2, 3, 100, 10001, 33333, 99999, -10001]) {
       for (const shares of [{ a: 0.5, b: 0.5 }, { a: 1 / 3, b: 1 / 3, c: 1 / 3 }, { a: 0.6, b: 0.4 }, { a: 0.75, b: 0.25 }, { a: 0.07, b: 0.93 }]) {
         const keys = Object.keys(shares)
-        const cut = splitCents(total, keys, shares)
+        const cut = splitCents(total, keys, shares as Record<string, number>)
         expect({ total, shares, sum: Object.values(cut).reduce((n, v) => n + v, 0) }).toEqual({ total, shares, sum: total })
       }
     }
