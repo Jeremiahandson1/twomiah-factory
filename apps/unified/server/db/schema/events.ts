@@ -31,6 +31,8 @@ export const event = pgTable('event', {
   quotedTotal: decimal('quoted_total', { precision: 10, scale: 2 }),
   depositRequired: decimal('deposit_required', { precision: 10, scale: 2 }),
   source: text('source'),                                  // where the enquiry came from
+  // The website-form campaign the enquiry came in through (restaurant-bar parity #4); its source was copied to `source`.
+  campaignId: text('campaign_id').references(() => eventFormCampaign.id, { onDelete: 'set null' }),
   lostReason: text('lost_reason'),                         // why it didn't close — the only way to learn
   dietaryRequirements: text('dietary_requirements'),
   setupNotes: text('setup_notes'),
@@ -351,4 +353,20 @@ export const eventBankPayment = pgTable('event_bank_payment', {
   uniqueIndex('event_bank_payment_intent_idx').on(t.paymentIntentId),
   index('event_bank_payment_event_payment_idx').on(t.eventPaymentId),
   index('event_bank_payment_company_id_idx').on(t.companyId),
+])
+
+// A website-form campaign (restaurant-bar parity #4; Tripleseat's lead form per campaign): one embeddable form, one link, that tags
+// every enquiry it brings in with the same lead source (a list entry from eventSources.ts), so the source report counts it.
+export const eventFormCampaign = pgTable('event_form_campaign', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),                            // "Instagram bio link", "The Knot listing"
+  token: text('token').notNull(),                          // in the form's address; not a secret, it only opens an enquiry form
+  source: text('source').notNull(),                        // an id from EVENT_SOURCES
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_form_campaign_token_idx').on(t.token),
+  index('event_form_campaign_company_id_idx').on(t.companyId),
 ])

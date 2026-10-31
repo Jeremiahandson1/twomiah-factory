@@ -379,6 +379,13 @@
       "when": 1793468911525,
       "tag": "0053_event_bank_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793470356217,
+      "tag": "0054_event_form_campaigns",
+      "breakpoints": true
     }
   ]
 }

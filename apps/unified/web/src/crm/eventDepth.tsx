@@ -551,6 +551,81 @@ export function EventCalendarPage() {
   )
 }
 
+
+// ── Website form campaigns (restaurant-bar parity #4) ───────────────────────────────────────────────────────────────────
+interface Campaign { id: string; name: string; source: string; sourceLabel: string; active: boolean; token: string; path: string; embedScriptPath: string; enquiries: number }
+/** The website's own address: the admin may be open at app.<domain>, which hands the website to the domain itself. */
+const siteOrigin = () => window.location.origin.replace('://app.', '://')
+const embedCode = (c: Campaign) => `<div class="twomiah-event-form" data-campaign="${c.token}"></div>\n<script src="${siteOrigin()}${c.embedScriptPath}" async></script>`
+
+export function CampaignFormsPanel() {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const ask = useConfirm()
+  const show = hasFeature('event_form_campaigns') && can('contacts:read')
+  const may = can('settings:update')
+  const [rows, setRows] = useState<Campaign[] | null>(null)
+  const [edit, setEdit] = useState<{ id?: string; name: string; source: string; active: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    try { setRows(((await client.get('/api/event-campaigns')) as { data: Campaign[] }).data) } catch (e) { toast.error(errorText(e, 'Could not load the campaigns')) }
+  }, [toast])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async () => {
+    if (!edit) return
+    setErr('')
+    try {
+      if (edit.id) await client.put(`/api/event-campaigns/${edit.id}`, { name: edit.name, source: edit.source, active: edit.active })
+      else await client.post('/api/event-campaigns', { name: edit.name, source: edit.source })
+      setEdit(null); await load(); toast.success('Campaign saved')
+    } catch (e) { setErr(errorText(e, 'Could not save the campaign')) }
+  }
+  const remove = async (c: Campaign) => {
+    if (!(await ask('Its link and embed stop working. Enquiries it already brought keep their lead source.', { title: `Delete “${c.name}”?`, confirmText: 'Delete' }))) return
+    try { await client.delete('/api/event-campaigns', c.id); await load() } catch (e) { toast.error(errorText(e, 'Could not delete it')) }
+  }
+  return (
+    <section className={card} data-testid="campaign-forms">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="font-semibold flex items-center gap-2"><Link2 className="w-4 h-4" />Enquiry form for each campaign</h2>
+        {may && <button type="button" className={primary} onClick={() => { setErr(''); setEdit({ name: '', source: 'website', active: true }) }}><Plus className="w-4 h-4" />New campaign</button>}
+      </div>
+      <p className={`${muted} mb-3`}>One form per place you advertise. Every enquiry that comes through a campaign’s link or embed is marked with its lead source for you, so the report counts it. The form offers your rooms and says whether each looks free on the date; it holds nothing.</p>
+      {!rows && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {rows?.length === 0 && <p className={muted}>No campaigns yet.</p>}
+      <ul className="space-y-3">
+        {rows?.map((c) => (
+          <li key={c.id} className="border-b border-gray-100 dark:border-slate-800 pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span><strong>{c.name}</strong> <span className={muted}>· tagged “{c.sourceLabel}” · {c.enquiries} enquir{c.enquiries === 1 ? 'y' : 'ies'}</span>{!c.active ? <span className={`ml-2 ${muted}`}>switched off</span> : null}</span>
+              <span className="flex flex-wrap gap-2">
+                <button type="button" className={btn} onClick={() => copy(toast, `${siteOrigin()}${c.path}`)}><Copy className="w-4 h-4" />Copy link</button>
+                <button type="button" className={btn} onClick={async () => { try { await navigator.clipboard.writeText(embedCode(c)); toast.success('Embed code copied') } catch { toast.error('Could not copy — select the code and copy it') } }}><Copy className="w-4 h-4" />Copy embed code</button>
+                {may && <button type="button" className={btn} onClick={() => { setErr(''); setEdit({ id: c.id, name: c.name, source: c.source, active: c.active }) }}>Edit</button>}
+                {may && <button type="button" className={btn} aria-label={`Delete ${c.name}`} onClick={() => remove(c)}><Trash2 className="w-4 h-4" /></button>}
+              </span>
+            </div>
+            <textarea readOnly aria-label={`Embed code for ${c.name}`} rows={2} className={`${input} mt-2 font-mono text-xs`} value={embedCode(c)} />
+          </li>
+        ))}
+      </ul>
+      {edit && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label={edit.id ? 'Edit campaign' : 'New campaign'}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-5 space-y-3">
+            <h3 className="font-semibold">{edit.id ? 'Edit campaign' : 'New campaign'}</h3>
+            <div><label className={label} htmlFor="cf-name">Name</label><input id="cf-name" className={input} value={edit.name} placeholder="Instagram bio link" onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
+            <SourcePicker value={edit.source} onChange={(v) => setEdit({ ...edit, source: v })} />
+            {edit.id && <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />The form is on</label>}
+            {err && <p role="alert" className="text-red-700 dark:text-red-300">{err}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setEdit(null)}>Cancel</button><button type="button" className={primary} onClick={save} disabled={!edit.name.trim() || !edit.source}>Save</button></div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Reports and the venue's event settings ───────────────────────────────────────────────────────────────────────────
 interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number }
 interface YearMonth { month: number; booked: number; lastYearBooked: number; value?: number; lastYearValue?: number }
@@ -606,6 +681,7 @@ export function EventInsightsPage() {
           )}
         </section>
       )}
+      <CampaignFormsPanel />
       <ContractTemplatesPanel />
       {showSettings && settings && (
         <section className={card} data-testid="event-settings">

@@ -16,7 +16,7 @@ const WINDOW_MS = 10 * 60 * 1000
 const MAX_PER_WINDOW = 5
 const THANKS = "Got it — thanks. We'll be in touch soon."
 /** Form fields that are the form's own machinery or already read by name, so not repeated as "extra answers". */
-const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't', 'smsConsent', 'smsConsentFor'])
+const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't', 'smsConsent', 'smsConsentFor', 'campaign', 'spaceId'])
 
 function clientIp(c: Context): string {
   const xff = c.req.header('X-Forwarded-For') || ''

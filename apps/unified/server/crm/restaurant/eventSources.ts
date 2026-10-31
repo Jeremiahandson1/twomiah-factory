@@ -1,6 +1,8 @@
 // Where an enquiry came from — a short list to pick from, not free text, so the lead-source report (eventReports.ts)
 // can count it (restaurant-bar-depth #7). The first five are the Lead Inbox's own platforms (verticals/restaurant
 // settings leads.platforms), so an event raised from an inbox lead keeps its source.
+import { and, eq } from 'drizzle-orm'
+import { eventFormCampaign } from '../../db/schema/index.ts'
 export const EVENT_SOURCES = [
   { id: 'website', label: 'Website form' },
   { id: 'the_knot', label: 'The Knot' },
@@ -30,4 +32,18 @@ export function sourceId(raw: unknown): string | null {
 export function sourceRefusal(raw: unknown): string | null {
   if (raw == null || raw === '') return null
   return typeof raw === 'string' && IDS.has(raw) ? null : `Source must be one of: ${EVENT_SOURCES.map((s) => s.id).join(', ')}.`
+}
+
+// ── Website-form campaigns (restaurant-bar parity #4) ───────────────────────────────────────────────────────────────────
+// A campaign is one embeddable enquiry form with its own link; every enquiry it brings in is tagged with the campaign's lead source,
+// so the source report counts it without anyone choosing a source by hand. A token that matches no live campaign is ignored (the
+// enquiry is still taken, with the source 'website' as before) — a stale embed never loses a lead.
+
+/** The live campaign a form was posted through, by the token in its address. */
+export async function campaignByToken(exec: any, companyId: string, token: unknown): Promise<{ id: string; name: string; source: string } | null> {
+  const t = typeof token === 'string' ? token.trim() : ''
+  if (!/^[0-9a-f]{24}$/.test(t)) return null
+  const [row] = await exec.select({ id: eventFormCampaign.id, name: eventFormCampaign.name, source: eventFormCampaign.source }).from(eventFormCampaign)
+    .where(and(eq(eventFormCampaign.companyId, companyId), eq(eventFormCampaign.token, t), eq(eventFormCampaign.active, true))).limit(1)
+  return row ?? null
 }

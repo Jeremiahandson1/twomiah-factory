@@ -37,7 +37,7 @@ async function guestFor(tx: any, companyId: string, name: string, email: string 
 }
 
 /** A party request with a real date, as an enquiry in the party book; null when it is an ordinary lead. */
-export async function partyEnquiry(db: any, companyId: string, f: BarForm, partiesOn: boolean): Promise<{ eventId: string; contactId: string } | null> {
+export async function partyEnquiry(db: any, companyId: string, f: BarForm, partiesOn: boolean, extras: { source?: string; campaignId?: string | null; spaceId?: string | null; startTime?: string | null; endTime?: string | null } = {}): Promise<{ eventId: string; contactId: string } | null> {
   const date = typeof f.requestedDate === 'string' && DATE_RE.test(f.requestedDate) ? f.requestedDate : null
   if (!date || !partiesOn) return null
   const name = clip(f.name, 120)!
@@ -46,7 +46,11 @@ export async function partyEnquiry(db: any, companyId: string, f: BarForm, parti
   const input = {
     name: `${occasion || 'Party'} — ${name}`.slice(0, MAX_EVENT_NAME), eventDate: date, status: 'enquiry',
     eventType: occasionType(occasion), guestCount: Number.isFinite(size) && size > 0 && size <= 2000 ? size : null,
-    notes: clip(f.message, 2000), source: 'website',
+    notes: clip(f.message, 2000),
+    // A website form's campaign tags the lead source (restaurant-bar parity #4); without one it is the plain website form, as before.
+    source: extras.source || 'website', campaignId: extras.campaignId ?? null,
+    // The room the guest preferred and the hours they gave: a PREFERENCE on an enquiry, which holds nothing.
+    ...(extras.spaceId ? { spaceId: extras.spaceId } : {}), ...(extras.startTime && extras.endTime ? { startTime: extras.startTime, endTime: extras.endTime } : {}),
   }
   if (validateEventInput(input)) return null // a date that is not a real day: it goes to the inbox, never dropped
   return db.transaction(async (tx: any) => {

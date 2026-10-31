@@ -40,6 +40,16 @@
             <% } else { %><input id="p-occ" type="text" name="occasion" maxlength="80"><% } %>
           </div>
         </div>
+        <div class="parties__room" id="pf-room-wrap" hidden>
+          <div class="parties__row">
+            <div class="parties__field"><label class="parties__label" for="pf-start">Start time (optional)</label><input id="pf-start" type="time" name="startTime"></div>
+            <div class="parties__field"><label class="parties__label" for="pf-end">End time (optional)</label><input id="pf-end" type="time" name="endTime"></div>
+          </div>
+          <div class="parties__field parties__field--full"><label class="parties__label" for="pf-room">Room you would like (optional)</label>
+            <select id="pf-room" name="spaceId"><option value="" data-base="">No preference</option></select></div>
+          <input type="hidden" name="room" id="pf-room-name" value="">
+          <p class="parties__promise" id="pf-room-note" aria-live="polite"></p>
+        </div>
         <div class="parties__field parties__field--full"><label class="parties__label" for="p-msg">Anything else</label><textarea id="p-msg" name="message" rows="4" placeholder="Food, drinks, a cake, a game on the TV — whatever matters."></textarea></div>
         <div class="parties__submit-row">
           <button class="btn btn--primary btn--xl" type="submit">Ask about a party</button>
@@ -60,3 +70,37 @@
     </div>
   </div>
 </section>
+<script>
+// The venue's rooms and whether each looks free on the date typed (a look: nothing is held). Shown only when the venue has the
+// room picker switched on: the rooms address answers 404 otherwise and the box stays hidden.
+(function () {
+  var form = document.querySelector('.parties__form'); if (!form) return;
+  var wrap = document.getElementById('pf-room-wrap'), sel = document.getElementById('pf-room'), note = document.getElementById('pf-room-note'), nameEl = document.getElementById('pf-room-name');
+  var date = form.elements.requestedDate, size = form.elements.partySize, st = document.getElementById('pf-start'), en = document.getElementById('pf-end');
+  var pending = 0, built = false;
+  function look() {
+    var mine = ++pending;
+    var q = '?date=' + encodeURIComponent(date.value || '') + '&startTime=' + encodeURIComponent(st.value || '') + '&endTime=' + encodeURIComponent(en.value || '') + '&guests=' + encodeURIComponent(size.value || '');
+    fetch('/api/event-form/rooms' + q, { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.data || !j.data.length || mine !== pending) return;
+      if (!built) {
+        j.data.forEach(function (r) {
+          var cap = [r.seatedCapacity ? 'seats ' + r.seatedCapacity : '', r.standingCapacity ? 'standing ' + r.standingCapacity : ''].filter(Boolean).join(', ');
+          var o = document.createElement('option'); o.value = r.id; o.setAttribute('data-base', r.name + (cap ? ' (' + cap + ')' : '')); sel.appendChild(o);
+        });
+        built = true; wrap.hidden = false;
+      }
+      var chosen = sel.value, pick = null;
+      Array.prototype.forEach.call(sel.options, function (o) {
+        var r = j.data.filter(function (x) { return x.id === o.value; })[0]; if (!r) return;
+        if (r.id === chosen) pick = r;
+        o.textContent = o.getAttribute('data-base') + (r.looksFree === true ? ' \u2014 looks free' : r.looksFree === false ? ' \u2014 looks taken' : '') + (r.fits === false ? ' (smaller than your group)' : '');
+      });
+      nameEl.value = chosen ? sel.options[sel.selectedIndex].getAttribute('data-base') : '';
+      note.textContent = !chosen ? '' : pick && pick.looksFree === true ? 'That room looks free on that day. Nothing is held for you until we confirm it with you.' : pick && pick.looksFree === false ? 'That room looks taken at that time. You can still send your request, or choose another room or day, and we will get back to you.' : 'Choose a date and we will show whether the room looks free.';
+    }).catch(function () {});
+  }
+  [date, size, st, en, sel].forEach(function (el) { el.addEventListener('change', look); });
+  look();
+})();
+</script>

@@ -8,7 +8,7 @@ import { escHtml, type EmailService, type Template } from './email.ts'
 import type { Logger } from './logger.ts'
 import { recordPipelineEnquiry } from '../crm/rv/enquiry.ts'
 import { partyEnquiry, joinRegulars, BAR_FORMS, type BarForm } from '../crm/bar/enquiry.ts'
-import { cateringEnquiry } from '../crm/restaurant/eventEnquiry.ts'
+import { cateringEnquiry, formExtras } from '../crm/restaurant/eventEnquiry.ts'
 
 export interface Enquiry {
   name: string
@@ -67,13 +67,13 @@ export function createEnquiries(deps: {
     // A bar's party request with a date is an enquiry in the party book; its Regulars sign-up joins the guest.
     if (deps.forms === 'bar' && e.form && BAR_FORMS.has(String(e.form.formType))) {
       if (e.form.formType === 'regulars') return { kind: 'contact', id: await joinRegulars(db, companyId, e.form, { ip: e.ip ?? null, page: e.source }) }
-      const made = await partyEnquiry(db, companyId, e.form, await isFeatureEnabled(companyId, 'event_bookings'))
+      const made = await partyEnquiry(db, companyId, e.form, await isFeatureEnabled(companyId, 'event_bookings'), await formExtras(db, companyId, e.form, await isFeatureEnabled(companyId, 'event_form_campaigns')))
       if (made) return { kind: 'event', id: made.eventId }
       // No real date (or Parties off): an ordinary lead, below.
     }
     // A restaurant's catering form with a real date is an enquiry in the event book, once the venue has switched that on.
     if (deps.forms === 'events' && e.form?.eventDate && await isFeatureEnabled(companyId, 'event_web_enquiries') && await isFeatureEnabled(companyId, 'event_bookings')) {
-      const made = await cateringEnquiry(db, companyId, e.form)
+      const made = await cateringEnquiry(db, companyId, e.form, await formExtras(db, companyId, e.form, await isFeatureEnabled(companyId, 'event_form_campaigns')))
       if (made) return { kind: 'event', id: made.eventId }
     }
     // A dealership's leads are its pipeline, with or without the Lead Inbox (templates/crm-rv routes/webhooks.ts, T59).

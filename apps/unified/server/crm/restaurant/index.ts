@@ -22,6 +22,7 @@ import { createEventSettingsRoutes } from './eventSettings.ts'
 import { createEventMinimumRoutes } from './eventMinimums.ts'
 import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes } from './eventCalendar.ts'
 import { createEventReportRoutes } from './eventReports.ts'
+import { createEventCampaignRoutes, createEventFormPublicRoutes } from './eventForm.ts'
 import { createEventProposalRoutes, createProposalLinkRoutes, previewContract } from './eventProposals.ts'
 import { createEventContractRoutes } from './eventContracts.ts'
 import { createEventPaymentRoutes, createEventPayLinkRoutes, startEventPaymentJobs, runPaymentReminders, runAutopay } from './eventPayments.ts'
@@ -58,6 +59,9 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     { path: '/api/event-waitlist', access: 'user', feature: 'event_calendar', router: createEventWaitlistRoutes(d) },
     { path: '/api/event-feed', access: 'public', feature: 'event_calendar', router: createEventFeedRoutes(d) },
     { path: '/api/event-reports', access: 'user', feature: 'event_reports', router: createEventReportRoutes(d) },
+    // The enquiry form's rooms and one form (link and embed) per campaign (restaurant-bar parity #4); the public side takes nothing and holds nothing.
+    { path: '/api/event-campaigns', access: 'user', feature: 'event_form_campaigns', router: createEventCampaignRoutes(d) },
+    { path: '/api/event-form', access: 'public', feature: 'event_form_campaigns', router: createEventFormPublicRoutes(d) },
     { path: '/api/event-proposals', access: 'user', feature: 'event_proposals', router: createEventProposalRoutes(d) },
     { path: '/api/proposal-links', access: 'public', feature: 'event_proposals', router: createProposalLinkRoutes(d) },
     { path: '/api/event-contracts', access: 'user', feature: 'event_contracts', router: createEventContractRoutes(d, (companyId, eventId, body) => previewContract(d.db, companyId, eventId, body)) },
