@@ -711,8 +711,6 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
 | — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: what is waiting to be packed |
-| — | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
-| — | Reviews | `/crm/reviews` | — | google_reviews (off by default (add-on or opt-in)) | all | none | C |
 | Shop | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | Stock tab (look up by name, SKU or barcode; set the count) | A — stock look-up and count from the shelf |
 | Shop | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | Orders tab + order (pack, ready for pickup, mark shipped, buy a label) | A — pick, pack and ship |
 | Shop | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
@@ -721,6 +719,8 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Customers | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later; the order already carries the buyer |
 | Customers | Customer groups | `/crm/customer-groups` | discounts:read | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Customers | Loyalty | `/crm/store-loyalty` | loyalty:read | — (core) | all | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| Customers | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
+| Customers | Reviews | `/crm/reviews` | — | google_reviews (off by default (add-on or opt-in)) | all | none | C |
 | Customers | Reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
 | Customers | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
 | Customers | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | A — answering customers' email and reviews |

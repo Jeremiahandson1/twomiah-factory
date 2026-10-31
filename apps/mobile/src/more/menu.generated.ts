@@ -511,8 +511,6 @@ export const MENU: Record<string, MenuRow[]> = {
   ],
   store: [
     {"label":"Dashboard","path":"/crm/dashboard","group":"Home","icon":"home","permission":"orders:read","routePermission":"orders:read","native":[{"route":"/(tabs)/dashboard"}]},
-    {"label":"Marketing","path":"/crm/marketing","group":"Customers","icon":"megaphone","permission":"marketing:read","features":["email_marketing"]},
-    {"label":"Reviews","path":"/crm/reviews","group":"Customers","icon":"star","features":["google_reviews"]},
     {"label":"Products","path":"/crm/products","group":"Sell","icon":"ellipse","permission":"products:read","routePermission":"products:read","native":[{"route":"/(tabs)/store-stock"}]},
     {"label":"Orders","path":"/crm/orders","group":"Sell","icon":"ellipse","permission":"orders:read","routePermission":"orders:read","native":[{"route":"/(tabs)/store-orders"}]},
     {"label":"Suppliers","path":"/crm/suppliers","group":"Equipment & records","icon":"ellipse","permission":"integrations:update","routePermission":"integrations:update"},
@@ -521,6 +519,8 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Lead Inbox","path":"/crm/leads","group":"Sell","icon":"mail-unread","permission":"leads:read","features":["lead_inbox"],"native":[{"route":"/(details)/leads"}]},
     {"label":"Customer groups","path":"/crm/customer-groups","group":"Customers","icon":"ellipse","permission":"discounts:read","routePermission":"discounts:read"},
     {"label":"Loyalty","path":"/crm/store-loyalty","group":"Customers","icon":"ellipse","permission":"loyalty:read","routePermission":"loyalty:read"},
+    {"label":"Marketing","path":"/crm/marketing","group":"Customers","icon":"megaphone","permission":"marketing:read","features":["email_marketing"]},
+    {"label":"Reviews","path":"/crm/reviews","group":"Customers","icon":"star","features":["google_reviews"]},
     {"label":"Reviews","path":"/crm/product-reviews","group":"Customers","icon":"ellipse","permission":"reviews:read","routePermission":"reviews:read","native":[{"route":"/(tabs)/store-reviews"}]},
     {"label":"Google Reviews","path":"/crm/google-reviews","group":"Customers","icon":"logo-google","minRole":"admin","routeRole":"admin","features":["google_business"],"native":[{"route":"/(details)/office-google-reviews"}]},
     {"label":"Email Inbox","path":"/crm/email","group":"Business & website","icon":"mail","minRole":"admin","routeRole":"admin","features":["branded_email"],"native":[{"route":"/(details)/email"}]},
