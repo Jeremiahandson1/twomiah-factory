@@ -20,9 +20,13 @@ if (shard) console.log(`shard ${shard[1]}/${shard[2]}: ${files.length} of ${all.
 const failed: string[] = []
 let passed = 0, failedTests = 0
 
+// A file that never finishes is killed and counted as failed: on 10/30 one child hung for two hours with every test of
+// its file already passed, and the run (and so CI) waited on it with nothing to say.
+const FILE_LIMIT_MS = 10 * 60_000
+
 for (const f of files) {
-  const run = Bun.spawnSync([process.execPath, 'test', '--timeout', '120000', path.join('tests', f)], { cwd: path.join(dir, '..'), stdout: 'pipe', stderr: 'pipe' })
-  const out = run.stdout.toString() + run.stderr.toString()
+  const run = Bun.spawnSync([process.execPath, 'test', '--timeout', '120000', path.join('tests', f)], { cwd: path.join(dir, '..'), stdout: 'pipe', stderr: 'pipe', timeout: FILE_LIMIT_MS })
+  const out = run.stdout.toString() + run.stderr.toString() + (run.exitedDueToTimeout ? `\nerror: the file did not finish within ${FILE_LIMIT_MS / 60_000} minutes and was stopped` : '')
   const p = Number(/(\d+) pass/.exec(out)?.[1] ?? 0), x = Number(/(\d+) fail/.exec(out)?.[1] ?? 0)
   passed += p; failedTests += x
   if (run.exitCode !== 0) {

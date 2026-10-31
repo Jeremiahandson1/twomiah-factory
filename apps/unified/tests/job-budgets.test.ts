@@ -1,12 +1,11 @@
 // Project budgets under Job Costing (brief item 5, the screen that was missing): the route is its own (not ready) feature
 // `job_budgets` and still needs reports:read; the panel under Job Costing shows only with both, lists a project's budget by cost
 // code beside what it has cost, says so when there is no budget yet, and leaves the page as it was when it is off.
-// Server half: the real app. Screen half: happy-dom (no headless browser here).
+// Screen half: happy-dom (no headless browser here). The server half is job-budgets-routes.test.ts: a DOM installed as globals
+// makes the servers' in-memory database take itself to be in a browser and fail to boot (see job-notes-photos-routes.test.ts).
 import { describe, test, expect } from 'bun:test'
-import { eq } from 'drizzle-orm'
 import { Window } from 'happy-dom'
 import { FEATURE_REGISTRY } from '@twomiah/tenant-backend'
-import { bootTenant, seedOwner } from './harness.ts'
 
 const win: any = new Window({ url: 'https://crm.example.com/crm/job-costing' })
 for (const k of Object.getOwnPropertyNames(win)) if (!(k in globalThis)) (globalThis as any)[k] = win[k]
@@ -29,34 +28,6 @@ describe('the feature', () => {
     expect(f.hidden).toBe(true)
     expect(f.templates).toEqual(['crm'])
   })
-})
-
-describe('the server', () => {
-  async function boot(features: string[]) {
-    const t = await bootTenant({ vertical: 'contractor' })
-    const s = await seedOwner(t)
-    await t.db.update(t.schema.company).set({ enabledFeatures: features } as any).where(eq(t.schema.company.id, s.company.id))
-    const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
-    const login = async (email: string, password: string) => (await (await t.call('/api/auth/login', { method: 'POST', json: { email, password } })).json()).accessToken
-    const as = (tok: string) => (p: string, i: any = {}) => t.call(p, { ...i, headers: { ...(i.headers || {}), Authorization: `Bearer ${tok}` } })
-    const owner = as(await login('owner@test.example', s.password))
-    await ins(t.schema.user, { companyId: s.company.id, email: 'field@test.example', firstName: 'Field', lastName: 'Seat', role: 'field', passwordHash: await Bun.password.hash('Correct-horse-1', 'bcrypt') })
-    const field = as(await login('field@test.example', 'Correct-horse-1'))
-    const customer = await ins(t.schema.contact, { companyId: s.company.id, type: 'client', name: 'Ann Able' })
-    const project = await ins(t.schema.project, { companyId: s.company.id, number: 'PRJ-00001', name: 'Kitchen remodel', contactId: customer.id })
-    await ins(t.schema.projectBudgetLine, { companyId: s.company.id, projectId: project.id, costCode: '06-Framing', estimatedCost: '820', estimatedPrice: '1080', uncostedLines: 0 })
-    return { owner, field, project }
-  }
-
-  test('off: the budget route is not there; on: the owner reads it; on: a seat without reports:read is refused', async () => {
-    const off = await boot(['projects', 'job_costing'])
-    expect((await off.owner(`/api/job-costing/budget/${off.project.id}`)).status).toBe(404)
-    const on = await boot(['projects', 'job_costing', 'job_budgets'])
-    const r = await on.owner(`/api/job-costing/budget/${on.project.id}`)
-    expect(r.status).toBe(200)
-    expect((await json(r)).lines.map((l: any) => [l.costCode, l.estimatedCost])).toEqual([['06-Framing', 820]])
-    expect((await on.field(`/api/job-costing/budget/${on.project.id}`)).status).toBe(403)
-  }, 120_000)
 })
 
 const BUDGET = { projectName: 'Kitchen remodel', lines: [{ costCode: '02-Demo', estimatedCost: 800, estimatedPrice: 1000, uncostedLines: 0 }, { costCode: '06-Framing', estimatedCost: 820, estimatedPrice: 1080, uncostedLines: 1 }], totalCost: 1620, totalPrice: 2080, uncostedLines: 1, actualCost: 1900, remainingCost: -280, jobCount: 2 }

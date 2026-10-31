@@ -154,10 +154,14 @@ describe('a ZIP is a US ZIP in every shared schema', () => {
     expect(company.status).toBe(400)
     expect(await err(company)).toContain('ZIP code')
     expect((await as('/api/contacts', { method: 'POST', json: { name: 'Zip Test', zip: 'abcdef', type: 'client' } })).status).toBe(400)
-    expect((await as('/api/jobs', { method: 'POST', json: { title: 'Zip job', zip: 'abcdef' } })).status).toBe(400)
+    // A field service job is for a customer (crm.jobs.requireCustomer), so the job's only fault is its ZIP.
+    const contactId = (await (await as('/api/contacts', { method: 'POST', json: { name: 'Zip Customer', type: 'client' } })).json()).id
+    const zipJob = await as('/api/jobs', { method: 'POST', json: { title: 'Zip job', zip: 'abcdef', contactId } })
+    expect(zipJob.status).toBe(400)
+    expect(await err(zipJob)).toContain('ZIP code')
     expect((await as('/api/locations', { method: 'POST', json: { name: 'North', code: 'N', zip: 'abcdef' } })).status).toBe(400)
     expect((await as('/api/projects', { method: 'POST', json: { name: 'Zip project', zip: 'abcdef' } })).status).toBe(400)
-    const ok = await as('/api/jobs', { method: 'POST', json: { title: 'Zip job', zip: '54701 1234' } })
+    const ok = await as('/api/jobs', { method: 'POST', json: { title: 'Zip job', zip: '54701 1234', contactId } })
     expect(ok.status).toBe(201)
     expect((await ok.json()).zip).toBe('54701-1234')
     expect((await as('/api/company', { method: 'PUT', json: { zip: '54701' } })).status).toBe(200)

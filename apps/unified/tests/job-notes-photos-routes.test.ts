@@ -26,7 +26,11 @@ async function tenantWithJob(vertical: string) {
   expect((await as(owner)('/api/company/features', { method: 'PUT', json: { features: ['contacts', 'jobs', 'photo_capture'] } })).status).toBe(200)
   await t.db.insert(t.schema.user).values({ email: 'viewer@test.example', passwordHash: await Bun.password.hash('Pass-word-1', 'bcrypt'), firstName: 'Vi', lastName: 'Ewer', role: 'viewer', companyId: s.company.id })
   const viewer = await login('viewer@test.example', 'Pass-word-1')
-  const job = await (await as(owner)('/api/jobs', { method: 'POST', json: { title: 'Deck repair' } })).json()
+  // A new job is for a customer (crm.jobs.requireCustomer, contractor PR #173).
+  const contactId = (await (await as(owner)('/api/contacts', { method: 'POST', json: { name: 'Deck Customer', type: 'client' } })).json()).id
+  const made = await as(owner)('/api/jobs', { method: 'POST', json: { title: 'Deck repair', contactId } })
+  expect(made.status).toBe(201)
+  const job = await made.json()
   return { t, owner: as(owner), viewer: as(viewer), jobId: (job.data ?? job).id as string }
 }
 const form = (field: string, extra: Record<string, string> = {}) => {
