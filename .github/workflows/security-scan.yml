@@ -40,6 +40,17 @@ jobs:
             (cd "$dir" && bun install --frozen-lockfile && bun audit --prod --audit-level=high) || exit 1
             echo "::endgroup::"
           done
+      # The phone app (10/31: never audited until now; 6 findings, the critical shell-quote and postcss fixed by root
+      # overrides — docs/SECURITY_UPGRADES.json). Three are excepted BY ID, each for a stated reason; any other finding fails:
+      #   GHSA-qr28-fpjm-wq7f decode-uri-component — fixed only in 0.5.1, which is ESM-only; React Navigation's query-string
+      #     require()s it, so the override would break link handling at run time. The risk is a slow parse of a crafted link
+      #     opened in the app itself.
+      #   GHSA-5p2g-fcmc-qvqq, GHSA-w3rx-r6r6-pgpr image-size — fixed only in 2.x (a new API); metro uses 1.x at BUILD time
+      #     on the app's own images, so no outside file reaches it.
+      # Remove each exception when React Native / Expo ships the fixed version.
+      - name: Audit the phone app
+        run: |
+          cd apps/mobile && bun audit --prod --audit-level=high --ignore=GHSA-qr28-fpjm-wq7f --ignore=GHSA-5p2g-fcmc-qvqq --ignore=GHSA-w3rx-r6r6-pgpr
       - name: Audit each premium template
         run: |
           set -e

@@ -26,6 +26,22 @@
       "at": "2026-10-31"
     },
     {
+      "manifest": "package.json",
+      "package": "shell-quote",
+      "to": "^1.11.0",
+      "advisory": "GHSA-pqg4-j6r4-53mv",
+      "why": "critical: quote() command injection via a line terminator after a { comment } token (>=1.8.4 <1.11.0); transitive via the phone app's react-native (react-devtools-core). A minor version: same API",
+      "at": "2026-10-31"
+    },
+    {
+      "manifest": "package.json",
+      "package": "postcss",
+      "to": "^8.5.32",
+      "advisory": "GHSA-6g55-p6wh-862q",
+      "why": "arbitrary file read through an attacker-controlled sourceMappingURL (<=8.5.11; also GHSA-r28c-9q8g-f849, source-map path traversal); transitive via the phone app's @expo/metro-config and the build tools. A minor version: same API",
+      "at": "2026-10-31"
+    },
+    {
       "manifest": "packages/tenant-backend/package.json",
       "package": "zod",
       "to": "^4.6.6",
