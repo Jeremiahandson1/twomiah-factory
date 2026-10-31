@@ -372,6 +372,13 @@
       "when": 1793466873592,
       "tag": "0052_care_credentials_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793468440140,
+      "tag": "0053_care_medication_reminders",
+      "breakpoints": true
     }
   ]
 }

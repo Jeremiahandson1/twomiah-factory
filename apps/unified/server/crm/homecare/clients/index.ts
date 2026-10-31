@@ -25,6 +25,7 @@ import { createServiceCodeRoutes } from './serviceCodes.ts'
 import { createReferralSourceRoutes } from './referralSources.ts'
 import { createProspectRoutes, createProspectAppointmentRoutes } from './prospects.ts'
 import { createSupervisoryVisitRoutes } from './supervisoryVisits.ts'
+import { createMedicationReminderRoutes } from './medicationReminders.ts'
 
 export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
   const access = createClientAccess(core, d)
@@ -35,6 +36,7 @@ export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/care-tasks', access: 'user', router: createCareTaskRoutes(core, d, access) },
     { path: '/api/care-types', access: 'user', router: createCareTypeRoutes(d) },
     { path: '/api/medications', access: 'user', router: createMedicationRoutes(core, d, access) },
+    { path: '/api/medication-reminders', access: 'user', feature: 'care_medication_reminders', router: createMedicationReminderRoutes(core, d) },
     { path: '/api/adl', access: 'user', router: createAdlRoutes(core, d, access) },
     { path: '/api/client-documents', access: 'user', router: createClientDocumentRoutes(core, d, access) },
     { path: '/api/insurance-cards', access: 'user', router: createInsuranceCardRoutes(core, d) },

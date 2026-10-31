@@ -1741,6 +1741,8 @@ export const medications = pgTable('medications', {
   instructions: text('instructions'),
   sideEffects: text('side_effects'),
   isPrn: boolean('is_prn').default(false).notNull(),
+  // The times of day a dose is due, on the agency's clock: ["08:00","20:00"] (item 2, care_medication_reminders). null = none set.
+  doseTimes: json('dose_times'),
   startDate: date('start_date'),
   endDate: date('end_date'),
   status: text('status').default('active').notNull(),
@@ -3100,4 +3102,19 @@ export const clientCredentialReminder = pgTable('client_credential_reminder', {
   sentAt: timestamp('sent_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('client_credential_reminder_key').on(t.clientCredentialId, t.expiryDate, t.stage),
+])
+
+// A dose reminder or a missed-dose alert that has been sent (item 2, care_medication_reminders). The row is inserted BEFORE
+// the send, so the scan that inserts it is the only one that sends: a dose is reminded once per visit and flagged once.
+export const medicationDoseReminder = pgTable('medication_dose_reminder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  medicationId: text('medication_id').notNull().references(() => medications.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  dueAt: timestamp('due_at').notNull(),
+  kind: text('kind').notNull(), // 'due' = the caregiver's reminder, 'missed' = the office's alert
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('medication_dose_reminder_once_idx').on(t.medicationId, t.timeEntryId, t.dueAt, t.kind),
+  index('medication_dose_reminder_company_idx').on(t.companyId),
 ])

@@ -27,6 +27,7 @@ import { createVitals } from './vitals.ts'
 import { createShiftReminders } from './shiftReminders.ts'
 import { createOvertimeAlerts } from './overtimeAlerts.ts'
 import { createCertReminders } from './certReminders.ts'
+import { createMedicationReminders } from './medicationReminders.ts'
 import { createFamilyTexts } from './familyTexts.ts'
 import { createRequiredTasks } from './requiredTasks.ts'
 import { createSupervisory } from './supervisory.ts'
@@ -112,12 +113,13 @@ function buildHomecareCore(d: CrmDeps) {
   const reminders = createShiftReminders(d, { time, notify })
   const overtime = createOvertimeAlerts(d, { time, profile, notify })
   const certReminders = createCertReminders(d, { time, notify })
+  const medicationReminders = createMedicationReminders(d, { time, notify })
   const autopay = createAutopay(d, { invoices, time, notify, email })
   const offlineSaves = createOfflineSaves(d, { time, notify })
   const familyTexts = createFamilyTexts(d, { time, notify, profile })
   const requiredTasks = createRequiredTasks(d, { time })
   const supervisory = createSupervisory(d, { time })
-  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, autopay })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {
@@ -128,7 +130,7 @@ function buildHomecareCore(d: CrmDeps) {
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
     invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, certReminders, familyTexts, requiredTasks, supervisory, worcsPoll,
+    reminders, overtime, certReminders, medicationReminders, familyTexts, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

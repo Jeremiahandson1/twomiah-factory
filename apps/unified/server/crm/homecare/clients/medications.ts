@@ -30,6 +30,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
+import { normDoseTimes } from '../core/medicationReminders.ts'
 import { body, who, whole, NOT_YOUR_CLIENT, type ClientAccess } from './shared.ts'
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
@@ -67,6 +68,12 @@ function medicationValues(b: any): { values: Record<string, unknown>; error?: st
     if (!p.has) continue
     if ((col === 'startDate' || col === 'endDate') && p.v != null && !YMD.test(String(p.v))) return { values, error: `${col} must be a date (YYYY-MM-DD)` }
     values[col] = p.v
+  }
+  // The times of day a dose is due (item 2): ["08:00","20:00"]; an empty list clears them.
+  if ('doseTimes' in b) {
+    const t = normDoseTimes(b.doseTimes)
+    if ('error' in t) return { values, error: t.error }
+    values.doseTimes = t.times.length ? t.times : null
   }
   if ('isPrn' in b) values.isPrn = b.isPrn === true || b.isPrn === 'true'
   if ('isActive' in b) values.status = b.isActive === false || b.isActive === 'false' ? 'discontinued' : 'active'
