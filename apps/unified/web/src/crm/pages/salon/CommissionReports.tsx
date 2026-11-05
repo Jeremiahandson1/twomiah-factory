@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { api, money, useAuth, usePermissions, useToast } from '../../../shared'
 import { inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Summary {
   truncated: boolean
@@ -89,7 +90,7 @@ export function CommissionReportsSection({ from, to }: { from: string; to: strin
               <caption className="pb-1 text-left font-semibold text-gray-900 dark:text-slate-100">Line items</caption>
               <thead className="text-left text-gray-700 dark:text-slate-300"><tr><th className="py-1 pr-4">Date</th><th className="py-1 pr-4">Bill</th><th className="py-1 pr-4">Client</th><th className="py-1 pr-4">Stylist</th><th className="py-1 pr-4">Plan</th><th className="py-1 pr-4">Kind</th><th className={th}>Sales</th><th className={th}>Rate</th><th className={th}>Amount</th><th className="py-1">Status</th></tr></thead>
               <tbody className="divide-y divide-gray-100 text-gray-900 dark:divide-slate-800 dark:text-slate-100">
-                {lines.map((l) => <tr key={l.id}><td className="py-1 pr-4">{l.date}</td><td className="py-1 pr-4">{l.bill ?? '—'}</td><td className="py-1 pr-4">{l.client ?? '—'}</td><td className="py-1 pr-4">{l.stylist}</td><td className="py-1 pr-4">{l.plan ?? '—'}</td><td className="py-1 pr-4">{l.kind}</td><td className="py-1 pr-4 text-right">{money(l.sales)}</td><td className="py-1 pr-4 text-right">{l.rate == null ? '—' : `${l.rate}%`}</td><td className="py-1 pr-4 text-right font-medium">{money(l.amount)}</td><td className="py-1">{STATUS_WORDS[l.status] || l.status}</td></tr>)}
+                {lines.map((l) => <tr key={l.id}><td className="py-1 pr-4">{l.date}</td><td className="py-1 pr-4">{l.bill ?? '—'}</td><td className="py-1 pr-4">{l.client ?? '—'}</td><td className="py-1 pr-4">{l.stylist}</td><td className="py-1 pr-4">{l.plan ?? '—'}</td><td className="py-1 pr-4">{codeLabel(l.kind)}</td><td className="py-1 pr-4 text-right">{money(l.sales)}</td><td className="py-1 pr-4 text-right">{l.rate == null ? '—' : `${l.rate}%`}</td><td className="py-1 pr-4 text-right font-medium">{money(l.amount)}</td><td className="py-1">{STATUS_WORDS[l.status] || l.status}</td></tr>)}
               </tbody>
             </table>
             {lines.length === 0 && <p className={hint}>Nothing in this period.</p>}
