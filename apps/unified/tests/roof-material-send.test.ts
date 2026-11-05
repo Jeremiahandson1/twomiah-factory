@@ -30,7 +30,9 @@ const stored = async (id: string) => (await t.db.select().from(t.schema.material
 function pdfText(buf: Buffer): string {
   const raw = buf.toString('latin1')
   let out = ''
-  for (const m of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
+  // Each stream by its own /Length: compressed bytes can end in 0x0D, which a closing \r?\nendstream would swallow (the
+  // test then passed or failed with the day printed in the PDF). m[1] is the stream's bytes.
+  for (const m of [...raw.matchAll(/\/Length (\d+)\s[\s\S]{0,300}?>>\s*stream\r?\n/g)].map((x) => [x[0], raw.substr(x.index! + x[0].length, Number(x[1]))])) {
     let body = ''
     try { body = inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1') } catch { continue }
     for (const h of body.matchAll(/<([0-9a-fA-F]+)>/g)) out += Buffer.from(h[1], 'hex').toString('latin1')
