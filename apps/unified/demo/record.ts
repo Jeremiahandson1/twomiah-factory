@@ -23,7 +23,20 @@ export const DEMO_DIR = import.meta.dir
 export const DATA_DIR = path.join(DEMO_DIR, 'public', 'demo-data')
 export const ROUTES_DIR = path.join(DEMO_DIR, 'routes')
 /** Addresses whose :id is a row of another list, where the address does not say which (a reminder's history is an invoice's). */
-const LISTS: Record<string, string> = { '/api/invoice-reminders/history': '/api/invoices' }
+const LISTS: Record<string, string> = {
+  '/api/invoice-reminders/history': '/api/invoices',
+  // Roofing (11/05): a job's books and a job's insurance claim are asked for by the JOB's id (/crm/jobs/:id, its Insurance tab).
+  // An exact address (with its :id) wins over its prefix: the claim is the job's, its activity and supplements are the claim's.
+  '/api/job-books': '/api/jobs', '/api/insurance/claims/:id': '/api/jobs',
+}
+/**
+ * Addresses whose :id is a record that has NO list, only answers already recorded: the rows are those answers' bodies. A
+ * roofing claim is reached through its job (/api/insurance/claims/<job id>, above), so its activity and supplements are asked
+ * for by the ids those answers carry. (The manifest is sorted, so the claim answers are recorded before these.)
+ */
+const FROM_ANSWERS: Record<string, string> = {
+  '/api/insurance/claims/:id/activity': '/api/insurance/claims/', '/api/insurance/claims/:id/supplements': '/api/insurance/claims/',
+}
 /** Rows asked for by id, per list: enough that any row a visitor opens is real. */
 const MAX_DETAILS = 40
 
@@ -124,9 +137,17 @@ export async function recordKit(kit: Kit, manifest: RouteManifest): Promise<Demo
     const first = segs.indexOf(':id')
     if (segs.slice(first + 1).includes(':id') || hasQueryId(template)) continue
     const before = segs.slice(0, first)
-    const candidates = [...new Set([LISTS[before.join('/')], `/api/${plural(before[before.length - 1])}`, before.join('/')].filter(Boolean) as string[])]
+    const candidates = [...new Set([LISTS[p] ?? LISTS[before.join('/')], `/api/${plural(before[before.length - 1])}`, before.join('/')].filter(Boolean) as string[])]
     let rows: Array<{ id?: unknown }> = []
-    for (const candidate of candidates) { rows = await rowsOfList(candidate); if (rows.length) break }
+    const from = FROM_ANSWERS[p]
+    if (from) {
+      // One record per answer: GET <from><one id>, its body a single object with an id.
+      for (const [key, r] of Object.entries(responses)) {
+        const at = key.slice(4).split('?')[0]
+        if (r.status === 200 && at.startsWith(from) && !at.slice(from.length).includes('/') && r.body && typeof r.body === 'object' && !Array.isArray(r.body) && (r.body as any).id) rows.push(r.body as any)
+      }
+      rows = rows.filter((row) => looksLikeId(String(row.id))).slice(0, MAX_DETAILS)
+    } else for (const candidate of candidates) { rows = await rowsOfList(candidate); if (rows.length) break }
     for (const row of rows) {
       const rest = [...before, String(row.id), ...segs.slice(first + 1)].join('/')
       await ask(q ? `${rest}?${q}` : rest)
