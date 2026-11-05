@@ -5,6 +5,7 @@
 // Server: server/crm/homecare/scheduling/pickupRewards.ts on /api/care-rewards.
 import { useCallback, useEffect, useState } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
+import { moneyCents } from '@twomiah/tenant-ui/src/money'
 import { api, rows, errorMessage } from '../lib/http'
 import { agencyToday, formatAgencyDateTime } from '../lib/agencyClock'
 
@@ -14,7 +15,7 @@ const soft = 'text-sm text-gray-600 dark:text-slate-400'
 const btn = 'rounded-md px-3 py-1.5 text-sm font-medium bg-blue-600 text-white disabled:opacity-50'
 const btn2 = 'rounded-md px-3 py-1.5 text-sm font-medium border border-gray-300 dark:border-slate-600'
 type Tab = 'bonuses' | 'points' | 'rewards'
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`
+const money = (cents: number) => moneyCents(cents)
 const daysAgo = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10) }
 
 interface Pickup { openShiftId: string; shiftDate: string; bonusCents: number; worked: boolean; caregiverFirst: string; caregiverLast: string; clientFirst: string | null; clientLast: string | null }

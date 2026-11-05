@@ -9,6 +9,7 @@
 //   server/crm/homecare/planning/marginReports.ts
 import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '../../../../shared'
+import { money, moneyCents } from '@twomiah/tenant-ui/src/money'
 import { api, errorMessage, downloadFile, saveBlob } from '../lib/http'
 import { formatAgencyDate, agencyToday } from '../lib/agencyClock'
 import { useMay } from '../lib/useMay'
@@ -38,8 +39,8 @@ interface Lists { clients: { id: string; name: string }[]; caregivers: { id: str
 
 const inp = 'rounded-md border px-2 py-1.5 text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v}%`)
-export const cents = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v < 0 ? '-' : ''}$${(Math.abs(v) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-const dollarsShort = (v: number) => `$${(v / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+export const cents = (v: number | null | undefined) => (v === null || v === undefined ? '—' : moneyCents(v))
+const dollarsShort = (v: number) => moneyCents(v, 0)
 const shift = (ymd: string, days: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 const neg = (v: number | null) => (v !== null && v < 0 ? 'text-red-700 dark:text-red-300 font-semibold' : '')
 type Tab = 'margin' | 'visits' | 'trend' | 'compare' | 'turnover'
@@ -205,7 +206,7 @@ export default function MarginReports() {
                       <td className="px-3 py-2 font-semibold">{r.clientName}</td>
                       <td className="px-3">{r.branchName ?? '—'}</td><td className="px-3">{r.payerName ?? (r.referralSourceName ? `Private pay (${r.referralSourceName})` : 'Private pay')}</td>
                       <td className="px-3">{r.hours}</td><td className="px-3">{r.hoursInvoiced}</td><td className="px-3">{r.overtimeHours}</td>
-                      <td className="px-3">{r.rate === null ? 'None' : `$${r.rate.toFixed(2)}`}</td>
+                      <td className="px-3">{r.rate === null ? 'None' : money(r.rate)}</td>
                       <td className="px-3">{cents(r.billedCents)}</td><td className="px-3">{cents(r.costCents)}</td>
                       <td className={`px-3 ${neg(r.marginCents)}`}>{cents(r.marginCents)}</td><td className="px-3">{pct(r.marginPercent)}</td>
                     </tr>

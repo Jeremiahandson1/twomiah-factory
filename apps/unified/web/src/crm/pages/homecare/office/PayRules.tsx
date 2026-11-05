@@ -6,6 +6,7 @@
 //   GET /api/payroll-providers    PUT /api/payroll-providers/:p    POST /api/payroll-providers/:p/push    (server/crm/homecare/payroll/)
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth, useToast } from '../../../../shared'
+import { money, moneyCents } from '@twomiah/tenant-ui/src/money'
 import { api, errorMessage, downloadFile, saveBlob } from '../lib/http'
 import { agencyToday } from '../lib/agencyClock'
 import { useMay } from '../lib/useMay'
@@ -199,7 +200,7 @@ export default function PayRules() {
       </div>
       <label className="text-sm block mt-1"><input type="checkbox" checked={rules.travel.fromHome} disabled={ro || rules.travel.method === 'gap'} onChange={(e) => setTravel({ fromHome: e.target.checked })} /> Also pay the estimated drive from the caregiver's home address to the first visit of the day</label>
       <label className="text-sm block mt-1"><input type="checkbox" checked={rules.travel.mileageFromVisits} disabled={ro} onChange={(e) => setTravel({ mileageFromVisits: e.target.checked })} /> Record the miles between completed visits' addresses as travel mileage when the pay run is made</label>
-      <p className={`${muted} mt-1`}>Travel counts toward overtime and is never billed to the client. Map answers need the Maps key on the server; without it the estimate is the straight line × 1.3 at 30 mph, and each trip says which. Mileage is paid at the caregiver's own rate below, else the agency's (${data.agencyMileageRate.toFixed(2)} a mile, Payroll › Settings); travel miles and errand miles are listed apart.</p>
+      <p className={`${muted} mt-1`}>Travel counts toward overtime and is never billed to the client. Map answers need the Maps key on the server; without it the estimate is the straight line × 1.3 at 30 mph, and each trip says which. Mileage is paid at the caregiver's own rate below, else the agency's ({money(data.agencyMileageRate)} a mile, Payroll › Settings); travel miles and errand miles are listed apart.</p>
 
       <h2 className="text-base font-semibold mt-5 mb-1">Services left out of overtime</h2>
       <p className={muted}>Hours of a checked service are always regular and never count toward the day or the week.</p>
@@ -258,7 +259,7 @@ export default function PayRules() {
       </div>
       {audit && (
         <div className="mt-2 text-sm">
-          <p className={muted}>{audit.ruleLabel ?? 'Federal'}{audit.blendedRate != null ? ` · blended regular rate $${audit.blendedRate.toFixed(2)}` : ''}{audit.stored.length ? ` · stored when the period was approved (${audit.stored.length} rows)` : ' · not yet approved: the live classification'}</p>
+          <p className={muted}>{audit.ruleLabel ?? 'Federal'}{audit.blendedRate != null ? ` · blended regular rate ${money(audit.blendedRate)}` : ''}{audit.stored.length ? ` · stored when the period was approved (${audit.stored.length} rows)` : ' · not yet approved: the live classification'}</p>
           {audit.limitWarnings.map((w) => <p key={w} className="text-amber-700 dark:text-amber-300">{w}</p>)}
           <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700 mt-1">
             <table className="w-full text-xs">
@@ -267,7 +268,7 @@ export default function PayRules() {
                 <tr key={i} className="border-t border-gray-100 dark:border-slate-700">
                   <td className="px-2 py-1">{r.date}</td><td className="px-2 py-1">{r.kind === 'travel' ? 'Travel' : `Visit${r.clientName ? ` — ${r.clientName}` : ''}`}{r.isHoliday ? ' (holiday)' : ''}</td>
                   <td className="px-2 py-1">{h2(r.minutes)}</td><td className="px-2 py-1">{h2(r.regularMinutes)}</td><td className="px-2 py-1">{h2(r.overtimeMinutes)}</td><td className="px-2 py-1">{h2(r.doubleTimeMinutes)}</td><td className="px-2 py-1">{h2(r.unpaidMinutes)}</td>
-                  <td className="px-2 py-1">${(r.rateCents / 100).toFixed(2)}</td><td className="px-2 py-1">{r.reasons.join('; ')}</td>
+                  <td className="px-2 py-1">{moneyCents(r.rateCents)}</td><td className="px-2 py-1">{r.reasons.join('; ')}</td>
                 </tr>))}</tbody>
             </table>
           </div>

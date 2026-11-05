@@ -10,6 +10,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CalendarCheck, CalendarPlus, History } from 'lucide-react'
 import { usePortal } from './PortalContext'
+import { money } from '../money'
 import { Spinner, PageTitle, Empty, card, btnPrimary, btnSecondary, inputCls, labelCls } from './common'
 
 export interface PortalAppointment {
@@ -25,7 +26,7 @@ const when = (iso: string, tz?: string | null) => {
 }
 const dayWords = (iso: string) => { try { return new Date(iso + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) } catch { return iso } }
 const length = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`)
-const priceWords = (s: BookService) => (s.price == null || Number(s.price) <= 0 ? '' : ` · ${s.priceIsFrom ? 'from ' : ''}$${Number(s.price).toFixed(Number(s.price) % 1 ? 2 : 0)}`)
+const priceWords = (s: BookService) => (s.price == null || Number(s.price) <= 0 ? '' : ` · ${s.priceIsFrom ? 'from ' : ''}${money(Number(s.price), Number(s.price) % 1 ? 2 : 0)}`)
 
 type Tab = 'upcoming' | 'past' | 'book'
 

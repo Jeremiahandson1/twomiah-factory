@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { Loader2, MessageSquareText } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, usePermissions } from '../../../shared'
+import { moneyCents } from '@twomiah/tenant-ui/src/money'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
@@ -25,7 +26,7 @@ interface Settings {
 interface LogRow { id: string; kind: string; channel: string | null; status: string; reason: string | null; createdAt: string; clientName: string | null }
 interface OfferReportRow { kind: string; words: string; sent: number; used: number; open: number; expired: number; discountCents: number; billedCents: number }
 interface OfferReport { from: string; to: string; total: Omit<OfferReportRow, 'kind' | 'words'>; kinds: OfferReportRow[] }
-const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
+const dollars = (cents: number) => moneyCents(cents)
 const OFFER_KINDS: Partial<Record<Kind, OfferKind>> = { birthday: 'birthday', win_back: 'win_back', milestone: 'milestone', anniversary: 'anniversary', tier_up: 'tier_up' }
 
 /** The offer a message carries: none, or an amount / percent off that lasts so many days. Amounts are typed in dollars, kept in cents. */

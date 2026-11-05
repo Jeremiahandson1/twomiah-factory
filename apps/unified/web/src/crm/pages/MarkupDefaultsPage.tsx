@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { Percent, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const KINDS: Array<[string, string]> = [['labor', 'Labour'], ['material', 'Material'], ['part', 'Part'], ['service', 'Service'], ['other', 'Other']]
 type Rules = Record<string, number | null>
@@ -43,7 +44,7 @@ export default function MarkupDefaultsPage() {
       toast.error(e?.message || 'The markup settings could not be saved.')
     } finally { setSaving(false) }
   }
-  const example = (k: string) => { const n = Number(form[k]); return form[k].trim() !== '' && Number.isFinite(n) ? `A $100 cost is priced at $${(100 * (1 + n / 100)).toFixed(2)}, a margin of ${(n / (100 + n) * 100).toFixed(1)}%.` : 'Leave blank to set none.' }
+  const example = (k: string) => { const n = Number(form[k]); return form[k].trim() !== '' && Number.isFinite(n) ? `A $100 cost is priced at ${money(100 * (1 + n / 100))}, a margin of ${(n / (100 + n) * 100).toFixed(1)}%.` : 'Leave blank to set none.' }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

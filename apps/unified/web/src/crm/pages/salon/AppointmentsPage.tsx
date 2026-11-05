@@ -9,6 +9,7 @@ import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 import { useConfirm, useMayWrite, useAuth, usePermissions } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
@@ -237,7 +238,7 @@ export default function AppointmentsPage() {
       // The salon's automatic no-show fee (Settings › Card on file): say what happened to the card.
       const fee = res?.autoFee as { charged: boolean; status: string; amount?: number; message: string | null } | undefined;
       if (fee) {
-        if (fee.charged) toast.success(`No-show fee of $${(fee.amount ?? 0).toFixed(2)} charged to the card on file`);
+        if (fee.charged) toast.success(`No-show fee of ${money(fee.amount ?? 0)} charged to the card on file`);
         else toast.error(`No-show marked, but no fee was charged: ${fee.message || 'the card was not charged'}`);
       }
     } catch (err) {

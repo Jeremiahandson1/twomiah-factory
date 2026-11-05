@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useConfirm, useToast } from '../../../../shared'
+import { moneyCents } from '@twomiah/tenant-ui/src/money'
 import { api, errorMessage, downloadFile, saveBlob, rows } from '../lib/http'
 import { agencyToday, formatAgencyDate, formatAgencyDateTime } from '../lib/agencyClock'
 import { useMay } from '../lib/useMay'
@@ -22,7 +23,7 @@ const TH = 'px-3 py-2 text-left'
 const card = 'rounded-lg border p-3 border-gray-200 dark:border-slate-700'
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v}%`)
 const shift = (ymd: string, days: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
-const dollarsShort = (v: number) => `$${(v / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+const dollarsShort = (v: number) => moneyCents(v, 0)
 const cellText = (v: unknown, type: string) => (v === null || v === undefined || v === '' ? '—' : type === 'cents' ? cents(Number(v)) : type === 'bool' ? (v ? 'Yes' : 'No') : type === 'date' ? formatAgencyDate(String(v)) : String(v))
 const Stat = ({ label, value }: { label: string; value: string }) => <div className={card}><div className="text-xs text-gray-600 dark:text-slate-400">{label}</div><div className="text-lg font-semibold">{value}</div></div>
 const Empty = ({ text }: { text: string }) => <div className="rounded-lg p-6 text-center text-sm bg-gray-50 text-gray-600 dark:bg-slate-800 dark:text-slate-400">{text}</div>
