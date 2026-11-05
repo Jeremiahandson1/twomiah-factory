@@ -130,9 +130,10 @@
     var mine = ++pending;
     var q = '?date=' + encodeURIComponent(date.value || '') + '&startTime=' + encodeURIComponent(st.value || '') + '&endTime=' + encodeURIComponent(en.value || '') + '&guests=' + encodeURIComponent(size.value || '');
     fetch('/api/event-form/rooms' + q, { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-      if (!j || !j.data || !j.data.length || mine !== pending) return;
+      var rows = (j && j.data) || [];   // the rooms' answer (not the section's own data)
+      if (!rows.length || mine !== pending) return;
       if (!built) {
-        j.data.forEach(function (r) {
+        rows.forEach(function (r) {
           var cap = [r.seatedCapacity ? 'seats ' + r.seatedCapacity : '', r.standingCapacity ? 'standing ' + r.standingCapacity : ''].filter(Boolean).join(', ');
           var o = document.createElement('option'); o.value = r.id; o.setAttribute('data-base', r.name + (cap ? ' (' + cap + ')' : '')); sel.appendChild(o);
         });
@@ -140,7 +141,7 @@
       }
       var chosen = sel.value, pick = null;
       Array.prototype.forEach.call(sel.options, function (o) {
-        var r = j.data.filter(function (x) { return x.id === o.value; })[0]; if (!r) return;
+        var r = rows.filter(function (x) { return x.id === o.value; })[0]; if (!r) return;
         if (r.id === chosen) pick = r;
         o.textContent = o.getAttribute('data-base') + (r.looksFree === true ? ' \u2014 looks free' : r.looksFree === false ? ' \u2014 looks taken' : '') + (r.fits === false ? ' (smaller than your group)' : '');
       });

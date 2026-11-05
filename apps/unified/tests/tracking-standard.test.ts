@@ -58,7 +58,9 @@ describe('rule 5 — the one #form-success', () => {
       const src = fs.readFileSync(path.join(dir, type, file), 'utf8')
       expect({ file: `${type}/${file}`, own: /id=["']form-success["']/.test(src) }).toEqual({ file: `${type}/${file}`, own: false })
       // A section that sends a lead to /api/leads by script must announce the saved lead.
-      if (/\/api\/leads/.test(src) && /fetch\(/.test(src)) { scripted.push(`${type}/${file}`); expect({ file: `${type}/${file}`, calls: src.includes('twomiahLeadSent') }).toEqual({ file: `${type}/${file}`, calls: true }) }
+      // Saved by script = a fetch that POSTS the lead: to /api/leads itself, or to the form's own action (which is /api/leads). A
+      // section that fetches something else (catering's and parties' room lookup, 11/05) still saves its lead by the plain form.
+      if (/\/api\/leads/.test(src) && /fetch\(\s*(['"`]\/api\/leads|[\w.]*\.action\b)/.test(src)) { scripted.push(`${type}/${file}`); expect({ file: `${type}/${file}`, calls: src.includes('twomiahLeadSent') }).toEqual({ file: `${type}/${file}`, calls: true }) }
     }
     expect(scripted.sort()).toEqual(['care/finder.ejs', 'contact/form-info.ejs', 'inventory/unit.ejs'])
   })
