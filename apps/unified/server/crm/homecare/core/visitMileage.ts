@@ -43,13 +43,13 @@ export function createVisitMileage(d: CrmDeps, deps: { mileage: MileageRateModul
         const leg = await drivingLeg(from, to)
         const rate = await rateFor(companyId, v.caregiverId)
         const name = (x: PayableVisit) => `${x.clientFirstName ?? ''} ${x.clientLastName ?? ''}`.trim()
-        const row = {
+        const row: any = {
           companyId, caregiverId: v.caregiverId, date: v.shiftDate, startLocation: name(prev), endLocation: name(v),
           miles: leg.miles.toFixed(2), ratePerMile: String(rate), amount: (Math.round(leg.miles * rate * 100) / 100).toFixed(2),
           clientId: v.clientId, kind: 'travel', source: leg.source === 'map' ? 'map' : 'computed', reviewId: v.id,
           notes: leg.source === 'map' ? 'Driving distance from the map service' : 'Estimated from the addresses (straight line × 1.3)',
         }
-        await d.db.insert(mileageEntries).values(row as any).onConflictDoUpdate({ target: mileageEntries.reviewId, set: { miles: row.miles, ratePerMile: row.ratePerMile, amount: row.amount, source: row.source, notes: row.notes, startLocation: row.startLocation, endLocation: row.endLocation } as any })
+        await d.db.insert(mileageEntries).values(row).onConflictDoUpdate({ target: mileageEntries.reviewId, set: { miles: row.miles, ratePerMile: row.ratePerMile, amount: row.amount, source: row.source, notes: row.notes, startLocation: row.startLocation, endLocation: row.endLocation } as any })
         trips.push({ reviewId: v.id, caregiverId: v.caregiverId, date: v.shiftDate, miles: leg.miles, source: leg.source, from: name(prev), to: name(v) })
       }
     }

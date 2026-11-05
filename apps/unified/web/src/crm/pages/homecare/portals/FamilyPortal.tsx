@@ -819,7 +819,9 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
   if (permissions.canViewCarePlan) tabs.push({ key: 'care-plan', label: 'Care Plan', icon: '📋' })
   if (permissions.careContent && permissions.canViewCarePlan && permissions.canViewSchedule) tabs.push({ key: 'daily-care', label: 'Daily care', icon: '✅' })
   if (permissions.canViewMedications) tabs.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'Medications', icon: '💊' })
-  if (permissions.canViewVitals) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
+  // The server's rule (familyPortal.ts /portal/vitals): with care_family_content on vitals have their own switch; off, they ride on
+  // the medicines switch as before. The tab follows the same rule, so it is there exactly when the list would answer.
+  if (permissions.careContent ? permissions.canViewVitals : permissions.canViewMedications) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
   if (permissions.canViewDocuments) tabs.push({ key: 'documents', label: 'Documents', icon: '📁' })
   if (permissions.canManagePayments) tabs.push({ key: 'payments', label: 'Payments', icon: '💳' })
   if (permissions.canMessage && permissions.careComms) tabs.push({ key: 'requests', label: 'Requests', icon: '✉️' })
