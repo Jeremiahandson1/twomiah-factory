@@ -42,6 +42,12 @@ export interface CommissionRoutesDeps {
   requirePermission: (permission: string) => any
   /** hasPermission(role, permission, extraPermissions) with the caller's per-user grants already resolved. */
   canSee: (role: string, permission: string, userId?: string) => Promise<boolean>
+  /**
+   * Roofing's commission disclaimer: true while the person has not accepted the company's current words. Their OWN commissions are
+   * then withheld from the list (flagged disclaimerRequired) and the statement is refused (403, code disclaimer_required). Absent:
+   * nothing is withheld, as in every other trade.
+   */
+  ownWithheld?: (companyId: string, userId: string) => Promise<boolean>
   /** The app's audit service (log({ action, entity, … req })): void and reassign are recorded with what changed. Optional. */
   audit?: { log: (entry: any) => any }
   /**
@@ -95,6 +101,54 @@ export const COMMISSION_AUTO_EARN = ['none', 'job_assignee', 'job_creator'] as c
  * gross profit. The invoice-by-invoice earner below never pays it.
  */
 export const COMMISSION_AUTO_EARN_SALES_REP = 'job_sales_rep' as const
+/**
+ * THE JOB'S PEOPLE A PLAN CAN PAY (roofing parity row 2 — AccuLynx's additional commissions for the office, estimator and
+ * canvasser and its management commissions for the production and sales manager; JobNimbus's several commissions per job). The
+ * seller is the job's own sales rep (job.assignedSalesRepId); the others are the people named on the job for a role
+ * (apps/unified job_person). A plan pays ONE role, as its autoEarn: 'job_' + the role. Like the seller, each is worked out by the
+ * app that knows the job (server/crm/roof/commissions.ts) — never by the invoice-by-invoice earner below.
+ */
+export const COMMISSION_JOB_ROLES = ['sales_rep', 'estimator', 'canvasser', 'office', 'production_manager', 'sales_manager'] as const
+export type CommissionJobRole = (typeof COMMISSION_JOB_ROLES)[number]
+/** The people named on a job besides its sales rep (job_person.role). */
+export const JOB_PERSON_ROLES = COMMISSION_JOB_ROLES.filter((r) => r !== 'sales_rep') as Exclude<CommissionJobRole, 'sales_rep'>[]
+/**
+ * WHEN A JOB'S COMMISSION IS READY TO BE EARNED (roofing parity row 3 — AccuLynx lets a commission be requested on a job status:
+ * Approved, Completed or Invoiced, optionally only with a $0 balance). 'approved' is the contract signed, 'completed' the work done
+ * (final inspection), 'invoiced' the bill gone out, 'collected' the job paid — what every plan did before, and still the default.
+ * The app that knows the job's stages maps each to its own (apps/unified server/crm/roof/commissions.ts TRIGGER_STAGE).
+ */
+export const COMMISSION_TRIGGERS = ['approved', 'completed', 'invoiced', 'collected'] as const
+export type CommissionTrigger = (typeof COMMISSION_TRIGGERS)[number]
+/** The roles in the words a person reads (the screens, the notes on a commission). */
+export const COMMISSION_JOB_ROLE_WORDS: Record<CommissionJobRole, string> = {
+  sales_rep: 'Sales rep', estimator: 'Estimator', canvasser: 'Canvasser', office: 'Office', production_manager: 'Production manager', sales_manager: 'Sales manager',
+}
+/** The autoEarn values that pay a person on the job: job_sales_rep, job_estimator, … */
+export const COMMISSION_AUTO_EARN_JOB_ROLES = COMMISSION_JOB_ROLES.map((r) => `job_${r}`) as `job_${CommissionJobRole}`[]
+/** The role an autoEarn pays, or null when it pays no job role. */
+export const jobRoleOfAutoEarn = (autoEarn: unknown): CommissionJobRole | null => {
+  const role = String(autoEarn || '').replace(/^job_/, '')
+  return String(autoEarn || '').startsWith('job_') && (COMMISSION_JOB_ROLES as readonly string[]).includes(role) ? (role as CommissionJobRole) : null
+}
+/**
+ * WHAT A PLAN'S RATE IS MEASURED ON, for a plan that pays a job's people when the job is paid (the app works it out:
+ * apps/unified server/crm/roof/commissions.ts). 'contract' is what the job was billed before tax (a "% of the invoice" plan,
+ * and the default every plan had — AccuLynx's "total sales"); 'gross_profit' is that contract less what the job cost;
+ * 'net_profit' is the gross profit less the commissions the job's OTHER plans have paid out (the plans not measured on net
+ * profit), so a manager's override can be on what the job kept after the rep was paid, without a plan ever reading a figure it
+ * has itself reduced. The brackets of a tiered plan, and a percentage, are read against this figure — so "5% up to $5,000 of
+ * profit, 8% above" is a plan, not a contract plan with profit-looking numbers. A plan of type "% of margin" is measured on
+ * gross profit whatever this says.
+ */
+export const COMMISSION_MEASURED_ON = ['contract', 'gross_profit', 'net_profit'] as const
+export type CommissionMeasuredOn = (typeof COMMISSION_MEASURED_ON)[number]
+/** The figure a plan's rate is read against: its own choice, else gross profit for a margin plan, else the contract. */
+export function measuredOnOf(plan: { planType?: string; measuredOn?: unknown }): CommissionMeasuredOn {
+  const own = String(plan.measuredOn || 'contract')
+  if (own !== 'contract' && (COMMISSION_MEASURED_ON as readonly string[]).includes(own)) return own as CommissionMeasuredOn
+  return plan.planType === 'percent_of_margin' ? 'gross_profit' : 'contract'
+}
 /** Where a business offers it (CommissionRoutesDeps.salesKinds): the stylist of the visit the invoice was raised from. */
 export const VISIT_STYLIST = 'visit_stylist'
 /** What a plan is paid on, where the business offers the choice. */
@@ -120,7 +174,13 @@ const planSchema = z.object({
   effectiveTo: z.string().optional(),
   // T58k: isActive must be in the schema or zod strips it and PUT {isActive:false} answers 200 having done nothing.
   isActive: z.boolean().optional(),
-  autoEarn: z.enum([...COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP]).optional(),
+  autoEarn: z.enum([...COMMISSION_AUTO_EARN, ...COMMISSION_AUTO_EARN_JOB_ROLES]).optional(),
+  /** When the commission is ready to be earned: the job reaches Approved / Completed / Invoiced, or is paid (the default). */
+  triggerOn: z.enum(COMMISSION_TRIGGERS).optional(),
+  /** Hold an earlier trigger until every invoice that went out is paid in full ($0 balance). */
+  zeroBalanceOnly: z.boolean().optional(),
+  /** What the rate (or each bracket) is read against — the contract, or the job's gross profit. Only where the app pays a job's people. */
+  measuredOn: z.enum(COMMISSION_MEASURED_ON).optional(),
   /**
    * The people the plan pays (login ids of this company). Empty: anyone it reaches who is not named on another plan.
    * Where the table has no column for it (a template's own schema), it is not offered.
@@ -257,9 +317,22 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (ids.some((id) => (found.get(id) as any).isActive === false && !keep.includes(id))) return 'Someone chosen for this plan has been switched off. Choose people who are still on the team.'
     return null
   }
+  /** A plan measured on profit is paid by the app that knows the job's costs, to the people on the job — nobody else can work it out. */
+  const measuredRefusal = (measuredOn: string | undefined, autoEarn: string | undefined) =>
+    measuredOn && measuredOn !== 'contract' && !jobRoleOfAutoEarn(autoEarn)
+      ? 'A plan measured on the job\u2019s profit has to pay a person on the job automatically \u2014 the profit is worked out when the job is paid.'
+      : null
+  /** An earlier trigger is for a plan that pays a person on the job; and profit is not known when the contract is only signed. */
+  const triggerRefusal = (data: { triggerOn?: string; zeroBalanceOnly?: boolean; measuredOn?: string; planType?: string }, autoEarn: string | undefined) => {
+    const early = (data.triggerOn && data.triggerOn !== 'collected') || data.zeroBalanceOnly
+    if (early && !jobRoleOfAutoEarn(autoEarn)) return 'An earlier trigger is for a plan that pays a person on the job automatically.'
+    const onProfit = (data.measuredOn && data.measuredOn !== 'contract') || data.planType === 'percent_of_margin'
+    if (data.triggerOn === 'approved' && onProfit) return 'A plan measured on profit cannot be earned when the contract is signed \u2014 the job\u2019s costs are not known yet. Choose Completed, Invoiced or Paid.'
+    return null
+  }
   const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) => {
-    if (autoEarn === COMMISSION_AUTO_EARN_SALES_REP) {
-      return deps.salesRepAutoEarn ? null : 'This business does not pay the job\u2019s sales rep automatically.'
+    if (jobRoleOfAutoEarn(autoEarn)) {
+      return deps.salesRepAutoEarn ? null : 'This business does not pay the job\u2019s people automatically.'
     }
     return autoEarn && autoEarn !== 'none' && planType === 'percent_of_margin'
       ? 'A margin plan cannot pay automatically — its margin has to be entered when the commission is recorded.'
@@ -271,6 +344,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (data.userIds !== undefined) v.userIds = [...new Set(data.userIds)]
     if (!t.commissionPlan.userIds) delete v.userIds
     if (!deps.salesKinds || !t.commissionPlan.salesKind) { delete v.salesKind; delete v.tierBasis; delete v.tierCadence; delete v.scope }
+    if (!deps.salesRepAutoEarn || !t.commissionPlan.measuredOn) delete v.measuredOn
+    if (!deps.salesRepAutoEarn || !t.commissionPlan.triggerOn) { delete v.triggerOn; delete v.zeroBalanceOnly }
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
     if (data.percentRate !== undefined) v.percentRate = String(data.percentRate)
     if (data.effectiveFrom !== undefined) v.effectiveFrom = data.effectiveFrom ? new Date(data.effectiveFrom) : null
@@ -311,7 +386,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const parsed = planShape.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the plan', issues: parsed.error.issues }, 400)
     const data = parsed.data
-    const refusal = autoRefusal(data.planType, data.autoEarn)
+    const refusal = autoRefusal(data.planType, data.autoEarn) || measuredRefusal(data.measuredOn, data.autoEarn) || triggerRefusal(data, data.autoEarn)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, data.userIds)
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
@@ -337,7 +412,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (!existing) return c.json({ error: 'Commission plan not found' }, 404)
     const nextType = parsed.data.planType ?? existing.planType
     const nextAuto = parsed.data.autoEarn ?? existing.autoEarn
-    const refusal = autoRefusal(nextType, nextAuto)
+    const nextMeasured = parsed.data.measuredOn ?? existing.measuredOn
+    const refusal = autoRefusal(nextType, nextAuto) || measuredRefusal(nextMeasured, nextAuto)
+      || triggerRefusal({ triggerOn: parsed.data.triggerOn ?? existing.triggerOn, zeroBalanceOnly: parsed.data.zeroBalanceOnly ?? existing.zeroBalanceOnly, measuredOn: nextMeasured, planType: nextType }, nextAuto)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, parsed.data.userIds, Array.isArray(existing.userIds) ? existing.userIds : [])
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
@@ -375,6 +452,14 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   })
 
   // ── earnings ─────────────────────────────────────────────────────────────────────────────────────────
+  /** The number of each line's job, so a line reads "J-1042" and not just a name and an amount (a tenant whose jobs have no number gets none). */
+  const withJobNumbers = async (companyId: string, rows: any[]) => {
+    const ids = [...new Set(rows.map((r) => r.jobId).filter(Boolean))] as string[]
+    if (!ids.length || !t.job?.number) return rows.map((r) => ({ ...r, jobNumber: null }))
+    const jobs = await db.select({ id: t.job.id, number: t.job.number }).from(t.job).where(and(eq(t.job.companyId, companyId), inArray(t.job.id, ids)))
+    const numberOf = new Map((jobs as any[]).map((j) => [j.id, j.number ?? null]))
+    return rows.map((r) => ({ ...r, jobNumber: r.jobId ? numberOf.get(r.jobId) ?? null : null }))
+  }
   /**
    * The list, with the earner's NAME. The page printed the first eight characters of a user id, which
    * told an owner nothing about who was owed what. Without commissions:read you see only your own.
@@ -390,7 +475,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     else if (userId) conditions.push(eq(t.commission.userId, userId))
     if (status) conditions.push(eq(t.commission.status, status))
 
-    const rows = await db.select().from(t.commission).where(and(...conditions)).orderBy(desc(t.commission.earnedAt))
+    const all = await db.select().from(t.commission).where(and(...conditions)).orderBy(desc(t.commission.earnedAt))
+    const withheld = deps.ownWithheld ? await deps.ownWithheld(currentUser.companyId, currentUser.userId) : false
+    const rows = withheld ? all.filter((r: any) => r.userId !== currentUser.userId) : all
     const ids = [...new Set(rows.map((r: any) => r.userId).filter(Boolean))] as string[]
     const people = ids.length
       ? await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email })
@@ -398,7 +485,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       : []
     const nameOf: Record<string, string> = Object.fromEntries(people.map((p: any) => [p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email]))
     if (deps.payees) for (const p of await deps.payees.list(currentUser.companyId)) if (ids.includes(p.id) && !nameOf[p.id]) nameOf[p.id] = p.name
-    return c.json({ data: rows.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })) })
+    const numbered = await withJobNumbers(currentUser.companyId, rows)
+    return c.json({ data: numbered.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })), ...(withheld ? { disclaimerRequired: true } : {}) })
   })
 
   /**
@@ -565,6 +653,9 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const userId = c.req.query('userId') || currentUser.userId
     const canSeeEveryone = await canSee(currentUser.role, 'commissions:read', currentUser.userId)
     if (userId !== currentUser.userId && !canSeeEveryone) return c.json({ error: 'You can see your own statement only.' }, 403)
+    if (userId === currentUser.userId && deps.ownWithheld && await deps.ownWithheld(companyId, currentUser.userId)) {
+      return c.json({ error: 'Accept the commission disclaimer to see your statement.', code: 'disclaimer_required' }, 403)
+    }
     const person = await personOf(companyId, userId)
     if (!person) return c.json({ error: 'That person is not on this account' }, 404)
     const day = /^\d{4}-\d{2}-\d{2}$/
@@ -579,7 +670,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     return c.json({
       person: { id: person.id, name: person.name },
       from: fromQ || null, to: toQ || null,
-      lines: lines.filter((l: any) => l.status !== 'cancelled' && l.status !== 'void'),
+      lines: await withJobNumbers(companyId, lines.filter((l: any) => l.status !== 'cancelled' && l.status !== 'void')),
       totals: { ...totals, owed: cents(totals.pending + totals.approved) },
     })
   })
@@ -669,7 +760,7 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
     if (inv.status === 'paid' && inv.paidAt) {
       const paidAt = new Date(inv.paidAt)
       const plans = (await autoPlans(inv.companyId)).filter((p: any) =>
-        p.planType !== 'percent_of_margin' && p.autoEarn !== COMMISSION_AUTO_EARN_SALES_REP
+        p.planType !== 'percent_of_margin' && !jobRoleOfAutoEarn(p.autoEarn)
         && p.autoSince && new Date(p.autoSince) <= paidAt
         && (!p.effectiveFrom || new Date(p.effectiveFrom) <= paidAt)
         && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt))
@@ -730,7 +821,7 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
     const companies = await db.select({ id: t.company.id, enabledFeatures: t.company.enabledFeatures }).from(t.company)
     for (const co of companies as any[]) {
       if (!((co.enabledFeatures || []) as string[]).includes('commission_tracking')) continue
-      const plans = (await autoPlans(co.id)).filter((p: any) => p.autoSince && p.planType !== 'percent_of_margin' && p.autoEarn !== COMMISSION_AUTO_EARN_SALES_REP)
+      const plans = (await autoPlans(co.id)).filter((p: any) => p.autoSince && p.planType !== 'percent_of_margin' && !jobRoleOfAutoEarn(p.autoEarn))
       const since = plans.reduce((min: Date | null, p: any) => (!min || new Date(p.autoSince) < min ? new Date(p.autoSince) : min), null as Date | null)
       const ids = new Set<string>()
       if (since) {

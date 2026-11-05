@@ -262,7 +262,9 @@ export function createAuthRoutes(deps: AuthDeps) {
     const base = permissions.getPermissions(role)
     if (base.includes('*')) return base
     const extra = (await permissions.getExtraPermissions?.(userId)) || []
-    return Array.from(new Set([...base, ...extra]))
+    // "-permission" is a company taking one away from this role (createPermissions companyGrants): the screen is told what is left.
+    const taken = new Set(extra.filter((x) => x.startsWith('-')).map((x) => x.slice(1)))
+    return Array.from(new Set([...base, ...extra.filter((x) => !x.startsWith('-'))])).filter((p) => !taken.has(p) || extra.includes(p))
   }
   const userPayload = (u: any, role: string) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role, roleLabel: roleLabelOf(role), avatar: u.avatar })
 

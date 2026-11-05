@@ -11,17 +11,31 @@
 //                    clocked time on the job: hours clocked are priced by job costing already, and a crew's pay counted
 //                    beside them would be the same labour twice. A job whose crew has no rate, or no squares, is "not
 //                    known" — reported as such, never read as a free crew.
+//   work orders      a work order for the job's crew or a sub that carries a LUMP-SUM price (workOrder.price) and is sent, accepted or
+//                    completed is what that crew is paid for the job, however many squares there are. It replaces the pay by the
+//                    square (the same labour, priced once) and — like it — counts only where nobody clocked time on the job.
+//                    A draft, a rejected or a cancelled order is not a commitment, so it is not spend.
+//   commissions      what the job's people have EARNED on it (a live commission of any status: pending, approved, paid, disputed — not
+//                    void or cancelled — and a taken-back line netted off) is a cost of the job. The commission engine
+//                    (./commissions.ts) asks job costing for the costs BEFORE commissions, so a plan on gross or net profit is
+//                    never worked out on a profit its own payout has reduced; every screen and report shows the profit after.
 //   supplements      what the carrier approved, what is waiting on a decision, what was denied. Approved supplements raise
 //                    the job's EXPECTED revenue; the revenue actually earned is what is invoiced, so a supplement counts
 //                    once it is billed (and is never counted twice by also being added to an invoice).
 //
 // Withholding is the caller's: job costing is reports:read, as every cost it shows already is.
-import { and, eq, inArray } from 'drizzle-orm'
-import { crew, job, material, supplement } from '../../db/schema/index.ts'
+import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { commission, crew, job, material, supplement, workOrder } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 
-/** Orders that are real spend. 'not_ordered' is a shopping list, 'cancelled' never happened. */
-export const SPEND_ORDER_STATUSES = ['ordered', 'partial', 'delivered'] as const
+/** Work orders that commit the shop to their price: the crew has been asked, or has said yes, or has done the work. */
+export const PRICED_WORK_ORDER_STATUSES = ['sent', 'accepted', 'completed'] as const
+
+/**
+ * Orders that are real spend. A draft ('not_ordered') and a ready-to-send order are shopping lists, a rejected one was refused
+ * and 'cancelled' never happened; an order SENT to the supplier is committed money, as one the roofer phoned in is.
+ */
+export const SPEND_ORDER_STATUSES = ['sent', 'ordered', 'partial', 'delivered'] as const
 
 const num = (v: unknown) => Number(v || 0)
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -36,16 +50,21 @@ export interface RoofJobCost {
   materialOrderCost: number
   /** The crew's pay for the job (payPerSquare × squares), or 0 when it is not known. */
   crewCost: number
+  /** Lump-sum prices of the job's work orders that are sent, accepted or completed — what the crews and subs are paid for it. */
+  workOrderCost: number
+  workOrderCount: number
   /** True when the job has a crew, the crew has a rate and the job has squares. */
   crewCostKnown: boolean
   crewName: string | null
+  /** Commissions earned on the job (live ones, taken-back lines netted). Part of the job's cost on every screen; not in the engine's own figures. */
+  commissionCost: number
   squares: number
   payPerSquare: number | null
   supplements: { approved: number; pending: number; denied: number; count: number }
 }
 
 export const emptyRoofCost = (): RoofJobCost => ({
-  materialOrderCost: 0, crewCost: 0, crewCostKnown: false, crewName: null, squares: 0, payPerSquare: null,
+  materialOrderCost: 0, crewCost: 0, workOrderCost: 0, workOrderCount: 0, crewCostKnown: false, crewName: null, commissionCost: 0, squares: 0, payPerSquare: null,
   supplements: { approved: 0, pending: 0, denied: 0, count: 0 },
 })
 
@@ -78,6 +97,18 @@ export function createRoofJobCosts(d: CrmDeps) {
         c.crewCost = c.crewCostKnown ? round2(c.squares * (c.payPerSquare as number)) : 0
       }
 
+      const priced = await db.select({ jobId: workOrder.jobId, price: workOrder.price }).from(workOrder)
+        .where(and(eq(workOrder.companyId, companyId), inArray(workOrder.jobId, ids), inArray(workOrder.status, [...PRICED_WORK_ORDER_STATUSES])))
+      for (const w of priced as any[]) {
+        if (w.price == null) continue
+        const c = out.get(w.jobId); if (!c) continue
+        c.workOrderCost = round2(c.workOrderCost + num(w.price)); c.workOrderCount++
+      }
+
+      const earned = await db.select({ jobId: commission.jobId, amount: commission.commissionAmount }).from(commission)
+        .where(and(eq(commission.companyId, companyId), inArray(commission.jobId, ids), notInArray(commission.status, ['void', 'cancelled'])))
+      for (const e of earned as any[]) { const c = out.get(e.jobId); if (c) c.commissionCost = round2(c.commissionCost + num(e.amount)) }
+
       const sups = await db.select({ jobId: supplement.jobId, status: supplement.status, totalAmount: supplement.totalAmount, approvedAmount: supplement.approvedAmount }).from(supplement)
         .where(and(eq(supplement.companyId, companyId), inArray(supplement.jobId, ids)))
       for (const s of sups as any[]) {
@@ -96,11 +127,14 @@ export function createRoofJobCosts(d: CrmDeps) {
     const orders = await db.select().from(material)
       .where(and(eq(material.companyId, companyId), eq(material.jobId, jobId), inArray(material.orderStatus, [...SPEND_ORDER_STATUSES])))
     const sups = await db.select().from(supplement).where(and(eq(supplement.companyId, companyId), eq(supplement.jobId, jobId)))
+    const priced = (await db.select().from(workOrder)
+      .where(and(eq(workOrder.companyId, companyId), eq(workOrder.jobId, jobId), inArray(workOrder.status, [...PRICED_WORK_ORDER_STATUSES])))).filter((w: any) => w.price != null)
     return {
       materialOrderDetail: (orders as any[]).map((o) => ({
         id: o.id, supplier: o.supplier, orderNumber: o.supplierOrderNumber ?? null, status: o.orderStatus,
         date: o.orderDate ?? o.createdAt, lines: Array.isArray(o.lineItems) ? o.lineItems.length : 0, cost: num(o.totalCost),
       })),
+      workOrderDetail: (priced as any[]).map((w) => ({ id: w.id, title: w.title, recipient: w.recipientName, status: w.status, cost: num(w.price) })),
       supplementDetail: (sups as any[]).map((s) => ({
         id: s.id, number: s.supplementNumber, status: s.status, reason: s.reason, asked: num(s.totalAmount),
         approved: s.status === 'approved' ? num(s.approvedAmount ?? s.totalAmount) : null,

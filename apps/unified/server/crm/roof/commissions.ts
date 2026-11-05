@@ -1,100 +1,269 @@
-// A roofing rep is paid when the job is paid: the commission a plan owes the job's SELLER, worked out once, on the whole job,
-// at Collected.
+// A roofing job's people are paid when the job is paid: the commission a plan owes the job's SELLER and the other people named on it
+// — estimator, canvasser, office, production manager, sales manager — worked out once, on the whole job, when the plan is ready.
 //
 // The shared earner (packages/tenant-backend commissions.ts createCommissionEarner) pays invoice by invoice, to the person
 // ASSIGNED the job or the one who BOOKED it. A roof does not fit that, three ways:
-//   · its seller is job.assignedSalesRepId — assigned_to_id is a crew's slot and created_by_id is whoever typed the lead in;
+//   · its seller is job.assignedSalesRepId — assigned_to_id is a crew's slot and created_by_id is whoever typed the lead in; the
+//     others are named on the job for a role (job_person, ./jobPeople.ts);
 //   · a roof is billed in parts (a deposit, the balance, a supplement) and a rep's commission is on the contract, not on
 //     each part, and not before the job is paid (a rep is not owed on a deposit for a job that then collapses);
 //   · a % of GROSS PROFIT needs the job's costs, which the shared earner cannot know (it refuses margin plans outright).
-// So a plan that pays 'job_sales_rep' (COMMISSION_AUTO_EARN_SALES_REP) is paid here, when the job is Collected — every invoice
-// that went out is paid in full — on the numbers job costing shows (crm/field/jobCostingService.ts):
-//   · % of the invoice, tiered, or flat — worked out on the contract: everything invoiced on the job, before sales tax;
-//   · % of margin — worked out on the job's gross profit: that contract less what the job cost, which is the job's material
-//     orders, its crew's pay, hours clocked, expenses and vendor bills (roof/jobCosts.ts). A job that made nothing earns
-//     nothing on a margin plan (no row is made).
+// So a plan that pays a job role ('job_sales_rep', 'job_estimator' … COMMISSION_AUTO_EARN_JOB_ROLES; one role per plan) is paid
+// here, on the numbers job costing shows (crm/field/jobCostingService.ts). WHEN is the plan's trigger (commission_plan.trigger_on,
+// AccuLynx's "ready to request"): Approved (the contract is signed), Completed (final inspection), Invoiced, or — the default, what
+// every plan did — Collected: every invoice that went out is paid in full. An earlier trigger may add "only at a $0 balance" (every
+// invoice that went out is paid). A plan measured on profit, or any plan while the company holds a minimum profit, waits for
+// Completed at the earliest, because the costs are not known before. An earlier trigger applies to jobs started after the plan was
+// switched on (effectiveTrigger); an older job waits to be paid. The contract before the job is paid is what was billed so far or
+// the signed contract, whichever is more, worked out once:
+//   · each plan names what its rate is MEASURED ON (commission_plan.measured_on, commissions.ts measuredOnOf): the contract
+//     (AccuLynx's total sales) — everything invoiced on the job, before sales tax; the job's gross profit — that contract less what
+//     the job cost, which is the job's material orders, its crew's pay, hours clocked, expenses and vendor bills (roof/jobCosts.ts);
+//     or its net profit — the gross profit less the commissions the job's other plans have paid out, so a manager's override can be
+//     on what the job kept after the rep was paid. Net-profit plans are worked out LAST and read only the other plans' commissions,
+//     so no plan is ever worked out on a profit it has itself reduced. A percentage and the brackets of a tiered plan are both read
+//     against that figure, so "5% of the first $5,000 of profit, 8% above" is a plan (AccuLynx: rates by job-profit threshold). A
+//     "% of margin" plan is on gross profit whatever it says. A flat amount ignores it. A job that made nothing earns nothing on a
+//     profit plan (no row is made).
+//   · every person holding the plan's role on the job whom the plan pays (planPaysPerson) earns it; a person who has left the team
+//     does not.
 // It is called from the two ways a job gets there: money arriving on one of its invoices (roof/index.ts, after the job is
-// moved to Collected) and the office moving the job to Collected by hand (jobs.ts Advance / the job form). One commission
-// per plan per job, however often it is called: it hangs on the job's last-paid invoice under the shared earner's unique
-// index (commission_auto_once) and is looked for before it is written. A voided or cancelled one is not made again.
+// moved to Collected) and the office moving the job to Collected by hand (jobs.ts Advance / the job form), and when someone is added
+// to a job that is already paid. One commission per plan per person per job, however often it is called: it hangs on the job's
+// last-paid invoice under the shared earner's unique index (commission_auto_once) and is looked for before it is written. A voided
+// or cancelled one is not made again.
+//
+// A company MINIMUM PROFIT (roof_money_setting, ./moneySettings.ts) — a share of the contract or dollars of gross profit — holds
+// every plan: a job under it earns nothing until its figures clear it.
 //
 // Costs entered AFTER Collected do not change a commission already earned — void it and record the corrected one by hand.
-// A refund in full of the invoice it hangs on cancels it (the shared earner's refund handling); a refund of an earlier
-// invoice does not.
-import { and, asc, eq, ne } from 'drizzle-orm'
-import { commission, commissionPlan, invoice, job, user } from '../../db/schema/index.ts'
-import { commissionFor, planPaysPerson, COMMISSION_AUTO_EARN_SALES_REP } from '@twomiah/tenant-backend'
+// A refund in full of the invoice it hangs on cancels it (the shared earner's refund handling); so does a refund in full of any
+// other invoice of the job (takeBackForRefund — row 4's decision, in docs/parity/roof-commissions-costing.md #14).
+import { and, asc, eq, inArray, ne, notInArray } from 'drizzle-orm'
+import { commission, commissionPlan, invoice, job, jobPerson, quote, user } from '../../db/schema/index.ts'
+import { commissionFor, jobRoleOfAutoEarn, measuredOnOf, planPaysPerson, COMMISSION_JOB_ROLE_WORDS, COMMISSION_TRIGGERS, type CommissionJobRole, type CommissionTrigger } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
 import { createJobCostingService } from '../field/jobCostingService.ts'
+import { createRoofMoneySettings, type MinProfit } from './moneySettings.ts'
+import { PIPELINE_STATUSES } from './validation.ts'
+import { createWorksheetApproval } from './worksheetApproval.ts'
 
 /** Not a bill the homeowner owes: a draft that never went out, a void one. Collected's own rule (collected.ts). */
 const NOT_BILLED = ['draft', 'void']
 const round2 = (n: number) => Math.round(n * 100) / 100
+const ROLE_WORDS: Record<string, string> = Object.fromEntries(Object.entries(COMMISSION_JOB_ROLE_WORDS).map(([k, v]) => [k, v.toLowerCase()]))
 const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+/** The job stage each trigger waits for (roofing's stage keys — never renamed; the company's own names are display only). */
+export const TRIGGER_STAGE: Record<CommissionTrigger, string> = { approved: 'signed', completed: 'final_inspection', invoiced: 'invoiced', collected: 'collected' }
+const TRIGGER_WORDS: Record<CommissionTrigger, string> = { approved: 'Approved', completed: 'Completed', invoiced: 'Invoiced', collected: 'Collected' }
+/** A stage's place in the pipeline; -1 for a job that is lost or cancelled (no pipeline stage), so nothing is earned on it. */
+const stageIndex = (stage: string) => (PIPELINE_STATUSES as readonly string[]).indexOf(stage)
+export const stageReachedBy = (status: string, stage: string) => stageIndex(status) >= 0 && stageIndex(status) >= stageIndex(stage)
+/**
+ * The trigger a plan really waits for on THIS job. An earlier trigger applies to jobs started after the plan was switched on — a job
+ * that was already past Approved then must not be paid for a stage it passed before there was a plan — so an older job waits for the
+ * job to be paid, as every plan did.
+ */
+export function effectiveTrigger(plan: { triggerOn?: unknown; autoSince?: unknown }, jobRow: { createdAt?: unknown }): CommissionTrigger {
+  const t = (COMMISSION_TRIGGERS as readonly string[]).includes(String(plan.triggerOn)) ? (plan.triggerOn as CommissionTrigger) : 'collected'
+  if (t !== 'collected' && plan.autoSince && jobRow.createdAt && new Date(jobRow.createdAt as any) < new Date(plan.autoSince as any)) return 'collected'
+  return t
+}
+
+/** Is the job's profit under the company's floor? Percent is of the contract, dollars are of the gross profit. */
+export function belowMinimumProfit(floor: MinProfit | null, contract: number, profit: number): boolean {
+  if (!floor) return false
+  if (floor.kind === 'percent') return contract <= 0 || (profit / contract) * 100 < floor.value
+  return profit < floor.value
+}
 
 export function createRoofCommissions(d: CrmDeps) {
   const { db } = d
   const costing = createJobCostingService(d)
+  const moneySettings = createRoofMoneySettings(d)
+  const worksheet = createWorksheetApproval(d)
 
-  /** Pay the job's sales rep what each of the company's plans owes. Returns how many commissions were made. */
+  /** Who holds each role on the job: the seller is the job's sales rep, the others are named on it (job_person). */
+  async function peopleOf(companyId: string, row: any): Promise<Map<CommissionJobRole, string[]>> {
+    const out = new Map<CommissionJobRole, string[]>()
+    if (row.assignedSalesRepId) out.set('sales_rep', [row.assignedSalesRepId])
+    const named = await db.select({ userId: jobPerson.userId, role: jobPerson.role }).from(jobPerson)
+      .where(and(eq(jobPerson.companyId, companyId), eq(jobPerson.jobId, row.id))).orderBy(asc(jobPerson.createdAt), asc(jobPerson.id))
+    for (const n of named as any[]) {
+      const role = n.role as CommissionJobRole
+      out.set(role, [...(out.get(role) || []), n.userId])
+    }
+    return out
+  }
+
+  /** What the person has drawn in advance on this plan for this job: live draws (void and cancelled ones are not). */
+  async function drawnBy(companyId: string, jobId: string, planId: string, userId: string): Promise<number> {
+    const rows = await db.select({ amount: commission.commissionAmount }).from(commission)
+      .where(and(eq(commission.companyId, companyId), eq(commission.jobId, jobId), eq(commission.planId, planId), eq(commission.userId, userId),
+        eq(commission.source, 'draw'), notInArray(commission.status, ['void', 'cancelled'])))
+    return round2((rows as any[]).reduce((sum, r) => sum + Number(r.amount || 0), 0))
+  }
+
+  /** What the job's other plans have already paid out: every live commission on it that is not on a net-profit plan. */
+  async function paidOutByOthers(companyId: string, jobId: string, plans: any[]): Promise<number> {
+    const rows = await db.select({ planId: commission.planId, amount: commission.commissionAmount }).from(commission)
+      .where(and(eq(commission.companyId, companyId), eq(commission.jobId, jobId), notInArray(commission.status, ['void', 'cancelled'])))
+    const byId = new Map(plans.map((p) => [p.id, p]))
+    return round2((rows as any[]).reduce((sum, r) => {
+      const p = r.planId ? byId.get(r.planId) : null
+      return p && measuredOnOf(p) === 'net_profit' ? sum : sum + Number(r.amount || 0)
+    }, 0))
+  }
+
+  /** What the signed contract is worth before tax: the job's quote less its tax, else the job's own value. */
+  async function signedValue(companyId: string, row: any): Promise<number> {
+    if (row.quoteId) {
+      const [qt] = await db.select({ total: quote.total, taxAmount: quote.taxAmount }).from(quote).where(and(eq(quote.id, row.quoteId), eq(quote.companyId, companyId))).limit(1)
+      if (qt) return round2(Number(qt.total || 0) - Number(qt.taxAmount || 0))
+    }
+    return round2(Number(row.estimatedValue || 0))
+  }
+
+  /** Pay every person the company's plans owe on this job, for each plan that is ready. Returns how many commissions were made. */
   async function earnForJob(companyId: string, jobId: string): Promise<number> {
     const [row] = await db.select().from(job).where(and(eq(job.id, jobId), eq(job.companyId, companyId))).limit(1)
-    if (!row || row.status !== 'collected' || !row.assignedSalesRepId) return 0
+    if (!row || stageIndex(row.status) < 0) return 0
     if (!(await d.features.isFeatureEnabled(companyId, 'commission_tracking'))) return 0
 
-    const [rep] = await db.select({ id: user.id, isActive: user.isActive }).from(user)
-      .where(and(eq(user.id, row.assignedSalesRepId), eq(user.companyId, companyId))).limit(1)
-    if (!rep || rep.isActive === false) return 0
+    const people = await peopleOf(companyId, row)
+    const everyone = [...new Set([...people.values()].flat())]
+    if (!everyone.length) return 0
+    const live = await db.select({ id: user.id, isActive: user.isActive }).from(user)
+      .where(and(eq(user.companyId, companyId), inArray(user.id, everyone)))
+    const active = new Set((live as any[]).filter((u) => u.isActive !== false).map((u) => u.id))
+    if (!active.size) return 0
 
-    // Paid in full: every invoice that went out is paid. The last one paid is the anchor the commission hangs on.
+    // Paid in full: every invoice that went out is paid. The last one paid is the anchor a Collected commission hangs on.
     const billed = await db.select().from(invoice)
       .where(and(eq(invoice.companyId, companyId), eq(invoice.jobId, jobId), ne(invoice.status, 'void')))
       .orderBy(asc(invoice.paidAt), asc(invoice.id))
     const issued = billed.filter((i: any) => !NOT_BILLED.includes(String(i.status)))
-    if (!issued.length || issued.some((i: any) => i.status !== 'paid')) return 0
-    const anchor = issued[issued.length - 1]
-    const paidAt = new Date(anchor.paidAt || row.updatedAt || Date.now())
+    const paidInFull = issued.length > 0 && issued.every((i: any) => i.status === 'paid')
+    const anchor = paidInFull ? issued[issued.length - 1] : null
+    const paidAt = anchor ? new Date(anchor.paidAt || row.updatedAt || Date.now()) : null
+    const now = new Date()
 
+    const settings = await moneySettings.read(companyId)
+    // Where the company wants worksheets approved, the job's profit counts only once its worksheet is (roof/worksheetApproval.ts).
+    const figuresCount = !settings.requireWorksheetApproval || (await worksheet.approvedJobIds(companyId, [jobId])).has(jobId)
     const plans = (await db.select().from(commissionPlan).where(and(eq(commissionPlan.companyId, companyId), eq(commissionPlan.isActive, true))))
-    const paying = plans.filter((p: any) =>
-      p.autoEarn === COMMISSION_AUTO_EARN_SALES_REP && p.autoSince && new Date(p.autoSince) <= paidAt
-      && (!p.effectiveFrom || new Date(p.effectiveFrom) <= paidAt) && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt)
-      && planPaysPerson(p, rep.id, plans))
-    if (!paying.length) return 0
 
-    // The numbers on the job-costing screen: the contract (invoiced before tax) and what the job cost.
+    // A plan is ready when its trigger stage has been reached (and, for Paid or a $0-balance plan, every invoice that went out is
+    // paid), it is inside its dates, and — if its figure is a profit, or the company holds a minimum profit — the work is done, so
+    // the job's costs are known.
+    const readyPlans = plans.flatMap((p: any) => {
+      const role = jobRoleOfAutoEarn(p.autoEarn)
+      if (!role || !p.autoSince || !(people.get(role) || []).some((id) => active.has(id))) return []
+      const trigger = effectiveTrigger(p, row)
+      if (!stageReachedBy(row.status, TRIGGER_STAGE[trigger])) return []
+      if ((trigger === 'collected' || p.zeroBalanceOnly) && !paidInFull) return []
+      if ((measuredOnOf(p) !== 'contract' || settings.minProfit) && !(stageReachedBy(row.status, TRIGGER_STAGE.completed) && figuresCount)) return []
+      const when = trigger === 'collected' ? paidAt! : now
+      if (new Date(p.autoSince) > when || (p.effectiveFrom && new Date(p.effectiveFrom) > when) || (p.effectiveTo && new Date(p.effectiveTo) < when)) return []
+      return [{ plan: p, role, trigger, when }]
+    })
+    if (!readyPlans.length) return 0
+
+    // The numbers on the job-costing screen: the contract and what the job cost. Paid, the contract is what was invoiced before
+    // tax; before that it is what was billed so far or the signed contract, whichever is more.
     const { byJob } = await costing.attributeRevenue(companyId, [{ id: jobId, quoteId: row.quoteId, projectId: row.projectId }])
-    const costs = (await costing.costsByJob(companyId, [jobId])).get(jobId)
-    const contract = round2(byJob.get(jobId)?.revenue ?? 0)
-    const profit = round2(contract - (costs?.totalCost ?? 0))
+    // The costs BEFORE commissions: a plan on profit is never worked out on a profit its own payout (or another plan's) has reduced.
+    const costs = (await costing.costsByJob(companyId, [jobId], { beforeCommissions: true })).get(jobId)
+    const invoiced = round2(byJob.get(jobId)?.revenue ?? 0)
+    const signed = readyPlans.some((r: { trigger: CommissionTrigger }) => r.trigger !== 'collected') ? await signedValue(companyId, row) : 0
+    const cost = costs?.totalCost ?? 0
 
+    // Plans measured on net profit go last: their figure is the gross profit less what the other plans pay out, so nothing is ever
+    // worked out on a profit it has itself reduced.
+    const ordered = [...readyPlans].sort((a, b) => Number(measuredOnOf(a.plan) === 'net_profit') - Number(measuredOnOf(b.plan) === 'net_profit'))
     let made = 0
-    for (const plan of paying) {
-      const already = await db.select({ id: commission.id }).from(commission)
-        .where(and(eq(commission.companyId, companyId), eq(commission.jobId, jobId), eq(commission.planId, plan.id), eq(commission.userId, rep.id), eq(commission.source, 'auto'))).limit(1)
-      if (already.length) continue
-      const onProfit = plan.planType === 'percent_of_margin'
-      const base = onProfit ? profit : contract
-      if (base <= 0) continue
-      const result = commissionFor(plan, base)
-      if ('error' in result) continue
-      const rows = await db.insert(commission).values({
-        companyId, planId: plan.id, userId: rep.id, jobId, invoiceId: anchor.id,
-        baseAmount: String(base), rateApplied: result.rate !== null ? String(result.rate) : null,
-        commissionAmount: String(result.amount), earnedAt: paidAt, source: 'auto',
-        notes: onProfit
-          ? `Earned automatically when ${row.number || 'the job'} was paid in full: gross profit ${usd(profit)} (${usd(contract)} invoiced less ${usd(round2(contract - profit))} cost)`
-          : `Earned automatically when ${row.number || 'the job'} was paid in full: the contract, ${usd(contract)} before tax`,
-      } as any).onConflictDoNothing().returning({ id: commission.id })
-      made += rows.length
+    for (const { plan, role, trigger, when } of ordered) {
+      const contract = trigger === 'collected' ? invoiced : Math.max(invoiced, signed)
+      const profit = round2(contract - cost)
+      // The company's minimum profit (roof_money_setting): a job that kept less than the floor pays no plan at all. It is looked at
+      // again whenever the job is followed up, so a job held under the floor pays once its figures clear it.
+      if (belowMinimumProfit(settings.minProfit, contract, profit)) continue
+      const basis = measuredOnOf(plan)
+      const net = basis === 'net_profit' ? round2(profit - (await paidOutByOthers(companyId, jobId, plans))) : null
+      const base = basis === 'net_profit' ? net! : basis === 'gross_profit' ? profit : contract
+      for (const personId of people.get(role) || []) {
+        if (!active.has(personId) || !planPaysPerson(plan, personId, plans)) continue
+        const already = await db.select({ id: commission.id }).from(commission)
+          .where(and(eq(commission.companyId, companyId), eq(commission.jobId, jobId), eq(commission.planId, plan.id), eq(commission.userId, personId), eq(commission.source, 'auto'))).limit(1)
+        if (already.length) continue
+        if (base <= 0) continue
+        const result = commissionFor(plan, base)
+        if ('error' in result) continue
+        // What this person drew in advance on this plan (./commissionDraws.ts) comes off the commission: the draw and what is made
+        // now add up to the commission, never more. A draw that is as much as the commission leaves nothing more to pay.
+        const drawn = await drawnBy(companyId, jobId, plan.id, personId)
+        const owing = round2(result.amount - drawn)
+        if (owing <= 0) continue
+        const reached = trigger === 'collected' ? 'was paid in full' : `reached ${TRIGGER_WORDS[trigger as CommissionTrigger]}${plan.zeroBalanceOnly ? ' with nothing owing' : ''}`
+        const sentence = `Earned automatically when ${row.number || 'the job'} ${reached}${role === 'sales_rep' ? '' : ` as the ${ROLE_WORDS[role]}`}${drawn > 0 ? `; ${usd(drawn)} already drawn, so ${usd(owing)} of the ${usd(result.amount)} commission is paid now` : ''}`
+        const rows = await db.insert(commission).values({
+          companyId, planId: plan.id, userId: personId, jobId, invoiceId: trigger === 'collected' ? anchor?.id ?? null : null,
+          baseAmount: String(base), rateApplied: result.rate !== null ? String(result.rate) : null,
+          commissionAmount: String(owing), earnedAt: when, source: 'auto', earnKey: `job:${jobId}:${plan.id}:${personId}`,
+          notes: basis === 'net_profit'
+            ? `${sentence}: net profit ${usd(net!)} (gross profit ${usd(profit)} less ${usd(round2(profit - net!))} paid out to the others)`
+            : basis === 'gross_profit'
+              ? `${sentence}: gross profit ${usd(profit)} (${usd(contract)} ${trigger === 'collected' ? 'invoiced' : 'contract'} less ${usd(round2(contract - profit))} cost)`
+              : `${sentence}: the contract, ${usd(contract)} before tax`,
+        } as any).onConflictDoNothing().returning({ id: commission.id })
+        made += rows.length
+      }
     }
     return made
   }
 
-  /** The step run after money lands on an invoice: the rep of that invoice's job, once the job is Collected. */
+  /**
+   * A full refund of an EARLIER invoice on a job (roofing parity row 4; docs/parity/roof-commissions-costing.md #14). A commission paid
+   * on the whole job when it was paid in full hangs on the last invoice paid, and the shared earner already takes it back when THAT
+   * invoice is refunded. When any other invoice of the job is refunded in full the job is no longer paid in full — money the commission
+   * was worked out on has gone back — so the same happens: a commission not yet paid out is cancelled, and one already paid out gets a
+   * negative line of the same size. DECISION: all of the job's Collected commissions, not a share of them — a share cannot be worked
+   * out fairly on a profit or a bracket, and the office records the right one by hand after the refund (the job is not re-earned
+   * automatically: the cancelled commission still stands for it). A PARTIAL refund changes nothing (the invoice is still paid), and a
+   * commission made at an earlier trigger (Approved, Completed, Invoiced — not hung on an invoice) is not touched: that plan was
+   * written to pay before the money was in. A draw is not touched either; it was paid out on its own.
+   */
+  async function takeBackForRefund(inv: { id: string; companyId: string; jobId: string; number?: string | null }): Promise<number> {
+    const hung = await db.select().from(commission).where(and(
+      eq(commission.companyId, inv.companyId), eq(commission.jobId, inv.jobId), eq(commission.source, 'auto'), ne(commission.invoiceId, inv.id),
+    ))
+    let taken = 0
+    for (const a of hung as any[]) {
+      if (!a.invoiceId) continue
+      const why = `${inv.number || 'an invoice'} was refunded in full`
+      if (['pending', 'approved', 'disputed'].includes(a.status)) {
+        const rows = await db.update(commission).set({ status: 'cancelled', notes: `${a.notes ? a.notes + ' · ' : ''}Cancelled: ${why}`, updatedAt: new Date() } as any)
+          .where(and(eq(commission.id, a.id), eq(commission.status, a.status))).returning({ id: commission.id })
+        taken += rows.length
+      } else if (a.status === 'paid') {
+        const rows = await db.insert(commission).values({
+          companyId: a.companyId, planId: a.planId, userId: a.userId, jobId: a.jobId, invoiceId: a.invoiceId,
+          baseAmount: String(-Number(a.baseAmount || 0)), rateApplied: a.rateApplied,
+          commissionAmount: String(-Number(a.commissionAmount || 0)), source: 'reversal', reversalOf: a.id,
+          notes: `Taken back: ${why} after this commission was paid`,
+        } as any).onConflictDoNothing().returning({ id: commission.id })
+        taken += rows.length
+      }
+    }
+    return taken
+  }
+
+  /** The step run after money moves on an invoice: a refund takes commissions back; otherwise the people of its job are followed up. */
   async function earnForInvoice(invoiceId: string): Promise<number> {
-    const [inv] = await db.select({ companyId: invoice.companyId, jobId: invoice.jobId }).from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
+    const [inv] = await db.select({ id: invoice.id, number: invoice.number, status: invoice.status, companyId: invoice.companyId, jobId: invoice.jobId }).from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
     if (!inv?.jobId) return 0
+    if (inv.status === 'refunded') { await takeBackForRefund(inv as any); return 0 }
     return earnForJob(inv.companyId, inv.jobId)
   }
 

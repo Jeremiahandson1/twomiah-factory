@@ -68,12 +68,18 @@ export const statusChangeBody = (from: string, to: string) => `Status changed: $
 export const closedBody = (as: string, from: string, reason: string) => `Job closed as ${as} (from ${from}): ${reason}`
 export const reopenedBody = (to: string, was: string, reason?: string | null) => `Job reopened to ${to} (was ${was}${reason ? `: ${reason}` : ''})`
 
+/** The inspection report went to the homeowner ('text' or 'email'), and a frozen copy of it was filed under the job's documents (roof/inspection/delivery.ts). */
+export const reportSentBody = (via: 'text' | 'email', to: string, title: string) => `Inspection report sent by ${via} to ${to}: ${title}`
+export const reportSavedBody = (title: string) => `Inspection report copy saved to documents: ${title}`
+
 const STATUS = /^Status changed: ([a-z_]+) → ([a-z_]+)$/
 const CLOSED = /^Job closed as ([a-z_]+) \(from ([a-z_]+)\): ([\s\S]*)$/
+const REPORT_SENT = /^Inspection report sent by (text|email) to ([^:\n]+): ([\s\S]+)$/
+const REPORT_SAVED = /^Inspection report copy saved to documents: ([\s\S]+)$/
 const REOPENED = /^Job reopened to ([a-z_]+) \(was ([a-z_]+)(?:: ([\s\S]*))?\)$/
 const known = (...codes: string[]) => codes.every((s) => (JOB_STATUSES as readonly string[]).includes(s))
 
-export type JobEventKind = 'status_change' | 'closed' | 'reopened'
+export type JobEventKind = 'status_change' | 'closed' | 'reopened' | 'report_sent' | 'report_saved'
 
 /**
  * A job_note row that records something that happened to the job, in words with stage names — or null for a note a
@@ -89,5 +95,9 @@ export function jobEvent(body: string | null | undefined, label: (stage: string)
   if (m && known(m[1], m[2])) return { kind: 'closed', text: `Closed as ${label(m[1])} (was ${label(m[2])}): ${m[3]}` }
   m = REOPENED.exec(b)
   if (m && known(m[1], m[2])) return { kind: 'reopened', text: `Reopened at ${label(m[1])} (was ${label(m[2])}${m[3] ? `: ${m[3]}` : ''})` }
+  m = REPORT_SENT.exec(b)
+  if (m) return { kind: 'report_sent', text: `Inspection report “${m[3]}” sent to ${m[2]} by ${m[1]}` }
+  m = REPORT_SAVED.exec(b)
+  if (m) return { kind: 'report_saved', text: `Inspection report “${m[1]}” saved to documents` }
   return null
 }

@@ -12,7 +12,7 @@ import { patient } from './vet.ts'
 import { booking } from './booking.ts'
 import { crew, measurementReport } from './roof.ts'
 import { company, user } from './core.ts'
-import { commissionIsAuto, commissionIsRefund, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
+import { commissionHasEarnKey, commissionIsAuto, commissionIsRefund, commissionIsReversal, invoiceIsLive, jobOnRouteStop } from '../../data/indexWhere.ts'
 
 export const contact = pgTable('contact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -249,6 +249,9 @@ export const job = pgTable('job', {
   // Roofing's job (templates/crm-roof job; docs/UNIFIED_ROOF_PLAN.md decision 2). Nullable: no other vertical writes
   // them. Roofing's job_number / property_address / estimated_revenue are this table's number / address /
   // estimated_value; its money is the CRM's precision (12, 2), wider than roofing's (10, 2), so every value fits.
+  /** The QuickBooks customer (or job) this job's books are kept under, chosen on the job (crm/roof/jobBooks.ts); null = the contact's own. 0060. */
+  qbCustomerId: text('qb_customer_id'),
+  qbCustomerName: text('qb_customer_name'),
   assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
   assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
   roofAge: integer('roof_age'),
@@ -317,6 +320,25 @@ export const jobAssignee = pgTable('job_assignee', {
 ])
 
 /**
+ * The people on a job whose COMMISSION it is, besides its sales rep (job.assigned_sales_rep_id) — roofing parity row 2: the
+ * estimator, the canvasser, the office person, the production manager and the sales manager (COMMISSION_JOB_ROLES). Several
+ * people may hold a role on one job (JobNimbus), and one person may hold several. A row here gives no access to the job (that is
+ * job_assignee / the sales rep): it is only who a plan that pays the role pays. Changed through /api/job-people (jobs:dispatch).
+ */
+export const jobPerson = pgTable('job_person', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_person_job_id_idx').on(t.jobId),
+  index('job_person_user_id_idx').on(t.userId),
+  uniqueIndex('job_person_job_user_role_idx').on(t.jobId, t.userId, t.role),
+])
+
+/**
  * What each job was last announced to its person as — who it is assigned to and when it is scheduled (crm/notify/
  * jobAssignments.ts). A job that differs from its row here has been assigned or rescheduled since, by whichever screen or
  * route, and its person gets a phone notification. Filled from the jobs that existed when it was made (migration 0015),
@@ -346,6 +368,9 @@ export const quote = pgTable('quote', {
   taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
   taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
   discount: decimal('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  // The part of `discount` that comes from the chosen Good / Better / Best option's own discount (0061): `discount` is what is
+  // taken off in all (so the invoice, the page and the PDF agree), and `discount - option_discount` is the one the office typed.
+  optionDiscount: decimal('option_discount', { precision: 12, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   notes: text('notes'),
   terms: text('terms'),
@@ -431,6 +456,9 @@ export const quoteLineItem = pgTable('quote_line_item', {
   // The proposal option this line belongs to (quote_proposal_option): a line of an option is optional, and is selected
   // exactly while its option is the one the customer chose. Null for the lines every option shares.
   proposalOptionId: text('proposal_option_id').references((): AnyPgColumn => quoteProposalOption.id, { onDelete: 'cascade' }),
+  // What a line of an option is: null = the option's own line (ticked when the option is chosen); 'upgrade' = an add-on that
+  // belongs to the option, offered only once that option is chosen and ticked by the customer on its own (0061).
+  optionRole: text('option_role'),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -455,9 +483,62 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
   chosen: boolean('chosen').default(false).notNull(),
   chosenAt: timestamp('chosen_at'),
   sortOrder: integer('sort_order').default(0).notNull(),
+  // One discount per option (0061), taken off while this option is the one chosen: a fixed amount in cents, or a percent of
+  // the option's price before its upgrades. At most one of the two is set.
+  discountCents: integer('discount_cents').default(0).notNull(),
+  discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }).default('0').notNull(),
+  // Files attached to this option — a manufacturer's brochure, a spec sheet: [{ name, url }], url a /media file or https (0062).
+  attachments: json('attachments'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('quote_proposal_option_quote_id_idx').on(t.quoteId),
+])
+
+// The pages of a proposal around its options (0062; packages/tenant-backend invoicing/quoteDocument.ts): a cover page, About Us,
+// sections placed in line, files attached to the whole proposal, the terms split into clauses the customer INITIALS, and a
+// cosigner (the insurance carrier, a spouse) whose signature completes the approval. One row per quote.
+export const quoteProposalDocument = pgTable('quote_proposal_document', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  quoteId: text('quote_id').notNull().unique().references(() => quote.id, { onDelete: 'cascade' }),
+  coverTitle: text('cover_title'),
+  coverSubtitle: text('cover_subtitle'),
+  coverPhoto: text('cover_photo'),
+  aboutUs: text('about_us'),
+  /** [{ id, title, body, placement: 'top' | 'before_options' | 'after_options' | 'before_terms' }] */
+  sections: json('sections'),
+  /** [{ id, text }] — each is initialed by the customer when they sign. */
+  termsClauses: json('terms_clauses'),
+  /** [{ name, url }] — files for the whole proposal. */
+  attachments: json('attachments'),
+  cosignerName: text('cosigner_name'),
+  cosignerEmail: text('cosigner_email'),
+  cosignerRole: text('cosigner_role'),
+  /** The cosigner's private link (/c/<token>), 64 hex characters like a quote's own link. */
+  cosignerToken: text('cosigner_token').unique(),
+  cosignerRequestedAt: timestamp('cosigner_requested_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// What a person put their hand to on a proposal (0062): each clause the customer initialed, the customer's signature while the
+// cosigner is still to sign (the quote is approved when the last required signature is in), and the cosigner's.
+export const quoteProposalMark = pgTable('quote_proposal_mark', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
+  /** 'initials' | 'customer_signature' | 'cosigner_signature' */
+  kind: text('kind').notNull(),
+  clauseId: text('clause_id'),
+  name: text('name'),
+  initials: text('initials'),
+  signature: text('signature'),
+  documentHash: text('document_hash'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signedAt: timestamp('signed_at').defaultNow().notNull(),
+}, (t) => [
+  index('quote_proposal_mark_quote_id_idx').on(t.quoteId),
 ])
 
 /**
@@ -1043,6 +1124,16 @@ export const commissionPlan = pgTable('commission_plan', {
   // not named on another plan; named: only them (contractor live re-test 2026-10-22, "the Plans page can't assign a plan
   // to a person"). packages/tenant-backend commissions.ts.
   userIds: json('user_ids').default([]).notNull(),
+  // What the plan's rate (or each bracket of a tiered plan) is read against, for a plan that pays a job's people when the job is
+  // paid (roofing): 'contract' (billed before tax — what every plan was) or 'gross_profit' (the contract less what the job cost).
+  // commissions.ts measuredOnOf; the work is in apps/unified server/crm/roof/commissions.ts.
+  measuredOn: text('measured_on').default('contract').notNull(),
+  // WHEN a plan that pays a job's people is ready to be earned (roofing parity row 3 — AccuLynx's "ready to request"): 'approved' (the
+  // contract is signed), 'completed' (the work is done — final inspection), 'invoiced' (the bill has gone out) or 'collected' (the
+  // job is paid; what every plan did). zero_balance_only holds an earlier trigger until every invoice that went out is paid.
+  // commissions.ts COMMISSION_TRIGGERS; the work is in apps/unified server/crm/roof/commissions.ts.
+  triggerOn: text('trigger_on').default('collected').notNull(),
+  zeroBalanceOnly: boolean('zero_balance_only').default(false).notNull(),
   // Which sales the plan is paid on, where the business offers the choice (salon): 'all', 'services' or 'retail'. Others leave it 'all'.
   salesKind: text('sales_kind').default('all').notNull(),
   // Salon row 15. What a tiered plan's brackets measure: 'sales' (money sold in the period) or 'count' (services / items sold), and the period
@@ -1078,6 +1169,9 @@ export const commission = pgTable('commission', {
   // earning already paid out, when the invoice was refunded in full).
   source: text('source').default('manual').notNull(),
   reversalOf: text('reversal_of'),
+  // What a roofing job's commission was made for — 'job:<job>:<plan>:<person>' — so however often the job is followed up, and
+  // from however many places at once, it is made once (roof/commissions.ts). Null on every other commission.
+  earnKey: text('earn_key'),
   // A commission recorded in error is VOIDED, not deleted (status 'void'): the row stays, with why, when and by whom, so
   // the history of what was owed is never rewritten (contractor live re-test 3, 2026-10-24). packages/tenant-backend
   // commissions.ts POST /:id/void.
@@ -1101,6 +1195,7 @@ export const commission = pgTable('commission', {
   uniqueIndex('commission_auto_once').on(t.invoiceId, t.planId, t.userId).where(commissionIsAuto),
   uniqueIndex('commission_reversal_once').on(t.reversalOf).where(commissionIsReversal),
   uniqueIndex('commission_refund_once').on(t.reversalOf, t.refundedRatio).where(commissionIsRefund),
+  uniqueIndex('commission_earn_key_once').on(t.earnKey).where(commissionHasEarnKey),
 ])
 
 export const staffAccountEntry = pgTable('staff_account_entry', {

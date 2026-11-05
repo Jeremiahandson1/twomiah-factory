@@ -14,9 +14,9 @@
 //     edit's '' date clears it (the template handed '' to the timestamp column, a 500).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, count, desc, eq, gte, lt } from 'drizzle-orm'
+import { and, count, eq, gte, lt } from 'drizzle-orm'
 import { companyTimeZone, isIsoDate, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
-import { job, material } from '../../../db/schema/index.ts'
+import { job, material, supplierPriceItem } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
@@ -24,6 +24,8 @@ import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { lineItemInput, materialOrderStatus, normaliseLineItems, optional } from '../validation.ts'
 import { partialOf } from '@twomiah/tenant-backend'
+import { clearPricing, relock, sameSupplier, totalOf, type OrderLine, type PriceItem } from '../supplierPricing.ts'
+import { MATERIAL_SORTS, materialOrderBy, type MaterialSort } from '../../../data/materialOrders.ts'
 
 const MATERIAL_MONEY = ['totalCost'] as const
 /** The money inside a line item. The canonical line is {code?, description, qty, unit, unitPrice, total}. */
@@ -56,7 +58,20 @@ const materialSchema = z.object({
   supplierOrderNumber: z.string().optional(),
   deliveryAddress: z.string().optional(),
   notes: z.string().optional(),
+  // The roofer's PO number and who the supplier calls about the delivery; '' clears one.
+  poNumber: z.string().trim().max(60).optional(),
+  contactName: z.string().trim().max(120).optional(),
+  contactPhone: z.string().trim().max(40).optional(),
+  contactEmail: z.union([z.literal(''), z.string().trim().email('contactEmail: Enter a valid email address.')]).optional(),
 })
+
+const CONTACT_FIELDS = ['poNumber', 'contactName', 'contactPhone', 'contactEmail'] as const
+/** The PO number and the delivery contact as stored: blank is none. */
+export const orderReference = (data: Partial<Record<(typeof CONTACT_FIELDS)[number], string | undefined>>) => {
+  const out: Record<string, string | null> = {}
+  for (const f of CONTACT_FIELDS) if (data[f] !== undefined) out[f] = data[f]!.trim() || null
+  return out
+}
 
 /** A date from the form: absent leaves it, '' clears it, one that does not parse is an error naming the field. */
 const dateOf = (field: string, v: string | undefined): { value?: Date | null; error?: string } => {
@@ -65,6 +80,9 @@ const dateOf = (field: string, v: string | undefined): { value?: Date | null; er
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? { error: `${field}: Enter a valid date.` } : { value: d }
 }
+
+/** `sent` belongs to the send action: a hand-set Sent would claim a message that was never sent. */
+const HAND_SET_SENT = 'An order is marked Sent when it is sent to the supplier. Use Send to supplier; to record an order you phoned in, choose Ordered.'
 
 export function createMaterialRoutes(d: CrmDeps) {
   const { db } = d
@@ -104,15 +122,23 @@ export function createMaterialRoutes(d: CrmDeps) {
       }
     }
     const where = and(...conditions)
+    // ?sort= a column of the dashboard, ?dir= asc|desc. Sorting by amount orders the rows by what the business paid, so it is
+    // answered only to a seat that may see the amounts (a sorted list would otherwise give the ranking away).
+    const sortParam = c.req.query('sort')
+    if (sortParam && !(MATERIAL_SORTS as readonly string[]).includes(sortParam)) return fail(c, 400, `sort must be one of ${MATERIAL_SORTS.join(', ')}`)
+    const dirParam = c.req.query('dir')
+    if (dirParam && dirParam !== 'asc' && dirParam !== 'desc') return fail(c, 400, 'dir must be asc or desc')
+    const seesCost = await maySeeCost(c)
+    if (sortParam === 'amount' && !seesCost) return fail(c, 403, 'You do not have access to order amounts.', 'forbidden')
     const [rows, [{ value: total }]] = await Promise.all([
       db.select({ material, jobNumber: job.number }).from(material)
         .leftJoin(job, and(eq(material.jobId, job.id), eq(job.companyId, companyId)))
-        .where(where).orderBy(desc(material.createdAt), desc(material.id)).offset((page - 1) * limit).limit(limit),
+        .where(where).orderBy(...materialOrderBy(sortParam as MaterialSort | undefined, dirParam === 'desc' ? 'desc' : 'asc')).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(material).where(where),
     ])
     // The job's number (not its id), and orderStatus as `status` too, which is what the list reads.
     const data = rows.map((r: any) => ({ ...r.material, jobNumber: r.jobNumber, status: r.material.orderStatus }))
-    return list(c, (await maySeeCost(c)) ? data : data.map(withoutMaterialMoney), { page, limit, total: Number(total) })
+    return list(c, seesCost ? data : data.map(withoutMaterialMoney), { page, limit, total: Number(total) })
   })
 
   app.post('/', requirePermission('inventory:create'), async (c) => {
@@ -124,6 +150,7 @@ export function createMaterialRoutes(d: CrmDeps) {
     const deliveryDate = dateOf('deliveryDate', data.deliveryDate)
     if (orderDate.error || deliveryDate.error) return fail(c, 400, (orderDate.error || deliveryDate.error)!)
     if (!(await ownJob(companyId, data.jobId))) return fail(c, 404, 'That job does not exist.')
+    if (data.orderStatus === 'sent') return fail(c, 400, HAND_SET_SENT, 'status_sent_by_sending', { orderStatus: HAND_SET_SENT })
     // The order is worth what its line items are worth.
     const { lineItems, total } = normaliseLineItems(data.lineItems)
     const [created] = await db.insert(material).values({
@@ -131,6 +158,7 @@ export function createMaterialRoutes(d: CrmDeps) {
       orderDate: orderDate.value ?? null, deliveryDate: deliveryDate.value ?? null,
       lineItems, totalCost: total.toFixed(2),
       supplierOrderNumber: data.supplierOrderNumber, deliveryAddress: data.deliveryAddress, notes: data.notes,
+      ...orderReference(data),
     } as any).returning()
     return one(c, created, 201)
   })
@@ -147,21 +175,39 @@ export function createMaterialRoutes(d: CrmDeps) {
     const parsed = partialOf(materialSchema).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
-    if (!(await ownOrder(companyId, id))) return fail(c, 404, 'Material order not found')
+    const before = await ownOrder(companyId, id)
+    if (!before) return fail(c, 404, 'Material order not found')
+    if (data.orderStatus === 'sent' && before.orderStatus !== 'sent') return fail(c, 400, HAND_SET_SENT, 'status_sent_by_sending', { orderStatus: HAND_SET_SENT })
     if (data.jobId && !(await ownJob(companyId, data.jobId))) return fail(c, 404, 'That job does not exist.')
     const orderDate = dateOf('orderDate', data.orderDate)
     const deliveryDate = dateOf('deliveryDate', data.deliveryDate)
     if (orderDate.error || deliveryDate.error) return fail(c, 400, (orderDate.error || deliveryDate.error)!)
     const { orderDate: _o, deliveryDate: _d, ...fields } = data
-    const updateData: Record<string, any> = { ...fields, updatedAt: new Date() }
+    const updateData: Record<string, any> = { ...fields, ...orderReference(data), updatedAt: new Date() }
     if (orderDate.value !== undefined) updateData.orderDate = orderDate.value
     if (deliveryDate.value !== undefined) updateData.deliveryDate = deliveryDate.value
     // Same rule as create: an edit that changes the lines recomputes the total; the client's totalCost is never stored.
     delete updateData.totalCost
-    if (data.lineItems) {
-      const { lineItems, total } = normaliseLineItems(data.lineItems)
-      updateData.lineItems = lineItems
-      updateData.totalCost = total.toFixed(2)
+    let lines: OrderLine[] | null = null
+    if (data.lineItems) lines = normaliseLineItems(data.lineItems).lineItems as OrderLine[]
+    // An order priced from a supplier's list is locked to it (supplierPricing.ts; Roofr's "created locked to that supplier"): the
+    // prices cannot be typed over, and a different supplier takes every price off.
+    if (before.priceListId) {
+      if (data.supplier !== undefined && !sameSupplier(data.supplier, before.supplier)) {
+        if (!['not_ordered', 'ready_to_send', 'rejected'].includes(before.orderStatus)) return fail(c, 409, `This order has already gone to ${before.supplier} at its prices. Make a new order for another supplier.`, 'supplier_locked')
+        lines = clearPricing(lines ?? ((before.lineItems as OrderLine[]) || []))
+        updateData.priceListId = null
+        updateData.totalCost = totalOf(lines).toFixed(2)
+      } else if (lines) {
+        const items: PriceItem[] = (await db.select().from(supplierPriceItem).where(eq(supplierPriceItem.priceListId, before.priceListId)))
+          .map((i: any) => ({ id: i.id, code: i.code, sku: i.sku, description: i.description, unit: i.unit, unitPriceCents: i.unitPriceCents }))
+        lines = relock(lines, (before.lineItems as OrderLine[]) || [], items, before.priceListId)
+        updateData.totalCost = totalOf(lines).toFixed(2)
+      }
+    }
+    if (lines) {
+      updateData.lineItems = lines
+      if (updateData.totalCost === undefined) updateData.totalCost = totalOf(lines).toFixed(2)
     }
     const [updated] = await db.update(material).set(updateData as any).where(and(eq(material.id, id), eq(material.companyId, companyId))).returning()
     return one(c, updated)

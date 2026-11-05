@@ -5,11 +5,12 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { canSeeWith } from '../deps.ts'
 import { createJobCostingService } from './jobCostingService.ts'
 import { createQuoteBudget } from '../billing/quoteBudget.ts'
 import { round2 } from '@twomiah/tenant-backend'
-import { and, eq } from 'drizzle-orm'
-import { project } from '../../db/schema/index.ts'
+import { and, eq, notInArray } from 'drizzle-orm'
+import { commission, project, user as userTable } from '../../db/schema/index.ts'
 
 /** A number from the query string, or the default when absent or unparseable; capped at `max`. */
 const intParam = (raw: string | undefined, fallback: number, max: number) => {
@@ -28,7 +29,16 @@ export function createJobCostingRoutes(d: CrmDeps) {
   app.get('/job/:jobId', requirePermission('reports:read'), async (c) => {
     const user = c.get('user')
     try {
-      return one(c, await jobCosting.getJobCostAnalysis(c.req.param('jobId'), user.companyId))
+      const analysis: any = await jobCosting.getJobCostAnalysis(c.req.param('jobId'), user.companyId)
+      // Roofing: who earned what on the job is the pay structure's, so the lines behind the commission cost go only to a seat that
+      // reads it (commissions:read); every seat that reads job costing sees the total, which is in the cost and the profit.
+      if (d.settings?.roof && analysis.actual?.commissionCost && await canSeeWith(d.permissions)(user.role, 'commissions:read', user.userId)) {
+        const rows = await d.db.select().from(commission)
+          .where(and(eq(commission.companyId, user.companyId), eq(commission.jobId, analysis.job.id), notInArray(commission.status, ['void', 'cancelled'])))
+        const names = new Map<string, string>((await d.db.select({ id: userTable.id, f: userTable.firstName, l: userTable.lastName, e: userTable.email }).from(userTable).where(eq(userTable.companyId, user.companyId)) as any[]).map((u) => [u.id, [u.f, u.l].filter(Boolean).join(' ') || u.e]))
+        analysis.commissionDetail = rows.map((r: any) => ({ id: r.id, person: names.get(r.userId) ?? 'Former team member', source: r.source, status: r.status, amount: Number(r.commissionAmount || 0) }))
+      }
+      return one(c, analysis)
     } catch (e: any) {
       if (/not found/i.test(String(e?.message || ''))) return fail(c, 404, 'Job not found')
       throw e
@@ -61,7 +71,7 @@ export function createJobCostingRoutes(d: CrmDeps) {
     // With the cost_by_code feature the budget carries actual cost and profit per line; without it, as before.
     if (await d.features.isFeatureEnabled(user.companyId, 'cost_by_code')) return one(c, { ...(await quoteBudget.budgetWithActuals(user.companyId, projectId)), projectName: pr.name, byCode: true })
     const budget = await quoteBudget.budgetFor(user.companyId, projectId)
-    const costing = await jobCosting.getJobCostingSummary(user.companyId, { projectId, limit: 500 } as any)
+    const costing = await jobCosting.getJobCostingSummary(user.companyId, { projectId, limit: 500, beforeCommissions: true } as any)
     const actualCost = round2(Number(costing.totals.totalCost || 0))
     return one(c, { ...budget, projectName: pr.name, actualCost, remainingCost: round2(budget.totalCost - actualCost), jobCount: costing.count })
   })

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../../../api'
 import { useAuth, useConfirm, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
-import { DepreciationCard, MortgageChecksCard } from './InsuranceExtras'
+import { DepreciationCard, MortgageChecksCard, SupplementStatusControl, useSupplementStatuses } from './InsuranceExtras'
 import { formatDate } from '../../../date'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -76,6 +76,8 @@ interface Supplement {
   totalAmount?: Amount
   approvedAmount?: Amount
   denialReason?: string | null
+  /** The company's own status on it (supplement_status), when Insurance Follow-ups is on. */
+  customStatusId?: string | null
   /** The supplement's totals and its line prices were left out for this seat. */
   moneyWithheld?: boolean
 }
@@ -217,6 +219,8 @@ export default function InsuranceClaimPage() {
   const confirm = useConfirm()
   // Insurance Follow-ups (not ready): the held-depreciation and mortgage-check cards, only where the feature is on.
   const { hasFeature } = useAuth()
+  // The company's own supplement statuses on top of the fixed four (Insurance Follow-ups, row 10).
+  const { statuses: customStatuses } = useSupplementStatuses(hasFeature('insurance_extras'))
   // Offer a write only where we know it is allowed. Each permission is the one its own route asks for.
   const mayWriteClaim = useMayWrite('insurance:create')
   // The claim's own fields are a PUT, and that route asks for the update verb rather than create.
@@ -1167,6 +1171,9 @@ export default function InsuranceClaimPage() {
                         {supMoney && <span className="text-sm font-bold">{fmt$(sup.totalAmount)}</span>}
                       </div>
                       <p className="text-sm text-gray-600 mb-2 dark:text-slate-400">{sup.reason}</p>
+                      {hasFeature('insurance_extras') && (
+                        <SupplementStatusControl supplementId={sup.id} fixedStatus={sup.status} customStatusId={sup.customStatusId} statuses={customStatuses} onChanged={load} />
+                      )}
                       {Array.isArray(sup.lineItems) && sup.lineItems.length > 0 && (
                         <table className="w-full text-xs mb-2">
                           <tbody>

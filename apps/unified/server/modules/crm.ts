@@ -6,6 +6,7 @@
 // Access: a module whose router signs people in itself AND answers a provider or a customer without a session
 // (texting's and Stripe's webhooks, QuickBooks' callback, a review link, an unsubscribe link) is mounted public, as the
 // template mounted it; every other one is mounted for signed-in users, and the registry signs them in first.
+import { createCommissionDisclaimer } from '../crm/roof/commissionDisclaimer.ts'
 import { checkAvailability } from '../data/techAvailability.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -30,7 +31,7 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
 } from '../db/schema/index.ts'
 import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
@@ -282,9 +283,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
+    sendCosignEmail: (to: string, data: Record<string, unknown>) => s.emailService.send(to, 'quoteCosign', data),
+    storage: s.storage,
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
@@ -489,7 +492,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
-    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.roof ? { ownWithheld: createCommissionDisclaimer(own).pendingFor } : {}), ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
@@ -567,7 +570,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/portal', access: 'public', router: inFront('/api/portal', createPortalRoutes({
       db,
       tables: {
-        contact, company, user, quote, quoteLineItem, quoteProposalOption, invoice, invoiceLineItem, payment, message, auditLog, activity,
+        contact, company, user, quote, quoteLineItem, quoteProposalOption, quoteProposalDocument, quoteProposalMark, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
         equipment, serviceAgreement, agreementVisit, formSubmission,
         // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).

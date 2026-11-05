@@ -14,6 +14,10 @@
 //   POST   /:id/cancel        withdraw it                                                    jobs:dispatch
 //   DELETE /:id               remove a draft or a cancelled one                               jobs:delete
 //
+// PRICE. A work order may carry what the crew or sub is paid for the job as one lump sum (`price`). It is the shop's cost, so it is
+// margin:read to send and to see (a seat without it gets the order without the field), as a crew's pay per square is. Sent,
+// accepted or completed, it is the job's crew labour in job costing (./jobCosts.ts); the crew's own link never shows it.
+//
 // The link is the token the shared document links use (tenant-backend portal/documentLinks.ts: 32 random bytes as 64 hex
 // characters, looked up by an exact match) at /w/<token> on the app's address, good for 30 days from the send and never
 // before a week after the start date. It opens THIS work order and nothing else of the company's.
@@ -70,6 +74,7 @@ const writable = {
   crewId: optional(z.string().min(1)),
   materialLines: z.array(line).max(60).optional(),
   materialOrderId: optional(z.string().min(1)),
+  price: z.number({ error: 'The price is a number of dollars.' }).finite().min(0, 'The price cannot be negative.').max(100000000, 'That price is too large.').nullable().optional(),
   photoIds: z.array(z.string().min(1)).max(MAX_PHOTOS_SHARED).optional(),
 }
 const createSchema = z.object({ jobId: z.string().min(1), ...writable })
@@ -84,12 +89,15 @@ export function createWorkOrderRoutes(d: CrmDeps) {
 
   const mayLink = async (c: any) => { const u = c.get('user'); try { return !!(await canSee(u.role, JOB_DISPATCH_PERMISSION, u.userId)) } catch { return false } }
 
-  /** A work order as the office reads it. The token never leaves; the link does, to a seat that may send it. */
-  function view(row: any, withLink: boolean) {
-    const { publicToken, tokenExpiresAt, ...rest } = row
+  const maySeePrice = async (c: any) => { const u = c.get('user'); try { return !!(await canSee(u.role, 'margin:read', u.userId)) } catch { return false } }
+
+  /** A work order as the office reads it. The token never leaves; the link does, to a seat that may send it; the price, to a seat that may see what the shop pays. */
+  function view(row: any, withLink: boolean, withPrice = false) {
+    const { publicToken, tokenExpiresAt, price, ...rest } = row
     const origin = appOrigin()
     return {
       ...rest,
+      ...(withPrice ? { price: price == null ? null : Number(price) } : {}),
       tokenExpiresAt,
       linkExpired: !!(tokenExpiresAt && new Date(tokenExpiresAt) < new Date()),
       ...(withLink && publicToken && origin ? { linkUrl: `${origin}${WORK_ORDER_PAGE}/${publicToken}` } : {}),
@@ -142,14 +150,14 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     if (!all) conditions.push(ownJobsWhere(db, String(me.userId)))
     const rows = await db.select({ wo: workOrder }).from(workOrder).innerJoin(job, and(eq(job.id, workOrder.jobId), eq(job.companyId, me.companyId)))
       .where(and(...conditions)).orderBy(desc(workOrder.createdAt), desc(workOrder.id)).limit(200)
-    const withLink = await mayLink(c)
-    return listAll(c, rows.map((r: any) => view(r.wo, withLink)))
+    const withLink = await mayLink(c), withPrice = await maySeePrice(c)
+    return listAll(c, rows.map((r: any) => view(r.wo, withLink, withPrice)))
   })
 
   app.get('/:id', requirePermission('jobs:read'), async (c) => {
     const row = await readable(c)
     if (!row) return fail(c, 404, 'Work order not found')
-    return one(c, view(row, await mayLink(c)))
+    return one(c, view(row, await mayLink(c), await maySeePrice(c)))
   })
 
   app.post('/', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
@@ -157,6 +165,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     const parsed = createSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
+    if (data.price !== undefined && !(await maySeePrice(c))) return fail(c, 403, 'What a crew is paid is the shop\u2019s cost. Ask an owner or manager to set the price.', 'work_order_price_not_permitted')
     const jobRow = await seatJob(c, data.jobId)
     if (!jobRow) return fail(c, 404, 'That job does not exist.')
 
@@ -180,8 +189,9 @@ export function createWorkOrderRoutes(d: CrmDeps) {
       companyId: me.companyId, jobId: jobRow.id, crewId, title: data.title, scope: data.scope ?? null,
       address: data.address || addressOf(jobRow) || null, startDate: start.value ?? jobRow.installDate ?? null,
       recipientName: name, recipientPhone: tel, materialLines: made.lines, photoIds, createdById: me.userId,
+      ...(data.price === undefined || data.price === null ? {} : { price: String(data.price) }),
     } as any).returning()
-    return one(c, view(created, true), 201)
+    return one(c, view(created, true, await maySeePrice(c)), 201)
   })
 
   app.put('/:id', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
@@ -194,7 +204,9 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     const parsed = updateSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
+    if (data.price !== undefined && !(await maySeePrice(c))) return fail(c, 403, 'What a crew is paid is the shop\u2019s cost. Ask an owner or manager to change the price.', 'work_order_price_not_permitted')
     const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (data.price !== undefined) set.price = data.price === null ? null : String(data.price)
     for (const k of ['title', 'scope', 'address', 'recipientName', 'recipientPhone'] as const) if (data[k] !== undefined) set[k] = data[k]
     if (data.crewId) {
       const [cr] = await db.select().from(crew).where(and(eq(crew.id, data.crewId), eq(crew.companyId, me.companyId))).limit(1)
@@ -222,7 +234,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     if (row.status === 'rejected') Object.assign(set, { status: 'draft', respondedAt: null, respondedByName: null, rejectReason: null })
     const [updated] = await db.update(workOrder).set(set as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'rejected']))).returning()
     if (!updated) return fail(c, 409, 'It changed while you were editing. Open it again.', 'wrong_status')
-    return one(c, view(updated, true))
+    return one(c, view(updated, true, await maySeePrice(c)))
   })
 
   app.post('/:id/send', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
@@ -263,7 +275,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     await addNote(me.companyId, sent.jobId, me.userId, texted
       ? `Work order "${sent.title}" texted to ${sent.recipientName}.`
       : `Work order "${sent.title}" made ready for ${sent.recipientName} (not texted).`)
-    return one(c, { ...view(sent, true), texted, ...(reason ? { notice: reason } : {}) })
+    return one(c, { ...view(sent, true, await maySeePrice(c)), texted, ...(reason ? { notice: reason } : {}) })
   })
 
   app.post('/:id/cancel', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
@@ -275,7 +287,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
       .where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'accepted', 'rejected']))).returning()
     if (!cancelled) return fail(c, 409, 'It changed while you were cancelling. Open it again.', 'wrong_status')
     await addNote(me.companyId, row.jobId, me.userId, `Work order "${row.title}" cancelled.`)
-    return one(c, view(cancelled, true))
+    return one(c, view(cancelled, true, await maySeePrice(c)))
   })
 
   app.delete('/:id', requirePermission('jobs:delete'), async (c) => {

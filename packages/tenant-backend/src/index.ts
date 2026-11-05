@@ -65,7 +65,7 @@ export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/st
 export { createQuoteRoutes } from './invoicing/quotes'
 export { isIncluded, includedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
 export { priceFromMarkup, applyMarkups, groupBySection, hasStructure, sectionSummary } from './invoicing/quoteSections'
-export { proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'
+export { proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'
 export { SIGNING_EVIDENCE, withoutSigningEvidence } from './invoicing/signingEvidence'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 // roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.
@@ -253,8 +253,8 @@ export { createFleetService, createFleetRoutes } from './fleet/fleet'
 export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
 
 // Commissions — plans + earnings, the amount worked out server-side from the plan (crm, crm-fieldservice, crm-landscaping, crm-basic).
-export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP, COMMISSION_SALES_KINDS, VISIT_STYLIST } from './commissions/commissions'
-export type { CommissionRoutesDeps, CommissionTables, CommissionEarner, CommissionEarnerDeps, CommissionEarnerTables } from './commissions/commissions'
+export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN, COMMISSION_AUTO_EARN_SALES_REP, COMMISSION_AUTO_EARN_JOB_ROLES, COMMISSION_JOB_ROLES, COMMISSION_JOB_ROLE_WORDS, JOB_PERSON_ROLES, jobRoleOfAutoEarn, COMMISSION_MEASURED_ON, COMMISSION_TRIGGERS, measuredOnOf, COMMISSION_SALES_KINDS, VISIT_STYLIST } from './commissions/commissions'
+export type { CommissionTrigger, CommissionJobRole, CommissionRoutesDeps, CommissionTables, CommissionEarner, CommissionEarnerDeps, CommissionEarnerTables } from './commissions/commissions'
 
 // Locations — a company's branches (crm, crm-fieldservice, crm-landscaping, crm-basic). crm-dispensary keeps its own stock-per-store system.
 export { createLocationRoutes } from './locations/locations'

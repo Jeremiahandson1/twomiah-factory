@@ -24,6 +24,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
+import { createSupplementTracker } from './supplementStatuses.ts'
 
 /** The stages at which the roof is built: the certificate of completion can go. */
 export const COMPLETION_STAGES = ['final_inspection', 'invoiced', 'collected'] as const
@@ -266,6 +267,9 @@ export function createInsuranceExtras(d: CrmDeps) {
     await db.delete(mortgageCheck).where(and(eq(mortgageCheck.id, found.id), eq(mortgageCheck.companyId, me.companyId)))
     return done(c)
   })
+
+  // The company's own supplement statuses and the tracker across every claim (./supplementStatuses.ts, roofing parity row 10).
+  app.route('/', createSupplementTracker(d))
 
   return app
 }

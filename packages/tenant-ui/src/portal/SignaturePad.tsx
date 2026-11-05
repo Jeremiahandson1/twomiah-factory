@@ -77,6 +77,18 @@ export function SignatureDisplay({ signature, signedBy, signedAt, timeZone, clas
   )
 }
 
+/** One term's initials, typed: a few letters, kept upper-case. The customer initials each term before they sign (a proposal's terms). */
+export function InitialsBox({ value, onChange, label, disabled, error }: { value: string; onChange: (v: string) => void; label: string; disabled?: boolean; error?: string }) {
+  return (
+    <span className="inline-flex flex-col items-center">
+      <input type="text" inputMode="text" autoComplete="off" maxLength={8} value={value} disabled={disabled} aria-label={label} aria-invalid={error ? true : undefined} placeholder="Initials"
+        onChange={(e) => onChange(e.target.value.replace(/[^\p{L}.\- ]/gu, '').toUpperCase())}
+        className={`w-20 rounded-lg border-2 px-2 py-1 text-center font-semibold tracking-wider text-gray-900 dark:text-slate-100 dark:bg-slate-800 ${error ? 'border-red-500' : value ? 'border-green-600' : 'border-gray-300 dark:border-slate-700'}`} />
+      {error && <span role="alert" className="mt-0.5 text-xs text-red-600 dark:text-red-400">{error}</span>}
+    </span>
+  )
+}
+
 export interface SignatureData { signature: string; signedBy: string; signedAt: string; consent: boolean }
 
 export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document', signerName = '' }: { isOpen: boolean; onClose: () => void; onSave: (data: SignatureData) => void; title?: string; signerName?: string }) {

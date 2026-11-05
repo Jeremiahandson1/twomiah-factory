@@ -110,11 +110,11 @@ const up = (n: number) => Math.max(0, Math.ceil(Number(n.toFixed(6))))
 const round1 = (n: number) => Math.round(n * 10) / 10
 const finite = (n: unknown) => typeof n === 'number' && Number.isFinite(n)
 
-/** The assumptions with the roofer's changes laid over the defaults; a change that is not a sensible number is dropped. */
-export function withAssumptions(over?: Partial<Record<keyof Assumptions, unknown>> | null): Assumptions {
-  const out: Assumptions = { ...DEFAULT_ASSUMPTIONS }
+/** The changes that are sensible numbers (or a vent type): what a list is worked from and what a template may keep. Nonsense is dropped. */
+export function cleanAssumptions(over?: Partial<Record<keyof Assumptions, unknown>> | null): Partial<Assumptions> {
+  const out: Partial<Assumptions> = {}
   for (const [k, v] of Object.entries(over || {})) {
-    if (!(k in out)) continue
+    if (!(k in DEFAULT_ASSUMPTIONS)) continue
     if (k === 'ventType') { if (v === 'box' || v === 'ridge' || v === 'none') out.ventType = v; continue }
     const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
     if (!finite(n)) continue
@@ -122,6 +122,11 @@ export function withAssumptions(over?: Partial<Record<keyof Assumptions, unknown
     if ((k === 'wastePercent' ? (n as number) >= 0 : (n as number) > 0)) (out as any)[k] = n
   }
   return out
+}
+
+/** The assumptions with the roofer's changes laid over the defaults; a change that is not a sensible number is dropped. */
+export function withAssumptions(over?: Partial<Record<keyof Assumptions, unknown>> | null): Assumptions {
+  return { ...DEFAULT_ASSUMPTIONS, ...cleanAssumptions(over) }
 }
 
 /**

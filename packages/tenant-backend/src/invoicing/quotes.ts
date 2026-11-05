@@ -18,8 +18,9 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
-import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, hasProposalTables, proposalsLive, isPhotoAddress, optionPrices, cheapestOption, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
+import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, proposalsLive, isPhotoAddress, optionPrices, optionDiscountDollars, optionBasis, UPGRADE, hasOptionDiscounts, cheapestOption, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, MAX_OPTION_UPGRADES, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
+import { hasDocumentTables, documentSchema, attachmentsSchema, loadDocument, saveDocument, loadMarks, documentForOffice, storeProposalFile, attachedPdfBytes, cosignerRequired, cosignStatus, pdfExtras } from './quoteDocument'
 import { applyMarkups, sectionSummary } from './quoteSections'
 
 
@@ -37,6 +38,9 @@ export interface QuoteTables {
   site?: any
   /** The unified app's proposal options (quoteOptions.ts); a template's tables have none and keep what they had. */
   quoteProposalOption?: any
+  /** The proposal's cover, About Us, sections, initialed terms and cosigner, and what was signed or initialed (quoteDocument.ts). */
+  quoteProposalDocument?: any
+  quoteProposalMark?: any
   /** With the proposal options: the pricebook, so an item's Good/Better/Best tiers can become a quote's options. */
   pricebookItem?: any
   pricebookGoodBetterBest?: any
@@ -120,6 +124,10 @@ export interface QuoteDeps {
    * never called from here. (Field Service T30)
    */
   sendQuoteEmail?: (to: string, data: Record<string, unknown>) => Promise<unknown>
+  /** Email the cosigner their private link to sign a proposal (quoteDocument.ts). */
+  sendCosignEmail?: (to: string, data: Record<string, unknown>) => Promise<unknown>
+  /** The file store, for the pictures and PDFs attached to a proposal. */
+  storage?: any
   /**
    * The template's audit service — `{ log, ACTIONS, ENTITIES }`, the same shape the invoices module
    * takes. Optional, so a template that has not been rewired keeps working rather than failing to
@@ -266,8 +274,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (list) { delete out.signature; delete out.signedIp; delete out.signedUserAgent }
     // The phases, with their subtotals — and, for a seat that reads margins, what each costs us.
     if (hasSections && Array.isArray(out.lineItems) && !list) out = { ...out, sections: sectionSummary(out.lineItems, seesCost) }
+    // The cosigner's private link is a signing key, like the quote's own: only the seat that administers the quote keeps it.
+    if (!seesEvidence && out.document?.cosigner) out = { ...out, document: { ...out.document, cosigner: { ...out.document.cosigner, path: null } } }
     if (!seesCost && Array.isArray(out.lineItems)) out = { ...out, lineItems: withoutLineCost(out.lineItems) }
-    if (!seesCost && out.proposal?.options) out = { ...out, proposal: { ...out.proposal, options: out.proposal.options.map((op: any) => ({ ...op, lines: withoutLineCost(op.lines) })) } }
+    if (!seesCost && out.proposal?.options) out = { ...out, proposal: { ...out.proposal, options: out.proposal.options.map((op: any) => ({ ...op, lines: withoutLineCost(op.lines), upgrades: withoutLineCost(op.upgrades || []) })) } }
     return out
   }
   /** What goes to every open screen in the company: no cost, no evidence — whoever is watching. */
@@ -319,9 +329,20 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const withProposal = async (out: any) => {
     if (!hasProposal || !out) return out
     const view = await proposalView(db, t as any, out)
-    return view ? { ...out, lineItems: (out.lineItems || []).filter((l: any) => !l.proposalOptionId), proposal: view } : out
+    let res = out
+    if (view) {
+      // The office reads `discount` as the one it typed; the chosen option's own is beside it, and `discountTotal` is both.
+      const optionDiscount = Number(out.optionDiscount) || 0
+      const rebased = optionDiscount > 0 ? { discount: round2(Number(out.discount) - optionDiscount).toFixed(2), discountTotal: String(out.discount) } : {}
+      res = { ...out, ...rebased, lineItems: (out.lineItems || []).filter((l: any) => !l.proposalOptionId), proposal: view }
+    }
+    // The pages around the options: cover, About Us, sections, initialed terms, cosigner.
+    if (hasDocumentTables(t) && out.id) {
+      const doc = await loadDocument(db, t as any, out.id)
+      if (doc) res = { ...res, document: documentForOffice(doc, await loadMarks(db, t as any, out.id)) }
+    }
+    return res
   }
-  /** A quote's lines as its job and its invoice take them: the included ones. */
   const billable = (rows: any[]) => (hasOptional ? includedLines(rows) : rows)
 
   const quoteSchema = z.object({
@@ -370,6 +391,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
   const ownJob = async (companyId: string, id: string) => (await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
+  /** Has the customer (or the office for them) chosen one of this quote's options? */
+  const optionChosen = async (q: any, id: string): Promise<boolean> => !!t.quoteProposalOption && !!(await q.select({ id: t.quoteProposalOption.id }).from(t.quoteProposalOption).where(and(eq(t.quoteProposalOption.quoteId, id), eq(t.quoteProposalOption.chosen, true))).limit(1))[0]
   const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
   /**
    * The invoice each quote was billed as (invoice.quote_id — the one convert-to-invoice writes and refuses a second of).
@@ -575,6 +598,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // status may move between draft and sent from the editor; approvals go through their own routes
     if (data.status && SETTABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
     const recompute = data.lineItems !== undefined || data.taxRate !== undefined || data.discount !== undefined
+    let baseDiscount: number | undefined
     if (recompute) {
       // The lines of the quote's proposal options are not in the edit form (GET /:id sends them apart): they stay as they are.
       const keptOptionLines = hasProposal && data.lineItems !== undefined
@@ -584,10 +608,13 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       // A quote with Good / Better / Best options is an offer by its options: the lines they share may be none, or optional.
       if (hasOptional && data.lineItems && data.lineItems.length && !data.lineItems.some((l: any) => !isOpt(l)) && !keptOptionLines.length) return c.json({ error: 'Add at least one line that is not optional.' }, 400)
       const taxRate = data.taxRate ?? Number(existing.taxRate)
-      const discount = data.discount ?? Number(existing.discount)
+      // The discount the office typed; the chosen option's own (quote.option_discount) is kept apart and worked out again below.
+      const heldByOption = hasOptionDiscounts(t) ? Number(existing.optionDiscount) || 0 : 0
+      const discount = data.discount ?? Math.max(0, round2(Number(existing.discount) - heldByOption))
+      baseDiscount = discount
       const subtotalRaw = rawSubtotal(counted(lines, hasOptional))
       if (discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
-      const calc = calcTotals(counted(lines, hasOptional), taxRate, discount)
+      const calc = calcTotals(counted(lines, hasOptional), taxRate, discount + heldByOption)
       Object.assign(update, { subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(), discount: calc.effectiveDiscount.toString(), total: calc.total.toString() })
     }
     // The deposit is checked against the total the quote will have once this edit is saved — with Good / Better / Best options,
@@ -596,7 +623,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (hasProposal) {
       const rows = await lineRows(id)
       const shared: any[] = data.lineItems !== undefined ? counted(data.lineItems, hasOptional) : includedLines<any>(rows.filter((li: any) => !li.proposalOptionId))
-      const cheapest = cheapestOption(optionPrices(shared, rows.filter((li: any) => li.proposalOptionId), data.taxRate ?? existing.taxRate, data.discount ?? existing.discount))
+      const optionRows = hasOptionDiscounts(t) ? await db.select().from(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, id)) : []
+      const typed = data.discount ?? Math.max(0, round2(Number(existing.discount) - (hasOptionDiscounts(t) ? Number(existing.optionDiscount) || 0 : 0)))
+      const cheapest = cheapestOption(optionPrices(shared, rows.filter((li: any) => li.proposalOptionId), data.taxRate ?? existing.taxRate, typed, new Map(optionRows.map((r: any) => [r.id, r]))))
       if (cheapest !== null) depositBase = cheapest
     }
     const deposit = depositValues(data, existing, depositBase)
@@ -615,6 +644,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
       // a single-connection database). Every other caller reads before the transaction opens.
       } else items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+      // A chosen option's percent discount follows the lines it is taken from: work the quote out again from what is stored.
+      if (hasProposal && hasOptionDiscounts(t) && recompute && (await optionChosen(tx, id))) {
+        const again = await retotalQuote(tx, t as any, cid, id, baseDiscount !== undefined ? { baseDiscount } : {})
+        if (again) return { ...again.quote, lineItems: again.lineItems }
+      }
       return { ...updated, lineItems: items }
     })
     const shaped = await withProposal(result)
@@ -826,6 +860,15 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       photos: z.array(z.string()).max(MAX_OPTION_PHOTOS, `An option shows at most ${MAX_OPTION_PHOTOS} photos.`).default([]),
       recommended: z.boolean().optional(),
       lines: z.array(lineItemSchema.omit({ optional: true, selected: true })).min(1, 'Each option needs at least one line.'),
+      // Add-ons that belong to this option alone: offered to the customer once they have chosen it, ticked one by one.
+      upgrades: z.array(lineItemSchema.omit({ optional: true, selected: true })).max(MAX_OPTION_UPGRADES, `An option has at most ${MAX_OPTION_UPGRADES} upgrades.`).default([]),
+      // Files for this option alone — a manufacturer's brochure, a spec sheet.
+      attachments: attachmentsSchema,
+      // One discount for this option: a fixed amount in cents, or a percent of its price before upgrades.
+      discount: z.discriminatedUnion('type', [
+        z.object({ type: z.literal('amount'), cents: z.number().int('Enter the discount in whole cents.').min(1, 'A discount is more than zero.') }),
+        z.object({ type: z.literal('percent'), percent: z.number().gt(0, 'A discount is more than zero.').max(100, 'A discount cannot be more than 100%.') }),
+      ]).nullable().optional(),
     })
     const proposalSchema = z.object({ options: z.array(optionSchema).max(MAX_PROPOSAL_OPTIONS, `A proposal has at most ${MAX_PROPOSAL_OPTIONS} options.`) })
     type OptionInput = z.infer<typeof optionSchema>
@@ -834,13 +877,19 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const saveProposal = async (cid: string, id: string, options: OptionInput[]): Promise<{ error: string; status: 400 } | { quote: any; lineItems: any[] }> => {
       if (options.length === 1) return { error: 'A proposal needs at least two options to choose between.', status: 400 }
       for (const op of options) if (op.photos.some((x) => !isPhotoAddress(x))) return { error: `"${op.name}": a photo is an https address or one of your own /media files.`, status: 400 }
+      const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
+      const shared = includedLines<any>((await lineRows(id)).filter((li: any) => !li.proposalOptionId))
+      // An option's discount is taken off that option's own price: it cannot be more than the price it comes off.
+      const discountOf = (op: OptionInput) => ({ discountCents: op.discount?.type === 'amount' ? op.discount.cents : 0, discountPercent: op.discount?.type === 'percent' ? op.discount.percent : 0 })
+      for (const op of options) {
+        if (op.discount?.type === 'amount' && op.discount.cents / 100 > optionBasis([...shared, ...op.lines]) + 0.005) return { error: `"${op.name}": the discount is more than the option's price before upgrades.`, status: 400 }
+      }
       // A deposit the quote already asks must fit every option, since the customer may choose any of them.
       if (hasDeposit && options.length) {
-        const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
         if (q?.depositType) {
-          const shared = includedLines<any>((await lineRows(id)).filter((li: any) => !li.proposalOptionId))
           const optionLines = options.flatMap((op, i) => op.lines.map((l) => ({ ...l, proposalOptionId: String(i) })))
-          const problem = depositProblem(q.depositType, q.depositValue, cheapestOption(optionPrices(shared, optionLines, q.taxRate, q.discount)) ?? 0)
+          const typed = Math.max(0, round2(Number(q.discount) - (hasOptionDiscounts(t) ? Number(q.optionDiscount) || 0 : 0)))
+          const problem = depositProblem(q.depositType, q.depositValue, cheapestOption(optionPrices(shared, optionLines, q.taxRate, typed, new Map(options.map((op, i) => [String(i), discountOf(op)])))) ?? 0)
           if (problem) return { error: `${problem} The cheapest option sets the limit — lower the deposit on the quote first.`, status: 400 }
         }
       }
@@ -851,10 +900,15 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         for (const [i, op] of options.entries()) {
           const recommended: boolean = !!op.recommended && !sawRecommended
           sawRecommended = sawRecommended || recommended
-          const [row] = await tx.insert(t.quoteProposalOption).values({ quoteId: id, name: op.name, tier: op.tier ?? null, brand: op.brand || null, warranty: op.warranty || null, description: op.description || null, photos: op.photos, recommended, sortOrder: i }).returning()
+          const [row] = await tx.insert(t.quoteProposalOption).values({ quoteId: id, name: op.name, tier: op.tier ?? null, brand: op.brand || null, warranty: op.warranty || null, description: op.description || null, photos: op.photos, attachments: op.attachments, recommended, sortOrder: i, ...(hasOptionDiscounts(t) ? { discountCents: discountOf(op).discountCents, discountPercent: String(discountOf(op).discountPercent) } : {}) }).returning()
           // An option's lines are optional lines, ticked together when the option is chosen: unticked until then.
           const rows = toRow(op.lines as any, id, !!o.hasLineCost, true).map((r: any) => ({ ...r, optional: true, selected: false, proposalOptionId: row.id, sortOrder: i * 1000 + r.sortOrder }))
           await tx.insert(t.quoteLineItem).values(rows)
+          // Upgrades come after the option's own lines and are not ticked by choosing the option.
+          if (op.upgrades.length && hasOptionDiscounts(t)) {
+            const ups = toRow(op.upgrades as any, id, !!o.hasLineCost, true).map((r: any) => ({ ...r, optional: true, selected: false, proposalOptionId: row.id, optionRole: UPGRADE, sortOrder: i * 1000 + 500 + r.sortOrder }))
+            await tx.insert(t.quoteLineItem).values(ups)
+          }
         }
         return retotalQuote(tx, t as any, cid, id)
       })
@@ -896,6 +950,77 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       return answer(c, got.cid, r)
     })
 
+    // ---- the pages around the options (quoteDocument.ts): cover, About Us, sections, initialed terms, cosigner, attachments
+    if (hasDocumentTables(t)) {
+      app.put('/:id/proposal/document', requirePermission('quotes:update'), async (c: any) => {
+        const got = await openQuote(c)
+        if ('fail' in got) return got.fail
+        if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
+        const parsed = documentSchema.safeParse(await c.req.json().catch(() => ({})))
+        if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the proposal pages.' }, 400)
+        await saveDocument(db, t as any, got.cid, got.existing.id, parsed.data)
+        logQuote(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', got.existing, { document: true })
+        return answer(c, got.cid, { quote: got.existing, lineItems: await lineRows(got.existing.id) })
+      })
+
+      // A picture or PDF for the proposal (a photo for an option, a manufacturer's brochure): kept, and the address handed back.
+      app.post('/:id/proposal/file', requirePermission('quotes:update'), async (c: any) => {
+        const got = await openQuote(c)
+        if ('fail' in got) return got.fail
+        if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
+        const form = await c.req.formData().catch(() => null)
+        const file = form?.get('file')
+        if (!file || typeof file === 'string') return c.json({ error: 'No file provided' }, 400)
+        const stored = await storeProposalFile(deps.storage, got.cid, got.existing.id, file as File)
+        if ('error' in stored) return c.json({ error: stored.error }, stored.status)
+        return c.json(stored, 201)
+      })
+
+      // Send (or send again) the cosigner their private link. The customer's signing sends it by itself; this is for a lost email.
+      app.post('/:id/proposal/cosigner/send', requirePermission('quotes:update'), async (c: any) => {
+        const got = await openQuote(c)
+        if ('fail' in got) return got.fail
+        if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
+        const doc = await loadDocument(db, t as any, got.existing.id)
+        if (!cosignerRequired(doc)) return c.json({ error: 'This proposal has no cosigner.' }, 400)
+        const marks = await loadMarks(db, t as any, got.existing.id)
+        if (!marks.customer) return c.json({ error: 'The customer has not signed yet. The cosigner is sent their link when they do.' }, 400)
+        if (!deps.sendCosignEmail) return c.json({ error: 'Email is not set up.' }, 503)
+        const [co] = await db.select().from(t.company).where(eq(t.company.id, got.cid)).limit(1)
+        try {
+          await deps.sendCosignEmail(doc.cosignerEmail, { quoteNumber: got.existing.number, quoteName: got.existing.name || '', companyName: co?.name || 'Your provider', companyEmail: co?.email || '', companyPhone: co?.phone || '', cosignerName: doc.cosignerName, cosignerRole: doc.cosignerRole || '', signerName: marks.customer.name || '', cosignPath: `/c/${doc.cosignerToken}` })
+        } catch (err: any) { return c.json({ error: `Could not send the email. ${err?.message || ''}`.trim() }, 502) }
+        await db.update(t.quoteProposalDocument).set({ cosignerRequestedAt: new Date() }).where(eq(t.quoteProposalDocument.id, doc.id))
+        return c.json({ success: true, message: `Sent to ${doc.cosignerEmail}` })
+      })
+    }
+
+    // Flip the options' order without rebuilding them (the customer's choice, if any, stays): the ids in the order to show.
+    app.put('/:id/proposal/order', requirePermission('quotes:update'), async (c: any) => {
+      const got = await openQuote(c)
+      if ('fail' in got) return got.fail
+      if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
+      const body = await c.req.json().catch(() => ({}))
+      const rows = await db.select().from(t.quoteProposalOption).where(eq(t.quoteProposalOption.quoteId, got.existing.id))
+      const ids: unknown = body?.optionIds
+      if (!Array.isArray(ids) || ids.length !== rows.length || new Set(ids).size !== rows.length || !ids.every((x: unknown) => rows.some((r: any) => r.id === x))) return c.json({ error: 'Send every option once, in the order to show.' }, 400)
+      await db.transaction(async (tx: any) => {
+        for (const [i, id] of (ids as string[]).entries()) await tx.update(t.quoteProposalOption).set({ sortOrder: i }).where(eq(t.quoteProposalOption.id, id))
+      })
+      return answer(c, got.cid, { quote: got.existing, lineItems: await lineRows(got.existing.id) })
+    })
+
+    // The office ticks an upgrade of the chosen option for a customer who asked for it by phone (the customer's own is portal.ts's).
+    app.post('/:id/proposal/upgrade', requirePermission('quotes:update'), async (c: any) => {
+      const got = await openQuote(c)
+      if ('fail' in got) return got.fail
+      if (!(await proposalAllowed(got.cid))) return c.json({ error: 'Proposal options are not switched on for this account.' }, 403)
+      const body = await c.req.json().catch(() => ({}))
+      const r: any = await chooseOptionUpgrade(db, t as any, got.cid, got.existing.id, body?.lineItemId, body?.selected)
+      if ('error' in r) return c.json({ error: r.error }, r.status)
+      return answer(c, got.cid, r)
+    })
+
     // An item's Good / Better / Best tiers (pricebook) become the quote's options: one tier per option, as priced there.
     if (t.pricebookItem && t.pricebookGoodBetterBest) {
       app.post('/:id/proposal/from-pricebook', requirePermission('quotes:update'), async (c: any) => {
@@ -917,7 +1042,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
             name, tier: (PROPOSAL_TIERS as readonly string[]).includes(tier.tier) ? tier.tier : null, brand: null, warranty: null,
             description: [tier.description, features.length ? features.join(' · ') : ''].filter(Boolean).join('\n') || null,
             photos: isPhotoAddress(item.imageUrl) ? [item.imageUrl] : [], recommended: !!tier.recommended,
-            lines: [{ description: `${item.name} — ${name}`, quantity: 1, unitPrice: round2(Number(tier.price)), ...(o.hasLineCost ? { pricebookItemId: item.id } : {}) }],
+            upgrades: [] as any[], attachments: [] as any[], discount: null, lines: [{ description: `${item.name} — ${name}`, quantity: 1, unitPrice: round2(Number(tier.price)), ...(o.hasLineCost ? { pricebookItemId: item.id } : {}) }],
           } as OptionInput
         })
         const r = await saveProposal(got.cid, got.existing.id, options)
@@ -1094,8 +1219,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // one is how it ends up in a file somebody emails.
     // A quote whose customer has yet to choose prints the lines every option shares and each option at its whole price.
     const view = hasProposal ? await proposalView(db, t as any, found) : null
-    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...op, lines: await customerLines(db, cid, op.lines) }))) : undefined
-    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, ...(options ? { options } : {}) }, co)
+    const options = view?.needsChoice ? await Promise.all(view.options.map(async (op) => ({ ...op, lines: await customerLines(db, cid, op.lines), upgrades: await customerLines(db, cid, op.upgrades) }))) : undefined
+    const extras = hasProposal ? await pdfExtras(db, t as any, deps.storage, id, view?.options ?? null, !!view?.needsChoice) : {}
+    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, ...(options ? { options } : {}), ...extras }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   })
 

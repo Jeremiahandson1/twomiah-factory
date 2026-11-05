@@ -7,12 +7,19 @@ import { insuranceMounts } from './insurance/index.ts'
 import { reportsMounts } from './reports/index.ts'
 import { fieldMounts } from './field/index.ts'
 import { inspectionMounts } from './inspection/index.ts'
+import { photoMarkupMounts } from './photoMarkup/index.ts'
 import { portalFilesMounts } from './portalFiles/index.ts'
 import { createRoofCollector } from './collected.ts'
 import { createWorkOrderRoutes } from './workOrders.ts'
 import { createCrewLinkRoutes } from './crewLink.ts'
 import { createPipelineRoutes } from './pipeline.ts'
 import { createRoofCommissions } from './commissions.ts'
+import { createRoofMoneyRoutes } from './moneySettings.ts'
+import { createJobPeopleRoutes } from './jobPeople.ts'
+import { createCommissionDrawRoutes } from './commissionDraws.ts'
+import { createCommissionDisclaimerRoutes } from './commissionDisclaimer.ts'
+import { createJobBooksRoutes } from './jobBooks.ts'
+import { createWorksheetRoutes } from './worksheetRoutes.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
@@ -29,9 +36,23 @@ export function roofMounts(d: CrmDeps): Mount[] {
     // Work orders for crews and subs (not ready): the office's side, and the crew's private link (no sign-in).
     { path: '/api/work-orders', access: 'user', feature: 'roof_work_orders', router: createWorkOrderRoutes(d) },
     { path: '/api/crew-link', access: 'public', feature: 'roof_work_orders', router: createCrewLinkRoutes(d) },
+    // The company's money rules for commissions and job costing (./moneySettings.ts): its minimum profit, and — as the rows land — the
+    // disclaimer, who sees commissions and the worksheet approval. An existing feature id: commission tracking.
+    { path: '/api/roof-money', access: 'user', feature: 'commission_tracking', router: createRoofMoneyRoutes(d) },
+    // The other people whose commission a job carries — estimator, canvasser, office, production and sales manager (./jobPeople.ts).
+    { path: '/api/job-people', access: 'user', feature: 'commission_tracking', router: createJobPeopleRoutes(d) },
+    // A job's worksheet approval — its profit counts once approved, where the company requires it (./worksheetApproval.ts).
+    { path: '/api/job-worksheet', access: 'user', feature: 'job_costing', router: createWorksheetRoutes(d) },
+    // A job's profit as the roofer's QuickBooks books show it, read-only (./jobBooks.ts). The quickbooks switch is checked in the handler.
+    { path: '/api/job-books', access: 'user', feature: 'job_costing', router: createJobBooksRoutes(d) },
+    // The commission disclaimer a person accepts before seeing their own commissions (./commissionDisclaimer.ts).
+    { path: '/api/commission-disclaimer', access: 'user', feature: 'commission_tracking', router: createCommissionDisclaimerRoutes(d) },
+    // Pre-commission draws — a part of a commission paid in advance when a job is turned in, taken off the commission later (./commissionDraws.ts).
+    { path: '/api/commission-draws', access: 'user', feature: 'commission_tracking', router: createCommissionDrawRoutes(d) },
     // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.
     { path: '/api/roof-pipeline', access: 'user', feature: 'pipeline_boards', router: createPipelineRoutes(d) },
     ...inspectionMounts(d),
+    ...photoMarkupMounts(d),
     ...portalFilesMounts(d),
   ] as Mount[]).map((m) => ({ ...m, addon: 'roof' }))
 }
