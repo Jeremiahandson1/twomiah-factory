@@ -1,64 +1,73 @@
 {
-  "_note": "Amber Inn home composition. The Tonight Board replaces the hero (SPEC §3.1). Copy is dry and plain; prices are placeholders until the owner supplies the menu.",
+  "_note": "Amber Inn home composition — THE STOREFRONT look (2026-11-05): the board's h1 is the sign over the door, the photos are the building as it stands. The speakeasy door game is off the page until the bar is redone (views/sections/speakeasy/door.ejs is intact; its last data is in look-speakeasy.css's notes and git history).",
   "title": "Home",
   "sections": [
     {
       "type": "tonight",
       "variant": "board",
       "data": {
-        "eyebrow": "Eau Claire, Wisconsin",
+        "eyebrow": "840 E Madison St · Eau Claire",
         "title": "Amber Inn Bar & Grill",
         "intro": "",
         "asHeading": true,
         "showTaps": true,
         "showRoom": true,
-        "art": "/images/brand/exterior.jpg",
-        "artAlt": "The Amber Inn at dusk: black clapboard, stone base, the sign lit",
-        "artCaption": "History pouring since 1881",
-        "titleImage": "/images/brand/lettering.webp",
-        "titleSub": "Bar & Grill",
-        "lantern": "/images/brand/lantern.webp",
-        "estLabel": "Est.",
-        "estYear": "1881",
-        "line1": "Wisconsin's Oldest Tavern",
-        "line2": "Since 1881",
+        "sign": {
+          "name": "Amber Inn",
+          "band": "Bar & Grill",
+          "est": "Est. 1881"
+        },
+        "art": "/images/brand/storefront.jpg",
+        "artSmall": "/images/brand/storefront-700.jpg",
         "artWidth": 1400,
-        "artHeight": 2100,
-        "tailLine": "Over 140 years of history, friends & good times",
-        "tailSmall": "Thank you for being",
-        "tailScript": "Part of Our Story",
-        "titleImageSmall": "/images/brand/lettering-400.webp"
+        "artHeight": 1050,
+        "artAlt": "The Amber Inn at the corner of Madison and Franklin: black siding, a stacked-stone front, and the red and yellow Amber Inn Bar & Grill sign, Est. 1881",
+        "artCaption": "Madison and Franklin"
       }
     },
     {
       "type": "menu",
-      "variant": "cards",
+      "variant": "bento",
       "data": {
-        "heading": "From the grill",
+        "heading": "Off the grill",
         "intro": "Half-pound charbroiled Ambergers, sandwich or platter. Happy hour Monday–Friday, 4–6.",
-        "items": [
+        "tiles": [
           {
-            "name": "Swiss Olive Burger",
-            "price": "$7.69",
-            "description": "Black or green olives and real Swiss cheese. The regulars' order. Platter $9.19.",
-            "href": "/burgers/olive"
+            "item": "olive",
+            "size": "lg",
+            "tone": "paper",
+            "eyebrow": "The regulars' order",
+            "stamp": "½ lb"
           },
           {
-            "name": "Peanut Butter Burger",
-            "price": "$7.49",
-            "description": "Bacon top and bottom, a thin layer of peanut butter. Tuesdays. One of Visit Eau Claire's ten iconic eats.",
-            "href": "/burgers/peanut-butter-bacon"
+            "item": "peanut-butter-bacon",
+            "size": "wide",
+            "tone": "red"
           },
           {
-            "name": "Friday Fish Fry",
-            "price": "$9.49",
-            "description": "Two pieces of hand-breaded cod, two sides and a breadstick. 11 AM until sold out.",
+            "item": "friday-fish-fry-special",
+            "tone": "yellow",
             "href": "/fish-fry"
           },
           {
-            "name": "Draft Root Beer",
-            "price": "",
-            "description": "Sprecher on tap in a frosted mug. On the taps since 1920 — George Berg Soft Drinks Co."
+            "item": "draft-root-beer",
+            "tone": "dark",
+            "eyebrow": "Since 1920"
+          },
+          {
+            "kind": "taps",
+            "size": "wide",
+            "tone": "dark",
+            "href": "/taps"
+          },
+          {
+            "kind": "link",
+            "size": "wide",
+            "tone": "paper",
+            "eyebrow": "The whole menu",
+            "title": "Burgers, sandwiches, platters",
+            "text": "Every item with its price, sandwich or platter.",
+            "href": "/menu"
           }
         ]
       }
@@ -68,22 +77,22 @@
       "variant": "grid",
       "data": {
         "heading": "Same corner since 1881",
-        "intro": "The saloon Walter Brewing built, the Amber Inn as Orv and Pat ran it, and the room tonight.",
+        "intro": "The sign as Orv and Pat had it, the corner today, and the lettering on the side wall.",
         "photos": [
-          {
-            "url": "/images/brand/saloon-1880s.jpg",
-            "alt": "The saloon at 840 East Madison Street with its crew out front, late 1800s",
-            "caption": "The saloon, late 1800s"
-          },
           {
             "url": "/images/brand/exterior-orv-pat.jpg",
             "alt": "Orv and Pat's Amber Inn Bar & Grill, fieldstone front and the Amber Inn sign",
             "caption": "Orv and Pat's Amber Inn"
           },
           {
-            "url": "/images/brand/exterior-700.jpg",
-            "alt": "The Amber Inn at dusk",
-            "caption": "Tonight"
+            "url": "/images/brand/storefront-700.jpg",
+            "alt": "The Amber Inn at the corner of Madison and Franklin: black siding, a stacked-stone front, and the red and yellow Amber Inn Bar & Grill sign, Est. 1881",
+            "caption": "The corner today"
+          },
+          {
+            "url": "/images/brand/lettering-wall-700.jpg",
+            "alt": "AMBER INN hand-painted in yellow on the black siding, under the old Orv & Pat sign",
+            "caption": "The side wall"
           }
         ]
       }
@@ -103,8 +112,8 @@
           "label": "The whole story",
           "href": "/story"
         },
-        "portrait": "/images/brand/engraving.jpg",
-        "portraitAlt": "Engraving of the Amber Inn"
+        "portrait": "/images/brand/saloon-1880s.jpg",
+        "portraitAlt": "The saloon at 840 East Madison Street with its crew out front, late 1800s"
       }
     },
     {
@@ -123,87 +132,8 @@
           "href": "/parties"
         },
         "phone": "(715) 832-0568",
-        "image": "/images/brand/exterior-700.jpg",
-        "imageAlt": "The Amber Inn at dusk"
-      }
-    },
-    {
-      "type": "speakeasy",
-      "variant": "door",
-      "data": {
-        "eyebrow": "The underground",
-        "heading": "There is a door in the leather.",
-        "intro": "In 1920 the sign out front said soft drinks and the drinking moved to the basement. The basement is still down there. So is the door.",
-        "doorNumber": "840",
-        "password": {
-          "question": "In 1920 the sign changed and George Berg sold something over the counter. What?",
-          "answers": [
-            "root beer",
-            "rootbeer",
-            "draft root beer",
-            "soft drinks",
-            "soda",
-            "pop",
-            "soda pop"
-          ],
-          "hint": "It is still on the taps, in a frosted mug."
-        },
-        "riddles": [
-          {
-            "question": "Who put up this building in 1881 and poured the first beer in it?",
-            "doors": [
-              "Walter Brewing",
-              "Leinenkugel",
-              "Pabst"
-            ],
-            "answer": 0,
-            "right": "The brewery that built the room. The lock turns."
-          },
-          {
-            "question": "The brewery owned the room, and the room could pour only its beer. The arrangement was called a…",
-            "doors": [
-              "Free house",
-              "Tied house",
-              "Road house"
-            ],
-            "answer": 1,
-            "right": "Tied house. Through you go."
-          },
-          {
-            "question": "When nobody was watching, what sometimes went into the root beer mug?",
-            "doors": [
-              "Maple syrup",
-              "Holy water",
-              "Corn whisky"
-            ],
-            "answer": 2,
-            "right": "Kept in a bottle under the bar. Keep moving."
-          },
-          {
-            "question": "When the sign said soft drinks, where did the drinking go?",
-            "doors": [
-              "The roof",
-              "The basement",
-              "The church"
-            ],
-            "answer": 1,
-            "right": "Down here. You are standing in it."
-          },
-          {
-            "question": "Sixty years later Orv and Pat ground half-pound burgers behind the bar and called them…",
-            "doors": [
-              "Ambergers",
-              "Whoppers",
-              "Sliders"
-            ],
-            "answer": 0,
-            "right": "Ambergers. Last door."
-          }
-        ],
-        "reward": {
-          "title": "The Back Room",
-          "fallback": "Say it at the bar. Quietly."
-        }
+        "image": "/images/brand/lettering-wall-700.jpg",
+        "imageAlt": "AMBER INN hand-painted in yellow on the black siding, under the old Orv & Pat sign"
       }
     }
   ]

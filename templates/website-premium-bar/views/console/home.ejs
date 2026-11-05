@@ -285,7 +285,8 @@
       </form>
     </section>
 
-    <!-- SPEAKEASY -->
+    <!-- SPEAKEASY — only while the door game is on the home page (routes/console.ts sets speakeasyOn). -->
+    <% if (typeof speakeasyOn === 'undefined' || speakeasyOn) { %>
     <section class="con-card" aria-labelledby="h-speak">
       <h2 class="con-card__title" id="h-speak">Back Room password</h2>
       <p class="con-help">The door on the website's home page. Whoever knocks, answers, and gets through the cellar sees this. Change it whenever you like; leave it blank to turn the reward off.</p>
@@ -298,6 +299,7 @@
         </div>
       </form>
     </section>
+    <% } %>
 
     <!-- PARTY INBOX -->
     <section class="con-card" aria-labelledby="h-parties">

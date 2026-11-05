@@ -1,0 +1,178 @@
+/* look-speakeasy.css — ARCHIVED, not served.
+ *
+ * The Prohibition-era speakeasy look from the owner's 2026-09-07 brief:
+ * leather ground, gold-foil lettering, filigree corners, brass rivets, the
+ * lantern, and the hidden-door game's home-page styles. Taken out of main.css
+ * on 2026-11-05: the owner wants the site to match the building as it stands
+ * (black siding, the red-and-yellow sign) until the bar itself is redone.
+ *
+ * To bring it back: append this file to the end of main.css in place of the
+ * STOREFRONT layer, set the board back to the lantern/lettering data, restore
+ * the speakeasy fonts in content/settings.json, and put the speakeasy door
+ * section back on the home page (views/sections/speakeasy/door.ejs is intact).
+ */
+/* ── His look: leather ground, gold-foil lettering, double rules, filigree ── */
+body { background-color: var(--paper); background-image: radial-gradient(ellipse 90% 70% at 50% 0%, rgba(199,157,103,0.07), transparent 60%), var(--grain); }
+:root { --flourish: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%23C79D67' stroke-width='1.6' stroke-linecap='round'><path d='M4 60 C4 30 30 4 60 4'/><path d='M4 46 c0-18 14-32 32-32'/><path d='M10 58 c0-8 4-14 10-16 c-6-2-10-2-14 2 c2-6 8-10 16-10 c-2-6 0-12 6-14'/><circle cx='42' cy='12' r='2.2' fill='%23C79D67' stroke='none'/><circle cx='12' cy='42' r='2.2' fill='%23C79D67' stroke='none'/></svg>"); }
+.frame-ornate { position: relative; box-shadow: inset 0 0 0 1px var(--line-strong), inset 0 0 0 5px transparent, inset 0 0 0 6px var(--line); }
+.frame-ornate::before, .frame-ornate::after, .frame-ornate > .corner-bl, .frame-ornate > .corner-br { content: ''; position: absolute; width: 44px; height: 44px; background: var(--flourish) no-repeat center / contain; pointer-events: none; opacity: .9; }
+.frame-ornate::before { left: 8px; bottom: 8px; }
+.frame-ornate::after { right: 8px; bottom: 8px; transform: scaleX(-1); }
+.frame-ornate > .corner-bl { left: 8px; top: 8px; transform: scaleY(-1); }
+.frame-ornate > .corner-br { right: 8px; top: 8px; transform: scale(-1, -1); }
+.section-title { text-transform: uppercase; letter-spacing: .06em; }
+.section-title::after { content: ''; display: block; width: 120px; height: 7px; margin: 16px auto 0; background: linear-gradient(var(--line-strong), var(--line-strong)) center 0/100% 1px no-repeat, linear-gradient(var(--line-strong), var(--line-strong)) center 100%/60% 1px no-repeat, radial-gradient(circle, var(--brand) 0 2px, transparent 2.5px) center/7px 7px no-repeat; }
+.hero__title, .board__title, .visit__title, .item-hero__title, .recurring__title, .story__title, .cta__heading { text-transform: uppercase; letter-spacing: .04em; }
+/* Board becomes a leather panel with the double rule and corner flourishes; optional art panel */
+.board { padding: clamp(28px, 4vw, 56px) 0; }
+.board__inner { max-width: 1040px; }
+.board__panel { position: relative; padding: clamp(28px, 4vw, 48px) clamp(22px, 4vw, 56px); background: linear-gradient(180deg, rgba(43,36,25,.55), rgba(14,13,8,.6)); }
+.board__layout { display: grid; grid-template-columns: 1.35fr 1fr; gap: clamp(24px, 4vw, 56px); align-items: start; }
+.board__layout--noart { grid-template-columns: 1fr; }
+.board__art { margin: 0; align-self: center; }
+.board__art img { width: 100%; height: auto; display: block; border-radius: 3px; box-shadow: 0 30px 60px -30px rgba(0,0,0,.8), inset 0 0 0 1px var(--line); }
+.board__art figcaption { font-family: var(--font-eyebrow); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); text-align: center; margin-top: 10px; }
+.board__head { text-align: center; }
+.board__title { font-size: clamp(34px, 5.2vw, 60px); }
+@media (max-width: 900px) { .board__layout { grid-template-columns: 1fr; } .board__art { max-width: 420px; margin: 0 auto; } }
+.site-header { background: color-mix(in srgb, #0E0D08 94%, transparent); }
+.footer-est::before { content: '\2014  '; color: var(--brand); }
+/* Contrast: the dusk-blue band carries cream headings, not gold (gold on blue fails 4.5:1). Deepen the band. */
+.cta--banner, .hero__stat-band, .contact-section__promise { background: color-mix(in srgb, var(--band) 55%, #0E0D08); }
+.cta--banner .cta__heading, .hero__stat-band-num { color: var(--accent); }
+.cta--banner .cta__subtitle { color: color-mix(in srgb, var(--accent) 88%, transparent); }
+
+/* Board title as the owner's gold lettering (his cover art), with a Cinzel subline. */
+.board__title--image { display: grid; justify-items: center; gap: 6px; margin: 0; }
+.board__title--image img { width: min(100%, 460px); height: auto; filter: drop-shadow(0 6px 18px rgba(0,0,0,.6)); }
+.board__title-sub { font-family: var(--font-eyebrow); font-weight: 700; font-size: clamp(14px, 1.8vw, 20px); letter-spacing: .34em; text-transform: uppercase; color: var(--brand); padding-left: .34em; }
+@media (max-width: 640px) { .board__title--image img { width: min(100%, 300px); } }
+
+/* ══ THE COVER ═══════════════════════════════════════════════════════════
+ * The site is the owner's leather cover: his leather (sampled from the art),
+ * a warm glow behind the lettering, a heavy gold double rule at the edge
+ * with big filigree corners and metal caps, a spine with brass rivets. */
+:root {
+  --leather: #0B0906;
+  --foil-hi: #F1D9A3; --foil: #C79D67; --foil-lo: #7D582F;
+  --gold-rule: linear-gradient(90deg, #8C6B2A, #E6C77A 30%, #C79D67 50%, #E6C77A 70%, #8C6B2A);
+  --corner: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120' fill='none' stroke='%23D9B274' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 114 C6 60 60 6 114 6'/><path d='M6 96 C6 52 52 6 96 6'/><path d='M14 110 c2-14 10-22 22-24 c-10-4-18-2-24 4 c4-10 14-16 26-14 c-2-8 2-16 10-20 c-8 0-14 4-18 10 c0-8 6-14 14-16'/><path d='M40 104 c8-4 14-2 18 4 c-6 0-10 2-12 8'/><path d='M104 40 c-4 8-2 14 4 18 c0-6 2-10 8-12'/><circle cx='30' cy='90' r='3' fill='%23F1D9A3' stroke='none'/><circle cx='90' cy='30' r='3' fill='%23F1D9A3' stroke='none'/><circle cx='58' cy='58' r='2.2' fill='%23F1D9A3' stroke='none'/></svg>");
+}
+html { background: var(--leather); }
+body { background: transparent; }
+.cover {
+  position: relative; min-height: 100vh;
+  background-color: var(--leather);
+  background-image:
+    radial-gradient(ellipse 60% 40% at 50% 16%, rgba(200,150,70,.14), rgba(0,0,0,0) 70%),
+    radial-gradient(ellipse 120% 80% at 50% 100%, rgba(0,0,0,.55), rgba(0,0,0,0) 60%),
+    url('/images/brand/leather.webp');
+  background-size: auto, auto, 1400px auto;
+  background-blend-mode: screen, multiply, normal;
+}
+@media (max-width: 900px) { .cover { background-size: auto, auto, 900px auto; } }
+/* Gold double rule at the edge, on every screen */
+.cover::before { content: ''; position: absolute; inset: 10px; border: 2px solid transparent; border-image: var(--gold-rule) 1; box-shadow: inset 0 0 0 5px transparent, inset 0 0 0 6px rgba(217,178,116,.55); pointer-events: none; z-index: 5; }
+.cover > .cap { display: none; }
+.cover > .flourish { position: absolute; width: clamp(96px, 11vw, 172px); aspect-ratio: 200 / 174; background: url('/images/brand/corner.webp') no-repeat center / contain; z-index: 6; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); -webkit-mask-image: linear-gradient(225deg, #000 48%, rgba(0,0,0,0) 82%); mask-image: linear-gradient(225deg, #000 48%, rgba(0,0,0,0) 82%); }
+.cover > .flourish--tr { top: 0; right: 0; }
+.cover > .flourish--tl { top: 0; left: 0; transform: scaleX(-1); }
+.cover > .flourish--br { bottom: 0; right: 0; transform: scaleY(-1); }
+.cover > .flourish--bl { bottom: 0; left: 0; transform: scale(-1, -1); }
+/* Spine with brass rivets — the owner's photographed rivet head, three of them: near the top, the middle, near the bottom, clear of the corner caps. */
+@media (min-width: 900px) {
+  .cover { padding-left: 64px; }
+  .cover::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 64px; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.15) 60%, rgba(0,0,0,0)), url('/images/brand/rivet.webp') 13px 230px / 38px 38px no-repeat, url('/images/brand/rivet.webp') 13px 50% / 38px 38px no-repeat, url('/images/brand/rivet.webp') 13px calc(100% - 250px) / 38px 38px no-repeat; pointer-events: none; z-index: 6; border-right: 1px solid rgba(0,0,0,.6); }
+}
+.site-header, .site-footer { background: transparent; }
+.site-header { backdrop-filter: none; border-bottom: 1px solid rgba(217,178,116,.45); box-shadow: 0 1px 0 rgba(217,178,116,.18), 0 6px 0 -5px rgba(217,178,116,.35); }
+.board, .menu-full, .menu, .story, .services, .team, .faq-section, .testimonials-section, .gallery-section, .contact-section, .hours, .visit, .parties, .events, .taps, .item-hero, .recurring, .cta--split, .cta__split-copy, .hero--split, .timeline { background: transparent; }
+.board::before { background: none; }
+/* Gold foil with a reflection, like the embossed lettering */
+.foil, .section-title, .board__title-sub, .menu-section__title, .story__title, .cta__heading, .hero__title, .visit__title, .item-hero__title, .recurring__title, .events__standing-title, .tap__name, .menu-line__name, .cover-line {
+  background-image: linear-gradient(178deg, var(--foil-lo) 0%, var(--foil) 18%, var(--foil-hi) 38%, var(--foil) 52%, var(--foil-lo) 78%, #5E4224 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: var(--foil);
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.75)) drop-shadow(0 2px 1px rgba(0,0,0,.4)) drop-shadow(0 0 18px rgba(199,157,103,.25));
+}
+.menu-line__name a { -webkit-text-fill-color: inherit; color: inherit; }
+.footer-brand { -webkit-text-fill-color: initial; }
+.section-title::after { background: linear-gradient(var(--foil), var(--foil)) center 0/100% 1px no-repeat, linear-gradient(var(--foil), var(--foil)) center 100%/60% 1px no-repeat, radial-gradient(circle, var(--foil-hi) 0 2px, transparent 2.5px) center/7px 7px no-repeat; opacity: .9; }
+.menu-section__head, .contact-section__details, .hours__table thead th, .recurring__facts, .visit__address { border-color: rgba(199,157,103,.5); }
+
+/* ── The cover composition at the top of the home page ─────────────────── */
+.board { padding: clamp(18px, 3vw, 40px) 0 clamp(28px, 4vw, 56px); }
+.board__inner { max-width: 1080px; }
+.board__panel { padding: 0; background: none; box-shadow: none; }
+.board__panel::before, .board__panel::after, .board__panel > .corner-bl, .board__panel > .corner-br { display: none; }
+.board__head { text-align: center; margin: 0 auto clamp(20px, 3vw, 36px); padding: 0; border: 0; max-width: 820px; }
+.board__head::after { display: none; }
+.board__eyebrow { font-family: var(--font-eyebrow); font-weight: 700; font-size: clamp(13px, 1.6vw, 18px); letter-spacing: .28em; color: var(--foil); margin: 0 0 6px; }
+.board__eyebrow::before { display: none; }
+.cover-est { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; max-width: 420px; margin: 0 auto 10px; }
+.cover-est__side { display: flex; align-items: center; gap: 12px; font-family: var(--font-eyebrow); font-weight: 700; font-size: clamp(14px, 1.8vw, 20px); letter-spacing: .22em; color: var(--foil); }
+.cover-est__side::before, .cover-est__side::after { content: ''; flex: 1; height: 1px; background: var(--foil); opacity: .7; }
+.cover-est__side--l { flex-direction: row; } .cover-est__side--l::before { display: none; }
+.cover-est__side--r::after { display: none; }
+/* The lantern is lit: a warm halo behind it breathes, and the flame flickers a little. Still under reduced motion. */
+.cover-est__lamp { position: relative; display: grid; place-items: center; isolation: isolate; }
+.cover-est__lamp::before { content: ''; position: absolute; width: 300%; height: 300%; left: -100%; top: -100%; border-radius: 50%; background: radial-gradient(circle at 50% 52%, rgba(255,222,150,.60) 0%, rgba(255,196,110,.26) 22%, rgba(220,150,70,.10) 42%, rgba(0,0,0,0) 68%); z-index: -1; pointer-events: none; animation: lamp-breathe 3.6s ease-in-out infinite; transform-origin: 50% 52%; }
+.cover-est__lantern { position: relative; width: clamp(54px, 6vw, 80px); height: auto; filter: drop-shadow(0 0 14px rgba(255,214,140,.75)) drop-shadow(0 0 34px rgba(241,190,110,.35)); animation: lamp-flicker 4.2s ease-in-out infinite; }
+@keyframes lamp-breathe { 0%, 100% { opacity: .75; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.08); } }
+@keyframes lamp-flicker { 0%, 100% { filter: drop-shadow(0 0 14px rgba(255,214,140,.75)) drop-shadow(0 0 34px rgba(241,190,110,.35)); } 37% { filter: drop-shadow(0 0 18px rgba(255,224,160,.95)) drop-shadow(0 0 44px rgba(241,190,110,.5)); } 61% { filter: drop-shadow(0 0 12px rgba(255,210,130,.65)) drop-shadow(0 0 30px rgba(241,190,110,.3)); } }
+@media (prefers-reduced-motion: reduce) { .cover-est__lamp::before, .cover-est__lantern { animation: none; } }
+.board__title--image img { width: min(100%, 720px); }
+.board__title-sub { display: none; }
+.cover-line { display: block; font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: clamp(18px, 3vw, 34px); line-height: 1.15; margin: 4px 0 0; }
+.cover-line--sub { font-family: var(--font-eyebrow); font-weight: 700; font-size: clamp(14px, 2vw, 22px); letter-spacing: .3em; margin-top: 6px; display: inline-flex; align-items: center; gap: 14px; }
+.cover-line--sub::before, .cover-line--sub::after { content: '\2767'; font-size: .9em; -webkit-text-fill-color: var(--foil); }
+.board__intro { margin: 14px 0 0; color: var(--ink-soft); }
+.board__layout { display: grid; grid-template-columns: 1fr; gap: clamp(20px, 3vw, 32px); }
+.board__main { max-width: 820px; margin: 0 auto; width: 100%; padding: 6px clamp(14px, 3vw, 36px) 18px; border-top: 1px solid rgba(217,178,116,.5); border-bottom: 1px solid rgba(217,178,116,.5); box-shadow: 0 -5px 0 -4px rgba(217,178,116,.28), 0 5px 0 -4px rgba(217,178,116,.28); }
+.board__art { max-width: 860px; margin: 0 auto; }
+.board__art img { border-radius: 4px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.9), 0 0 0 1px rgba(217,178,116,.45), 0 0 0 6px rgba(0,0,0,.35), 0 0 0 7px rgba(217,178,116,.28); filter: sepia(.18) contrast(1.05); }
+.board__art figcaption { margin-top: 14px; font-family: var(--font-eyebrow); font-weight: 700; letter-spacing: .26em; font-size: clamp(12px, 1.5vw, 16px); }
+.board__art figcaption { background-image: linear-gradient(178deg, var(--foil-lo), var(--foil) 40%, var(--foil-hi) 60%, var(--foil-lo)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.cover-tail { text-align: center; margin: clamp(22px, 3vw, 36px) auto 0; max-width: 720px; }
+.cover-tail__line { font-family: var(--font-eyebrow); font-weight: 700; letter-spacing: .26em; text-transform: uppercase; font-size: clamp(13px, 1.7vw, 19px); }
+.cover-tail__small { font-family: var(--font-eyebrow); letter-spacing: .22em; text-transform: uppercase; font-size: clamp(11px, 1.3vw, 14px); color: var(--ink-soft); margin-top: 14px; }
+.script { font-family: 'Great Vibes', 'Brush Script MT', cursive; font-size: clamp(30px, 4.6vw, 54px); line-height: 1.1; color: var(--foil-hi); text-transform: none; letter-spacing: 0; -webkit-text-fill-color: var(--foil-hi); background: none; filter: drop-shadow(0 0 12px rgba(241,217,163,.35)); }
+.site-footer { border-top: 1px solid rgba(217,178,116,.45); }
+.footer-script { text-align: center; padding: 8px 16px 18px; }
+@media (max-width: 640px) { .board__main { padding: 4px 8px 14px; } }
+
+/* The owner's cut-out lettering and lantern (transparent) sit straight on the leather. */
+.board__title--image img { width: min(100%, 800px); filter: drop-shadow(0 8px 22px rgba(0,0,0,.7)) drop-shadow(0 0 28px rgba(199,157,103,.18)); }
+.brand__logo { max-height: 56px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+
+/* ── His cover, exactly, as the masthead — the book lying on the leather, the live board beside it ── */
+.board__panel--cover { padding: 0; }
+.cover-hero { display: grid; grid-template-columns: minmax(0, 480px) 1fr; gap: clamp(24px, 4vw, 56px); align-items: center; }
+.cover-hero__book { margin: 0; }
+.cover-hero__img { width: 100%; height: auto; display: block; border-radius: 6px; box-shadow: 0 40px 80px -30px rgba(0,0,0,.95), 0 0 0 1px rgba(0,0,0,.7), 0 0 60px rgba(199,157,103,.10); }
+.cover-hero__live .board__main { max-width: none; margin: 0; padding: 0 clamp(8px, 2vw, 24px); border-top: 0; border-bottom: 0; box-shadow: none; }
+.cover-hero__live .board__rows { border-top: 1px solid rgba(217,178,116,.5); box-shadow: 0 -5px 0 -4px rgba(217,178,116,.28); }
+.cover-hero__live .board__row:last-child { border-bottom: 1px solid rgba(217,178,116,.5); }
+@media (max-width: 900px) { .cover-hero { grid-template-columns: 1fr; } .cover-hero__book { max-width: 440px; margin: 0 auto; } }
+
+
+/* ── The door in the leather (speakeasy easter egg; behind it: speakeasy.css) ── */
+.speak { padding: clamp(40px, 6vw, 80px) 0; position: relative; }
+.speak__inner { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: clamp(24px, 5vw, 64px); }
+.speak__copy { max-width: 46ch; }
+.speak__title { text-align: left; }
+.speak__title::after { margin-left: 0; }
+.speak__intro { text-align: left; margin-left: 0; }
+.speak__hint { color: var(--muted); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; margin-top: 10px; }
+.speak__door { position: relative; display: block; width: clamp(150px, 20vw, 220px); padding: 0; border: 0; background: none; cursor: pointer; filter: drop-shadow(0 24px 40px rgba(0,0,0,.8)); transition: transform .35s cubic-bezier(.2,.7,.2,1); }
+.speak__door:hover, .speak__door:focus-visible { transform: translateY(-3px) scale(1.02); outline: none; }
+.speak__door:focus-visible .speak__svg { outline: 2px solid var(--brand); outline-offset: 6px; border-radius: 6px; }
+.speak__svg { width: 100%; height: auto; display: block; }
+.speak__glow { position: absolute; inset: 40% -40% -30% -40%; background: radial-gradient(ellipse at 50% 100%, rgba(255,217,138,.28), rgba(255,217,138,0) 65%); pointer-events: none; opacity: .7; transition: opacity .4s ease; }
+.speak__door:hover .speak__glow, .speak.is-known .speak__glow { opacity: 1; }
+.speak__door .spk-slot-light { opacity: .35; }
+.speak.is-known .speak__door .spk-slot-cover { transform: translateX(-118px); }
+.speak.is-known .speak__door .spk-eyes { opacity: 1; }
+.speak__door .spk-knocker { transform-origin: 120px 215px; transition: transform .25s ease; }
+.speak__door:hover .spk-knocker { transform: rotate(-14deg); }
+@media (max-width: 760px) { .speak__inner { grid-template-columns: 1fr; justify-items: center; text-align: center; } .speak__title, .speak__intro { text-align: center; } .speak__title::after { margin-left: auto; } }
+@media print { .speak { display: none; } }

@@ -17,7 +17,7 @@ import crypto from 'crypto'
 import ejs from 'ejs'
 import path from 'path'
 import { db } from '../db'
-import { events, games, menuItems, menuSections, partyInquiries, serviceStatus, settings as settingsTbl, specials, staffPins, staffSessions, stockItems, taps } from '../db/schema'
+import { events, games, menuItems, menuSections, pages as pagesTbl, partyInquiries, serviceStatus, settings as settingsTbl, specials, staffPins, staffSessions, stockItems, taps } from '../db/schema'
 import { bustSiteData, loadSiteData } from '../lib/site-data'
 import { buildLiveState } from '../lib/live'
 import { addDays, localDateString, localToUtc } from '../lib/hours'
@@ -150,7 +150,7 @@ consolePages.post('/logout', requireStaff, async (c) => {
 consolePages.get('/', requireStaff, async (c) => {
   const staff = c.get('staff')
   const now = new Date()
-  const [[s], site, status, items, sections, tapRows, inquiries, upcomingGames, upcomingEvents] = await Promise.all([
+  const [[s], site, status, items, sections, tapRows, inquiries, upcomingGames, upcomingEvents, [homePage]] = await Promise.all([
     db.select().from(settingsTbl).limit(1),
     loadSiteData(now),
     statusRow(),
@@ -160,7 +160,10 @@ consolePages.get('/', requireStaff, async (c) => {
     db.select().from(partyInquiries).where(sql`${partyInquiries.status} in ('new', 'called')`).orderBy(desc(partyInquiries.createdAt)).limit(30),
     db.select().from(games).where(gte(games.startsAt, new Date(now.getTime() - 4 * 3600000))).orderBy(asc(games.startsAt)).limit(5),
     db.select().from(events).where(gte(events.startsAt, new Date(now.getTime() - 4 * 3600000))).orderBy(asc(events.startsAt)).limit(10),
+    db.select({ sections: pagesTbl.sections }).from(pagesTbl).where(eq(pagesTbl.slug, 'home')).limit(1),
   ])
+  // The Back Room password card shows only while the door game is on the home page.
+  const speakeasyOn = Array.isArray(homePage?.sections) && (homePage!.sections as any[]).some((x: any) => x && x.type === 'speakeasy')
   const live = await buildLiveState(db, now)
   // The grill pad: food items by section, each with its sizes (Square's when linked, else read from the printed price).
   const defaultPrep = status.defaultPrepSeconds || 480
@@ -178,7 +181,7 @@ consolePages.get('/', requireStaff, async (c) => {
     }),
   })).filter(sec => sec.items.length)
   const html = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), {
-    staff, settings: s, live, status, sections, items, taps: tapRows, inquiries, games: upcomingGames, events: upcomingEvents, orderingEnabled: onlineOrderingEnabled(), grillSections, defaultPrepMin: Math.round(defaultPrep / 60),
+    staff, settings: s, live, status, sections, items, taps: tapRows, inquiries, games: upcomingGames, events: upcomingEvents, orderingEnabled: onlineOrderingEnabled(), grillSections, speakeasyOn, defaultPrepMin: Math.round(defaultPrep / 60),
     timezone: live.timezone, hoursToday: { bar: site.live.bar, kitchen: site.live.kitchen },
   })
   c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')

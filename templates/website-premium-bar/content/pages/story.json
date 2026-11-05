@@ -15,8 +15,8 @@
         "plates": {
           "1881": "/images/brand/saloon-1880s.jpg",
           "1981": "/images/brand/exterior-orv-pat.jpg",
-          "2026": "/images/brand/exterior-700.jpg",
-          "oldest-bar-in-wisconsin": "/images/brand/engraving.jpg"
+          "2026": "/images/brand/storefront-700.jpg",
+          "oldest-bar-in-wisconsin": "/images/brand/lettering-wall-700.jpg"
         },
         "closing": "Thank you for being part of our story."
       }
@@ -38,8 +38,8 @@
           "href": "/visit"
         },
         "phone": "(715) 832-0568",
-        "image": "/images/brand/exterior-700.jpg",
-        "imageAlt": "The Amber Inn at dusk"
+        "image": "/images/brand/storefront-700.jpg",
+        "imageAlt": "The Amber Inn at the corner of Madison and Franklin: black siding, a stacked-stone front, and the red and yellow Amber Inn Bar & Grill sign, Est. 1881"
       }
     }
   ]

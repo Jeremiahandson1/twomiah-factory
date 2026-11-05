@@ -27,6 +27,12 @@ export const SECTION_DEFS: SectionDef[] = [
     defaultData: { heading: 'The menu', intro: '', asHeading: true, kind: 'all', showSignatureLinks: true },
   },
   {
+    type: 'menu', variant: 'bento',
+    label: 'Menu — picks as tiles (bento)',
+    description: 'A few menu items as tiles of different sizes, plus optional "on tap" and link tiles. Each item tile reads its name, price and 86 status from the Menu database by slug, so nothing is typed twice. size: lg | wide | tall | (blank); tone: paper | red | yellow | dark.',
+    defaultData: { heading: 'Off the grill', intro: '', tiles: [{ item: '', size: 'lg', tone: 'paper', eyebrow: '' }, { kind: 'taps', size: 'wide', tone: 'dark' }, { kind: 'link', size: 'wide', tone: 'paper', title: 'The whole menu', href: '/menu' }] },
+  },
+  {
     type: 'menu', variant: 'item-hero',
     label: 'Menu — signature item page',
     description: 'One signature item (a burger) as its own page: photo, price, story, MenuItem schema. Pick the item by slug.',

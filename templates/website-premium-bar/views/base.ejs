@@ -4,17 +4,20 @@
   var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, '');
   var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : '';
   var ogImage = settings.logoUrl || settings.heroPhotoUrl || '';
-  // Theme: the leather cover (main.css "THE COVER") is dark in every mode, so
+  // Theme: the storefront look (black siding) is dark in every mode, so
   // 'auto' pins the dark palette too. Following a phone's light setting put dark
-  // ink straight on black leather (intro text, nav) and failed contrast.
+  // ink straight on the dark ground and failed contrast.
   // 'light' is still honoured when the owner picks it on purpose.
   var theme = settings.theme === 'light' ? 'light' : 'dark';
   // Typography from settings. Each family also needs a real fallback stack in
   // CSS (main.css) — these vars only override the family name.
-  var fD = settings.fontDisplay || 'Limelight';
-  var fE = settings.fontEyebrow || 'Cinzel';
-  var fB = settings.fontBody || 'Lora';
-  var fM = settings.fontMono || 'Special Elite';
+  var fD = settings.fontDisplay || 'Oswald';
+  var fE = settings.fontEyebrow || 'Oswald';
+  var fB = settings.fontBody || 'Libre Franklin';
+  var fM = settings.fontMono || 'Oswald';
+  // The sign face: the "Amber Inn" on the red-and-yellow sign over the door.
+  // Used only by the sign wordmark (.sign) in the header and on the board.
+  var fS = settings.fontSign || 'Alfa Slab One';
   var spec = {
     'Cinzel': 'Cinzel:wght@400;600',
     'Lora': 'Lora:ital,wght@0,400;0,600;1,400',
@@ -24,10 +27,10 @@
     'Courier Prime': 'Courier+Prime:wght@400;700',
   };
   var seen = {};
-  var families = [fD, fE, fB, fM, 'Great Vibes'].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
+  var families = [fD, fE, fB, fM, fS].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
   // Self-hosted faces (build/fonts + build/styles/fonts.css, see scripts/fetch-fonts.ts).
   // Anything else falls back to a Google Fonts request.
-  var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Cinzel Decorative': 'CinzelDecorative-700', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400', 'Great Vibes': 'GreatVibes-400' };
+  var selfHosted = { 'Oswald': 'Oswald-400', 'Alfa Slab One': 'AlfaSlabOne-400', 'Libre Franklin': 'LibreFranklin-400', 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Cinzel Decorative': 'CinzelDecorative-700', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400', 'Great Vibes': 'GreatVibes-400' };
   var remote = families.filter(function (n) { return !selfHosted[n]; });
   var fontsHref = remote.length ? 'https://fonts.googleapis.com/css2?family=' + remote.map(function (n) { return spec[n] || String(n).replace(/ /g, '+'); }).join('&family=') + '&display=swap' : '';
   var useLocal = families.some(function (n) { return !!selfHosted[n]; });
@@ -35,6 +38,9 @@
   // Metric-matched local fallbacks so the swap from system font to web font
   // doesn't shift layout (CLS). Ratios measured against the real fonts.
   var fallback = {
+    'Oswald': { local: 'Arial', size: '80%' },
+    'Alfa Slab One': { local: 'Georgia', size: '118.8%' },
+    'Libre Franklin': { local: 'Arial', size: '103.1%' },
     'Limelight': { local: 'Georgia', size: '119.5%' },
     'Cinzel': { local: 'Georgia', size: '118.6%' },
     'Cinzel Decorative': { local: 'Georgia', size: '132.5%' },
@@ -48,7 +54,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <meta name="theme-color" content="#121010" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#1B1C18" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
   <title><%= seoTitle %></title>
   <meta name="description" content="<%= seoDescription %>">
@@ -71,7 +77,7 @@
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
   <% } %>
   <% if (useLocal) { %>
-  <% [fD, fB, fM].forEach(function (n) { if (selfHosted[n]) { %><link rel="preload" as="font" type="font/woff2" href="/fonts/<%= selfHosted[n] %>.woff2" crossorigin>
+  <% [fD, fB, fM, fS].filter(function (n, i, a) { return a.indexOf(n) === i; }).forEach(function (n) { if (selfHosted[n]) { %><link rel="preload" as="font" type="font/woff2" href="/fonts/<%= selfHosted[n] %>.woff2" crossorigin>
   <% } }) %>
   <link rel="stylesheet" href="/styles/fonts.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
   <% } %>
@@ -87,6 +93,7 @@
       --font-eyebrow: <%- stack(fE, "'Georgia', serif") %>;
       --font-body: <%- stack(fB, "'Georgia', 'Times New Roman', serif") %>;
       --font-mono: <%- stack(fM, "'Courier New', ui-monospace, monospace") %>;
+      --font-sign: <%- stack(fS, "'Georgia', serif") %>;
     }
   </style>
   <%
@@ -120,14 +127,23 @@
 <body>
 <% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
   <a class="skip-link" href="#main">Skip to content</a>
-  <div class="cover"><span class="cap cap--tl" aria-hidden="true"></span><span class="cap cap--tr" aria-hidden="true"></span><span class="cap cap--bl" aria-hidden="true"></span><span class="cap cap--br" aria-hidden="true"></span><span class="flourish flourish--tl" aria-hidden="true"></span><span class="flourish flourish--tr" aria-hidden="true"></span><span class="flourish flourish--bl" aria-hidden="true"></span><span class="flourish flourish--br" aria-hidden="true"></span>
+  <%
+    // The sign wordmark: the red panel with the name, the yellow band with the
+    // kind of place and the year — the sign over the door at 840 E Madison.
+    // "Amber Inn Bar & Grill" → name "Amber Inn", band "Bar & Grill".
+    var _name = settings.companyName || 'Your Company';
+    var _m = /^(.+?)\s+((?:Bar|Tavern|Pub|Saloon|Grill)\b.*)$/i.exec(_name);
+    var signName = _m ? _m[1] : _name, signBand = _m ? _m[2] : '';
+  %>
+  <div class="cover">
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="<%= settings.homeHref || '/' %>">
-        <% if (settings.headerLogoUrl || settings.logoUrl) { %>
-          <img class="brand__logo" src="<%= settings.headerLogoUrl || settings.logoUrl %>" alt="<%= settings.companyName || 'Home' %>" width="117" height="56">
+        <%/* Header: an uploaded header logo if there is one, else the sign wordmark. logoUrl is the social-card image, never the header. */%>
+        <% if (settings.headerLogoUrl) { %>
+          <img class="brand__logo" src="<%= settings.headerLogoUrl %>" alt="<%= settings.companyName || 'Home' %>" width="117" height="56">
         <% } else { %>
-          <%= settings.companyName || 'Your Company' %>
+          <span class="sign sign--sm"><span class="sign__name"><%= signName %></span><% if (signBand) { %><span class="sign__band"><span class="sign__kind"><%= signBand %></span></span><% } %></span>
         <% } %>
       </a>
       <%
@@ -174,7 +190,7 @@
   <footer class="site-footer">
     <div class="container footer-inner">
       <div>
-        <div class="footer-brand"><%= settings.companyName || 'Your Company' %></div>
+        <div class="footer-brand"><%= _name %></div>
         <% if (settings.tagline) { %><div class="footer-tagline"><%= settings.tagline %></div><% } %>
         <% if (settings.address) { %><div class="footer-address"><%= settings.address %></div><% } %>
         <% if (settings.established) { %><div class="footer-est">Est. <%= settings.established %></div><% } %>
@@ -201,6 +217,36 @@
   </footer>
   </div>
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
+  <script>
+    // ── Motion: sections and tiles rise in as they scroll into view. ──
+    // Only below-the-fold things are ever hidden (the Tonight Board and
+    // whatever is on screen at load paint immediately), nothing is hidden
+    // without this script, and reduced-motion visitors get no motion at all.
+    (function(){
+      if (!('IntersectionObserver' in window)) return;
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var sel = 'main section:not(.board) .section-head, main [data-reveal], .story__grid > *, .gallery-grid__item, .cta__split-grid > *, .era-item, .events__item, .tap, .menu-section';
+      var els = Array.prototype.slice.call(document.querySelectorAll(sel));
+      if (!els.length) return;
+      var vh = window.innerHeight || 800;
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          var el = en.target; el.classList.add('is-in'); io.unobserve(el);
+          // Drop the stagger once it has played, so hover is not delayed.
+          el.addEventListener('transitionend', function done() { el.style.removeProperty('--d'); el.removeEventListener('transitionend', done); });
+        });
+      }, { rootMargin: '0px 0px -8% 0px' });
+      els.forEach(function (el) {
+        el.setAttribute('data-reveal', '');
+        if (el.getBoundingClientRect().top < vh) { el.classList.add('is-in'); return; }
+        var i = Array.prototype.indexOf.call(el.parentNode.children, el);
+        if (i > 0) el.style.setProperty('--d', Math.min(i * 60, 300) + 'ms');
+        io.observe(el);
+      });
+      document.documentElement.classList.add('motion');
+    })();
+  </script>
   <script>
     // ── Single-page nav: smooth scroll, URL hash sync, active highlight ──
     (function(){

@@ -40,7 +40,7 @@
                 <div class="page__running"><%= settings.companyName || '' %></div>
                 <div class="page__plate">
                   <% if (plate) { %>
-                    <figure class="plate"><img src="<%= plate %>" alt="<%= e.imageCredit ? '' : (e.title || '') %>" width="600" height="450" loading="<%= i === 0 ? 'eager' : 'lazy' %>"><% if (e.imageCredit || e.imageYear) { %><figcaption><%= [e.imageCredit, e.imageYear].filter(Boolean).join(', ') %></figcaption><% } %></figure>
+                    <figure class="plate"><img src="<%= plate %>" alt="<%= e.imageCredit ? '' : (e.title || '') %>" width="600" height="450" loading="<%= i === 0 ? 'eager' : 'lazy' %>"<%- i === 0 ? ' fetchpriority="high"' : '' %>><% if (e.imageCredit || e.imageYear) { %><figcaption><%= [e.imageCredit, e.imageYear].filter(Boolean).join(', ') %></figcaption><% } %></figure>
                   <% } else { %>
                     <div class="plate plate--year"><span class="plate__year"><%= y || '—' %></span><span class="plate__rule"></span><span class="plate__chapter">Chapter <%= roman[i] || i + 1 %></span></div>
                   <% } %>

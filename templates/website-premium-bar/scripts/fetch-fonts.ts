@@ -24,6 +24,10 @@ const FAMILIES: Array<{ family: string; spec: string }> = [
   { family: 'Lora', spec: 'Lora:wght@400;600' },   // italics are synthesized — the italic face was the last CLS culprit
   { family: 'Special Elite', spec: 'Special+Elite' },
   { family: 'Great Vibes', spec: 'Great+Vibes' },   // the script line on the cover
+  // The storefront look (2026-11-05): the building as it stands today.
+  { family: 'Oswald', spec: 'Oswald:wght@400;500;600;700' },          // the hand-painted wall lettering
+  { family: 'Alfa Slab One', spec: 'Alfa+Slab+One' },                  // the red-and-yellow sign
+  { family: 'Libre Franklin', spec: 'Libre+Franklin:wght@400;600' },   // reading text
 ]
 // A modern Chrome UA gets woff2 + unicode-range subsets.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'

@@ -49,16 +49,16 @@
       "href": "/visit"
     }
   ],
-  "primaryColor": "#C79D67",
-  "secondaryColor": "#4C6582",
-  "accentColor": "#EFE6D2",
-  "fontDisplay": "Cinzel Decorative",
-  "fontEyebrow": "Cinzel",
-  "fontBody": "Lora",
-  "fontMono": "Special Elite",
+  "primaryColor": "#FCD200",
+  "secondaryColor": "#BF2620",
+  "accentColor": "#F3E9C0",
+  "fontDisplay": "Oswald",
+  "fontEyebrow": "Oswald",
+  "fontBody": "Libre Franklin",
+  "fontMono": "Oswald",
   "established": 1881,
   "timezone": "America/Chicago",
-  "headerLogoUrl": "/images/brand/lettering-header.webp",
-  "logoUrl": "/images/brand/cover-full-600.jpg",
-  "_palette_note": "Measured from the owner's three concept images 2026-09-07 (scripts/palette-from-images.ts): near-black leather #0E0D08/#13100A, leather browns #211913/#2B2419/#362414/#583F2A, gold #A8763C/#C79D67, dusk-sky blue #4C6582, foliage olive #2A2E1A."
+  "headerLogoUrl": "",
+  "logoUrl": "/images/brand/storefront-og.jpg",
+  "_palette_note": "THE STOREFRONT (2026-11-05): measured from the owner's photos of the building with sharp. Painted wall lettering #FCD200 (primary), sign red #D32B25 deepened to #BF2620 so cream text passes AA (secondary), sign cream #F3E9C0 (accent), sign marigold #FFB700, siding #242520, stacked stone #C98651. The speakeasy palette (#C79D67 gold, #4C6582 dusk blue, Cinzel/Lora/Special Elite) is archived with build/styles/look-speakeasy.css."
 }
