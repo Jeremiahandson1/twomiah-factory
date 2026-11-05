@@ -83,7 +83,7 @@ export default function OpenShiftsScreen() {
       {list.map((s) => {
         const text = takeText(s.seriesVisits)
         const by = answerByText(s.respondBy, formatYmdShort, formatTime12)
-        const mine = mode?.id === s.id ? mode.kind : null
+        const mine = mode && mode.id === s.id ? mode.kind : null
         return (
           <Card key={s.id}>
             {s.urgency === 'urgent' || s.urgency === 'critical' ? <Banner tone="danger" icon="flash">Urgent — coverage needed</Banner> : null}
