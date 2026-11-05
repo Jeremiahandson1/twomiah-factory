@@ -142,8 +142,8 @@ export async function answerRefusal(d: CrmDeps, c: any, row: any, opts: { allowS
   const me = c.get('user') as any
   const canSee = canSeeWith(d.permissions)
   if (await canSee(me.role, 'inspections:update', me.userId)) return null
-  if (!(await canSee(me.role, 'inspections:answer', me.userId))) return c.json({ error: 'Permission denied', required: 'inspections:update' }, 403)
-  if (!(await d.features.isFeatureEnabled(me.companyId, 'phone_inspections'))) return c.json({ error: 'Answering inspections from the phone is not switched on for this business.', code: 'feature_off' }, 403)
+  if (!(await canSee(me.role, 'inspections:answer', me.userId))) return fail(c, 403, 'Permission denied', 'forbidden')
+  if (!(await d.features.isFeatureEnabled(me.companyId, 'phone_inspections'))) return fail(c, 403, 'Answering inspections from the phone is not switched on for this business.', 'feature_off')
   if (!row) return null
   if (!RESULTABLE.includes(row.status)) return fail(c, 400, `${row.number} was ${row.status}. The checklist is part of that record, so it is not changed — book a re-inspection instead.`, 'inspection_already_resulted')
   if (row.signedAt && !opts.allowSigned) return signedRefusal(c, row)
@@ -377,7 +377,7 @@ export function createInspectionChecklistRoutes(d: CrmDeps) {
   // The customer signs the checklist as it stands. Taken by a crew seat on the phone (or the office), once, with every line answered.
   app.post('/:id/sign', requireAnyPermission(['inspections:update', 'inspections:answer']), async (c) => {
     const me = c.get('user') as any
-    if (!(await d.features.isFeatureEnabled(me.companyId, 'inspection_signature'))) return c.json({ error: 'Customer sign-off on inspections is not switched on for this business.', code: 'feature_off' }, 403)
+    if (!(await d.features.isFeatureEnabled(me.companyId, 'inspection_signature'))) return fail(c, 403, 'Customer sign-off on inspections is not switched on for this business.', 'feature_off')
     const parsed = signatureSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const row = await load(c.req.param('id'), me.companyId)
