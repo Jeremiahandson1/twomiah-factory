@@ -31,7 +31,7 @@ export function createBarTipSourceRoutes(d: CrmDeps, bar: BarServices) {
   async function run(c: Ctx, fn: () => Promise<unknown>) {
     try { c.header('Cache-Control', 'no-store'); return one(c, await fn() as object) }
     catch (e: any) {
-      if (e instanceof SourceError) return fail(c, e.status as any, e.message)
+      if (e instanceof SourceError) return fail(c, e.status as any, e.message, e.code)
       logger.error('[tip-sources]', { error: e?.message || String(e) })
       return fail(c, 500, 'That did not work. Try again.')
     }

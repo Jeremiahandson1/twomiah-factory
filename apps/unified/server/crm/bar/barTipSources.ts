@@ -25,7 +25,8 @@ import type { BarDb } from './db.ts'
 import { addDays } from './barHours.ts'
 import { businessDayOf, businessDayWindow, type BarLive } from './barLive.ts'
 
-export class SourceError extends Error { constructor(message: string, public status = 400) { super(message) } }
+/** A refusal said in words; `code` names a declared one (a source not set up: `square_not_configured`), as the app's other 503s do. */
+export class SourceError extends Error { constructor(message: string, public status = 400, public code?: string) { super(message) } }
 
 const STATE_TTL_MS = 15 * 60 * 1000
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -78,7 +79,7 @@ export function createBarTipSources(db: BarDb, live: BarLive, deps: { logger: { 
   // ── Connecting ────────────────────────────────────────────────────────────────────────────────────────────
   function squareAuthUrl(companyId: string, byName: string): string {
     const app = squareApp()
-    if (!app) throw new SourceError('Square isn’t switched on for your account yet. Email support@twomiah.com and we will turn it on.', 503)
+    if (!app) throw new SourceError('Square isn’t switched on for your account yet. Email support@twomiah.com and we will turn it on.', 503, 'square_not_configured')
     return squareAuthorizeUrl(app, signState(companyId, byName))
   }
 
