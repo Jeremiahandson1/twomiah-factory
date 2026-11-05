@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../../api';
 import { useConfirm, useMayWrite } from '../../../shared';
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock';
 import FormError, { errorText } from '../../ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED } from './registerUi';
 
@@ -15,7 +16,7 @@ interface Source { id: string; provider: 'toast' | 'square'; providerName: strin
 interface StaffRow { externalStaffId: string; name: string; email: string | null; userId: string | null; matchedBy: string | null }
 interface StaffSource extends Source { staff: StaffRow[] }
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'not yet');
+const when = (iso: string | null) => (iso ? whenDateTime(iso) : 'not yet');
 
 export default function TipSourcesView() {
   const may = useMayWrite('bar:manage');

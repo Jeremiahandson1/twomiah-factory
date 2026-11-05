@@ -15,6 +15,7 @@ import { escHtml } from '../../core/email.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { createSalonClock } from './days.ts'
 import { platformStripe } from '../platformStripe.ts'
 import { GIFT_MAX_CENTS, GIFT_MIN_CENTS, GiftCardError, type SalonGiftCards } from './giftCards.ts'
 
@@ -92,7 +93,9 @@ export function createGiftShop(d: CrmDeps, g: SalonGiftCards, deps: { stripe?: (
     return { handled: out.done, giftCard: true, ...out }
   }
 
-  const todayInput = () => new Date().toISOString().slice(0, 10)
+  // The earliest send-on date the form offers: the salon's today (its time zone), not UTC's.
+  const clock = createSalonClock(d.db)
+  const todayFor = (companyId: string) => clock.salonToday(companyId)
   function formHtml(shop: Exclude<Awaited<ReturnType<typeof shopFor>>, { problem: string }>, today: string, message = ''): string {
     const offers = shop.settings.offers
     const offerAmounts = new Set(offers.map((o) => o.buyCents))
@@ -128,14 +131,14 @@ export function createGiftShop(d: CrmDeps, g: SalonGiftCards, deps: { stripe?: (
         } catch (e: any) { logger.warn('[gift-shop] page not read back', { error: e?.message }) }
         return c.html(page('Thank you', shop.co.name, thanks ? '<h1>Thank you!</h1><p>Your payment went through. The gift card is on its way by email.</p>' : '<h1>We could not confirm your payment yet</h1><p>If your card was charged, the gift card will be emailed shortly. Please contact the salon if it does not arrive.</p>'))
       }
-      return c.html(formHtml(shop, todayInput()))
+      return c.html(formHtml(shop, await todayFor(shop.co.id)))
     })
     app.post('/', async (c) => {
       const shop = await shopFor()
       if ('problem' in shop) return c.html(page('Gift cards', shop.salon, `<h1>Gift cards</h1><p>${escHtml(shop.problem)}</p>`), shop.problem === 'Not found.' ? 404 : 409)
       const form = await c.req.parseBody().catch(() => ({} as Record<string, unknown>))
-      if (String(form.website ?? '').trim()) return c.html(formHtml(shop, todayInput(), 'Please try again.'), 400)
-      if (!mayBuy(addressOf(c))) return c.html(formHtml(shop, todayInput(), 'Too many tries. Please wait a while and try again.'), 429)
+      if (String(form.website ?? '').trim()) return c.html(formHtml(shop, await todayFor(shop.co.id), 'Please try again.'), 400)
+      if (!mayBuy(addressOf(c))) return c.html(formHtml(shop, await todayFor(shop.co.id), 'Too many tries. Please wait a while and try again.'), 429)
       const choice = String(form.choice ?? '')
       let input: Record<string, unknown> = {
         purchaserName: form.purchaserName, purchaserEmail: form.purchaserEmail, recipientName: form.recipientName, recipientEmail: form.recipientEmail, message: form.message, deliverOn: form.deliverOn,
@@ -165,12 +168,12 @@ export function createGiftShop(d: CrmDeps, g: SalonGiftCards, deps: { stripe?: (
         } catch (e: any) {
           logger.warn('[gift-shop] payment page not opened', { error: e?.message })
           await g.abandonPending(card.id)
-          return c.html(formHtml(shop, todayInput(), 'The payment page could not be opened. Please try again.'), 502)
+          return c.html(formHtml(shop, await todayFor(shop.co.id), 'The payment page could not be opened. Please try again.'), 502)
         }
       } catch (e: any) {
-        if (e instanceof GiftCardError) return c.html(formHtml(shop, todayInput(), e.message), 400)
+        if (e instanceof GiftCardError) return c.html(formHtml(shop, await todayFor(shop.co.id), e.message), 400)
         logger.error('[gift-shop]', { error: e?.message || String(e) })
-        return c.html(formHtml(shop, todayInput(), 'That did not go through. Please try again.'), 500)
+        return c.html(formHtml(shop, await todayFor(shop.co.id), 'That did not go through. Please try again.'), 500)
       }
     })
     return app

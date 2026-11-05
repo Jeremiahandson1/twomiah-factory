@@ -2,20 +2,22 @@
 // Every result is camelCase.
 import { sql } from 'drizzle-orm'
 import { camelRows } from '@twomiah/tenant-backend'
-import { localDate, type Q } from './homecareCore.ts'
+import { agencyClock, localDate, type Q } from './homecareCore.ts'
 
 const all = async (q: Q, s: any): Promise<any[]> => camelRows(await q.execute(s))
 const isCaregiver = sql.raw(`u.role IN ('caregiver', 'field')`)
 
 /** Every active caregiver with when they were hired and where they sit (branch, team, manager), for the survey triggers and the risk. */
 export async function activeCaregivers(q: Q, companyId: string): Promise<any[]> {
+  // "Still here" is judged on the agency's own day, not the database server's (UTC): agencyClock (RULEBOOK, company clock).
+  const { today } = await agencyClock(q, companyId)
   return all(q, sql`SELECT u.id, u.first_name, u.last_name, u.email, to_char(COALESCE(u.hire_date, u.created_at::date), 'YYYY-MM-DD') AS hired,
            cp.branch_id, sl.name AS branch_name, cp.team, cp.manager_user_id, m.first_name AS manager_first, m.last_name AS manager_last
       FROM "user" u
       LEFT JOIN caregiver_profiles cp ON cp.caregiver_id = u.id
       LEFT JOIN service_locations sl ON sl.id = cp.branch_id
       LEFT JOIN "user" m ON m.id = cp.manager_user_id
-     WHERE u.company_id = ${companyId} AND ${isCaregiver} AND u.is_active = true AND (cp.left_on IS NULL OR cp.left_on > CURRENT_DATE)
+     WHERE u.company_id = ${companyId} AND ${isCaregiver} AND u.is_active = true AND (cp.left_on IS NULL OR cp.left_on > ${today}::date)
      ORDER BY u.last_name, u.first_name`)
 }
 

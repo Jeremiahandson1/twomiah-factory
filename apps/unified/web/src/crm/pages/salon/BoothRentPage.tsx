@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Loader2, Plus, X, Armchair } from 'lucide-react'
 import { api } from '../../../api'
 import { useAuth, useMayWrite, useToast, useConfirm, usePrompt, money as fmtMoney } from '../../../shared'
+import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 
 interface OpenInvoice { invoiceId: string; period: string; owedCents: number; number: string }
 interface Renter {
@@ -40,7 +41,7 @@ export default function BoothRentPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState('')
   const [open, setOpen] = useState<Renter | null>(null)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = companyTodayKey()
 
   const load = useCallback(async () => {
     try { const r: any = await api.get('/api/booth-rent/renters'); setRenters(r?.data ?? []) }
@@ -229,7 +230,7 @@ export default function BoothRentPage() {
 
 function Ledger({ renter, may, onWaive }: { renter: Renter; may: boolean; onWaive: (period: string) => void }) {
   const toast = useToast()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = companyTodayKey()
   const [from, setFrom] = useState(renter.startDate)
   const [to, setTo] = useState(today)
   const [s, setS] = useState<Statement | null>(null)

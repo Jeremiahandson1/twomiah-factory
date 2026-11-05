@@ -34,7 +34,6 @@ const STALE_PENDING_MS = 5 * 60_000
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const cents = (n: unknown) => Math.round(Number(n || 0) * 100)
 const money = (c: number) => (c / 100).toFixed(2)
-const utcToday = () => new Date().toISOString().slice(0, 10)
 const METHODS: Record<string, string> = { card: 'card', cash: 'cash', check: 'check', bank_transfer: 'bank transfer', ach: 'bank transfer', other: 'payment' }
 
 export function createBoothRent(d: CrmDeps, clock: SalonClock, checkout: SalonCheckout, cards: CardOnFile) {
@@ -237,10 +236,11 @@ export function createBoothRent(d: CrmDeps, clock: SalonClock, checkout: SalonCh
   async function settle(companyId: string, maxPeriods = 12): Promise<Array<{ renterId: string; invoiceId: string; number: string; period: string; amountCents: number }>> {
     const billed: Array<{ renterId: string; invoiceId: string; number: string; period: string; amountCents: number }> = []
     await retryDeclined(companyId).catch((e: any) => d.logger.error('[booth-rent] retry pass failed', { error: e?.message }))
-    const due: RenterRow[] = await db.select().from(boothRenter).where(and(
-      eq(boothRenter.companyId, companyId), inArray(boothRenter.status, ['active', 'paused']), isNotNull(boothRenter.nextDue), lte(boothRenter.nextDue, utcToday()),
-    ))
+    // Due by the SALON's today (its time zone), not UTC's: in the evening UTC is already tomorrow.
     const todayStr = await today(companyId)
+    const due: RenterRow[] = await db.select().from(boothRenter).where(and(
+      eq(boothRenter.companyId, companyId), inArray(boothRenter.status, ['active', 'paused']), isNotNull(boothRenter.nextDue), lte(boothRenter.nextDue, todayStr),
+    ))
     for (const row of due) {
       let cursor: RenterRow = { ...row }
       for (let i = 0; i < maxPeriods; i++) {
