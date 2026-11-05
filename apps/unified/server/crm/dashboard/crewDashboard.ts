@@ -43,9 +43,9 @@ export function createCrewDashboardRoutes(d: CrmDeps) {
       .where(and(eq(job.companyId, companyId), mine, jobsTodayCondition(job, tz))).orderBy(asc(job.scheduledTime), asc(job.id))
     const todayKey = storeDateString(now, tz)
     const horizon = storeDateString(new Date(now.getTime() + WINDOW_DAYS * 86_400_000), tz)
-    const later = (await db.select(fields).from(job).leftJoin(contact, eq(job.contactId, contact.id))
-      .where(and(eq(job.companyId, companyId), mine, notInArray(job.status, DONE_JOB))))
-      .map((r: any) => ({ r, day: jobDay(r, tz) }))
+    const later = ((await db.select(fields).from(job).leftJoin(contact, eq(job.contactId, contact.id))
+      .where(and(eq(job.companyId, companyId), mine, notInArray(job.status, DONE_JOB)))) as any[])
+      .map((r: any): { r: any; day: string | null } => ({ r, day: jobDay(r, tz) }))
       .filter((x) => !!x.day && x.day > todayKey && x.day <= horizon)
       .sort((a, b) => String(a.day).localeCompare(String(b.day)) || String(a.r.scheduledTime || '').localeCompare(String(b.r.scheduledTime || '')))
     const out: Record<string, unknown> = {

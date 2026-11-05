@@ -82,7 +82,7 @@ describe('through the server', () => {
 
     test('a bad number is refused in words and nothing is saved', async () => {
       for (const bad of [{ labor: -1 }, { labor: 1001 }, { labor: 'lots' }]) {
-        const r = await owner('/api/markup-defaults', { method: 'PUT', json: { labor: 10, material: null, part: null, service: null, other: null, ...bad } })
+        const r = await owner('/api/markup-defaults', { method: 'PUT', json: Object.assign({ labor: 10, material: null, part: null, service: null, other: null }, bad) })
         expect(r.status).toBe(400)
       }
       expect((await json(await owner('/api/markup-defaults'))).labor).toBe(30)

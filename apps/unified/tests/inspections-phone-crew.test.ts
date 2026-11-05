@@ -76,7 +76,7 @@ describe('a crew seat answers on the phone', () => {
     const tpl = await x.template()
     await x.startOn(v.id)
     const [first] = await x.lines(v.id)
-    const refused = async (r: Promise<Response>) => expect((await r).status).toBe(403)
+    const refused = async (r: Response | Promise<Response>) => expect((await r).status).toBe(403)
     await refused(x.crew.call('/api/inspections', { method: 'POST', json: { type: 'Framing', projectId: x.house.id } }))
     await refused(x.crew.call(`/api/inspections/${v.id}/pass`, { method: 'POST' }))
     await refused(x.crew.call(`/api/inspections/${v.id}/fail`, { method: 'POST', json: { deficiencies: 'The whole north wall is wrong' } }))

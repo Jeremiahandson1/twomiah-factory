@@ -49,7 +49,7 @@ export async function boot(features: string[]) {
   const template = async (over: any = {}) => json(await owner('/api/inspection-templates', { method: 'POST', json: { name: 'Framing walk-through', type: 'Framing', items: ['Hangers at every joist', 'Firestopping complete', 'Hold-downs at the shear walls'], ...over } }))
   const startOn = async (inspectionId: string, items = ['Hangers', 'Firestopping']) => owner(`/api/inspection-checklists/${inspectionId}/start`, { method: 'POST', json: { items } })
   const lines = async (inspectionId: string) => (await json(await owner(`/api/inspection-checklists/${inspectionId}`))).items as any[]
-  const answerAll = async (inspectionId: string, who: (p: string, i?: any) => Promise<Response> = owner) => {
+  const answerAll = async (inspectionId: string, who: (p: string, i?: any) => Response | Promise<Response> = owner) => {
     for (const l of await lines(inspectionId)) await who(`/api/inspection-checklists/${inspectionId}/items/${l.id}`, { method: 'PUT', json: { result: 'pass' } })
   }
   return { t, ins, owner, seat, crew, companyId, house, other, jobOn, visit, template, startOn, lines, answerAll, project: (name: string) => ins(t.schema.project, { companyId, number: `PRJ-${Math.random().toString(36).slice(2, 8)}`, name, type: 'renovation', contactId: customer.id } as any) }

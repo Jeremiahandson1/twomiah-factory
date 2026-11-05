@@ -112,7 +112,7 @@ describe('the customer signs', () => {
     await x.crew.call(`/api/inspection-checklists/${second.id}/sign`, { method: 'POST', json: SIGN })
     const rows = await x.t.db.select().from(x.t.schema.inspection)
     const hashes = [x.v.id, second.id].map((id) => rows.find((r: any) => r.id === id)?.signatureHash)
-    expect(hashes.every((h) => /^[0-9a-f]{64}$/.test(h))).toBe(true)
+    expect(hashes.every((h) => /^[0-9a-f]{64}$/.test(String(h)))).toBe(true)
     expect(hashes[0]).not.toBe(hashes[1])
   }, 120_000)
 
