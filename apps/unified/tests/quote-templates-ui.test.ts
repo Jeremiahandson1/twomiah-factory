@@ -13,13 +13,15 @@ const React = await import('react')
 const { act } = React as any
 const { createRoot } = await import('react-dom/client')
 const { MemoryRouter } = await import('react-router-dom')
-const P = '../../../packages/tenant-ui/src/'
+const P = '../../../packages/tenant-ui/src/'
+/** The admin app's own screens, by a path held in a variable so the server's type check does not walk into the web app (it has its own tsconfig). */
+const WEB = '../web/src/'
 const { AuthContext } = await import(P + 'auth/AuthContext.tsx') as any
 const { PermissionsProvider } = await import(P + 'auth/PermissionsContext.tsx') as any
 const { QuotesPage } = await import(P + 'invoicing/QuotesPage.tsx') as any
 const { ToastProvider } = await import(P + 'ui/Toast.tsx') as any
-const { api: webApi } = await import('../web/src/shared.ts') as any
-const QuoteFollowUpPage = (await import('../web/src/crm/pages/QuoteFollowUpPage.tsx') as any).default
+const { api: webApi } = await import(WEB + 'shared.ts') as any
+const QuoteFollowUpPage = (await import(WEB + 'crm/pages/QuoteFollowUpPage.tsx') as any).default
 const h = React.createElement as any
 
 const QUOTE = {

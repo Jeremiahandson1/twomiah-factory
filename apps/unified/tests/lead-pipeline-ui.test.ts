@@ -13,13 +13,15 @@ const React = await import('react')
 const { act } = React as any
 const { createRoot } = await import('react-dom/client')
 const { MemoryRouter } = await import('react-router-dom')
-const P = '../../../packages/tenant-ui/src/'
+const P = '../../../packages/tenant-ui/src/'
+/** The admin app's own screens, by a path held in a variable so the server's type check does not walk into the web app (it has its own tsconfig). */
+const WEB = '../web/src/'
 const { AuthContext } = await import(P + 'auth/AuthContext.tsx') as any
 const { PermissionsProvider } = await import(P + 'auth/PermissionsContext.tsx') as any
 const { LeadInboxPage } = await import(P + 'leads/LeadInboxPage.tsx') as any
 const { setCompanyTimeZone } = await import(P + 'time/companyClock.ts') as any
-const { api: webApi } = await import('../web/src/shared.ts') as any
-const { LeadPipelineStrip, QuotesAwaitingReply } = await import('../web/src/crm/pages/LeadPipelineStrip.tsx') as any
+const { api: webApi } = await import(WEB + 'shared.ts') as any
+const { LeadPipelineStrip, QuotesAwaitingReply } = await import(WEB + 'crm/pages/LeadPipelineStrip.tsx') as any
 const h = React.createElement as any
 
 const REASONS = [{ id: 'price', label: 'Our price was too high' }, { id: 'other', label: 'Something else (say what)' }]
