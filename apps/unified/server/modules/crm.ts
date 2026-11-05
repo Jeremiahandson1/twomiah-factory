@@ -65,6 +65,10 @@ import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
+import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
+import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
+import { createMarkupDefaultsRoutes } from '../crm/billing/markupDefaults.ts'
+import { createQuoteLineImageRoutes } from '../crm/billing/quoteLineImages.ts'
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
@@ -78,6 +82,8 @@ import { createTextActivityRoutes } from '../crm/textActivity.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
+import { leadMounts } from '../crm/leads/index.ts'
+import { dashboardPanelMounts } from '../crm/dashboard/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
@@ -278,6 +284,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
+      // A picture on a quote line, kept only for a business with quote_line_images on (crm/billing/quoteLineImages.ts).
+      lineImagesEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_line_images'),
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),
@@ -416,6 +424,12 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
     // no one feature; each action asks its permission.
     { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
+    // Saved quotes to start the next from, and the automatic nudge to a customer who has not answered (crm/billing; both not ready).
+    { path: '/api/quote-templates', access: 'user', feature: 'quote_templates', router: createQuoteTemplateRoutes(own) },
+    { path: '/api/quote-followup', access: 'user', feature: 'quote_followup', router: createQuoteFollowUpRoutes(own, s.quoteFollowUp) },
+    // The usual markup by kind of line, and a picture on a quote line (crm/billing; both not ready).
+    { path: '/api/markup-defaults', access: 'user', feature: 'markup_defaults', router: createMarkupDefaultsRoutes(own) },
+    { path: '/api/quote-line-images', access: 'user', feature: 'quote_line_images', router: createQuoteLineImageRoutes(own) },
     // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
     { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
@@ -589,6 +603,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ...homecareMounts(own),
     ...roofMounts(own),
     ...storeMounts(own),
+    // Lost with a reason, site visits and the pipeline strip (crm/leads; all not ready).
+    ...leadMounts(own),
+    // The owner's "needs you today" panel and the crew's "my day" (crm/dashboard; both not ready).
+    ...dashboardPanelMounts(own),
   ]
 }
 

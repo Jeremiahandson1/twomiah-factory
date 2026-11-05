@@ -36,6 +36,8 @@ import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { ProposalPanel } from './proposalOptions'
 import { TextComposer } from './textComposer'
 import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
+import { QuotesAwaitingReply } from './pages/LeadPipelineStrip'
+import { OwnerDashboard, CrewDashboard } from './pages/HomePanels'
 
 const v = verticalScreens
 const client = api as any
@@ -60,6 +62,9 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <MoneyStrip api={client} hide={Own ? [] : ['overdue']} />
+      {/* The owner's "needs you today" and the crew's "my day" (crm/pages/HomePanels.tsx; each its own switch, not ready). */}
+      <OwnerDashboard />
+      <CrewDashboard />
       {Own ? <Own /> : <JobsDashboard />}
     </div>
   )
@@ -139,7 +144,13 @@ const invoicingFor = (hasFeature: (f: string) => boolean) => {
 }
 export function Quotes() {
   const { company, hasFeature } = useAuth()
-  return <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
+  // Quotes sent and not answered, longest first, above the list where Pipeline Strip is on (crm/pages/LeadPipelineStrip.tsx).
+  return (
+    <>
+      <div className="px-6 pt-6"><QuotesAwaitingReply /></div>
+      <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
+    </>
+  )
 }
 /** Customer financing on a quote or an invoice (crm/financing.tsx): shown only with consumer_financing on. */
 const financingAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <FinancingPanel kind={kind} record={record} />

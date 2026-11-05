@@ -141,7 +141,9 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       // contacts: a technician, a stylist and a viewer were handed the inbox (live role check, 2026-10-23).
       audit, options: { platforms: vertical.crm?.leads?.platforms ?? TRADES_LEAD_PLATFORMS, contactType: vertical.crm?.leads?.contactType ?? 'lead', ownPermission: true,
         // A Spam status, and the inbox's filters labelled with how many there are (leads.ts).
-        spam: true },
+        spam: true,
+        // "Lost" is set by its own route, which records why (crm/leads/leadLost.ts, feature lead_lost); the inbox may filter by it.
+        filterOnlyStatuses: ['lost'] },
     } as any))
 
   const auditLogRoutes = new Hono<AppEnv>()

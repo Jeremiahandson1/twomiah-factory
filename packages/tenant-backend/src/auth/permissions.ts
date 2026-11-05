@@ -347,6 +347,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // punch-lists:create — the crew on site is who finds what is left to fix (owner's decision, 10/14).
     'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read', 'punch-lists:create',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
+    // Answers the lines of an inspection's checklist, adds photos and takes the customer's signature on the phone — NOT the
+    // visit's result, the checklists themselves or booking one (those stay inspections:update / :create). It does nothing until the
+    // business switches Inspections on the phone on (unified crm/siteRecords/inspectionChecklists.ts checks the feature).
+    'inspections:answer',
     'company:read', 'dashboard:read', 'schedule:read',
     // Sees the bookings (their day); changing them is the office's. (2026-10-18)
     'bookings:read',

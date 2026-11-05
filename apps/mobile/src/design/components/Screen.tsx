@@ -13,9 +13,9 @@ export interface HeaderAction { icon: string; label: string; onPress?: () => voi
  * optional pinned footer (the primary action — e.g. "Record payment") that sits above the system buttons.
  * Top inset: the status bar. Bottom inset: the gesture bar / buttons — the same rule as theme/insets.ts.
  */
-export function Screen({ title, subtitle, onBack, actions, children, footer, scroll = true, refreshing, onRefresh, bottomBar, topInset }: {
+export function Screen({ title, subtitle, onBack, actions, children, footer, scroll = true, scrollEnabled = true, refreshing, onRefresh, bottomBar, topInset }: {
   title: string; subtitle?: string; onBack?: () => void; actions?: HeaderAction[]; children: React.ReactNode; footer?: React.ReactNode
-  scroll?: boolean; refreshing?: boolean; onRefresh?: () => void; bottomBar?: React.ReactNode; topInset?: number
+  scroll?: boolean; /** false while a finger is drawing on the screen (a signature), so the stroke is not taken for a scroll */ scrollEnabled?: boolean; refreshing?: boolean; onRefresh?: () => void; bottomBar?: React.ReactNode; topInset?: number
 }) {
   const { c } = useDesign()
   const insets = useSafeAreaInsets()
@@ -42,7 +42,7 @@ export function Screen({ title, subtitle, onBack, actions, children, footer, scr
         </View>
       </View>
       {scroll ? (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: layout.gutter, paddingTop: space[2], paddingBottom: footer || bottomBar ? space[4] : insets.bottom + space[6], gap: layout.gap }}
+        <ScrollView style={{ flex: 1 }} scrollEnabled={scrollEnabled} contentContainerStyle={{ paddingHorizontal: layout.gutter, paddingTop: space[2], paddingBottom: footer || bottomBar ? space[4] : insets.bottom + space[6], gap: layout.gap }}
           refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.accentText} /> : undefined}>
           {children}
         </ScrollView>

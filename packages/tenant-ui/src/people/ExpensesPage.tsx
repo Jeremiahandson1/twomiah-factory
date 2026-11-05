@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, CheckCircle, Undo2, Paperclip, Receipt } from 'luci
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
+import { CostCodeField } from '../reporting/CostCodeField'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -75,7 +76,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   // expense it could approve and no way to. (Salon RR7 X3)
   const ownApprovalOk = ['owner', 'admin'].includes(String(auth.user?.role || ''))
   const canApprove = (r: Expense) => manager && (ownApprovalOk || !isMine(r))
-  const empty = () => ({ date: today(), category: categories[0]?.value || 'other', vendor: '', description: '', amount: '', billable: false, reimbursable: false, projectId: '', jobId: '' })
+  const empty = () => ({ date: today(), category: categories[0]?.value || 'other', vendor: '', description: '', amount: '', billable: false, reimbursable: false, projectId: '', jobId: '', costCode: '' })
   const [data, setData] = useState<Expense[]>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [jobs, setJobs] = useState<Array<{ id: string; title: string; number?: string }>>([])
@@ -141,7 +142,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     setSaving(true); setFormError('')
     try {
       // Unselected pickers post '' which the API treats as a (non-existent) FK — send null instead.
-      const payload = { date: form.date, category: form.category, vendor: form.vendor.trim() || null, description: form.description.trim(), amount: Number(form.amount), billable: form.billable, reimbursable: form.reimbursable, projectId: form.projectId || null, jobId: form.jobId || null }
+      const payload = { date: form.date, category: form.category, vendor: form.vendor.trim() || null, description: form.description.trim(), amount: Number(form.amount), billable: form.billable, reimbursable: form.reimbursable, projectId: form.projectId || null, jobId: form.jobId || null, ...(auth.hasFeature('cost_by_code') ? { costCode: form.costCode.trim() || null } : {}) }
       // The receipt's photo goes up after the expense is saved, against its id. A failed photo leaves the expense saved
       // and says so, rather than losing what was typed.
       const attach = async (expenseId?: string) => {
@@ -291,7 +292,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     })
   }
   const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setReceiptFile(null); setModalOpen(true); refreshCategories(true) }
-  const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setReceiptFile(null); setModalOpen(true); refreshCategories(false) }
+  const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '', costCode: (item as any).costCode || '' }); setFormError(''); setReceiptFile(null); setModalOpen(true); refreshCategories(false) }
   // A value with no label is title-cased the way the server does it, so `dispensary_fee` reads
   // "Dispensary Fee" in the table instead of showing the raw id. (Salon RR7 X1)
   const catLabel = (v: string) => categories.find((c) => c.value === v)?.label || String(v || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
@@ -458,6 +459,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           <Field label="Description *"><input value={form.description} onChange={set('description')} className={inputCls} /></Field>
           <Field label="Amount *"><input type="number" min="0.01" step="0.01" value={form.amount} onChange={set('amount')} className={inputCls} /></Field>
           {showJobs && <Field label={jobLabel}><select value={form.jobId} onChange={set('jobId')} className={inputCls}><option value="">None</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.number ? `${j.number} - ` : ''}{j.title}</option>)}</select></Field>}
+          {auth.hasFeature('cost_by_code') && <CostCodeField api={api as any} projectId={form.projectId} value={form.costCode} onChange={(v) => setForm((f) => ({ ...f, costCode: v }))} />}
           {showProjects && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           {receipts && (
             <Field label="Receipt photo">

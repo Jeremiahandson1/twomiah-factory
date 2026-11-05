@@ -145,7 +145,7 @@ export default function InspectionsPage() {
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('inspections:delete') },
       ]} />
       {checklistsOn && <ChecklistModal inspection={checklistFor} canEdit={can('inspections:update') && !!checklistFor && AWAITING.includes(checklistFor.status as string)} onClose={() => setChecklistFor(null)} onChanged={load} />}
-      {checklistsOn && <ChecklistTemplatesModal isOpen={templatesOpen} onClose={() => setTemplatesOpen(false)} types={inspectionTypes} canCreate={can('inspections:create')} canUpdate={can('inspections:update')} canDelete={can('inspections:delete')} />}
+      {checklistsOn && <ChecklistTemplatesModal isOpen={templatesOpen} onClose={() => setTemplatesOpen(false)} types={inspectionTypes} canCreate={can('inspections:create')} canUpdate={can('inspections:update')} canDelete={can('inspections:delete')} autoOn={hasFeature('inspection_auto_checklists')} />}
       <Modal isOpen={!!failing} onClose={() => setFailing(null)} title={`Fail ${(failing?.number as string) || 'inspection'}`} size="md">
         <div className="space-y-4">
           <div>

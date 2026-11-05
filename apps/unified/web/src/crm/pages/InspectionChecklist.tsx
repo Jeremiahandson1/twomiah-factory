@@ -11,10 +11,13 @@ import { useToast } from '../../shared'
 import { Modal, ConfirmModal } from '../ui/Modal'
 import { Button } from '../ui/DataTable'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { RecordPhotosField, uploadRecordPhotos, type SavedPhoto, type PendingPhoto } from '../ui/RecordPhotosField'
 
 export interface ChecklistLine { id: string; label: string; result: 'pending' | 'pass' | 'fail' | 'na'; note: string | null; punchListItemId: string | null }
-export interface ChecklistTemplate { id: string; name: string; type: string | null; items: Array<{ id: string; label: string }> }
+export interface ChecklistTemplate { id: string; name: string; type: string | null; items: Array<{ id: string; label: string }>; autoAttach?: boolean; jobTypes?: string[] }
+/** What the customer's sign-off on a visit looks like to the office (feature inspection_signature). The image is there only for a seat that updates inspections. */
+interface SignOff { signedBy: string | null; signedAt: string | null; signature?: string | null }
 
 const ANSWERS: Array<{ result: 'pass' | 'fail' | 'na'; label: string; Icon: typeof Check; on: string }> = [
   { result: 'pass', label: 'Pass', Icon: Check, on: 'bg-green-600 text-white border-green-600' },
@@ -23,7 +26,7 @@ const ANSWERS: Array<{ result: 'pass' | 'fail' | 'na'; label: string; Icon: type
 ]
 const off = 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-800'
 
-export function ChecklistModal({ inspection, canEdit, onClose, onChanged }: {
+export function ChecklistModal({ inspection, canEdit: mayEdit, onClose, onChanged }: {
   inspection: Record<string, unknown> | null
   /** inspections:update, and the visit has no result yet. */
   canEdit: boolean
@@ -41,11 +44,15 @@ export function ChecklistModal({ inspection, canEdit, onClose, onChanged }: {
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [pending, setPending] = useState<PendingPhoto[]>([])
   const [busy, setBusy] = useState(false)
+  const [signOff, setSignOff] = useState<SignOff | null>(null)
+  // Once the customer has signed, the lines are final (the server refuses a change), so the screen offers none.
+  const canEdit = mayEdit && !signOff?.signedAt
 
   const load = useCallback(async () => {
     if (!id) return
     try {
       const r: any = await api.get(`/api/inspection-checklists/${id}`)
+      setSignOff(r?.signedAt ? { signedBy: r.signedBy ?? null, signedAt: r.signedAt, signature: r.signature ?? null } : null)
       setLines(r?.items || [])
       setPhotos(r?.photos || [])
       setNotes(Object.fromEntries((r?.items || []).map((l: ChecklistLine) => [l.id, l.note || ''])))
@@ -53,7 +60,7 @@ export function ChecklistModal({ inspection, canEdit, onClose, onChanged }: {
   }, [id])
 
   useEffect(() => {
-    setLines(null); setTemplateId(''); setTyped(''); setAdding(''); setPending([])
+    setLines(null); setSignOff(null); setTemplateId(''); setTyped(''); setAdding(''); setPending([])
     if (!id) return
     load()
     api.get('/api/inspection-templates').then((r: any) => setTemplates(r?.data || [])).catch(() => setTemplates([]))
@@ -145,6 +152,12 @@ export function ChecklistModal({ inspection, canEdit, onClose, onChanged }: {
           ) : (
             <>
               <p className="text-sm text-gray-700 dark:text-slate-300">{done} of {lines.length} answered{failed > 0 ? ` · ${failed} failed` : ''}</p>
+              {signOff && (
+                <div className="rounded-lg border border-green-300 bg-green-50 p-3 text-sm text-green-900 dark:border-green-700 dark:bg-green-950 dark:text-green-200">
+                  <p className="font-medium">Signed by {signOff.signedBy || 'the customer'}{signOff.signedAt ? ` on ${whenDateTime(signOff.signedAt)}` : ''}. The answers below are final.</p>
+                  {signOff.signature && <img src={signOff.signature} alt={`Signature of ${signOff.signedBy || 'the customer'}`} className="mt-2 h-20 rounded bg-white border" />}
+                </div>
+              )}
               <ul className="space-y-3">
                 {lines.map((l) => (
                   <li key={l.id} className="rounded-lg border border-gray-200 dark:border-slate-700 p-3">
@@ -185,8 +198,10 @@ export function ChecklistModal({ inspection, canEdit, onClose, onChanged }: {
 }
 
 /** The saved checklists: make, change, delete. One line to a row; the order typed is the order on the visit. */
-export function ChecklistTemplatesModal({ isOpen, onClose, types, canCreate, canUpdate, canDelete }: {
+export function ChecklistTemplatesModal({ isOpen, onClose, types, canCreate, canUpdate, canDelete, autoOn = false }: {
   isOpen: boolean; onClose: () => void; types: string[]; canCreate: boolean; canUpdate: boolean; canDelete: boolean
+  /** Automatic Inspection Checklists (feature inspection_auto_checklists): offer "put this on new inspections by itself". */
+  autoOn?: boolean
 }) {
   const toast = useToast()
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([])
@@ -194,6 +209,8 @@ export function ChecklistTemplatesModal({ isOpen, onClose, types, canCreate, can
   const [name, setName] = useState('')
   const [type, setType] = useState('')
   const [text, setText] = useState('')
+  const [auto, setAuto] = useState(false)
+  const [kinds, setKinds] = useState('')
   const [toDelete, setToDelete] = useState<ChecklistTemplate | null>(null)
 
   const load = useCallback(() => { api.get('/api/inspection-templates').then((r: any) => setTemplates(r?.data || [])).catch((e: Error) => toast.error(e.message)) }, [])
@@ -202,14 +219,17 @@ export function ChecklistTemplatesModal({ isOpen, onClose, types, canCreate, can
   const open = (t: ChecklistTemplate | 'new') => {
     setEditing(t)
     setName(t === 'new' ? '' : t.name); setType(t === 'new' ? '' : t.type || ''); setText(t === 'new' ? '' : t.items.map((i) => i.label).join('\n'))
+    setAuto(t === 'new' ? false : !!t.autoAttach); setKinds(t === 'new' ? '' : (t.jobTypes || []).join(', '))
   }
   const save = async () => {
     const items = text.split('\n').map((s) => s.trim()).filter(Boolean)
     if (!name.trim()) { toast.error('Name the checklist'); return }
     if (!items.length) { toast.error('Add at least one line'); return }
+    // The two automatic settings are sent only where the feature is on (the server ignores them otherwise).
+    const automatic = autoOn ? { autoAttach: auto, jobTypes: kinds.split(',').map((x) => x.trim()).filter(Boolean) } : {}
     try {
-      if (editing === 'new') await api.post('/api/inspection-templates', { name: name.trim(), type: type || null, items })
-      else if (editing) await api.put(`/api/inspection-templates/${editing.id}`, { name: name.trim(), type: type || null, items })
+      if (editing === 'new') await api.post('/api/inspection-templates', { name: name.trim(), type: type || null, items, ...automatic })
+      else if (editing) await api.put(`/api/inspection-templates/${editing.id}`, { name: name.trim(), type: type || null, items, ...automatic })
       toast.success('Saved'); setEditing(null); load()
     } catch (err) { toast.error((err as Error).message) }
   }
@@ -228,6 +248,15 @@ export function ChecklistTemplatesModal({ isOpen, onClose, types, canCreate, can
             <div><label htmlFor="tpl-type" className="block text-sm font-medium mb-1">For inspections of type</label>
               <select id="tpl-type" value={type} onChange={(e) => setType(e.target.value)} className="w-full px-3 py-2 border rounded-lg"><option value="">Any</option>{types.map((t) => <option key={t} value={t}>{codeLabel(t)}</option>)}</select></div>
             <div><label htmlFor="tpl-lines" className="block text-sm font-medium mb-1">Lines to check, one on each row *</label><textarea id="tpl-lines" value={text} onChange={(e) => setText(e.target.value)} rows={8} className="w-full px-3 py-2 border rounded-lg" placeholder={'Hangers installed at every joist\nFirestopping complete'} /></div>
+            {autoOn && (
+              <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-700 p-3">
+                <label className="flex items-center gap-2 text-sm font-medium"><input id="tpl-auto" type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Put this on new inspections by itself</label>
+                {auto && (
+                  <div><label htmlFor="tpl-kinds" className="block text-sm font-medium mb-1">Only when the project has a job of these kinds</label>
+                    <input id="tpl-kinds" value={kinds} onChange={(e) => setKinds(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Framing crew, Deck (leave empty for every project)" /></div>
+                )}
+              </div>
+            )}
             <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={save}>Save checklist</Button></div>
           </div>
         ) : (
@@ -236,7 +265,7 @@ export function ChecklistTemplatesModal({ isOpen, onClose, types, canCreate, can
             <ul className="divide-y divide-gray-200 dark:divide-slate-700">
               {templates.map((t) => (
                 <li key={t.id} className="py-2 flex items-center justify-between gap-2">
-                  <div><p className="font-medium text-sm">{t.name}</p><p className="text-xs text-gray-600 dark:text-slate-400">{t.items.length} {t.items.length === 1 ? 'line' : 'lines'}{t.type ? ` · ${t.type}` : ''}</p></div>
+                  <div><p className="font-medium text-sm">{t.name}</p><p className="text-xs text-gray-600 dark:text-slate-400">{t.items.length} {t.items.length === 1 ? 'line' : 'lines'}{t.type ? ` · ${t.type}` : ''}{autoOn && t.autoAttach ? ` · goes on new inspections by itself${t.jobTypes?.length ? ` (${t.jobTypes.join(', ')})` : ''}` : ''}</p></div>
                   <div className="flex gap-2">
                     {canUpdate && <Button variant="secondary" size="sm" onClick={() => open(t)}>Edit</Button>}
                     {canDelete && <Button variant="secondary" size="sm" onClick={() => setToDelete(t)}>Delete</Button>}

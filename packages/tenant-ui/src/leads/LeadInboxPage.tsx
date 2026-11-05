@@ -4,7 +4,7 @@
 // no-op. Now every call goes through the api client (refresh + retry), errors are shown, and the inbox refreshes live
 // on lead:created / lead:updated when the template passes its socket subscribe.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink, ShieldAlert, ArrowRight } from 'lucide-react'
+import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink, ShieldAlert, ArrowRight, Flag, CalendarPlus, CalendarX } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TextButton } from '../text/TextButton'
@@ -13,6 +13,7 @@ import { useLeadPalette, chipColors } from './theme'
 import type { LeadPalette } from './theme'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { codeLabel } from '../labels/codes'
+import { companyLocalInput, companyFromLocalInput, whenDateTime } from '../time/companyClock'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
@@ -56,6 +57,12 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const mayTriage = config?.ownPermission ? mayWorkLeads : mayWorkContacts
   // Setting up a lead source is POST /api/leads/sources — leads:create. The empty inbox sent every seat there. (T68)
   const maySetUpSources = useMayWrite('leads:create')
+  // A site visit is a lead AND a calendar entry: it asks leads:update with schedule:create (book, move) or schedule:update (cancel).
+  const maySchedule = useMayWrite('schedule:create')
+  const mayReschedule = useMayWrite('schedule:update')
+  const mayBookVisit = config?.ownPermission === true && config?.siteVisit === true && mayWorkLeads && maySchedule
+  const mayCancelVisit = config?.ownPermission === true && config?.siteVisit === true && mayWorkLeads && mayReschedule
+  const mayMarkLost = config?.ownPermission === true && config?.lost === true && mayWorkLeads
   const offered: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   // The website form and call tracking post here on every vertical, so the inbox can always name them —
   // see BUILT_IN_LEAD_PLATFORMS. A vertical's own entry for the same id wins. A phone call arrives only through call
@@ -77,6 +84,11 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const [showStats, setShowStats] = useState(true)
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // The small form open under one enquiry: why it was lost, or when the site visit is.
+  const [panel, setPanel] = useState<{ id: string; kind: 'lost' | 'visit' } | null>(null)
+  const [reasons, setReasons] = useState<Array<{ id: string; label: string }>>([])
+  const [lostForm, setLostForm] = useState({ reason: '', note: '' })
+  const [visitForm, setVisitForm] = useState({ when: '', minutes: '60', notes: '' })
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
@@ -97,6 +109,10 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   }, [api])
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
+  useEffect(() => {
+    if (!config?.lost) return
+    api.get('/api/lead-lost/reasons').then((r: any) => setReasons((r?.data || []).map((x: any) => ({ id: x.id, label: x.label })))).catch(() => setReasons([]))
+  }, [api, config?.lost])
   useEffect(() => { fetchStats() }, [fetchStats])
   useEffect(() => {
     if (!subscribe) return
@@ -112,6 +128,27 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
     finally { setBusy(null) }
   }
   const updateStatus = (id: string, status: string) => act(`${id}:${status}`, () => api.put(`/api/leads/${id}/status`, { status }), 'Failed to update lead')
+  const reasonLabel = (id?: string | null) => reasons.find((r) => r.id === id)?.label || (id ? codeLabel(id) : '')
+  const openPanel = (lead: LeadRow, kind: 'lost' | 'visit') => {
+    setPanel({ id: lead.id, kind })
+    if (kind === 'lost') setLostForm({ reason: '', note: '' })
+    else setVisitForm({ when: lead.siteVisitAt ? companyLocalInput(lead.siteVisitAt) : '', minutes: '60', notes: '' })
+  }
+  const markLost = (id: string) => act(`${id}:lost`, async () => {
+    if (!lostForm.reason) throw new Error('Pick a reason')
+    await api.post(`/api/lead-lost/${id}`, { reason: lostForm.reason, ...(lostForm.note.trim() ? { note: lostForm.note.trim() } : {}) })
+    setPanel(null)
+    toast?.success('Marked lost')
+  }, 'Failed to mark the enquiry lost')
+  const reopenLost = (id: string) => act(`${id}:reopen`, async () => { await api.delete('/api/lead-lost', id); toast?.success('Enquiry reopened') }, 'Failed to reopen the enquiry')
+  const bookVisit = (id: string) => act(`${id}:visit`, async () => {
+    const at = companyFromLocalInput(visitForm.when)
+    if (!visitForm.when || Number.isNaN(at.getTime())) throw new Error('Pick the day and time of the visit')
+    await api.post(`/api/lead-site-visit/${id}`, { start: at.toISOString(), minutes: Number(visitForm.minutes) || 60, ...(visitForm.notes.trim() ? { notes: visitForm.notes.trim() } : {}) })
+    setPanel(null)
+    toast?.success('Site visit booked')
+  }, 'Failed to book the site visit')
+  const cancelVisit = (id: string) => act(`${id}:cancelvisit`, async () => { await api.delete('/api/lead-site-visit', id); toast?.success('Site visit cancelled') }, 'Failed to cancel the site visit')
   const convertToContact = (id: string) => act(`${id}:convert`, async () => {
     const res = await api.post(`/api/leads/${id}/convert`)
     if (toast) toast.success(res?.matched ? `Linked to existing contact ${res.contact?.name || ''}`.trim() : `Contact ${res?.contact?.name || ''} created`.trim())
@@ -210,6 +247,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
           <option value="converted">Converted{countOf('converted')}</option>
           <option value="dismissed">Dismissed{countOf('dismissed')}</option>
           {config?.spam && <option value="spam">Spam{countOf('spam')}</option>}
+          {config?.lost && <option value="lost">Lost{countOf('lost')}</option>}
         </select>
         <select value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }}>
           <option value="">All Sources</option>
@@ -271,6 +309,8 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                         <div style={{ color: c.faint, fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
                         {lead.jobType && <div><strong>{jobTypeLabel}:</strong> {codeLabel(lead.jobType)}</div>}
                         {lead.budget && <div><strong>Budget:</strong> {lead.budget}</div>}
+                        {config?.siteVisit && lead.siteVisitAt && <div data-testid="lead-site-visit"><strong>Site visit:</strong> {whenDateTime(lead.siteVisitAt, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+                        {config?.lost && lead.status === 'lost' && <div data-testid="lead-lost-reason"><strong>Lost because:</strong> {reasonLabel(lead.lostReason)}{lead.lostNote ? ` — ${lead.lostNote}` : ''}</div>}
                         {lead.description && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{lead.description}</div>}
                       </div>
                     </div>
@@ -295,12 +335,12 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                           <UserPlus size={14} /> Open contact
                         </Link>
                       ) : (
-                        mayConvert && lead.status !== 'spam' && <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
+                        mayConvert && lead.status !== 'spam' && lead.status !== 'lost' && <button disabled={busy === `${lead.id}:convert`} onClick={(e) => { e.stopPropagation(); convertToContact(lead.id) }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.chip.converted.bg, color: c.chip.converted.text, border: `1px solid ${c.chip.converted.text}44`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <UserPlus size={14} /> {busy === `${lead.id}:convert` ? 'Converting…' : 'Convert to Contact'}
                         </button>
                       )}
-                      {mayConvert && lead.status !== 'spam' && startAfterConvert.map((opt) => (
+                      {mayConvert && lead.status !== 'spam' && lead.status !== 'lost' && startAfterConvert.map((opt) => (
                         <button key={opt.id} disabled={busy === `${lead.id}:start:${opt.id}`} onClick={(e) => { e.stopPropagation(); convertAndStart(lead, opt) }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.link, border: `1px solid ${c.link}66`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <ArrowRight size={14} /> {busy === `${lead.id}:start:${opt.id}` ? 'Working…' : lead.status === 'converted' ? opt.label : `Convert and ${opt.label.charAt(0).toLowerCase()}${opt.label.slice(1)}`}
@@ -318,7 +358,31 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                           <RefreshCw size={14} /> Not spam
                         </button>
                       )}
-                      {mayTriage && lead.status !== 'dismissed' && lead.status !== 'converted' && lead.status !== 'spam' && (
+                      {mayBookVisit && ['new', 'contacted', 'converted'].includes(lead.status) && (
+                        <button disabled={busy === `${lead.id}:visit`} onClick={(e) => { e.stopPropagation(); openPanel(lead, 'visit') }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.link, border: `1px solid ${c.link}66`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <CalendarPlus size={14} /> {lead.siteVisitAt ? 'Move site visit' : 'Book site visit'}
+                        </button>
+                      )}
+                      {mayCancelVisit && lead.siteVisitAt && (
+                        <button disabled={busy === `${lead.id}:cancelvisit`} onClick={(e) => { e.stopPropagation(); cancelVisit(lead.id) }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <CalendarX size={14} /> Cancel site visit
+                        </button>
+                      )}
+                      {mayMarkLost && ['new', 'contacted'].includes(lead.status) && (
+                        <button disabled={busy === `${lead.id}:lost`} onClick={(e) => { e.stopPropagation(); openPanel(lead, 'lost') }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <Flag size={14} /> Lost
+                        </button>
+                      )}
+                      {mayMarkLost && lead.status === 'lost' && (
+                        <button disabled={busy === `${lead.id}:reopen`} onClick={(e) => { e.stopPropagation(); reopenLost(lead.id) }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.statNew, border: `1px solid ${c.statNew}66`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <RefreshCw size={14} /> Reopen
+                        </button>
+                      )}
+                      {mayTriage && lead.status !== 'dismissed' && lead.status !== 'converted' && lead.status !== 'spam' && lead.status !== 'lost' && (
                         <button disabled={busy === `${lead.id}:dismissed`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'dismissed') }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <XCircle size={14} /> Dismiss
@@ -331,6 +395,47 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                         </button>
                       )}
                     </div>
+                    {panel?.id === lead.id && panel.kind === 'lost' && (
+                      <div onClick={(e) => e.stopPropagation()} data-testid="lead-lost-form" style={{ marginTop: 12, padding: 12, border: `1px solid ${c.border}`, borderRadius: 8, display: 'grid', gap: 8 }}>
+                        <label style={{ fontSize: 12, color: c.muted }}>Why was it lost?
+                          <select aria-label="Reason" value={lostForm.reason} onChange={(e) => setLostForm((f) => ({ ...f, reason: e.target.value }))}
+                            style={{ display: 'block', marginTop: 4, padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text, width: '100%' }}>
+                            <option value="">Pick a reason</option>
+                            {reasons.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                          </select>
+                        </label>
+                        <label style={{ fontSize: 12, color: c.muted }}>Note {lostForm.reason === 'other' ? '(needed)' : '(optional)'}
+                          <input aria-label="Note" type="text" maxLength={500} value={lostForm.note} onChange={(e) => setLostForm((f) => ({ ...f, note: e.target.value }))}
+                            style={{ display: 'block', marginTop: 4, padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text, width: '100%' }} />
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button disabled={!lostForm.reason || (lostForm.reason === 'other' && !lostForm.note.trim()) || busy === `${lead.id}:lost`} onClick={() => markLost(lead.id)}
+                            style={{ padding: '6px 14px', borderRadius: 6, background: c.activeBtn, color: c.text, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Mark lost</button>
+                          <button onClick={() => setPanel(null)} style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.muted, border: `1px solid ${c.border}`, fontSize: 12, cursor: 'pointer' }}>Never mind</button>
+                        </div>
+                      </div>
+                    )}
+                    {panel?.id === lead.id && panel.kind === 'visit' && (
+                      <div onClick={(e) => e.stopPropagation()} data-testid="lead-visit-form" style={{ marginTop: 12, padding: 12, border: `1px solid ${c.border}`, borderRadius: 8, display: 'grid', gap: 8 }}>
+                        <label style={{ fontSize: 12, color: c.muted }}>Day and time
+                          <input aria-label="Day and time" type="datetime-local" value={visitForm.when} onChange={(e) => setVisitForm((f) => ({ ...f, when: e.target.value }))}
+                            style={{ display: 'block', marginTop: 4, padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }} />
+                        </label>
+                        <label style={{ fontSize: 12, color: c.muted }}>Length (minutes)
+                          <input aria-label="Length in minutes" type="number" min={15} max={480} step={15} value={visitForm.minutes} onChange={(e) => setVisitForm((f) => ({ ...f, minutes: e.target.value }))}
+                            style={{ display: 'block', marginTop: 4, padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text, width: 120 }} />
+                        </label>
+                        <label style={{ fontSize: 12, color: c.muted }}>Notes for whoever goes (optional)
+                          <input aria-label="Visit notes" type="text" maxLength={500} value={visitForm.notes} onChange={(e) => setVisitForm((f) => ({ ...f, notes: e.target.value }))}
+                            style={{ display: 'block', marginTop: 4, padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text, width: '100%' }} />
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button disabled={!visitForm.when || busy === `${lead.id}:visit`} onClick={() => bookVisit(lead.id)}
+                            style={{ padding: '6px 14px', borderRadius: 6, background: c.activeBtn, color: c.text, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{lead.siteVisitAt ? 'Move visit' : 'Book visit'}</button>
+                          <button onClick={() => setPanel(null)} style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.muted, border: `1px solid ${c.border}`, fontSize: 12, cursor: 'pointer' }}>Never mind</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

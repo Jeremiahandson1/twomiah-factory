@@ -116,11 +116,17 @@ export const lead = pgTable('lead', {
   location: text('location'),
   budget: text('budget'),
   description: text('description'),
-  status: text('status').default('new').notNull(), // new, contacted, converted, dismissed
+  status: text('status').default('new').notNull(), // new, contacted, converted, dismissed (spam; lost with lead_lost)
   rawPayload: json('raw_payload'),
   convertedContactId: text('converted_contact_id').references(() => contact.id, { onDelete: 'set null' }),
   contactedAt: timestamp('contacted_at'),
   receivedAt: timestamp('received_at').defaultNow().notNull(),
+  // Lost (feature lead_lost): status 'lost' with why. Site visit (feature lead_site_visit): when, and the calendar entry it made.
+  lostReason: text('lost_reason'),
+  lostNote: text('lost_note'),
+  lostAt: timestamp('lost_at'),
+  siteVisitAt: timestamp('site_visit_at'),
+  siteVisitEventId: text('site_visit_event_id'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
@@ -420,6 +426,8 @@ export const quoteLineItem = pgTable('quote_line_item', {
   markupPct: decimal('markup_pct', { precision: 7, scale: 2 }),
   allowance: boolean('allowance').default(false).notNull(),
   costCode: text('cost_code'),
+  /** A picture on the line the customer sees (quote_line_images, not ready): an https address or one of the business's /media photos. */
+  imageUrl: text('image_url'),
   // The proposal option this line belongs to (quote_proposal_option): a line of an option is optional, and is selected
   // exactly while its option is the one the customer chose. Null for the lines every option shares.
   proposalOptionId: text('proposal_option_id').references((): AnyPgColumn => quoteProposalOption.id, { onDelete: 'cascade' }),
@@ -450,6 +458,24 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('quote_proposal_option_quote_id_idx').on(t.quoteId),
+])
+
+/**
+ * A saved quote to start the next one from (quote_templates, server/crm/billing/quoteTemplates.ts). `body` is the quote as the
+ * New Quote form takes it — name, notes, terms, tax rate, deposit and the lines (with section, cost code, markup, allowance) —
+ * and never the customer, the dates or the proposal options. Cost-side line fields (unitCost, markupPct) are in it and are
+ * sent back only to a seat holding margin:read. Nothing here is a quote: it has no number, and no report counts it.
+ */
+export const quoteTemplate = pgTable('quote_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  body: json('body').notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('quote_template_company_id_idx').on(t.companyId),
 ])
 
 /**
@@ -614,6 +640,8 @@ export const timeEntry = pgTable('time_entry', {
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  /** The project budget line this time files under (project_budget_line.cost_code); null = uncoded. */
+  costCode: text('cost_code'),
 }, (t) => [
   index('time_entry_company_id_idx').on(t.companyId),
   index('time_entry_user_id_idx').on(t.userId),
@@ -658,6 +686,8 @@ export const expense = pgTable('expense', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  /** The project budget line this expense files under (project_budget_line.cost_code); null = uncoded. */
+  costCode: text('cost_code'),
 }, (t) => [
   index('expense_company_id_idx').on(t.companyId),
   index('expense_project_id_idx').on(t.projectId),

@@ -123,3 +123,30 @@ export async function jobsForProfitability(
     .orderBy(desc(job.createdAt))
     .limit(ceiling)
 }
+
+/**
+ * Actual cost on a project's jobs, filed by cost code (cost_by_code): the same four ledgers as the job roll-up and the same
+ * arithmetic — time at the entry's rate, else the person's (the labourByJob rate), expenses at their amount, vendor bills that are
+ * spend (open, partial, paid) at their amount, inventory drawn at its cost. A record with no cost code files under `null`
+ * (the caller calls it "Uncoded"). Inventory drawn has no cost code to carry, so it is always uncoded.
+ */
+export async function costByCode(db: any, companyId: string, jobIds: string[]) {
+  if (!jobIds.length) return [] as Array<{ costCode: string | null; ledger: 'labour' | 'materials' | 'expenses' | 'bills'; cost: string }>
+  const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate}, NULLIF(${teamMember.hourlyRate}, 0))`
+  const labour = await db.select({ costCode: timeEntry.costCode, cost: sql<string>`COALESCE(SUM(${timeEntry.hours} * COALESCE(${rate}, 0)), 0)` })
+    .from(timeEntry).leftJoin(user, eq(timeEntry.userId, user.id)).leftJoin(teamMember, rosterJoin(companyId))
+    .where(and(eq(timeEntry.companyId, companyId), inArray(timeEntry.jobId, jobIds))).groupBy(timeEntry.costCode)
+  const materials = await db.select({ cost: sql<string>`COALESCE(SUM(${inventoryUsage.quantity} * COALESCE(${inventoryUsage.unitCost}, ${inventoryItem.unitCost}, 0)), 0)` })
+    .from(inventoryUsage).leftJoin(inventoryItem, eq(inventoryUsage.itemId, inventoryItem.id))
+    .where(and(eq(inventoryUsage.companyId, companyId), inArray(inventoryUsage.jobId, jobIds)))
+  const expenses = await db.select({ costCode: expense.costCode, cost: sql<string>`COALESCE(SUM(${expense.amount}), 0)` })
+    .from(expense).where(and(eq(expense.companyId, companyId), inArray(expense.jobId, jobIds))).groupBy(expense.costCode)
+  const bills = await db.select({ costCode: vendorBill.costCode, cost: sql<string>`COALESCE(SUM(${vendorBill.amount}), 0)` })
+    .from(vendorBill).where(and(eq(vendorBill.companyId, companyId), inArray(vendorBill.jobId, jobIds), inArray(vendorBill.status, BILL_IS_SPEND))).groupBy(vendorBill.costCode)
+  return [
+    ...labour.map((r: any) => ({ costCode: r.costCode as string | null, ledger: 'labour' as const, cost: r.cost as string })),
+    ...materials.map((r: any) => ({ costCode: null, ledger: 'materials' as const, cost: r.cost as string })),
+    ...expenses.map((r: any) => ({ costCode: r.costCode as string | null, ledger: 'expenses' as const, cost: r.cost as string })),
+    ...bills.map((r: any) => ({ costCode: r.costCode as string | null, ledger: 'bills' as const, cost: r.cost as string })),
+  ]
+}

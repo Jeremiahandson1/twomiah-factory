@@ -248,6 +248,8 @@ export function createTimeRoutes(deps: TimeDeps) {
     billable: z.boolean().optional(),
     projectId: fk,
     jobId: fk,
+    /** The budget line this time files under (project budget by cost code). Optional. */
+    costCode: z.string().trim().max(60).transform(stripTags).optional().nullable(),
     /** managers may log time for someone else */
     userId: z.string().optional().nullable(),
   })
@@ -532,6 +534,7 @@ export function createTimeRoutes(deps: TimeDeps) {
       date: entryDate, hours: String(derived.hours), clockIn: derived.clockIn || null, clockOut: derived.clockOut || null,
       hourlyRate: rate, description: data.description ?? data.notes ?? null,
       billable: data.billable ?? true,
+      ...(data.costCode ? { costCode: data.costCode } : {}),
     }).returning()
     audit?.log({ action: 'create', entity: 'time_entry', entityId: row.id, metadata: { hours: row.hours, userId: targetUserId }, req: { user: currentUser } })
     return c.json(row, 201)
@@ -567,6 +570,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     if (data.billable !== undefined) updates.billable = data.billable
     if (data.projectId !== undefined) updates.projectId = data.projectId
     if (data.jobId !== undefined) updates.jobId = data.jobId
+    if (data.costCode !== undefined) updates.costCode = data.costCode || null
     if (data.approved !== undefined) {
       if (!isManager(currentUser)) return c.json({ error: 'Only owners, admins and managers can approve time' }, 403)
       if (data.approved) {
