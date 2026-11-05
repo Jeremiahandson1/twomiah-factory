@@ -620,8 +620,10 @@ export function createStripeService(deps: StripeServiceDeps) {
     if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
     const stripeAccount = await connectedAccountFor(p.companyId)
     if (!stripeAccount) throw Object.assign(new Error('This business has not connected its Stripe account'), { status: 400 })
+    // The connected-account scope (check-connect-charging), with this refund's idempotency key beside it.
+    const requestOpts = (account: string) => ({ stripeAccount: account, idempotencyKey: p.idempotencyKey })
     try {
-      const refund = await stripe.refunds.create({ payment_intent: p.paymentIntentId }, { stripeAccount, idempotencyKey: p.idempotencyKey })
+      const refund = await stripe.refunds.create({ payment_intent: p.paymentIntentId }, requestOpts(stripeAccount))
       return { ok: true, refundId: refund.id }
     } catch (err: any) {
       if (/already.*refund/i.test(err?.message || '')) return { ok: true, refundId: 'already_refunded' }

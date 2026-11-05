@@ -3,6 +3,7 @@
 // one POST /api/quotes — so numbering, totals and every rule on a new quote are the quote route's own.
 import React, { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../auth/AuthContext'
+import { useMayWrite } from '../auth/PermissionsContext'
 import type { LineItemInput } from './types'
 import { Button, ConfirmModal, Field, Modal, errMsg, inputCls, money } from './ui'
 
@@ -36,6 +37,7 @@ export function formLines(lineItems: any[] | undefined, blank: () => LineItemInp
 export function SaveTemplateModal({ api, toast, quote, onClose }: { api: Api; toast: Toast; quote: { id: string; name: string } | null; onClose: () => void }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
+  const mayCreate = useMayWrite('quotes:create')   // POST /api/quote-templates
   useEffect(() => { setName(quote?.name || '') }, [quote])
   const save = async () => {
     if (!quote) return
@@ -47,7 +49,8 @@ export function SaveTemplateModal({ api, toast, quote, onClose }: { api: Api; to
       <div className="space-y-4">
         <p className="text-sm text-gray-600 dark:text-slate-300">The lines, wording, tax and deposit are kept. The customer and dates are not, so you pick them each time you use it.</p>
         <Field label="Template name"><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} maxLength={120} autoFocus /></Field>
-        <div className="flex justify-end gap-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save template'}</Button></div>
+        <div className="flex justify-end gap-3"><Button variant="secondary" onClick={onClose}>Cancel</Button>{mayCreate && <Button onClick={save} disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save template'}</Button>}</div>
+        {!mayCreate && <p className="text-sm text-gray-600 dark:text-slate-300">Your role cannot save templates.</p>}
       </div>
     </Modal>
   )
@@ -58,6 +61,8 @@ export function TemplatePickerModal({ api, toast, open, onClose, onUse, mayDelet
   const [rows, setRows] = useState<any[] | null>(null)
   const [busy, setBusy] = useState('')
   const [removing, setRemoving] = useState<any | null>(null)
+  // DELETE /api/quote-templates/:id asks quotes:delete; the page's own mayDelete is asked as well.
+  const mayRemove = useMayWrite('quotes:delete') && mayDelete
   const load = () => api.get('/api/quote-templates').then((r: any) => setRows(r?.data || [])).catch(() => setRows([]))
   useEffect(() => { if (open) { setRows(null); load() } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const use = async (id: string) => {
@@ -80,7 +85,7 @@ export function TemplatePickerModal({ api, toast, open, onClose, onUse, mayDelet
                 <div className="min-w-0"><p className="font-medium text-gray-900 dark:text-white truncate">{t.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">{t.lineCount} {t.lineCount === 1 ? 'line' : 'lines'} · {money(t.total)}</p></div>
                 <div className="flex gap-2 shrink-0">
                   <Button onClick={() => use(t.id)} disabled={busy === t.id}>{busy === t.id ? 'Opening…' : 'Use'}</Button>
-                  {mayDelete && <Button variant="secondary" onClick={() => setRemoving(t)} aria-label={`Delete ${t.name}`}>Delete</Button>}
+                  {mayRemove && <Button variant="secondary" onClick={() => setRemoving(t)} aria-label={`Delete ${t.name}`}>Delete</Button>}
                 </div>
               </li>
             ))}

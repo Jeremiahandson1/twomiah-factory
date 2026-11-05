@@ -37,7 +37,7 @@ export function PortalAppointments() {
   const go = (t: Tab, extra: Record<string, string> = {}) => setParams(t === 'upcoming' ? {} : { tab: t, ...extra })
   const tabBtn = (t: Tab, label: string, Icon: React.ComponentType<{ className?: string }>) => (
     <button type="button" role="tab" aria-selected={tab === t} onClick={() => go(t)}
-      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${tab === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600'}`}>
+      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${tab === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600'}`}>
       <Icon className="w-4 h-4" />{label}
     </button>
   )
