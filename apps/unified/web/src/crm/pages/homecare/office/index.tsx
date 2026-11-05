@@ -13,7 +13,7 @@
 import type { ReactElement } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import {
-  AlertTriangle, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
+  AlertTriangle, Award, BarChart3, Bell, BellRing, Calculator, ClipboardList, CreditCard, FileText, HeartHandshake, KeyRound, MessageSquare, Plug, ScrollText, ShieldCheck,
   Smartphone, ToggleLeft, TrendingUp, Upload, UserCog,
 } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
@@ -32,8 +32,19 @@ const MessageBoard = page(() => import('./MessageBoard'))
 const NotificationCenter = page(() => import('./NotificationCenter'))
 const IntegrationsHub = page(() => import('./IntegrationsHub'))
 const UserManagement = page(() => import('./UserManagement'))
+const CredentialTracking = page(() => import('./CredentialTracking'))
+const VisitQuestions = page(() => import('./VisitQuestions'))
+const VisitItems = page(() => import('./VisitItems'))
+const VisitTaskReport = page(() => import('./VisitTaskReport'))
+const FamilyMessages = page(() => import('./FamilyMessages'))
+const PickupRewards = page(() => import('./PickupRewards'))
+const OpenShiftOffers = page(() => import('./OpenShiftOffers'))
 const MarginReports = page(() => import('./MarginReports'))
+const ReportBuilder = page(() => import('./ReportBuilder'))
+const ReportDelivery = page(() => import('./ReportBuilder').then((m) => ({ default: m.ReportDelivery })))
+const CaregiverRetention = page(() => import('./CaregiverRetention'))
 const DataImport = page(() => import('./DataImport'))
+const MigrationRequest = page(() => import('./MigrationRequest'))
 const PayRules = page(() => import('./PayRules'))
 const Autopay = page(() => import('./Autopay'))
 const LtcBilling = page(() => import('./LtcBilling'))
@@ -50,12 +61,20 @@ const Home = page(() => import('./OfficeHome'))
  *   reports             care-billing:read     planning/reports.ts (the overview; other tabs ask more, the page says so)
  *   margin-reports      care-billing:read     planning/marginReports.ts: client margin asks billing AND payroll read, turnover asks
  *                                             care-hr:read; the page shows each tab only to whoever holds its permission
+ *   report-builder      care-billing:read     planning/reportBuilder.ts: the builder and the money dashboards ask billing (pay columns
+ *                                             need payroll read too), the caregiver dashboard and workforce / performance ask care-hr:read,
+ *                                             saving reports, dashboards and scheduled emails asks care-billing:update
+ *   caregiver-retention care-hr:read          hr/caregiverSurveys.ts: reading surveys, results and the at-risk list asks care-hr:read;
+ *                                             writing the survey set-up asks care-hr:update
  *   pay-rules           care-payroll:read     payroll/payRulesRoutes.ts: reading asks :read, saving and the ADP / Paychex files ask :update (the page shows those only to whoever holds it)
  *   autopay             care-billing:read     billing/autopayRoutes.ts: reading asks :read; saving a card, removing it and "Try now" ask :update (the page shows those only to whoever holds it)
  *   ltc-billing         care-billing:read     billing/ltcRoutes.ts: reading and the claim packet ask :read; saving a policy asks :update (the page shows the form's Save only to whoever holds it)
  *   split-billing       care-billing:read     billing/splitRoutes.ts: reading asks :read; saving a client's split asks :update (the page shows Save only to whoever holds it)
  *   data-import         care-clients:create   office/csvImport.ts: each kind asks its own area's :create (clients care-clients, caregivers care-hr,
- *                                             recurring shifts care-schedule) and the page offers only the kinds the person holds
+ *                                             recurring shifts care-schedule, authorizations / payers / billing history care-billing, pay rates /
+ *                                             expenses care-payroll, certifications / training / leave / reviews care-hr) and the page offers only
+ *                                             the kinds the person holds
+ *   migration           care-clients:create   office/migration.ts (the assisted migration: office business, the same verb as importing clients)
  *   communication-log   care-portal:update    portals/communication.ts (caregivers hold care-portal:read)
  *   sms                 care-portal:update    portals/sms.ts
  *   alerts              care-compliance:read  visits/alerts.ts
@@ -76,7 +95,17 @@ const PERMISSION: Record<string, string> = {
   '/crm/incidents': 'care-compliance:read',
   '/crm/reports': 'care-billing:read',
   '/crm/margin-reports': 'care-billing:read',
+  '/crm/report-builder': 'care-billing:read',
+  '/crm/caregiver-retention': 'care-hr:read',
+  '/crm/credentials': 'care-hr:read',
+  '/crm/visit-questions': 'care-clients:update',
+  '/crm/visit-items': 'care-clients:update',
+  '/crm/visit-tasks': 'care-clients:update',
+  '/crm/family-messages': 'care-portal:update',
+  '/crm/pickup-rewards': 'care-schedule:update',
+  '/crm/open-shift-offers': 'care-schedule:update',
   '/crm/data-import': 'care-clients:create',
+  '/crm/migration': 'care-clients:create',
   '/crm/pay-rules': 'care-payroll:read',
   '/crm/autopay': 'care-billing:read',
   '/crm/ltc-billing': 'care-billing:read',
@@ -97,8 +126,19 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-incidents" path="incidents" element={<IncidentReporting />} />,
   <Route key="hc-office-incident" path="incidents/:id" element={<IncidentDetail />} />,
   <Route key="hc-office-reports" path="reports" element={<ReportsAnalytics />} />,
+  <Route key="hc-office-credentials" path="credentials" element={<CredentialTracking />} />,
+  <Route key="hc-office-visit-questions" path="visit-questions" element={<VisitQuestions />} />,
+  <Route key="hc-office-visit-items" path="visit-items" element={<VisitItems />} />,
+  <Route key="hc-office-visit-tasks" path="visit-tasks" element={<VisitTaskReport />} />,
+  <Route key="hc-office-family-messages" path="family-messages" element={<FamilyMessages />} />,
+  <Route key="hc-office-pickup-rewards" path="pickup-rewards" element={<PickupRewards />} />,
+  <Route key="hc-office-open-shift-offers" path="open-shift-offers" element={<OpenShiftOffers />} />,
   <Route key="hc-office-margin-reports" path="margin-reports" element={<MarginReports />} />,
+  <Route key="hc-office-report-builder" path="report-builder" element={<ReportBuilder />} />,
+  <Route key="hc-office-report-delivery" path="report-builder/deliveries/:id" element={<ReportDelivery />} />,
+  <Route key="hc-office-caregiver-retention" path="caregiver-retention" element={<CaregiverRetention />} />,
   <Route key="hc-office-data-import" path="data-import" element={<DataImport />} />,
+  <Route key="hc-office-migration" path="migration" element={<MigrationRequest />} />,
   <Route key="hc-office-pay-rules" path="pay-rules" element={<PayRules />} />,
   <Route key="hc-office-autopay" path="autopay" element={<Autopay />} />,
   <Route key="hc-office-ltc-billing" path="ltc-billing" element={<LtcBilling />} />,
@@ -120,8 +160,18 @@ export const nav: NavItem[] = [
   { to: '/crm/login-activity', icon: KeyRound, label: 'Login Activity', permission: PERMISSION['/crm/login-activity'] },
   { to: '/crm/incidents', icon: AlertTriangle, label: 'Incidents', permission: PERMISSION['/crm/incidents'] },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports & Analytics', permission: PERMISSION['/crm/reports'], features: ['reports'] },
+  { to: '/crm/credentials', icon: ShieldCheck, label: 'Credentials', permission: PERMISSION['/crm/credentials'], features: ['care_cert_reminders'] },
+  { to: '/crm/visit-questions', icon: ClipboardList, label: 'Clock-in questions', permission: PERMISSION['/crm/visit-questions'], features: ['care_visit_questions'] },
+  { to: '/crm/visit-items', icon: ClipboardList, label: 'In-visit items', permission: PERMISSION['/crm/visit-items'], features: ['care_visit_items'] },
+  { to: '/crm/visit-tasks', icon: ClipboardList, label: 'Visit tasks & signatures', permission: PERMISSION['/crm/visit-tasks'], features: ['care_required_tasks', 'care_visit_signature'] },
+  { to: '/crm/pickup-rewards', icon: Award, label: 'Pickup bonus & rewards', permission: PERMISSION['/crm/pickup-rewards'], features: ['care_pickup_rewards'] },
+  { to: '/crm/open-shift-offers', icon: BellRing, label: 'Open shift offers', permission: PERMISSION['/crm/open-shift-offers'], features: ['care_open_shift_offers'] },
+  { to: '/crm/family-messages', icon: MessageSquare, label: 'Family messages', permission: PERMISSION['/crm/family-messages'], features: ['care_family_comms'] },
   { to: '/crm/margin-reports', icon: TrendingUp, label: 'Margin & turnover', permission: PERMISSION['/crm/margin-reports'], features: ['care_margin_reports'] },
-  { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create'], features: ['care_import'] },
+  { to: '/crm/report-builder', icon: BarChart3, label: 'Reports & dashboards', permission: PERMISSION['/crm/report-builder'], features: ['care_report_builder'] },
+  { to: '/crm/caregiver-retention', icon: HeartHandshake, label: 'Caregiver satisfaction & retention', permission: PERMISSION['/crm/caregiver-retention'], features: ['care_caregiver_surveys'] },
+  { to: '/crm/data-import', icon: Upload, label: 'Import from a spreadsheet', permission: ['care-clients:create', 'care-hr:create', 'care-schedule:create', 'care-billing:create', 'care-payroll:create'], features: ['care_import'] },
+  { to: '/crm/migration', icon: Upload, label: 'Assisted migration', permission: PERMISSION['/crm/migration'], features: ['care_migration'] },
   { to: '/crm/pay-rules', icon: Calculator, label: 'Pay rules', permission: PERMISSION['/crm/pay-rules'], features: ['care_payroll_rules'] },
   { to: '/crm/autopay', icon: CreditCard, label: 'Automatic payments', permission: PERMISSION['/crm/autopay'], features: ['care_autopay'] },
   { to: '/crm/ltc-billing', icon: FileText, label: 'Long-term care insurance', permission: PERMISSION['/crm/ltc-billing'], features: ['care_ltc_billing'] },

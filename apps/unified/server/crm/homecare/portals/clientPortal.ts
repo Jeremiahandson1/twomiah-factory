@@ -707,6 +707,29 @@ export function createClientPortalRoutes(core: HomecareCore, d: CrmDeps) {
     return all(c, rows)
   })
 
+  // The card or bank account that pays the invoices (row 22, care_autopay): the client sees what is on file, opens Stripe's own
+  // page to save or replace it, or removes it. An administrator's preview may look but not change. 404 without the feature.
+  const paymentsOff = async (c: Context<PortalEnv>) => (await d.features.isFeatureEnabled(c.get('portalCompanyId'), 'care_autopay')) ? null : fail(c, 404, 'Not found')
+  app.get('/payment-method', portalAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    return one(c, await core.autopay.portalStatus(c.get('portalCompanyId'), c.get('portalClientId')))
+  })
+  app.post('/payment-method/setup', portalAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (c.get('portalPreview')) return fail(c, 403, 'A preview cannot change the payment method.')
+    const b = await c.req.json().catch(() => ({} as any))
+    const base = `${frontendUrl()}/portal`
+    const out = await core.autopay.startSetup(c.get('portalCompanyId'), c.get('portalClientId'), { success: `${base}?saved=1`, cancel: `${base}?cancelled=1` }, null, { method: b?.method ? String(b.method) : 'card', by: 'client' })
+    if ('problem' in out) return fail(c, out.status as any, out.problem, out.code)
+    return one(c, out)
+  })
+  app.delete('/payment-method', portalAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (c.get('portalPreview')) return fail(c, 403, 'A preview cannot change the payment method.')
+    if (!(await core.autopay.remove(c.get('portalCompanyId'), c.get('portalClientId')))) return fail(c, 404, 'There is no card or bank account on file.')
+    return done(c)
+  })
+
   // A payment on an invoice (Stripe): the client's own released, unpaid invoice.
   app.post('/invoices/:invoiceId/pay', portalAuth, async (c) => {
     const clientId = c.get('portalClientId')

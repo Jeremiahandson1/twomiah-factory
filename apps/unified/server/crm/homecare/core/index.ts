@@ -27,15 +27,31 @@ import { createVitals } from './vitals.ts'
 import { createShiftReminders } from './shiftReminders.ts'
 import { createOvertimeAlerts } from './overtimeAlerts.ts'
 import { createCertReminders } from './certReminders.ts'
+import { createMedicationReminders } from './medicationReminders.ts'
+import { createVisitQuestions } from './visitQuestions.ts'
+import { createVisitItems } from './visitItems.ts'
+import { createVisitSignature } from './visitSignature.ts'
+import { createTaskReport } from './taskReport.ts'
+import { createFamilyContent } from './familyContent.ts'
+import { createPickupRewards } from './pickupRewards.ts'
+import { createOpenShiftOffers } from './openShiftOffers.ts'
 import { createFamilyTexts } from './familyTexts.ts'
+import { createFamilyComms, wordingProblem } from './familyComms.ts'
+import { createAlertRules } from './alertRules.ts'
 import { createRequiredTasks } from './requiredTasks.ts'
 import { createSupervisory } from './supervisory.ts'
 import { createMargin } from './margin.ts'
 import { createCsvImport } from './csvImport.ts'
+import { createImportAttach } from './importAttach.ts'
+import { createMigration } from './migration.ts'
 import { createAutopay } from './autopay.ts'
 import { createLtc } from './ltc.ts'
 import { createOfflineSaves } from './offlineSaves.ts'
 import { createVisitJobs } from './visitJobs.ts'
+import { createReportBuilder } from './reportBuilder.ts'
+import { createReportSchedules } from './reportSchedules.ts'
+import { createRetentionRisk } from './retentionRisk.ts'
+import { createCaregiverSurveys } from './caregiverSurveys.ts'
 import { homecareTemplates, homecareEmail } from './messages.ts'
 import { createStaffEmails } from './staffEmails.ts'
 import { createEligibilityEngine } from './eligibilityEngine.ts'
@@ -53,6 +69,8 @@ import { createCarePlanSchedule } from './carePlanSchedule.ts'
 import { createInvoiceEngine } from './invoiceEngine.ts'
 import { createClaimsEngine } from './claimsEngine.ts'
 import { createPayrollPay } from './payrollPay.ts'
+import { createVisitMileage } from './visitMileage.ts'
+import { createPayrollProviders } from './payrollProviders.ts'
 import { createIncidentPdf } from './incidentPdf.ts'
 
 // Home care's email messages are registered once per email service (register refuses a name twice).
@@ -98,8 +116,12 @@ function buildHomecareCore(d: CrmDeps) {
   const invoices = createInvoiceEngine(d, { time })
   const claims = createClaimsEngine(d)
   const payroll = createPayrollPay(d)
+  const visitMileage = createVisitMileage(d, { mileage })
+  const payrollProviders = createPayrollProviders(d)
   const margin = createMargin(d, { invoices })
   const csvImport = createCsvImport(d, { time })
+  const importAttach = createImportAttach(d, { csvImport })
+  const migration = createMigration(d, { csvImport, importAttach })
   const ltc = createLtc(d)
 
   // Hiring and onboarding.
@@ -112,12 +134,28 @@ function buildHomecareCore(d: CrmDeps) {
   const reminders = createShiftReminders(d, { time, notify })
   const overtime = createOvertimeAlerts(d, { time, profile, notify })
   const certReminders = createCertReminders(d, { time, notify })
+  const medicationReminders = createMedicationReminders(d, { time, notify })
+  const visitQuestions = createVisitQuestions(d, { notify })
+  const visitItems = createVisitItems(d)
   const autopay = createAutopay(d, { invoices, time, notify, email })
   const offlineSaves = createOfflineSaves(d, { time, notify })
-  const familyTexts = createFamilyTexts(d, { time, notify, profile })
+  const visitSignature = createVisitSignature(d, { offlineSaves })
+  const taskReport = createTaskReport(d, { time })
+  const familyContent = createFamilyContent(d, { time, taskReport, offlineSaves })
+  const pickupRewards = createPickupRewards(d, { time })
+  const openShiftOffers = createOpenShiftOffers(d, { time, notify, prefs, agencyName: (companyId: string) => profile.agencyShortName(companyId) })
+  const familyComms = createFamilyComms(d, { notify, profile })
+  const familyTexts = createFamilyTexts(d, { time, notify, profile, comms: familyComms })
+  const alertRules = createAlertRules(d, { wordingProblem })
   const requiredTasks = createRequiredTasks(d, { time })
   const supervisory = createSupervisory(d, { time })
-  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, autopay })
+  // Caregiver satisfaction surveys and the retention risk (row 13), then reports (row 12): the builder (its retention tile reads
+  // the surveys), the dashboards and the scheduled report emails.
+  const risk = createRetentionRisk(d, { time })
+  const caregiverSurveys = createCaregiverSurveys(d, { time, notify, risk })
+  const reportBuilder = createReportBuilder(d, { time, margin, retention: caregiverSurveys })
+  const reportSchedules = createReportSchedules(d, { time, margin, reportBuilder })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay, reportSchedules, caregiverSurveys })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {
@@ -126,9 +164,9 @@ function buildHomecareCore(d: CrmDeps) {
     schedules, prefs, notify, medications, vitals,
     email,
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
-    invoices, claims, payroll, margin, csvImport, autopay, ltc, offlineSaves,
+    invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, importAttach, migration, autopay, ltc, offlineSaves, reportBuilder, reportSchedules, risk, caregiverSurveys,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, certReminders, familyTexts, requiredTasks, supervisory, worcsPoll,
+    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

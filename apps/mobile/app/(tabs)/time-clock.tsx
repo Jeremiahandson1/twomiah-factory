@@ -24,8 +24,15 @@ import { CareScreen, fullAddress, openDirections } from '../../src/care/screen'
 import { Banner, BannerText, Button, Card, Field, SectionTitle, SOLID, useTone } from '../../src/care/ui'
 import { SandataIdBox, SandataPromptCard, VisitSandata, SandataHelp } from '../../src/care/components/Sandata'
 import { CareTaskChecklist, MedicationLog, VisitPhotos, VitalsForm } from '../../src/care/components/VisitParts'
+import { VisitItems } from '../../src/care/components/VisitItems'
+import { ClientSignature } from '../../src/care/components/ClientSignature'
+import { VisitMeals } from '../../src/care/components/VisitMeals'
+import { useOpenRequired, resetOpen } from '../../src/care/openRequired'
+import { clearPending, loadPending } from '../../src/care/visitSignatureStore'
 import { ConfirmSheet } from '../../src/components/ConfirmSheet'
 import { needsSandata } from '../../src/care/sandata'
+import { VisitQuestionFields, useVisitQuestions } from '../../src/care/components/VisitQuestions'
+import { answersBody, signatureBody, type VisitAnswers } from '../../src/care/rules'
 
 function ActiveVisitView() {
   const t = useTheme()
@@ -36,6 +43,10 @@ function ActiveVisitView() {
   const [now, setNow] = useState(Date.now())
   const [outOpen, setOutOpen] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
+  // The agency's clock-out questions (care_visit_questions): none unless the agency has them.
+  const outQuestions = useVisitQuestions('clock_out')
+  const [outAnswers, setOutAnswers] = useState<VisitAnswers>({})
+  const [outMissing, setOutMissing] = useState<string[]>([])
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [])
   const start = new Date(a.startTime).getTime()
   const elapsed = isNaN(start) ? 0 : (now - start) / 1000
@@ -45,13 +56,24 @@ function ActiveVisitView() {
   const success = useTone('success')
   const dangerTone = useTone('danger')
   const todays = care.todayVisits.find((v) => v.clientId === a.clientId)
+  // Clock out stays grey while a REQUIRED task, in-visit item or the client's signature is still open: each part of the screen reports
+  // what it is waiting for. A visit saved on the phone without signal has no task list or items to report (the server flags such a
+  // clock-out for the office instead), but the signature rule is kept on the phone, so that still holds.
+  const stillOpen = useOpenRequired()
 
   const doClockOut = async () => {
     setNoteError(null)
-    const r = await care.clockOut(care.visitNote)
+    // The server holds a live clock-out until the required questions are answered (409, handled below); a clock-out with no signal is
+    // saved with whatever was answered.
+    setOutMissing([])
+    const signed = await loadPending(a.id)
+    const r = await care.clockOut(care.visitNote, answersBody(outQuestions, outAnswers), signed ? signatureBody(signed) : null)
     if (!r.ok) {
+      if (r.code === 'signature_required') { setOutOpen(false); haptics.error(); Alert.alert('The client needs to sign', r.error || ''); return }
+      if (r.code === 'questions_required') { setOutMissing(outQuestions.filter((q) => q.required).map((q) => q.id)); haptics.error(); Alert.alert('Answer the questions first', r.error || ''); return }
       haptics.error()
       // A note the server or the offline rule requires: keep the sheet open and say why.
+      if (r.code === 'required_items_pending') { setOutOpen(false); Alert.alert('Finish these first', r.error || ''); return }
       if (r.code === 'va_note_required' || r.code === 'note_required') { setNoteError(r.error || 'A visit note is required.'); return }
       setOutOpen(false)
       Alert.alert('Clock-out failed', r.error || 'Please try again.')
@@ -59,6 +81,7 @@ function ActiveVisitView() {
     }
     haptics.success()
     setOutOpen(false)
+    clearPending(a.id); resetOpen()
     if (r.queued) Alert.alert('Saved on your phone', r.message || '')
     else toast.success(r.message || 'Clocked out.')
   }
@@ -89,6 +112,9 @@ function ActiveVisitView() {
       <SectionTitle>Care tasks</SectionTitle>
       <CareTaskChecklist timeEntryId={a.id} />
 
+      <VisitItems timeEntryId={a.id} />
+      <VisitMeals visitId={a.id} />
+      <ClientSignature visitId={a.id} clientName={name} />
       <MedicationLog clientId={a.clientId} timeEntryId={a.id} />
       <VitalsForm clientId={a.clientId} timeEntryId={a.id} />
       <VisitPhotos />
@@ -98,7 +124,10 @@ function ActiveVisitView() {
         placeholder="What you did, how the client was, anything the office or family should know"
         hint="Saved on this phone as you type, and sent when you clock out." />
 
-      <Button variant="danger" icon="stop-circle" label="Clock out" onPress={() => { care.warmFix(); setNoteError(null); setOutOpen(true) }} style={{ marginTop: 6 }} />
+      <Button variant="danger" icon="stop-circle" label="Clock out" disabled={stillOpen.length > 0} onPress={() => { care.warmFix(); setNoteError(null); setOutOpen(true) }} style={{ marginTop: 6 }} />
+      {stillOpen.length > 0 ? (
+        <Text accessibilityRole="alert" style={[styles.sheetText, { color: t.textSecondary, marginTop: 6 }]}>Clock out turns on when these are done: {stillOpen.join('; ')}.</Text>
+      ) : null}
 
       <Modal visible={outOpen} transparent animationType="slide" onRequestClose={() => !care.clockingOut && setOutOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetBackdrop}>
@@ -116,6 +145,7 @@ function ActiveVisitView() {
                 placeholderTextColor={t.textMuted}
                 style={[styles.noteInput, { color: t.text, borderColor: noteError ? dangerTone.border : t.border, backgroundColor: t.background }]}
               />
+              <VisitQuestionFields title="Before you go" questions={outQuestions} answers={outAnswers} onChange={(a) => { setOutAnswers(a); setOutMissing([]) }} missing={outMissing} />
               {care.photos.some((p) => p.status !== 'sent') && (
                 <Text style={[styles.sheetText, { color: t.textSecondary }]}>Photos not sent yet will be retried when you clock out.</Text>
               )}
@@ -144,6 +174,10 @@ function ClockInView() {
   const [stage, setStage] = useState<null | 'gps' | 'send'>(null)
   const [confirm, setConfirm] = useState<{ fix: Fix | null; text: string } | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  // The agency's clock-in questions (care_visit_questions): none unless the agency has them.
+  const inQuestions = useVisitQuestions('clock_in')
+  const [inAnswers, setInAnswers] = useState<VisitAnswers>({})
+  const [inMissing, setInMissing] = useState<string[]>([])
 
   useEffect(() => { care.warmFix() }, []) // a fix is usually in hand before the tap
   useEffect(() => { if (params.clientId) setSelected(String(params.clientId)) }, [params.clientId])
@@ -157,8 +191,10 @@ function ClockInView() {
 
   const send = async (clientId: string, fix: Fix | null) => {
     setStage('send')
-    const r = await care.clockIn(clientId, fix)
+    const r = await care.clockIn(clientId, fix, answersBody(inQuestions, inAnswers))
     setStage(null)
+    if (!r.ok && r.code === 'questions_required') { setInMissing(inQuestions.filter((q) => q.required).map((q) => q.id)); haptics.error(); Alert.alert('Answer the questions first', r.error || ''); return }
+    if (r.ok) setInAnswers({})
     if (!r.ok) { haptics.error(); Alert.alert('Clock-in failed', r.error || 'Please try again.'); return }
     haptics.success()
     if (r.queued) Alert.alert('Saved on your phone', r.message || '')
@@ -168,6 +204,9 @@ function ClockInView() {
 
   const start = async () => {
     if (!selected) { toast.warning('Pick the client you are with.'); return }
+    // The server holds a live clock-in until the required questions are answered (409 questions_required, handled in send()); a punch
+    // with no signal is saved with whatever was answered and never refused, so the phone does not pre-block it here.
+    setInMissing([])
     haptics.medium()
     setStage('gps')
     const chk = await care.checkClockIn(selected)
@@ -233,6 +272,8 @@ function ClockInView() {
         <Button small variant="ghost" icon="navigate" label={fullAddress(client)} onPress={() => openDirections(fullAddress(client))} style={{ alignSelf: 'flex-start' }} />
       ) : null}
       {selected ? <SandataIdBox client={sc} /> : null}
+
+      {selected ? <VisitQuestionFields title="Before you start" questions={inQuestions} answers={inAnswers} onChange={(a) => { setInAnswers(a); setInMissing([]) }} missing={inMissing} /> : null}
 
       <Button
         style={{ marginTop: 16, minHeight: 60 }}

@@ -106,7 +106,7 @@ describe('home care — import: clients', () => {
     const before = (await allClients()).length
     const r = await post('/preview', { kind: 'clients', csv: CLIENTS_CSV })
     expect(r.status).toBe(200)
-    expect(r.body.counts).toEqual({ rows: 6, ok: 2, duplicates: 2, errors: 2 })
+    expect(r.body.counts).toEqual({ rows: 6, ok: 2, duplicates: 2, updates: 0, errors: 2 })
     const by = (line: number) => r.body.rows.find((x: any) => x.line === line)
     expect(by(2)).toMatchObject({ status: 'ok', label: 'Maria Lopez' })
     expect(by(4)).toMatchObject({ status: 'duplicate', duplicateOf: 'Same client appears earlier in this file' })
@@ -168,7 +168,7 @@ describe('home care — import: clients', () => {
 describe('home care — import: caregivers and recurring shifts', () => {
   test('caregivers get a login, a profile and a seat; an email already in use is skipped', async () => {
     const pre = await post('/preview', { kind: 'caregivers', csv: CAREGIVERS_CSV })
-    expect(pre.body.counts).toEqual({ rows: 3, ok: 2, duplicates: 1, errors: 0 })
+    expect(pre.body.counts).toEqual({ rows: 3, ok: 2, duplicates: 1, updates: 0, errors: 0 })
     expect(pre.body.rows[1]).toMatchObject({ label: 'Lee Park' })
     const r = await post('/commit', { kind: 'caregivers', csv: CAREGIVERS_CSV })
     expect(r.body).toMatchObject({ created: 2, skippedDuplicates: 1 })
@@ -184,7 +184,7 @@ describe('home care — import: caregivers and recurring shifts', () => {
 
   test('shifts need clients and caregivers that exist, a real time range, and a repeat the agency has', async () => {
     const pre = await post('/preview', { kind: 'schedules', csv: SCHEDULES_CSV })
-    expect(pre.body.counts).toEqual({ rows: 5, ok: 2, duplicates: 0, errors: 3 })
+    expect(pre.body.counts).toEqual({ rows: 5, ok: 2, duplicates: 0, updates: 0, errors: 3 })
     const by = (line: number) => pre.body.rows.find((x: any) => x.line === line)
     expect(by(4).problems.join(' ')).toContain('has not turned on')
     expect(by(5).problems.join(' ')).toContain('nobody named "Nobody Here"')

@@ -119,6 +119,8 @@ export function createDocumentRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       requiresSignature: truthy('requiresSignature'),
       expirationDate,
       isConfidential: truthy('isConfidential'),
+      // Shown to the client's family in their portal (care_family_content): only a client's own, never a confidential one.
+      shareWithFamily: entityType === 'client' && !truthy('isConfidential') && truthy('shareWithFamily'),
       uploadedById: me,
     }).returning({ id: documents.id, name: documents.name, entityType: documents.entityType, entityId: documents.entityId, requiresSignature: documents.requiresSignature })
     await core.careAudit.writeCareAudit(user, 'CREATE', 'documents', row.id, row)
@@ -126,6 +128,20 @@ export function createDocumentRoutes(core: HomecareCore, d: CrmDeps, access: Cli
   }
   app.post('/', requirePermission('care-clients:create'), upload)
   app.post('/upload', requirePermission('care-clients:create'), upload)
+
+  // Share a client's document with their family, or stop (care_family_content). Office only.
+  app.put('/:id/sharing', requirePermission('care-clients:update'), async (c) => {
+    const { user, companyId } = who(c)
+    const b = await body(c)
+    if (typeof b.shareWithFamily !== 'boolean') return fail(c, 400, 'Say whether to share this document with the family: on or off.', 'bad_share', { shareWithFamily: 'On or off' })
+    if (!(await core.familyContent.enabled(companyId))) return fail(c, 404, 'Not found')
+    const r = await core.familyContent.setSharing(companyId, c.req.param('id'), b.shareWithFamily)
+    if (r === 'missing') return fail(c, 404, 'Document not found')
+    if (r === 'not_client') return fail(c, 400, 'Only a client\'s documents can be shared with their family.', 'not_client_document')
+    if (r === 'confidential') return fail(c, 400, 'A confidential document cannot be shared with the family. Untick confidential first.', 'confidential_document')
+    await core.careAudit.writeCareAudit(user, 'UPDATE', 'documents', c.req.param('id'), { shareWithFamily: b.shareWithFamily })
+    return one(c, { id: c.req.param('id'), shareWithFamily: b.shareWithFamily })
+  })
 
   app.get('/:id/download', read, async (c) => {
     const { user, companyId, me } = who(c)

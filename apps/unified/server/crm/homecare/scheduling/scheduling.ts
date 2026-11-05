@@ -38,7 +38,7 @@ const writable = (body: any) => {
   return rest
 }
 
-export function createSchedulingRoutes(_core: HomecareCore, d: CrmDeps) {
+export function createSchedulingRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const perm = d.permissions.requirePermission
   const db = d.db
@@ -65,6 +65,8 @@ export function createSchedulingRoutes(_core: HomecareCore, d: CrmDeps) {
   app.post('/schedules', perm('care-schedule:create'), async (c) => {
     const { companyId } = who(c)
     const body = await c.req.json().catch(() => ({}))
+    const refused = body?.caregiverId ? (await core.certReminders.blockedFor(companyId, [String(body.caregiverId)], String(body.date || body.effectiveDate || await core.time.today(companyId)).slice(0, 10)))[String(body.caregiverId)] : null
+    if (refused?.length) return fail(c, 409, `This caregiver has an expired credential (${refused.join(', ')}) and cannot be put on a shift until it is renewed.`, 'credential_expired')
     const [schedule] = await db.insert(schedules).values({ ...writable(body), companyId }).returning()
     return one(c, schedule, 201)
   })
@@ -72,6 +74,8 @@ export function createSchedulingRoutes(_core: HomecareCore, d: CrmDeps) {
   app.put('/schedules/:id', perm('care-schedule:update'), async (c) => {
     const { companyId } = who(c)
     const body = await c.req.json().catch(() => ({}))
+    const refused = body?.caregiverId ? (await core.certReminders.blockedFor(companyId, [String(body.caregiverId)], String(body.date || body.effectiveDate || await core.time.today(companyId)).slice(0, 10)))[String(body.caregiverId)] : null
+    if (refused?.length) return fail(c, 409, `This caregiver has an expired credential (${refused.join(', ')}) and cannot be put on a shift until it is renewed.`, 'credential_expired')
     const [schedule] = await db.update(schedules).set({ ...writable(body), updatedAt: new Date() })
       .where(and(eq(schedules.id, c.req.param('id')), eq(schedules.companyId, companyId))).returning()
     if (!schedule) return fail(c, 404, 'Schedule not found')

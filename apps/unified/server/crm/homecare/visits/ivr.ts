@@ -211,8 +211,14 @@ export function createIvrRoutes(core: HomecareCore, d: CrmDeps) {
       // Required tasks (care_required_tasks): a caller cannot be shown a list of tasks, so the call is never refused. The visit is closed as
       // it was told to be and flagged for the office to review, with the tasks named (the same flag the app's offline clock-out uses).
       const openRequired = await core.requiredTasks.pendingFor(companyId, entry)
-      const flag = openRequired.length
-        ? { needsApproval: true, approvalReason: [dec.approvalReason, `Clocked out by phone with required tasks not done: ${openRequired.map((t) => t.taskName).join('; ')}`].filter(Boolean).join(' · ') }
+      // Nor can a caller sign: with the client signature required (care_visit_signature) a phone-closed visit without one is flagged the same way.
+      const unsigned = await core.visitSignature.missingFor(companyId, entry.id)
+      const notes = [
+        openRequired.length ? `Clocked out by phone with required tasks not done: ${openRequired.map((t) => t.taskName).join('; ')}` : '',
+        unsigned ? 'Clocked out by phone with no client signature or reason' : '',
+      ].filter(Boolean)
+      const flag = notes.length
+        ? { needsApproval: true, approvalReason: [dec.approvalReason, ...notes].filter(Boolean).join(' · ') }
         : { needsApproval: dec.needsApproval, approvalReason: dec.approvalReason }
 
       await db.update(timeEntries).set({

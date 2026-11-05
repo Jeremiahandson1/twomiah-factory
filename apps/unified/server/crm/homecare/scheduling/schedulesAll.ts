@@ -65,6 +65,11 @@ export function createSchedulesAllRoutes(core: HomecareCore, d: CrmDeps) {
 
     const before = await core.schedules.scheduleById(companyId, scheduleId, true)
     if (!before) return fail(c, 404, 'Schedule not found')
+    // Handing the shift to a different caregiver: refused when the agency blocks an expired credential.
+    if (caregiverId && String(caregiverId) !== String(before.caregiverId)) {
+      const refused = (await core.certReminders.blockedFor(companyId, [String(caregiverId)], date || before.date || editDate || await core.time.today(companyId)))[String(caregiverId)]
+      if (refused?.length) return fail(c, 409, `This caregiver has an expired credential (${refused.join(', ')}) and cannot be put on a shift until it is renewed.`, 'credential_expired')
+    }
     // The times the row ends up with (a field left out keeps its value) must pass the one rule.
     if (startTime || endTime) {
       const timesError = shiftTimesError(startTime || before.startTime, endTime || before.endTime, b.overnight)

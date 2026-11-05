@@ -341,9 +341,13 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const busy = new Set(await busyCaregiverIds(db, companyId, sh.shiftDate, sh.startTime, sh.endTime))
       const auth = await shared.checkAuthorizationBalance(companyId, sh.clientId, h)
       const dnu = await dnuOf(sh.clientId)
-      const scored = (await caregiversOn(sh.shiftDate)).map((cg) => {
+      const candidates = await caregiversOn(sh.shiftDate)
+      // An agency that blocks expired credentials never has auto-fill choose one.
+      const noCert = await core.certReminders.blockedFor(companyId, candidates.map((cg) => String(cg.id)), sh.shiftDate)
+      const scored = candidates.map((cg) => {
         const fit = caregiverFit(cg, dnu, sh.startTime, sh.endTime)
         if (fit.blocks.length) return { ...cg, score: -1000, disqualified: true, reason: fit.blocks[0] }
+        if (noCert[String(cg.id)]) return { ...cg, score: -1000, disqualified: true, reason: 'Expired credential' }
         const max = Number(cg.maxHoursPerWeek) || 40
         const projected = (weekly[cg.id] || 0)
         const conflict = busy.has(cg.id) || placed.some((a) => a.caregiverId === cg.id && a.date === sh.shiftDate && !(a.e <= sh.startTime || a.s >= sh.endTime))

@@ -25,13 +25,15 @@ import jwt from 'jsonwebtoken'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { createActorName } from '@twomiah/tenant-backend'
 import {
-  clients, company, familyMembers, familyMessages, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
+  clients, company, familyMembers, familyMessages, familyPushSubscription, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
 } from '../../../db/schema/index.ts'
 import { fail, one, done, listAll } from '../../../http/reply.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { familyEmailTaken, familyMemberForLogin, familyScheduleRows, caregiversServingClient } from '../../../data/homecarePortals.ts'
 import { addDays } from '../core/agencyTime.ts'
+import { mimeOf, UPCOMING_DAYS } from '../core/familyContent.ts'
+import { consentWording, emailConsentWording, REQUEST_KINDS } from '../core/familyComms.ts'
 import { activePlanWhere } from '../core/carePlanStatus.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -56,17 +58,25 @@ const memberColumns = {
   isPrimaryContact: familyMembers.isPrimaryContact,
   visitTextOptIn: familyMembers.visitTextOptIn,
   visitTextOptInAt: familyMembers.visitTextOptInAt,
+  visitTextConsentWording: familyMembers.visitTextConsentWording,
+  visitTextOptOutAt: familyMembers.visitTextOptOutAt,
+  visitEmailOptIn: familyMembers.visitEmailOptIn,
+  visitEmailOptInAt: familyMembers.visitEmailOptInAt,
+  visitEmailConsentWording: familyMembers.visitEmailConsentWording,
   canViewSchedule: familyMembers.canViewSchedule,
   canViewCarePlan: familyMembers.canViewCarePlan,
   canViewMedications: familyMembers.canViewMedications,
+  canViewVitals: familyMembers.canViewVitals,
+  canViewDocuments: familyMembers.canViewDocuments,
+  canManagePayments: familyMembers.canManagePayments,
   canMessage: familyMembers.canMessage,
   lastLogin: familyMembers.lastLoginAt,
   createdAt: familyMembers.createdAt,
   updatedAt: familyMembers.updatedAt,
 }
-type Member = { id: string; clientId: string; name: string; canViewSchedule: boolean | null; canViewCarePlan: boolean | null; canViewMedications: boolean | null; canMessage: boolean | null } & Record<string, unknown>
+type Member = { id: string; clientId: string; name: string; canViewSchedule: boolean | null; canViewCarePlan: boolean | null; canViewMedications: boolean | null; canViewVitals: boolean | null; canViewDocuments: boolean | null; canManagePayments: boolean | null; canMessage: boolean | null } & Record<string, unknown>
 type FamilyEnv = { Variables: AppEnv['Variables'] & { familyMember: Member; familyClientId: string; familyCompanyId: string } }
-type Permission = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canMessage'
+type Permission = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canManagePayments' | 'canMessage'
 
 /** "Mary" + "Smith" → "Mary Smith"; a single `name` is taken as given. */
 const composeName = (b: any): string =>
@@ -143,15 +153,29 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       canViewSchedule: b.canViewSchedule !== false,
       canViewCarePlan: b.canViewCarePlan !== false,
       canViewMedications: b.canViewMedications === true,
+      // Vitals have their own switch (care_family_content); a new relative who may see medicines is shown vitals too unless the office says otherwise.
+      canViewVitals: b.canViewVitals === undefined ? b.canViewMedications === true : b.canViewVitals === true,
+      canViewDocuments: b.canViewDocuments === true,
+      canManagePayments: b.canManagePayments === true,
       canMessage: b.canMessage !== false,
       isPrimaryContact: b.isPrimaryContact === true,
       // The relative's yes to arrival/departure texts, recorded by the office; never assumed.
       visitTextOptIn: b.visitTextOptIn === true && !!b.phone,
       visitTextOptInAt: b.visitTextOptIn === true && !!b.phone ? new Date() : null,
+      // The exact words the relative agreed to, kept with the yes (care_family_comms shows them; they are kept either way).
+      visitTextConsentWording: b.visitTextOptIn === true && !!b.phone ? consentWording(await agencyName(me.companyId)) : null,
+      visitEmailOptIn: b.visitEmailOptIn === true,
+      visitEmailOptInAt: b.visitEmailOptIn === true ? new Date() : null,
+      // The exact words the relative agreed to for the emails, kept with that yes too.
+      visitEmailConsentWording: b.visitEmailOptIn === true ? emailConsentWording(await agencyName(me.companyId)) : null,
       isActive: true,
     }).returning(memberColumns)
     // Welcome email with the login. The account stands even if the email cannot go out.
-    try {
+    // care_family_comms: the agency's own wording for this email; without it (or switched off) the standard welcome goes.
+    const own = await core.familyComms.sendPortalEmail(me.companyId, 'accountCreated', email, {
+      name, client: `${client.firstName} ${client.lastName}`, email, tempPassword: password, loginUrl: familyLoginUrl(),
+    })
+    if (!own) try {
       await core.email.sendFamilyPortalWelcome(email, {
         familyName: name,
         clientName: `${client.firstName} ${client.lastName}`,
@@ -170,10 +194,18 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   app.put('/admin/members/:id/status', ...staff('care-portal:update'), async (c) => {
     const { isActive } = await c.req.json().catch(() => ({} as any))
     if (typeof isActive !== 'boolean') return fail(c, 400, 'isActive must be true or false')
+    const companyId = c.get('user').companyId
+    const [before] = await db.select({ isActive: familyMembers.isActive }).from(familyMembers)
+      .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, companyId))).limit(1)
     const [row] = await db.update(familyMembers).set({ isActive, updatedAt: new Date() })
-      .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, c.get('user').companyId)))
+      .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, companyId)))
       .returning(memberColumns)
     if (!row) return fail(c, 404, 'Family member not found')
+    // care_family_comms: tell the relative their access was turned on or off, in the agency's words (each can be switched off there).
+    if (before && before.isActive !== isActive && row.email) {
+      const [cl] = await db.select({ f: clients.firstName, l: clients.lastName }).from(clients).where(and(eq(clients.id, row.clientId), eq(clients.companyId, companyId))).limit(1)
+      await core.familyComms.sendPortalEmail(companyId, isActive ? 'accessGranted' : 'accessRevoked', row.email, { name: row.name, client: `${cl?.f ?? ''} ${cl?.l ?? ''}`.trim(), loginUrl: familyLoginUrl() })
+    }
     return one(c, { success: true, member: row })
   })
 
@@ -216,7 +248,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     }
     if (typeof b?.phone === 'string') patch.phone = b.phone.trim() || null
     if (typeof b?.relationship === 'string') patch.relationship = b.relationship.trim() || null
-    for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canMessage', 'isPrimaryContact'] as const) {
+    for (const k of ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canViewVitals', 'canViewDocuments', 'canManagePayments', 'canMessage', 'isPrimaryContact'] as const) {
       if (typeof b?.[k] === 'boolean') patch[k] = b[k]
     }
     // Arrival/departure texts: turning them on needs a phone number on the relative (the one being saved, or the one on file).
@@ -227,7 +259,16 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
         if (!phone) return fail(c, 400, 'Add a phone number before turning on arrival texts.', 'phone_required')
         patch.visitTextOptIn = true
         patch.visitTextOptInAt = new Date()
-      } else { patch.visitTextOptIn = false; patch.visitTextOptInAt = null }
+        patch.visitTextConsentWording = consentWording(await agencyName(me.companyId))
+        patch.visitTextOptOutAt = null
+      } else { patch.visitTextOptIn = false; patch.visitTextOptInAt = null; patch.visitTextConsentWording = null }
+    }
+    if (typeof b?.visitEmailOptIn === 'boolean') {
+      // A yes already on keeps its date and the words it was given under; a new yes is dated now, with today's words.
+      const [was] = await db.select({ on: familyMembers.visitEmailOptIn }).from(familyMembers)
+        .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId))).limit(1)
+      if (!b.visitEmailOptIn) { patch.visitEmailOptIn = false; patch.visitEmailOptInAt = null; patch.visitEmailConsentWording = null }
+      else if (!was?.on) { patch.visitEmailOptIn = true; patch.visitEmailOptInAt = new Date(); patch.visitEmailConsentWording = emailConsentWording(await agencyName(me.companyId)) }
     }
     const [row] = await db.update(familyMembers).set({ ...patch, updatedAt: new Date() })
       .where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId)))
@@ -346,6 +387,43 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   // ════ FAMILY SIGN-IN (public) ═══════════════════════════════════════════════════════════
 
   // 20 sign-ins per 15 minutes per address (the template's index.ts limit, here beside the route).
+  // ── Forgot password (care_family_comms): the relative asks for a link; it works once, for an hour ─────────────────────────────
+  // One company per database, so the public sign-in page can ask whether this agency has the flow before it shows the link.
+  const theCompanyId = async (): Promise<string | null> => (await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.id ?? null
+  app.get('/options', createRateLimiter(60 * 1000, 60), async (c) => {
+    const id = await theCompanyId()
+    return one(c, { forgotPassword: !!id && await core.familyComms.enabled(id) })
+  })
+  const RESET_MESSAGE = 'If that email has a family portal account, we have sent a link to reset the password. It works for one hour.'
+  app.post('/forgot-password', createRateLimiter(15 * 60 * 1000, 5), async (c) => {
+    const { email } = await c.req.json().catch(() => ({} as any))
+    const member = email ? await familyMemberForLogin(db, normEmail(email)) : null
+    // The same answer whether or not there is an account, so the page cannot be used to find out who has one.
+    if (member?.passwordHash && member.isActive !== false && await core.familyComms.enabled(member.companyId)) {
+      const token = jwt.sign({ purpose: 'family_reset', fid: member.id, v: String(member.passwordHash).slice(-12) }, process.env.JWT_SECRET!, { expiresIn: '1h' })
+      const [cl] = await db.select({ f: clients.firstName, l: clients.lastName }).from(clients).where(and(eq(clients.id, member.clientId), eq(clients.companyId, member.companyId))).limit(1)
+      await core.familyComms.sendPortalEmail(member.companyId, 'forgotPassword', member.email, {
+        name: member.name, client: `${cl?.f ?? ''} ${cl?.l ?? ''}`.trim(), resetUrl: `${familyLoginUrl()}?reset=${token}`,
+      })
+    }
+    return one(c, { message: RESET_MESSAGE })
+  })
+  app.post('/reset-password', createRateLimiter(15 * 60 * 1000, 10), async (c) => {
+    const { token, password } = await c.req.json().catch(() => ({} as any))
+    if (typeof password !== 'string' || password.length < FAMILY_RULES.minPasswordLength) return fail(c, 400, 'Password must be at least 8 characters', 'password_too_short')
+    let claims: any
+    try { claims = jwt.verify(String(token || ''), process.env.JWT_SECRET!) } catch { return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link') }
+    if (claims?.purpose !== 'family_reset' || !claims.fid) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
+    const [member] = await db.select({ id: familyMembers.id, companyId: familyMembers.companyId, passwordHash: familyMembers.passwordHash, isActive: familyMembers.isActive })
+      .from(familyMembers).where(eq(familyMembers.id, String(claims.fid))).limit(1)
+    // Single use: the link carries the tail of the password it replaces, so once the password changes the link is spent.
+    if (!member || !member.isActive || !member.passwordHash || String(member.passwordHash).slice(-12) !== claims.v) return fail(c, 400, 'This link has already been used or has expired. Ask for a new one.', 'bad_reset_link')
+    if (!(await core.familyComms.enabled(member.companyId))) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
+    await db.update(familyMembers).set({ passwordHash: await Bun.password.hash(password, 'bcrypt'), updatedAt: new Date() })
+      .where(and(eq(familyMembers.id, member.id), eq(familyMembers.companyId, member.companyId)))
+    return done(c, 'Your password has been changed. You can sign in now.')
+  })
+
   app.post('/login', createRateLimiter(15 * 60 * 1000, 20), async (c) => {
     const { email, password } = await c.req.json().catch(() => ({} as any))
     if (!email || !password) return fail(c, 400, 'Email and password are required')
@@ -394,7 +472,12 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
 
   // ════ THE FAMILY'S PORTAL ═══════════════════════════════════════════════════════════════
 
-  app.get('/portal/me', familyAuth, async (c) => one(c, c.get('familyMember')))
+  // careContent: the agency has the daily-care tabs on (care_family_content) — the portal shows them and wording like "Medicine list".
+  app.get('/portal/me', familyAuth, async (c) => one(c, {
+    ...c.get('familyMember'), careContent: await core.familyContent.enabled(c.get('familyCompanyId')), careComms: await core.familyComms.enabled(c.get('familyCompanyId')),
+    // Row 22: the agency takes a saved card or bank account (care_autopay) — the Payments tab exists for a relative with the switch.
+    payments: await d.features.isFeatureEnabled(c.get('familyCompanyId'), 'care_autopay'),
+  }))
 
   app.get('/portal/client', familyAuth, async (c) => {
     const companyId = c.get('familyCompanyId')
@@ -470,8 +553,10 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   })
 
   // Vitals are part of the same clinical tier as medications (the source CRM's rule): the latest 60.
+  // With care_family_content on, vitals have their own switch (canViewVitals); off, they ride on the medicines switch as before.
   app.get('/portal/vitals', familyAuth, async (c) => {
-    if (!allowed(c, 'canViewMedications')) return fail(c, 403, 'Access denied')
+    const own = await core.familyContent.enabled(c.get('familyCompanyId'))
+    if (!allowed(c, own ? 'canViewVitals' : 'canViewMedications')) return fail(c, 403, 'Access denied')
     const rows = await core.vitals.listClientVitals(c.get('familyCompanyId'), c.get('familyClientId'), 60)
     return all(c, rows.map((v: any) => ({
       id: v.id, recordedAt: v.recordedAt,
@@ -480,6 +565,112 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       weightLbs: v.weightLbs, painScale: v.painScale, painLocation: v.painLocation, notes: v.notes,
       caregiverFirst: v.caregiverFirst, caregiverLast: v.caregiverLast,
     })))
+  })
+
+  // ── Daily care, meals and documents (care_family_content, not ready) ─────────────────────────────────────────────────────────
+  // The feature is off → 404 (the routes do not exist for that agency); on, each is behind the relative's own switch.
+  const contentOff = async (c: Context<FamilyEnv>) => (await core.familyContent.enabled(c.get('familyCompanyId'))) ? null : fail(c, 404, 'Not found')
+
+  // The tasks planned for each of the next visits — only those that belong to the visit's weekday and AM/PM.
+  app.get('/portal/upcoming-tasks', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewCarePlan') || !allowed(c, 'canViewSchedule')) return fail(c, 403, 'Access denied')
+    const companyId = c.get('familyCompanyId')
+    const today = await core.time.today(companyId)
+    const visits = await familyScheduleRows(db, companyId, c.get('familyClientId'), today, addDays(today, UPCOMING_DAYS - 1))
+    return all(c, await core.familyContent.upcoming(companyId, c.get('familyClientId'), visits))
+  })
+
+  // The last 30 days: each finished visit, its tasks done or not (never the caregiver's notes), and the meals recorded.
+  app.get('/portal/task-log', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewCarePlan')) return fail(c, 403, 'Access denied')
+    return all(c, await core.familyContent.past(c.get('familyCompanyId'), c.get('familyClientId')))
+  })
+
+  app.get('/portal/documents', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewDocuments')) return fail(c, 403, 'Access denied')
+    return all(c, await core.familyContent.sharedDocuments(c.get('familyCompanyId'), c.get('familyClientId')))
+  })
+  app.get('/portal/documents/:id/download', familyAuth, async (c) => {
+    const off = await contentOff(c); if (off) return off
+    if (!allowed(c, 'canViewDocuments')) return fail(c, 403, 'Access denied')
+    const doc = await core.familyContent.sharedDocumentFile(c.get('familyCompanyId'), c.get('familyClientId'), c.req.param('id')!)
+    if (!doc || !doc.fileData) return fail(c, 404, 'Document not found')
+    return new Response(new Uint8Array(Buffer.from(String(doc.fileData), 'base64')), { headers: {
+      'Content-Type': mimeOf(doc.fileType),
+      'Content-Disposition': `attachment; filename="${String(doc.fileName || 'document').replace(/[^\w.\- ]/g, '_')}"`,
+      'X-Content-Type-Options': 'nosniff',
+    } })
+  })
+
+  // ── The card or bank account that pays the invoices (row 22, care_autopay) ───────────────────────────────────────────────────
+  // A relative with the "manage payments" switch sees what is on file (brand / bank and last four only), opens Stripe's own
+  // page to save or replace it, or removes it. Without care_autopay the routes are not there (404). Nothing here takes a number.
+  const paymentsOff = async (c: Context<FamilyEnv>) => (await d.features.isFeatureEnabled(c.get('familyCompanyId'), 'care_autopay')) ? null : fail(c, 404, 'Not found')
+  app.get('/portal/payment-method', familyAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (!allowed(c, 'canManagePayments')) return fail(c, 403, 'Access denied')
+    return one(c, await core.autopay.portalStatus(c.get('familyCompanyId'), c.get('familyClientId')))
+  })
+  app.post('/portal/payment-method/setup', familyAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (!allowed(c, 'canManagePayments')) return fail(c, 403, 'Access denied')
+    const b = await c.req.json().catch(() => ({} as any))
+    const base = familyLoginUrl()
+    const out = await core.autopay.startSetup(c.get('familyCompanyId'), c.get('familyClientId'), { success: `${base}?saved=1`, cancel: `${base}?cancelled=1` }, null, { method: b?.method ? String(b.method) : 'card', by: 'family' })
+    if ('problem' in out) return fail(c, out.status as any, out.problem, out.code)
+    return one(c, out)
+  })
+  app.delete('/portal/payment-method', familyAuth, async (c) => {
+    const off = await paymentsOff(c); if (off) return off
+    if (!allowed(c, 'canManagePayments')) return fail(c, 403, 'Access denied')
+    if (!(await core.autopay.remove(c.get('familyCompanyId'), c.get('familyClientId')))) return fail(c, 404, 'There is no card or bank account on file.')
+    return done(c)
+  })
+
+  // ── Requests to the office (care_family_comms): change a visit, change the service, ask for a new visit ────────────────────
+  app.get('/portal/requests', familyAuth, async (c) => {
+    if (!(await core.familyComms.enabled(c.get('familyCompanyId')))) return fail(c, 404, 'Not found')
+    if (!allowed(c, 'canMessage')) return fail(c, 403, 'Access denied')
+    return all(c, await core.familyComms.requestsOf(c.get('familyCompanyId'), c.get('familyMember').id))
+  })
+  app.post('/portal/requests', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    if (!allowed(c, 'canMessage')) return fail(c, 403, 'Access denied')
+    const b = await c.req.json().catch(() => ({} as any))
+    const m = c.get('familyMember')
+    const r = await core.familyComms.createRequest(companyId, { id: m.id, clientId: c.get('familyClientId'), name: m.name }, b)
+    if (!r.ok) return fail(c, 400, r.message, r.code, r.fields)
+    return one(c, { id: r.id, kinds: REQUEST_KINDS }, 201)
+  })
+
+  // ── App notices on the relative's own phone or browser (care_family_comms, row 7 extras): web push they turn on themselves ───────
+  app.get('/portal/notices', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    const m = c.get('familyMember') as any
+    const subs = await db.select({ id: familyPushSubscription.id }).from(familyPushSubscription)
+      .where(and(eq(familyPushSubscription.familyMemberId, m.id), eq(familyPushSubscription.companyId, companyId), eq(familyPushSubscription.isActive, true)))
+    return one(c, { textOptIn: !!m.visitTextOptIn, emailOptIn: !!m.visitEmailOptIn, pushDevices: subs.length, vapidPublicKey: process.env.VAPID_PUBLIC_KEY || null })
+  })
+  app.post('/portal/push-subscription', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    const { subscription } = await c.req.json().catch(() => ({})) as any
+    if (!subscription || typeof subscription.endpoint !== 'string' || !/^https:\/\//.test(subscription.endpoint)) return fail(c, 400, 'This device did not give a valid notice address.', 'bad_subscription')
+    await db.insert(familyPushSubscription).values({ companyId, familyMemberId: c.get('familyMember').id, subscription, endpoint: subscription.endpoint, isActive: true })
+      .onConflictDoUpdate({ target: [familyPushSubscription.companyId, familyPushSubscription.endpoint], set: { familyMemberId: c.get('familyMember').id, subscription, isActive: true } })
+    return done(c, 'This device will get a notice when a caregiver arrives and leaves.')
+  })
+  app.post('/portal/push-subscription/off', familyAuth, async (c) => {
+    const companyId = c.get('familyCompanyId')
+    if (!(await core.familyComms.enabled(companyId))) return fail(c, 404, 'Not found')
+    await db.update(familyPushSubscription).set({ isActive: false })
+      .where(and(eq(familyPushSubscription.familyMemberId, c.get('familyMember').id), eq(familyPushSubscription.companyId, companyId)))
+    return done(c, 'App notices are off on your devices.')
   })
 
   // Visit notes are part of the care-plan tier.

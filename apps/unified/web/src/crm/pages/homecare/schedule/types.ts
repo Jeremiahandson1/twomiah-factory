@@ -49,6 +49,8 @@ export interface ScheduleException {
  */
 export interface ScheduleRow {
   id: string
+  /** shared by the rows of one repeating shift made on several weekdays */
+  repeatGroupId?: string | null
   caregiverId: string | null
   clientId: string
   scheduleType?: string | null
@@ -83,6 +85,8 @@ export const isRecurringRow = (s: { dayOfWeek: number | null | undefined }): boo
 /** What every create / edit answers beside the row: the authorization advice (advisory; the shift is saved). */
 export interface SavedReply {
   authWarnings?: string[]
+  /** 'CPR (expired 2026-10-01)' for the caregiver put on the shift — empty unless credential tracking is on. */
+  credentialWarnings?: string[]
   effectiveDateClamped?: boolean
   effectiveDate?: string | null
 }

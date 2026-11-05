@@ -23,6 +23,7 @@ const TITLES: Record<string, string> = {
   compose: 'New message',
   payday: 'Confirm your hours',
   'sandata-help': 'Sandata help',
+  survey: 'How is it going?',
 }
 
 export default function CareLayout() {

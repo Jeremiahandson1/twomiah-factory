@@ -34,3 +34,17 @@ Research date: 2026-10-30. All wording is paraphrased from the pages listed. Thi
 - Not built: email reminders, other lead times (60 or 90 days), reminders for client records, a credential search screen, and blocking an expired caregiver from a shift (a design choice: it is a flag only).
 - The older "certification alerts" list in the office alerts area is not filled by anything, including these reminders. Reminders appear as notifications instead.
 - The owner must check by hand: turn the feature on for one test agency, add a credential expiring in 14 days to a test caregiver with the app, and confirm the notice and the phone push arrive and the office sees one notice; then expire one and confirm the warning shows in the caregiver ranking.
+
+## Parity build, 10/31 (branch cloud/homecare-parity) — row 1 of docs/parity brief "homecare.md"
+
+Status: **built** (not seen in a real browser or on a real phone). Everything below is behind `care_cert_reminders` (still hidden).
+
+- Lead times the agency picks: any of 90 / 60 / 30 / 14 / 0 days (`company.settings.certReminders.leadDays`; 30, 14, 0 until it picks). Credentials › Reminders.
+- Email reminders as well as app and phone push, to the caregiver and the office, switchable (`email`).
+- Credentials for clients (`client_credential`): the office is reminded the same way; the client is not messaged.
+- A credential search screen across every caregiver (type, caregiver, expired, expiring within N days): `GET /api/credentials/search`, page Credentials.
+- The office "certification alerts" list (`certification_alerts`) is filled by the same scan, kept true on renewal, and shows every expired credential however long ago (reminders keep their one-week grace).
+- An agency setting to **block** an expired caregiver (`blockExpired`). It applies to every door that places a caregiver: Schedule Hub create (single, repeating, split), `/api/schedules`, `/api/schedules-all/:id`, `/api/scheduling/schedules`, reassign, open-shift claim / smart-fill / approve / notify, and auto-fill (which skips them). It is judged on the shift's own date, so someone whose credential lapses before that date is refused for it.
+- The "Expired credential" warning is now on the shift-create reply of the Schedule Hub (`credentialWarnings`) and shown on the saved-shift message, on the open-shift "Mark available" list and `/api/open-shifts/:id/eligible-caregivers`, and the ranked list shows every reason (it cut off after four).
+- Tests: `tests/homecare-parity-credentials.test.ts` (19 tests; fails without the change). The original `tests/homecare-depth-people.test.ts` is unchanged and passes.
+- Not done: a credential's own "renewal" screen (a new expiry date is still entered as a new record or by the existing certification routes). The owner still checks by hand with a real phone and a real mailbox.

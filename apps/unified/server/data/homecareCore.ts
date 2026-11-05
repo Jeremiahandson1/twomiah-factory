@@ -110,7 +110,7 @@ export const SCHED_COLS = (alias = 's'): SQL => {
   to_char(${alias}.suspended_from, 'YYYY-MM-DD') AS suspended_from,
   ${alias}.is_active, ${alias}.status, ${alias}.notes, ${alias}.care_type_id,
   COALESCE(${alias}.is_training, false) AS is_training,
-  COALESCE(${alias}.is_split_shift, false) AS is_split_shift, ${alias}.split_shift_group_id, ${alias}.split_segment,
+  COALESCE(${alias}.is_split_shift, false) AS is_split_shift, ${alias}.split_shift_group_id, ${alias}.split_segment, ${alias}.repeat_group_id,
   ${alias}.created_at, ${alias}.updated_at`)
 }
 

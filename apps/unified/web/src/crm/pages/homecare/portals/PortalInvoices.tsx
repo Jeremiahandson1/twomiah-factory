@@ -10,6 +10,7 @@ import { useToast } from '../../../../shared'
 import { formatDate as formatDay } from '../lib/date'
 import { saveBlob } from '../lib/http'
 import { listRows, money as formatMoney, usePortal } from './portalHttp'
+import PaymentMethodPanel from './PaymentMethodPanel'
 
 interface LineItem { id: string; serviceDate: string | null; description: string | null; hours: string | number | null; amount: string | number | null }
 interface Invoice {
@@ -78,6 +79,9 @@ export default function PortalInvoices() {
   return (
     <div>
       <h2 style={{ margin: '0 0 20px', fontSize: '1.3rem', color: 'var(--hcp-navy)' }}>📄 Billing & Invoices</h2>
+
+      {/* Row 22 (care_autopay): the card or bank account on file, saved on Stripe's own page; shows nothing for an agency without it. */}
+      <PaymentMethodPanel base="/api/portal" />
 
       {totalOwed > 0 && (
         // White on a fixed navy gradient, in both themes.

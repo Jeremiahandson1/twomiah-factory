@@ -52,6 +52,8 @@ export function createMileageRoutes(core: HomecareCore, d: CrmDeps) {
         amount: mileageEntries.amount,
         clientId: mileageEntries.clientId,
         notes: mileageEntries.notes,
+        kind: mileageEntries.kind,
+        source: mileageEntries.source,
         createdAt: mileageEntries.createdAt,
         caregiverFirstName: user.firstName,
         caregiverLastName: user.lastName,
@@ -87,8 +89,10 @@ export function createMileageRoutes(core: HomecareCore, d: CrmDeps) {
     if (office && body.caregiverId && !(await isCompanyPerson(d, me.companyId, caregiverId))) return fail(c, 404, 'Caregiver not found')
     if (body.clientId && !(await isCompanyClient(d, me.companyId, body.clientId))) return fail(c, 404, 'Client not found')
     const miles = parseFloat(body.miles) || 0
-    // The rate is the agency's. A caregiver never sets their own; the office may record a trip at another rate.
-    let ratePerMile = await core.mileage.agencyMileageRate(me.companyId)
+    // The rate is the caregiver's own per-mile rate when the office set one (row 20), else the agency's. A caregiver never sets
+    // their own; the office may record a trip at another rate. A trip is travel (between visits) or an errand (for a client).
+    let ratePerMile = await core.visitMileage.rateFor(me.companyId, caregiverId)
+    const kind = body.kind === 'errand' ? 'errand' : 'travel'
     const asked = body.ratePerMile ?? body.rate
     if (office && asked !== undefined && asked !== null && String(asked).trim() !== '') {
       const r = parseMileageRate(asked)
@@ -108,6 +112,7 @@ export function createMileageRoutes(core: HomecareCore, d: CrmDeps) {
       amount,
       clientId: body.clientId || null,
       notes: body.notes,
+      kind,
     }).returning()
     return one(c, entry, 201)
   })

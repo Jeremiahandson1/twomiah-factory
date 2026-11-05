@@ -51,6 +51,7 @@ export function usePushNotifications(opts: { registerWithServer?: boolean; fallb
         visit_rescheduled: '/(tabs)/care-schedule',
         reschedule_denied: '/(care)/requests',
         change_request_counter: '/(care)/requests',
+        caregiver_survey: '/(care)/survey',
       }
       if (type && LIST_ROUTES[type]) {
         router.push(LIST_ROUTES[type] as any)

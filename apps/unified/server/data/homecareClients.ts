@@ -226,10 +226,10 @@ export async function shiftChecklist(q: Q, companyId: string, timeEntryId: strin
  * The required tasks of this shift's client that are still open: no mark, or a mark that is not "done" and not a skip /
  * refusal that carries a reason. A weekly task already completed on another shift this week is not open. (Item 12.)
  */
-export async function pendingRequiredTasks(q: Q, companyId: string, timeEntryId: string, clientId: string, tz: string): Promise<{ taskId: string; taskName: string }[]> {
+export async function pendingRequiredTasks(q: Q, companyId: string, timeEntryId: string, clientId: string, tz: string): Promise<{ taskId: string; taskName: string; daysOfWeek: string | null; timeOfDay: string | null }[]> {
   const weekStart = sql`((date_trunc('week', NOW() AT TIME ZONE ${tz}) AT TIME ZONE ${tz}) AT TIME ZONE 'UTC')`
   return camelRows(await q.execute(sql`
-    SELECT t.id AS task_id, t.task_name
+    SELECT t.id AS task_id, t.task_name, t.days_of_week, t.time_of_day
       FROM client_task_templates t
       LEFT JOIN shift_task_completions sc ON sc.task_template_id = t.id AND sc.time_entry_id = ${timeEntryId}
      WHERE t.client_id = ${clientId} AND t.company_id = ${companyId} AND t.is_active = true AND t.is_required = true
@@ -344,7 +344,7 @@ export async function formSubmissionOne(q: Q, companyId: string, id: string): Pr
 
 const DOC_SELECT = sql`d.id, d.entity_type, d.entity_id, d.document_type, d.document_type AS category,
   d.name, d.name AS document_name, d.description, d.file_name, d.file_type, d.file_size,
-  d.requires_signature, d.expiration_date::text AS expiration_date, d.is_confidential, d.uploaded_by_id,
+  d.requires_signature, d.expiration_date::text AS expiration_date, d.is_confidential, d.share_with_family, d.uploaded_by_id,
   d.signed_at, d.signed_by_id, d.signature_typed_name, d.created_at, d.created_at AS uploaded_at, d.updated_at,
   u.first_name AS uploaded_by_first, u.last_name AS uploaded_by_last,
   CASE d.entity_type

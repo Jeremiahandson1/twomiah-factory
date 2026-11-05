@@ -12,6 +12,7 @@ import { createSandataRoutes } from './sandata.ts'
 import { createVisitDocumentationRoutes } from './visitDocumentation.ts'
 import { createVisitChangeRequestRoutes } from './visitChangeRequests.ts'
 import { createAlertRoutes } from './alerts.ts'
+import { createVisitQuestionRoutes } from './visitQuestions.ts'
 
 export { createVisitChanges, CANCEL_NOTICE_HOURS, hoursUntilVisit, visitIdentity, type VisitChanges } from './visitChanges.ts'
 
@@ -26,6 +27,7 @@ export function visitsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/visit-docs', access: 'user', router: createVisitDocumentationRoutes(core, d) },
     { path: '/api/visit-change-requests', access: 'user', router: createVisitChangeRequestRoutes(core, d) },
     { path: '/api/alerts', access: 'user', router: createAlertRoutes(core, d) },
+    { path: '/api/visit-questions', access: 'user', feature: 'care_visit_questions', router: createVisitQuestionRoutes(core, d) },
     // The phone line: Twilio's webhooks, no session — each request proves it is Twilio (ivr.ts).
     { path: '/api/ivr', access: 'public', router: createIvrRoutes(core, d) },
   ]
