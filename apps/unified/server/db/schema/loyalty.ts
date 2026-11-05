@@ -21,6 +21,9 @@ export const loyaltyMember = pgTable('loyalty_members', {
   // customer must not lose punches they already earned under the old rule.
   qualifyingVisits: integer('qualifying_visits').default(0).notNull(),
   punchRewardsEarned: integer('punch_rewards_earned').default(0).notNull(),
+  // The tier the member last MOVED UP into (its minimum points) and when — the "you reached Gold" message reads these.
+  tierMin: integer('tier_min'),
+  tierAt: timestamp('tier_at'),
   joinedAt: timestamp('joined_at').defaultNow(),
   lastActivityAt: timestamp('last_activity_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

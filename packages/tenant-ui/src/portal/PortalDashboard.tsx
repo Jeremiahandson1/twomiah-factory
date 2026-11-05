@@ -20,6 +20,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   myJobs: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'View' },
   pets: { color: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40', value: 'View' },
   appointments: { color: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40', value: 'View' },
+  account: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'View' },
   lienWaivers: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'Review & Sign' },
   submittals: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'Review' },
   rfis: { color: 'bg-indigo-100 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-950/40', value: 'Respond' },

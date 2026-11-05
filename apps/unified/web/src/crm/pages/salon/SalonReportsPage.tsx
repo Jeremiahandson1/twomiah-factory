@@ -1,10 +1,13 @@
 // Client reports (server crm/salon/reports.ts, /api/salon-reports; hidden feature `salon_reports`): retention and visit frequency, each
-// stylist's rebook rate, and retail sold. Every figure says in words what it counts. Commission statements stay on the Commissions page.
+// stylist's rebook rate, retail sold (with margins by brand, category, supplier, SKU and stylist). Every figure says in words what it counts. Commission statements stay on the Commissions page.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart3, Loader2 } from 'lucide-react'
 import { api, useAuth, money, todayKey, dayKeyPlus } from '../../../shared'
 import { inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
+import { ReturnWindowsSection } from './ReturnWindows'
+import { CommissionReportsSection } from './CommissionReports'
+import { RetailMarginsSection } from './RetailMargins'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
@@ -100,6 +103,9 @@ export default function SalonReportsPage() {
             </table>
           </section>
 
+          <ReturnWindowsSection from={from} to={to} />
+          <CommissionReportsSection from={from} to={to} />
+
           <section className={box} aria-label="Rebook rate">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Rebook rate by stylist</h2>
             <p className={hint}>A visit counts as rebooked when the client had another appointment after it (not cancelled, not a no-show) that was booked no later than a day after the visit. {data.b.total.ratePercent != null && <strong>Whole salon: {pct(data.b.total.ratePercent)} ({data.b.total.rebooked} of {data.b.total.visits} visits).</strong>}</p>
@@ -127,6 +133,7 @@ export default function SalonReportsPage() {
               </div>
             )}
           </section>
+          <RetailMarginsSection from={from} to={to} />
           <section className={box} aria-label="Tips">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tips by stylist</h2>
             <p className={hint}>Tips taken in this period — on the card reader or typed in with a payment — each credited to the stylist of the visit the sale closed. {data.tips.payments > 0 && <strong>{money(data.tips.total)} in {data.tips.payments} payment{data.tips.payments === 1 ? '' : 's'}.</strong>}</p>

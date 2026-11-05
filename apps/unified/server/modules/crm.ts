@@ -18,9 +18,9 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createStripeLinkInternalRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
-  money, createAccountBalanceStore, documentLinkPath,
+  money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { asc, desc } from 'drizzle-orm'
+import { asc, desc, eq as eqCol } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -36,6 +36,8 @@ import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity, notGiftCardSale } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
+import { createSalonPortalHooks } from '../crm/salon/portalHooks.ts'
+import { createSalonPayees, createSalonPlanClash } from '../crm/salon/commissionPlans.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
 import { createEventsDashboardRoutes } from '../crm/restaurant/eventsDashboard.ts'
@@ -77,6 +79,7 @@ import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { ownContactsWhere } from '../crm/ownWork.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../crm/salon/visitPhotos.ts'
+import { intakeFilesOf } from '../crm/salon/intakeForms.ts'
 import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
 import { createTextActivityRoutes } from '../crm/textActivity.ts'
 import { barMounts } from '../crm/bar/index.ts'
@@ -209,7 +212,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // A contact's visits go with it by the cascade, and their photo files with them (crm/salon/visitPhotos.ts — the one
     // rule every visit deletion path calls). Any vertical: service records are served wherever their features are on.
     beforeDelete: async (companyId: string, contactId: string) => {
-      const files = await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] })
+      // Their forms' photos, files and drawn signatures too (crm/salon/intakeForms.ts): health and consent records go with the client.
+      const files = [...await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] }), ...await intakeFilesOf(db, companyId, [contactId])]
       return () => removeVisitPhotoFiles(s.storage, files)
     },
   })
@@ -363,6 +367,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A refund by gift card goes back onto the card, inside the refund's own transaction (crm/salon/giftCards.ts registers the doer).
       // A gift card's sale is not revenue (data/salon.ts notGiftCardSale): the list's money totals leave it out, as Reports do.
       ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
+      // The salon's retail product link survives a general invoice edit (crm/salon/retail.ts lineEdit).
+      ...(v.invoices?.giftCardTender ? { lineEdit: s.lineEdit } : {}),
       ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
       ...(v.invoices?.accountBalance ? { accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
@@ -433,6 +439,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
     { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
+      // The order the salon dragged its team into (Settings › The Book › Team order) — every picker that reads this follows it.
+      teamOrder: async (companyId: string) => readTeamOrder((await db.select({ settings: company.settings }).from(company).where(eqCol(company.id, companyId)).limit(1))[0]?.settings),
       // A stylist holds appointments: removing one unassigns their chair (templates/crm-salon routes/team.ts, Salon T27 N14).
       // The unified job table carries assigned_to_member_id for every vertical, so jobs are counted too (the salon copy's
       // job table had no such column); the appointment comes first, so the reply speaks of appointments.
@@ -481,7 +489,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
-    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
@@ -586,7 +594,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
-      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: { appointment, service: serviceMenu, stylist: user, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}` } } : {}) },
+      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: {
+        appointment, service: serviceMenu, stylist: user, member: teamMember, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}`,
+        // Past visits with "Book again", the account page, moving a desk booking and booking inside the portal (crm/salon/portalHooks.ts).
+        salon: createSalonPortalHooks({ db, isFeatureEnabled: features.isFeatureEnabled, engine: s.bookingEngine }),
+      } } : {}) },
     } as any)) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },

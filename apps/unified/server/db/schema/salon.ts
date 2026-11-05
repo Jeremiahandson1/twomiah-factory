@@ -85,6 +85,8 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
   pausedForPaymentAt: timestamp('paused_for_payment_at'),
   /** The private link in the member's email that opens Stripe's card page for a new card (/membership/card/<token>); cleared on resume. */
   cardUpdateToken: text('card_update_token'),
+  /** Who sold it (a login or a chair-only team member's id): each period's bill is credited to them for commission (salon row 15). */
+  soldBy: text('sold_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -124,12 +126,19 @@ export const serviceMenu = pgTable('service_menu', {
   durationMin: integer('duration_min').default(60).notNull(),
   price: decimal('price', { precision: 10, scale: 2 }),
   priceIsFrom: boolean('price_is_from').default(false).notNull(), // "from $250" — colour is rarely fixed
+  /** Online booking takes the whole price at booking, on the salon's own Stripe (needs a fixed price; row 5). */
+  prepayOnline: boolean('prepay_online').default(false).notNull(),
   rebookIntervalDays: integer('rebook_interval_days'),
   requiresPatchTest: boolean('requires_patch_test').default(false).notNull(),
   bookableOnline: boolean('bookable_online').default(false).notNull(),  // offered on the public booking widget (SALON-N4)
   /** Processing time (colour): the stylist is free for `processingMin` minutes starting `processingAfterMin` minutes in. Null = hands-on throughout. */
   processingAfterMin: integer('processing_after_min'),
   processingMin: integer('processing_min'),
+  /** This service's own no-show / late-cancel fee (salon parity row 4): whole cents or a percent of its price; null = the salon's fee. */
+  noShowFeeCents: integer('no_show_fee_cents'),
+  noShowFeePercent: integer('no_show_fee_percent'),
+  lateCancelFeeCents: integer('late_cancel_fee_cents'),
+  lateCancelFeePercent: integer('late_cancel_fee_percent'),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -222,6 +231,15 @@ export const cardPolicy = pgTable('card_policy', {
   lateCancelFeePercent: integer('late_cancel_fee_percent'),
   /** The salon's own words, shown at booking, in the confirmation and on the card page. Null = the standard sentence. */
   policyText: text('policy_text'),
+  /** The fees for a client who has never completed a visit (salon parity row 4); null = the regular fee above. Whole cents, or a percent. */
+  noShowFeeNewCents: integer('no_show_fee_new_cents'),
+  noShowFeeNewPercent: integer('no_show_fee_new_percent'),
+  lateCancelFeeNewCents: integer('late_cancel_fee_new_cents'),
+  lateCancelFeeNewPercent: integer('late_cancel_fee_new_percent'),
+  /** A booking worth less than this owes no fee (cents). Null = no minimum. */
+  minBookingValueCents: integer('min_booking_value_cents'),
+  /** Opt-in: marking an appointment a no-show charges its fee to the card on file at once. Off by default: a person confirms each fee. */
+  autoChargeNoShow: boolean('auto_charge_no_show').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -246,6 +264,13 @@ export const cardFeeCharge = pgTable('card_fee_charge', {
   failureMessage: text('failure_message'),
   chargedByUserId: text('charged_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   receiptSentAt: timestamp('receipt_sent_at'),
+  /** 'manual' (a person confirmed it) | 'auto' (charged when the appointment was marked a no-show, because the salon opted in). */
+  source: text('source').default('manual').notNull(),
+  /** Reversed: the whole charge given back on the salon's Stripe account, by whom and why. The row stays: it is the ledger. */
+  refundedAt: timestamp('refunded_at'),
+  refundId: text('refund_id'),
+  refundedByUserId: text('refunded_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  refundReason: text('refund_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('card_fee_charge_company_idx').on(t.companyId, t.createdAt),
@@ -273,6 +298,10 @@ export const membershipCharge = pgTable('membership_charge', {
   status: text('status').notNull(),
   paymentIntentId: text('payment_intent_id'),
   failureMessage: text('failure_message'),
+  /** The main card was declined and a backup card on file paid (or was tried): salon parity row 6. */
+  backupTried: boolean('backup_tried').default(false).notNull(),
+  /** "Retry now": the person who asked for this try before the wait was over. Null = the timed retry or the first charge. */
+  retriedByUserId: text('retried_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -306,6 +335,91 @@ export const appointmentItem = pgTable('appointment_item', {
   index('appointment_item_stylist_idx').on(t.companyId, t.stylistId),
 ])
 
+/**
+ * The shares of ONE sale's tip when the salon set its own (salon parity row 10): one row per person, `share_bp` in hundredths of a percent
+ * (10000 = 100%), replacing the default split by service value. No rows = the default. Edited at checkout and afterwards; the Tips report
+ * reads these for every tip and every tip given back on the sale.
+ */
+export const saleTipSplit = pgTable('sale_tip_split', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
+  shareBp: integer('share_bp').notNull(),
+  setByUserId: text('set_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('sale_tip_split_invoice_idx').on(t.invoiceId),
+])
+
+/**
+ * One patch test of a client (salon parity row 22; Fresha "record client patch tests"): the history, newest first on the chart. A test has a date,
+ * a status — pending (booked or taken, no result yet), passed or failed — who ran it, a title and a description. The latest passed-or-failed test
+ * is mirrored onto client_profile.patch_test_at / patch_test_result (patchTest.ts), which is what the booking rule has always read.
+ */
+export const patchTest = pgTable('patch_test', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  testedAt: date('tested_at').notNull(),
+  /** 'pending' | 'passed' | 'failed' */
+  status: text('status').notNull().default('pending'),
+  title: text('title'),
+  description: text('description'),
+  ranByUserId: text('ran_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  /** The name as it was when the test was recorded (a chair-only stylist has no login). */
+  ranByName: text('ran_by_name'),
+  /** The patch-test appointment that prompted it, when completing one did. At most one test per appointment. */
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('patch_test_contact_idx').on(t.companyId, t.contactId, t.testedAt),
+  uniqueIndex('patch_test_appointment_unique').on(t.appointmentId),
+])
+
+/**
+ * The receipt a paid sale emailed to the client (salon parity row 11): one row per sale, so the automatic receipt goes once however many ways
+ * the sale's money arrives. A person pressing "Send receipt" again updates `sentAt`.
+ */
+export const saleReceipt = pgTable('sale_receipt', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  toEmail: text('to_email').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('sale_receipt_invoice_unique').on(t.invoiceId),
+])
+
+/** A preset kind of blocked time the owner keeps (salon parity row 2; Fresha's blocked time types): a name, a colour, a usual length, paid or not. */
+export const bookBlockType = pgTable('book_block_type', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** A hex colour the Book draws the block in. */
+  color: text('color').default('#94a3b8').notNull(),
+  defaultMin: integer('default_min').default(60).notNull(),
+  /** Paid time off the chair (training, a meeting) counts toward hours; unpaid (lunch) does not. */
+  paid: boolean('paid').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('book_block_type_company_name_idx').on(t.companyId, t.name),
+])
+
+/** How one person likes the Book drawn (salon parity row 1): the time-slot interval, remembered per login so it follows them to another screen. */
+export const bookPreference = pgTable('book_preference', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Minutes per slot on the Book grid: 5, 10, 15 or 30. Drags step by it and the grid is drawn taller or shorter to match. */
+  slotMin: integer('slot_min').default(15).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('book_preference_user_idx').on(t.userId),
+])
+
 /** Time a chair is not bookable (lunch, training): one stylist's, or the whole salon's when no stylist is named. */
 export const bookBlock = pgTable('book_block', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -315,10 +429,57 @@ export const bookBlock = pgTable('book_block', {
   startTime: timestamp('start_time').notNull(),
   endTime: timestamp('end_time').notNull(),
   reason: text('reason'),
+  /** The type it was made from, if any. Deleting the type leaves the block as it was: the name, colour and paid mark are kept on the block. */
+  typeId: text('type_id').references(() => bookBlockType.id, { onDelete: 'set null' }),
+  typeName: text('type_name'),
+  typeColor: text('type_color'),
+  paid: boolean('paid'),
+  /** Blocks made together by one repeat rule share a series, so the whole series can be changed or removed. */
+  seriesId: text('series_id'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('book_block_company_start_idx').on(t.companyId, t.startTime),
+  index('book_block_series_idx').on(t.companyId, t.seriesId),
+])
+
+/**
+ * Time off for one stylist (salon parity row 3; Fresha team time off): requested by the stylist, or entered by a manager, and approved or
+ * denied by a manager. Any length — not the 14-day cap a block has. Only an APPROVED one takes the chair off the Book and out of online booking.
+ */
+export const salonTimeOff = pgTable('salon_time_off', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'cascade' }),
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'cascade' }),
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time').notNull(),
+  /** 'pending', 'approved' or 'denied'. */
+  status: text('status').default('pending').notNull(),
+  /** Paid time off counts toward the hours report; unpaid does not. */
+  paid: boolean('paid').default(false).notNull(),
+  reason: text('reason'),
+  requestedBy: text('requested_by'),
+  decidedBy: text('decided_by'),
+  decidedAt: timestamp('decided_at'),
+  decisionNote: text('decision_note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_time_off_company_start_idx').on(t.companyId, t.startTime),
+  index('salon_time_off_company_status_idx').on(t.companyId, t.status),
+])
+
+/** The salon closed on whole days (a holiday, a refit): every chair, online booking too (salon parity row 3; Fresha closed dates). Both days included. */
+export const salonClosedPeriod = pgTable('salon_closed_period', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('salon_closed_period_company_start_idx').on(t.companyId, t.startDate),
 ])
 
 /**
@@ -335,8 +496,16 @@ export const intakeForm = pgTable('intake_form', {
   intro: text('intro'),
   /** [{ id, label, type: 'text' | 'longtext' | 'yesno' | 'choice' | 'consent', required, options? }] */
   questions: json('questions').$type<any[]>().default([]).notNull(),
-  /** Service Menu ids the form applies to; empty = every online booking. */
+  /** Service Menu ids the form applies to; empty (with no membership plans either) = every online booking. */
   serviceIds: json('service_ids').$type<string[]>().default([]).notNull(),
+  /** Membership plan ids: a client with an active enrolment in one of these is asked too (a form for members, whatever they book). */
+  membershipPlanIds: json('membership_plan_ids').$type<string[]>().default([]).notNull(),
+  /** An answer stands this many days, then the client is asked again (null = never expires). */
+  validForDays: integer('valid_for_days'),
+  /** The online booking is held (not confirmed) until the client has answered this form. */
+  beforeConfirm: boolean('before_confirm').default(false).notNull(),
+  /** How a consent form is signed: 'typed' (the full name) or 'drawn' (a signature drawn on screen). */
+  signature: text('signature').default('typed').notNull(),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -358,10 +527,42 @@ export const intakeResponse = pgTable('intake_response', {
   /** [{ label, type, answer }] — as asked, so a later change to the form never rewrites what a client said. */
   answers: json('answers').$type<any[]>().default([]).notNull(),
   signedName: text('signed_name'),
+  /** File and photo answers: [{ questionId, label, key, name, contentType }]; the bytes are in storage under `key`. */
+  files: json('files').$type<any[]>().default([]).notNull(),
+  /** The drawn signature's picture in storage (a consent form whose signature is 'drawn'), and its content type. */
+  signatureKey: text('signature_key'),
+  signatureType: text('signature_type'),
+  /** The last day (salon calendar day, YYYY-MM-DD) this answer stands; null = never expires. */
+  expiresOn: text('expires_on'),
+  /** Where it was filled in: 'booking' (the client's booking page), 'link' (a sent link), 'desk' (staff, at the desk or on the phone). */
+  via: text('via').default('booking').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('intake_response_contact_idx').on(t.companyId, t.contactId),
   uniqueIndex('intake_response_once_idx').on(t.formId, t.contactId, t.bookingToken),
+])
+
+/**
+ * A form sent to an existing client (one at a time or in bulk): a link they open without signing in. One open request per form per client;
+ * answering it (or answering the form any other way) closes it. The send is recorded whether or not it could go (status + reason).
+ */
+export const intakeRequest = pgTable('intake_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  formId: text('form_id').notNull().references(() => intakeForm.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** The secret in the link. */
+  token: text('token').notNull(),
+  /** 'sent' | 'skipped' | 'failed' — skipped carries the reason (no consent, no address, already valid ...). */
+  status: text('status').default('sent').notNull(),
+  channel: text('channel'),
+  reason: text('reason'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('intake_request_token_idx').on(t.token),
+  index('intake_request_form_idx').on(t.companyId, t.formId),
+  index('intake_request_contact_idx').on(t.companyId, t.contactId),
 ])
 
 /**
@@ -391,6 +592,36 @@ export const retentionSend = pgTable('retention_send', {
 ])
 
 /**
+ * A single-use offer code a client was sent in an automatic message (salon row 20; part of `retention_sends`). Made in the
+ * pass that sends the message, tied to that send, redeemed once at checkout against the client's own sale. The discount is
+ * 'amount' (value = cents) or 'percent' (value = whole percent). `expiresOn` is the last day it works, on the company's
+ * calendar. 'active' | 'used' | 'void' (the message did not go out). One code per sale: used_invoice_id is unique.
+ */
+export const offerCode = pgTable('offer_code', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),
+  /** The message it rode on: 'birthday' | 'win_back' | 'milestone' | 'anniversary' | 'tier_up'. */
+  source: text('source').notNull(),
+  sendId: text('send_id'),
+  discountType: text('discount_type').notNull(),
+  value: integer('value').notNull(),
+  expiresOn: text('expires_on').notNull(),
+  status: text('status').default('active').notNull(),
+  usedAt: timestamp('used_at'),
+  usedInvoiceId: text('used_invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  /** What it took off the sale, in cents. */
+  discountCents: integer('discount_cents'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('offer_code_company_code').on(t.companyId, t.code),
+  uniqueIndex('offer_code_used_invoice').on(t.usedInvoiceId),
+  index('offer_code_company_created_idx').on(t.companyId, t.createdAt),
+  index('offer_code_contact_idx').on(t.contactId),
+])
+
+/**
  * A gift card the salon sold at the desk (salon gap #10; hidden feature `salon_gift_cards`). Not the bar's card (bar_gift_card):
  * the money in and out is the salon's own sale and payments — the card is only a balance the salon owes back. `invoiceId` is
  * the sale that paid for it (one card per sale). Every change to `balanceCents` has a ledger row; a voided card holds nothing.
@@ -402,7 +633,7 @@ export const salonGiftCard = pgTable('salon_gift_card', {
   code: text('code').notNull(),
   initialCents: integer('initial_cents').notNull(),
   balanceCents: integer('balance_cents').notNull(),
-  /** 'active' | 'void' */
+  /** 'active' | 'void' | 'pending' (an online or reader sale not yet paid: it holds nothing and cannot be spent) */
   status: text('status').notNull().default('active'),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   purchaserContactId: text('purchaser_contact_id').references(() => contact.id, { onDelete: 'set null' }),
@@ -415,6 +646,18 @@ export const salonGiftCard = pgTable('salon_gift_card', {
   voidedAt: timestamp('voided_at'),
   voidReason: text('void_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  /** Free promotional value ("buy $100, get $20") granted with the card, and what is left of it. It is part of balance_cents; the PAID part never expires. */
+  bonusGrantedCents: integer('bonus_granted_cents').notNull().default(0),
+  bonusCents: integer('bonus_cents').notNull().default(0),
+  /** The last day (the salon's calendar, YYYY-MM-DD) the bonus can be spent; null = it does not expire. */
+  bonusExpiresOn: text('bonus_expires_on'),
+  /** When the recipient is emailed the number (the salon's calendar day); null = at once. delivered_at is when it went. */
+  deliverOn: text('deliver_on'),
+  deliveredAt: timestamp('delivered_at'),
+  /** 'desk' | 'online' (the salon's gift card page) | 'reader' (taken on the card reader). An online or reader sale is 'pending' until it is paid. */
+  source: text('source').notNull().default('desk'),
+  /** The Stripe Checkout session of an online sale. */
+  sessionId: text('session_id'),
 }, (t) => [
   uniqueIndex('salon_gift_card_company_code_key').on(t.companyId, t.code),
   uniqueIndex('salon_gift_card_company_invoice_key').on(t.companyId, t.invoiceId),
@@ -426,7 +669,7 @@ export const salonGiftCardLedger = pgTable('salon_gift_card_ledger', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   cardId: text('card_id').notNull().references(() => salonGiftCard.id, { onDelete: 'cascade' }),
   amountCents: integer('amount_cents').notNull(),
-  /** 'issue' | 'redeem' | 'refund' | 'adjust' | 'void' */
+  /** 'issue' | 'redeem' | 'refund' | 'adjust' | 'void' | 'reload' | 'bonus' | 'bonus_expired' | 'extend' */
   kind: text('kind').notNull(),
   /** The sale it was spent on / put back from (redeem, refund) — or that sold the card (issue). */
   invoiceId: text('invoice_id'),
@@ -486,6 +729,60 @@ export const salonTerminalCharge = pgTable('salon_terminal_charge', {
   index('salon_terminal_charge_invoice_idx').on(t.invoiceId),
 ])
 
+/** Who the salon buys retail from. */
+export const salonSupplier = pgTable('salon_supplier', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  contactName: text('contact_name'),
+  email: text('email'),
+  phone: text('phone'),
+  notes: text('notes'),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [index('salon_supplier_company_idx').on(t.companyId)])
+
+/** A place stock is kept (a shop, a back room). Every salon has a first one; stock moves and retail sales name theirs. */
+export const salonStockLocation = pgTable('salon_stock_location', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [index('salon_stock_location_company_idx').on(t.companyId)])
+
+/** A purchase order to a supplier: drafted (often from what is low), emailed, then received line by line into stock. */
+export const salonPurchaseOrder = pgTable('salon_purchase_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  supplierId: text('supplier_id').notNull().references(() => salonSupplier.id, { onDelete: 'restrict' }),
+  number: text('number').notNull(),
+  /** 'draft' | 'sent' | 'partial' | 'received' | 'cancelled' */
+  status: text('status').notNull().default('draft'),
+  /** Where received stock goes. */
+  locationId: text('location_id'),
+  note: text('note'),
+  sentAt: timestamp('sent_at'),
+  sentTo: text('sent_to'),
+  createdByName: text('created_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_purchase_order_number_key').on(t.companyId, t.number),
+  index('salon_purchase_order_supplier_idx').on(t.supplierId),
+])
+
+export const salonPurchaseOrderLine = pgTable('salon_purchase_order_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  purchaseOrderId: text('purchase_order_id').notNull().references(() => salonPurchaseOrder.id, { onDelete: 'cascade' }),
+  productId: text('product_id').notNull().references(() => salonRetailProduct.id, { onDelete: 'restrict' }),
+  quantity: integer('quantity').notNull(),
+  received: integer('received').notNull().default(0),
+  unitCostCents: integer('unit_cost_cents'),
+}, (t) => [
+  uniqueIndex('salon_purchase_order_line_key').on(t.purchaseOrderId, t.productId),
+])
+
 /** A retail product the salon sells off the shelf. Stock on hand is NOT stored: it is what came in less what sits on sales that stand (salonStockMove, salonRetailSale). */
 export const salonRetailProduct = pgTable('salon_retail_product', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -497,10 +794,17 @@ export const salonRetailProduct = pgTable('salon_retail_product', {
   costCents: integer('cost_cents'),
   /** On hand at or below this = low. Null = never flagged. */
   reorderAt: integer('reorder_at'),
+  /** How many to order when it runs low (a purchase order drafted from low stock proposes this). */
+  reorderQty: integer('reorder_qty'),
+  category: text('category'),
+  /** What a barcode scanner reads (UPC / EAN). The till and a count find the product by it. */
+  barcode: text('barcode'),
+  supplierId: text('supplier_id').references((): any => salonSupplier.id, { onDelete: 'set null' }),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('salon_retail_product_company_idx').on(t.companyId, t.active),
+  uniqueIndex('salon_retail_product_barcode_key').on(t.companyId, t.barcode),
 ])
 
 /** Stock in (+) and corrections (±) with who and why. Sales are not moves: they are salonRetailSale rows, so a void sale gives its stock back by itself. */
@@ -509,10 +813,17 @@ export const salonStockMove = pgTable('salon_stock_move', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   productId: text('product_id').notNull().references(() => salonRetailProduct.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
-  /** 'received' | 'adjust' */
+  /** 'received' | 'adjust' | 'transfer_out' | 'transfer_in' | 'returned' */
   kind: text('kind').notNull(),
   note: text('note'),
   byName: text('by_name'),
+  /** Where the stock is (null = the salon's first location). */
+  locationId: text('location_id'),
+  /** The two moves of one transfer share this. */
+  transferId: text('transfer_id'),
+  purchaseOrderId: text('purchase_order_id'),
+  /** A return to the shelf after a refund names the sale. */
+  invoiceId: text('invoice_id'),
   at: timestamp('at').defaultNow().notNull(),
 }, (t) => [
   index('salon_stock_move_product_idx').on(t.productId),
@@ -526,9 +837,120 @@ export const salonRetailSale = pgTable('salon_retail_sale', {
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
   lineItemId: text('line_item_id').notNull().references(() => invoiceLineItem.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
+  /** What one unit cost the salon when it was sold (the product's cost then); null when no cost was entered. Margins read this, so a later cost change does not rewrite old sales. */
+  unitCostCents: integer('unit_cost_cents'),
+  /** Where the units came off (null = the salon's first location). */
+  locationId: text('location_id'),
+  /** Who sold it when no visit names them (a walk-in): a login (user) or a roster stylist (team member). */
+  stylistId: text('stylist_id'),
+  stylistMemberId: text('stylist_member_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('salon_retail_sale_line_key').on(t.lineItemId),
   index('salon_retail_sale_product_idx').on(t.productId),
   index('salon_retail_sale_invoice_idx').on(t.invoiceId),
+])
+
+/**
+ * Who sold a package, gift card or membership bill (salon row 15): one person per bill, a login's id or a chair-only team member's id. The bill's
+ * line is paid commission to them by the plans that cover that kind of sale. A bill raised from a visit needs none: the visit's stylist sold it.
+ */
+export const salonSaleSeller = pgTable('salon_sale_seller', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  payeeId: text('payee_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('salon_sale_seller_invoice_key').on(t.invoiceId),
+  index('salon_sale_seller_company_idx').on(t.companyId),
+])
+
+/**
+ * A chair renter (salon row 24; hidden feature `booth_rent`): a Team member who rents a chair and pays the salon rent on a schedule.
+ * `rentCents` is the amount for each period (weekly or monthly); a change applies to periods not yet invoiced. `dueWeekday` (0 = Sunday)
+ * is the day a weekly rent falls due, `dueDay` (1–31, clamped to the month's last day) the day a monthly one does. `nextDue` is the next
+ * period not yet invoiced — an invoice is raised on that day. The renter is billed through `contactId`, a contact of type 'other' made for
+ * them, so their rent, card and statement are an ordinary client's but they are never listed among the salon's clients. Autopay needs the
+ * renter's agreement (`autoChargeConsentAt`) and a card on file on the salon's own Stripe account; after the last failed try the renter is
+ * paused (`pausedForPaymentAt`) and sent a private link (`cardUpdateToken`) to give a new card.
+ */
+export const boothRenter = pgTable('booth_renter', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  teamMemberId: text('team_member_id').notNull().references(() => teamMember.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  /** 'active' | 'paused' (the card was declined on every try) | 'ended' */
+  status: text('status').notNull().default('active'),
+  rentCents: integer('rent_cents').notNull(),
+  /** 'weekly' | 'monthly' */
+  frequency: text('frequency').notNull(),
+  dueWeekday: integer('due_weekday'),
+  dueDay: integer('due_day'),
+  startDate: date('start_date').notNull(),
+  /** The next period not yet invoiced (null once ended). */
+  nextDue: date('next_due'),
+  endedOn: date('ended_on'),
+  autoCharge: boolean('auto_charge').notNull().default(false),
+  autoChargeConsentAt: timestamp('auto_charge_consent_at'),
+  /** 'staff' (the renter agreed in person and a person recorded it) | 'renter_online' (the renter ticked the agreement on their private card page) */
+  autoChargeConsentVia: text('auto_charge_consent_via'),
+  autoChargeConsentUserId: text('auto_charge_consent_user_id').references(() => user.id, { onDelete: 'set null' }),
+  pausedForPaymentAt: timestamp('paused_for_payment_at'),
+  /** The private link's token (give a card / give a new card); cleared once it has done its job. */
+  cardToken: text('card_token'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('booth_renter_company_member_idx').on(t.companyId, t.teamMemberId),
+  index('booth_renter_company_status_idx').on(t.companyId, t.status),
+  uniqueIndex('booth_renter_card_token_idx').on(t.cardToken),
+])
+
+/**
+ * One rent period of one renter: the claim that makes a period billable once (unique renter + period). 'invoiced' = an invoice was raised
+ * for it (`amountCents` is what that invoice charged); 'waived' = the salon waived it (no invoice, or the unpaid one was voided) with a reason.
+ */
+export const boothRentPeriod = pgTable('booth_rent_period', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  renterId: text('renter_id').notNull().references(() => boothRenter.id, { onDelete: 'cascade' }),
+  /** The day the period fell due. */
+  period: date('period').notNull(),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  amountCents: integer('amount_cents').notNull(),
+  /** 'invoiced' | 'waived' */
+  status: text('status').notNull(),
+  waivedReason: text('waived_reason'),
+  waivedByUserId: text('waived_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('booth_rent_period_renter_period_idx').on(t.renterId, t.period),
+  index('booth_rent_period_invoice_idx').on(t.invoiceId),
+  index('booth_rent_period_company_idx').on(t.companyId),
+])
+
+/** One try to take a rent invoice from the renter's card — the same ledger as membership_charge, one row per invoice and attempt. */
+export const boothRentCharge = pgTable('booth_rent_charge', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  renterId: text('renter_id').notNull().references(() => boothRenter.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  cardId: text('card_id').references(() => clientCard.id, { onDelete: 'set null' }),
+  period: date('period').notNull(),
+  attempt: integer('attempt').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  /** 'pending' (claimed, Stripe not answered) | 'succeeded' | 'declined' | 'needs_action' */
+  status: text('status').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  failureMessage: text('failure_message'),
+  backupTried: boolean('backup_tried').notNull().default(false),
+  retriedByUserId: text('retried_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('booth_rent_charge_invoice_attempt_idx').on(t.invoiceId, t.attempt),
+  index('booth_rent_charge_company_idx').on(t.companyId),
+  index('booth_rent_charge_renter_idx').on(t.renterId),
 ])

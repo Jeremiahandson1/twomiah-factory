@@ -135,7 +135,7 @@ describe('salon: patch-test status', () => {
     expect(r.body.patchTestResult).toBe('failed')
     // a new test with no result given is not still "failed"
     r = await put({ patchTestAt: daysAgo(1) })
-    expect(r.body.patchTestResult).toBeNull()
+    expect(r.body.patchTestResult).toBe('passed')   // a test in the history always has a status; a date with none given is a pass, as the rule always read it
     expect((await as('owner', `/api/clients/${c.id}`)).body.patchTest.state).toBe('passed')
     // an old one expires
     await put({ patchTestAt: daysAgo(181), patchTestResult: 'passed' })

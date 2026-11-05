@@ -1,7 +1,8 @@
 // Settings › Card on file (server crm/salon/cardOnFile.ts, GET/PUT /api/card-on-file/policy; hidden feature `card_on_file`):
 // the salon's no-show and late-cancellation fees and its own policy words. The card a client keeps is charged only by a
-// person pressing "Charge a fee" in The Book, for the amount set here — nothing is charged automatically. Cards live on the
-// salon's own Stripe account.
+// person pressing "Charge a fee" in The Book, for the amount set here — unless the salon turns on the automatic no-show charge below.
+// A different fee for a new client and a minimum booking value live here too; a service's own fee is on the Service Menu. Cards live on
+// the salon's own Stripe account.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CreditCard, Loader2 } from 'lucide-react'
@@ -17,6 +18,9 @@ interface Policy {
   cardRequirement: string
   noShowFeeAmount: number | null; noShowFeePercent: number | null
   lateCancelWindowMinutes: number | null; lateCancelFeeAmount: number | null; lateCancelFeePercent: number | null
+  /** Row 4, whole cents: the fee for a client who has never completed a visit, the minimum booking value, the automatic no-show charge. */
+  noShowFeeNewCents: number | null; noShowFeeNewPercent: number | null; lateCancelFeeNewCents: number | null; lateCancelFeeNewPercent: number | null
+  minBookingValueCents: number | null; autoChargeNoShow: boolean
   policyText: string | null; words: string; connected: boolean
 }
 const modeOf = (amount: number | null, percent: number | null): Mode => (amount != null ? 'amount' : percent != null ? 'percent' : 'none')
@@ -35,6 +39,12 @@ export default function CardOnFileSettingsPage() {
   const [lateMode, setLateMode] = useState<Mode>('none')
   const [lateValue, setLateValue] = useState('')
   const [windowMin, setWindowMin] = useState<number>(1440)
+  const [newNoShowMode, setNewNoShowMode] = useState<Mode>('none')
+  const [newNoShowValue, setNewNoShowValue] = useState('')
+  const [newLateMode, setNewLateMode] = useState<Mode>('none')
+  const [newLateValue, setNewLateValue] = useState('')
+  const [minValue, setMinValue] = useState('')
+  const [auto, setAuto] = useState(false)
   const [text, setText] = useState('')
   const [requirement, setRequirement] = useState<string>('off')
 
@@ -46,6 +56,10 @@ export default function CardOnFileSettingsPage() {
     setLateMode(modeOf(p.lateCancelFeeAmount, p.lateCancelFeePercent))
     setLateValue(String(p.lateCancelFeeAmount ?? p.lateCancelFeePercent ?? ''))
     setWindowMin(p.lateCancelWindowMinutes ?? 1440)
+    setNewNoShowMode(modeOf(p.noShowFeeNewCents, p.noShowFeeNewPercent)); setNewNoShowValue(p.noShowFeeNewCents != null ? String(p.noShowFeeNewCents / 100) : String(p.noShowFeeNewPercent ?? ''))
+    setNewLateMode(modeOf(p.lateCancelFeeNewCents, p.lateCancelFeeNewPercent)); setNewLateValue(p.lateCancelFeeNewCents != null ? String(p.lateCancelFeeNewCents / 100) : String(p.lateCancelFeeNewPercent ?? ''))
+    setMinValue(p.minBookingValueCents != null ? String(p.minBookingValueCents / 100) : '')
+    setAuto(!!p.autoChargeNoShow)
     setText(p.policyText ?? '')
   }
   useEffect(() => {
@@ -58,12 +72,16 @@ export default function CardOnFileSettingsPage() {
   const save = async () => {
     setSaving(true); setErrors({})
     const n = (v: string) => (v.trim() === '' ? null : Number(v))
+    const cents = (v: string) => (v.trim() === '' ? null : Math.round(Number(v) * 100))
     try {
       const p: Policy = await api.put('/api/card-on-file/policy', {
         cardRequirement: requirement,
         noShowFeeAmount: noShowMode === 'amount' ? n(noShowValue) : null, noShowFeePercent: noShowMode === 'percent' ? n(noShowValue) : null,
         lateCancelFeeAmount: lateMode === 'amount' ? n(lateValue) : null, lateCancelFeePercent: lateMode === 'percent' ? n(lateValue) : null,
-        lateCancelWindowMinutes: lateMode === 'none' ? null : windowMin,
+        lateCancelWindowMinutes: lateMode === 'none' && newLateMode === 'none' ? null : windowMin,
+        noShowFeeNewCents: newNoShowMode === 'amount' ? cents(newNoShowValue) : null, noShowFeeNewPercent: newNoShowMode === 'percent' ? n(newNoShowValue) : null,
+        lateCancelFeeNewCents: newLateMode === 'amount' ? cents(newLateValue) : null, lateCancelFeeNewPercent: newLateMode === 'percent' ? n(newLateValue) : null,
+        minBookingValueCents: cents(minValue), autoChargeNoShow: auto,
         policyText: text.trim() || null,
       })
       fill(p)
@@ -106,7 +124,7 @@ export default function CardOnFileSettingsPage() {
         <div className="space-y-5">
           {feeRow('No-show fee', noShowMode, setNoShowMode, noShowValue, setNoShowValue, 'noShowFeeAmount')}
           {feeRow('Late-cancellation fee', lateMode, setLateMode, lateValue, setLateValue, 'lateCancelFeeAmount')}
-          {lateMode !== 'none' && (
+          {(lateMode !== 'none' || newLateMode !== 'none') && (
             <label className="block text-sm font-medium text-gray-900 dark:text-slate-100">
               A cancellation is late when it comes less than
               <select value={windowMin} disabled={!mayEdit} onChange={(e) => setWindowMin(Number(e.target.value))} className={fieldClass}>
@@ -117,7 +135,36 @@ export default function CardOnFileSettingsPage() {
             </label>
           )}
         </div>
-        <p className={hint}>Nothing is charged by itself. When a client no-shows or cancels late, someone with permission presses &ldquo;Charge a fee&rdquo; on that appointment in The Book, sees the amount and the card, and confirms.</p>
+        <p className={hint}>
+          {auto
+            ? 'A no-show fee is charged to the card on file the moment an appointment is marked a no-show. A late-cancellation fee is still charged by a person.'
+            : 'Nothing is charged by itself. When a client no-shows or cancels late, someone with permission presses \u201cCharge a fee\u201d on that appointment in The Book, sees the amount and the card, and confirms.'}
+          {' '}A service can have a fee of its own: set it on the Service Menu.
+        </p>
+      </section>
+
+      <section className={box} aria-label="Different fees for new clients, and a minimum">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-slate-100">New clients, and small bookings</h2>
+        <div className="mt-3 space-y-5">
+          {feeRow('No-show fee for a new client', newNoShowMode, setNewNoShowMode, newNoShowValue, setNewNoShowValue, 'noShowFeeNewCents')}
+          {feeRow('Late-cancellation fee for a new client', newLateMode, setNewLateMode, newLateValue, setNewLateValue, 'lateCancelFeeNewCents')}
+          <label className="block text-sm font-medium text-gray-900 dark:text-slate-100">
+            Charge a fee only when the booking is worth at least ($)
+            <input inputMode="decimal" value={minValue} disabled={!mayEdit} onChange={(e) => setMinValue(e.target.value)} className="mt-1 block w-28 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="no minimum" aria-invalid={!!errors.minBookingValueCents} />
+            {errors.minBookingValueCents && <span role="alert" className="block text-xs text-red-700 dark:text-red-300">{errors.minBookingValueCents}</span>}
+          </label>
+        </div>
+        <p className={hint}>A new client is one who has not yet completed a visit with you; they pay the new-client fee where you set one, everyone else the fee above. A booking worth less than the minimum owes no fee.</p>
+      </section>
+
+      <section className={box} aria-label="Charging automatically">
+        <label className="flex items-start gap-2 text-sm font-medium text-gray-900 dark:text-slate-100">
+          <input type="checkbox" checked={auto} disabled={!mayEdit} onChange={(e) => setAuto(e.target.checked)} className="mt-0.5 h-4 w-4" />
+          <span>Charge the no-show fee automatically when an appointment is marked a no-show
+            {errors.autoChargeNoShow && <span role="alert" className="block text-xs font-normal text-red-700 dark:text-red-300">{errors.autoChargeNoShow}</span>}
+          </span>
+        </label>
+        <p className={hint}>Off by default, so a wrong click is never a wrong charge. When on, the client is emailed the receipt as usual, the charge is on the same list as any other, and it can be reversed there. A client with no card, or a booking under the minimum, is simply not charged and the desk is told why.</p>
       </section>
 
       <section className={box} aria-label="Asking for a card when booking online">

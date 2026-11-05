@@ -19,15 +19,15 @@ What those pages say, so nothing below claims more:
 |---|---|---|
 | New vs returning clients in a period (Timely, Fresha) | Active clients in the period split into new (first visit ever in the period) and returning | **Matches** |
 | Retention % = clients who booked again (Timely) | "Booked again": of the clients who came in, the share holding an appointment from today on (cancelled and no-shows excluded) | **Matches** |
-| Retention over time windows (Boulevard) | "Came back": of the clients who came in the period just before, the share who came in this one. One window only (the period before) | **Partly** |
+| Retention over time windows (Boulevard), the owner picks the windows (row 14) | Reports › "Clients who came back, by return window": of the clients whose first visit in the period was in the group chosen, the share who came in again within 30 / 60 / 90 / 120 days (the owner types up to six windows, 7–365 days, and can keep them for the salon). A client counts in a window only once the whole window has passed since that visit. "Came back" above (the period just before) is kept | **Built** — `tests/salon-return-windows.test.ts` (hand-worked set of nine clients, edges included) |
 | Visit frequency | Visits per client, a once / twice / 3–4 / 5+ split, and the average days between visits for clients who came more than once | Built (no vendor page read to compare) |
 | First-timers who return | New clients who have had a second visit or hold a booking | Built (no vendor page read to compare) |
 | Clients who have slipped away | Not in for N days and nothing booked; N is the win-back days set in Automatic messages (default 90) | Built |
 | **Rebook rate per stylist** (the brief: no vendor page names one) | Of the visits a stylist did, the share that left with a next appointment: another appointment after the visit, not cancelled or a no-show, booked no later than a day after the visit (or already on the books). Also the whole-salon rate | Beyond what the pages read show |
-| Staff retention by return window (Boulevard) | Per-stylist rebook rate above; no per-stylist return windows | **Partly** |
+| Staff client retention by return window, sliceable by service (Boulevard) | The same table per stylist (the stylist of the client's first visit in the period), over the same windows, and the whole report can be sliced to clients whose first visit in the period was one service ("back" then means any later visit). The per-stylist rebook rate above stays | **Built** — same test |
 | Retail sold by item (Boulevard) | Retail lines on paid sales in the period, by item: units and money (before tax) | **Matches** in kind |
-| Retail by stylist (Boulevard "Staff retail sales") | Retail by the stylist of the visit the sale closed. No discounts / refunds per person | **Partly** |
-| Retail by brand / category / supplier / SKU, margins, inventory (Boulevard) | No | **Not built** |
+| Retail by stylist (Boulevard "Staff retail sales") | Retail by the stylist named on the sale (a walk-in sale names one) or else the stylist of the visit, net of the sale's discount share and refunds, with cost and margin (row 13, "Retail margins" on the Reports page) | **Matches** |
+| Retail by brand / category / supplier / SKU, margins, inventory (Boulevard) | Yes (row 13): `GET /api/salon-reports/retail-products` and the "Retail margins" section: units, sold, discounts, refunds, net, cost, margin and margin % by brand, category, supplier, product (SKU) and stylist; stock on hand worth at cost and at the shelf price. Cost is what a unit cost when it was sold (new column `unit_cost_cents`). A refunded unit put back on the shelf costs nothing; one not put back stays a cost. A line typed by hand has revenue but no brand, supplier or cost. | **Matches** |
 | Commission report (Boulevard "Commission summary") | The Commissions page (#8): statements and the list, per stylist | Lives on the Commissions page |
 | Gift-card sales out of sales totals (Fresha) | See below | **Decision for the owner** |
 
@@ -40,3 +40,10 @@ What those pages say, so nothing below claims more:
 - **Revenue and gift cards.** These reports do not count money, except retail. The invoice-based revenue totals elsewhere count a gift card's sale and the later service paid with it (see `salon-gift-cards.md`).
 - Proving test: `apps/unified/tests/salon-reports.test.ts` (5) — closed until the feature and seat rights; range validation and zeros for an empty salon; retention figures against a hand-worked set of seven clients; rebook rate per stylist including a cancelled booking that must not count; retail paid-only, by item and by stylist. It fails without the change (no routes).
 - The screen is type-checked and built but **not click-tested in a browser**.
+
+- **Return windows (row 14).** Visits are the service records. The anchor is a client's first visit in the period (with the chosen service); "back" is any later visit of theirs within N days, exactly N days counting. Not seen in a real browser. Boulevard's own definition of its windows was not reached; this is the standard cohort reading and says so on the page.
+
+## Row 13 — retail margins (built)
+- Limits: sales made before this change have no recorded cost, so their margin shows as unknown (they count in net, not in margin) — the report never invents a cost from today's product cost. A sale's discount is shared over its lines by price; a refund is shared over its lines by the share of the sale refunded (the refund form does not say which line came back). Returned units are shared over a sale's lines of the same product, first line first. Stock value counts active products only.
+- Proving test: `apps/unified/tests/salon-retail-reports.test.ts` (6) — closed until the feature and seat rights; empty salon; a hand-worked set of seven sales (discount share, partial refund, full refund put back / not put back, no cost entered, a hand-typed line) by brand, category, supplier, SKU and stylist; the cost kept when the product's cost changes later, and stock value; the date window. It fails without the change (no route, no recorded cost) — run both ways.
+- Not seen in a real browser.

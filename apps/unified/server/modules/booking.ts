@@ -41,7 +41,7 @@ const publicBooking = (b: BookingRow, engine: BookingEngine, cutoffOpen: boolean
   depositStatus: b.depositStatus, canChange: cutoffOpen,
 })
 
-export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; bookingCard?: { cards: any | null } }) {
+export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; bookingCard?: { cards: any | null }; /** The file store (photos and signatures on forms) and the hook that lets held bookings move on when a form is answered by another way. */ storage?: any; bookingForms?: { released: ((companyId: string, contactId: string) => Promise<unknown>) | null } }) {
   const { db, email, logger, permissions } = deps
   // People's own Google / Outlook calendars: their busy time, and their bookings put on them (booking/calendars.ts).
   const calendars = deps.calendars ?? createCalendars({ db, logger })
@@ -49,19 +49,19 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   email.register(bookingTemplates)
   const webhooks = createBookingWebhooks({ db, logger })
   // The engine's own rule for what is offered (read when a message goes, after the engine below is made).
-  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts, offered: (svc) => engine.offered(svc) })
+  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts, offered: (svc) => engine.offered(svc), note: (b, svc) => engine.noteFor(b, svc) })
   const engine = createBookingEngine({
     // The vertical's answers (VerticalSettings.booking): whether the address is asked (basic, salon, vet, bar say no —
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
     db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: calendars.externalBusy,
     addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true })
-      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking({ cards: () => deps.bookingCard?.cards ?? null, isFeatureEnabled: deps.isFeatureEnabled, db: deps.db }) : undefined,
+      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking({ cards: () => deps.bookingCard?.cards ?? null, isFeatureEnabled: deps.isFeatureEnabled, db: deps.db, storage: deps.storage, released: (co, contact) => deps.bookingForms?.released?.(co, contact) ?? Promise.resolve() }) : undefined,
     onHappening: (h) => { void happen(h); void calendars.onHappening(h) },
     // "Convert to job": numbered as the vertical's job module numbers its jobs — roofing's own (crm/roof/jobs.ts
     // ROOF-0001), everyone else's the shared module's default (packages/tenant-backend jobs.ts JOB-00001).
     jobs: deps.vertical.crm ? { numbering: deps.vertical.crm.roof ? { prefix: 'ROOF', pad: 4 } : { prefix: 'JOB', pad: 5 }, defaultType: deps.vertical.crm.jobs?.defaultType } : undefined,
   })
-  const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts })
+  const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts, note: (b, svc) => engine.noteFor(b, svc) })
 
   // ── The owner's API ───────────────────────────────────────────────────────
   const admin = new Hono<AppEnv>()
@@ -261,7 +261,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
       answers: answersOf(engine, b), smsConsent: ticked(b), who: b.who ? String(b.who) : null,
     }, { by: 'customer' })
-    return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit, ...(r.card ? { needsCard: true } : {}) }, 201)
+    return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit, ...(r.card ? { needsCard: true } : {}), ...(r.forms ? { needsForms: true } : {}) }, 201)
   }) as Promise<Response>))
   pub.post('/services/:slug/waitlist', (c) => withCompany(c, (id) => guard(c, async () => {
     const b = await body(c)

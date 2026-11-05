@@ -34,7 +34,7 @@ export const icsOf = (b: BookingRow, svc: ServiceRow | null, companyName: string
  * `offered`: the engine's one rule for "can a customer book this now" (engine.offered — switched on, and on the
  * vertical's own list when it keeps one), so a message never links a customer to a /book page that isn't there.
  */
-export function createHappenings(deps: { db: any; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts; offered: (svc: ServiceRow | null) => boolean }) {
+export function createHappenings(deps: { db: any; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts; offered: (svc: ServiceRow | null) => boolean; note?: (b: BookingRow, svc: ServiceRow | null) => Promise<string | null> }) {
   const { db, email, logger, webhooks, offered } = deps
 
   async function owner(companyId: string) {
@@ -66,8 +66,9 @@ export function createHappenings(deps: { db: any; email: EmailService; logger: L
     const tz = safeTz(s.timezone)
 
     if (h.event === 'booking.created') {
+      const note = await (deps.note?.(b, svc) ?? Promise.resolve(null)).catch(() => null)
       await quietly('confirmation email', email.send(b.customerEmail, 'bookingConfirmed', {
-        ...m, intro: s.confirmationEmailIntro, subject: s.confirmationEmailSubject, deposit: b.depositStatus === 'paid' && b.depositAmount ? `$${b.depositAmount}` : null,
+        ...m, note, intro: s.confirmationEmailIntro, subject: s.confirmationEmailSubject, deposit: b.depositStatus === 'paid' && b.depositAmount ? `$${b.depositAmount}` : null,
       }, { attachments: [{ filename: 'booking.ics', content: icsOf(b, svc, co.name), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }))
       if (s.notifyEmail && co.email) await quietly('owner email', email.send(co.email, 'bookingNewForOwner', m, { replyTo: { address: b.customerEmail, name: b.customerName } }))
       if (deps.texts) await quietly('confirmation text', deps.texts.send(b, bookingTextFor.confirmed({ companyName: co.name, serviceName: m.serviceName, when: m.when, manageUrl: m.manageUrl })))

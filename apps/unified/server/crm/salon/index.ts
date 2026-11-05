@@ -20,18 +20,25 @@ import { createBookBlockRoutes } from './bookBlocks.ts'
 import { createIntakeFormRoutes } from './intakeForms.ts'
 import { createSalonCommissions } from './commissions.ts'
 import { createRetention, createRetentionRoutes } from './retention.ts'
+import { createOfferRoutes } from './offers.ts'
 import { createSalonGiftCards, createSalonGiftCardRoutes } from './giftCards.ts'
+import { createGiftShop } from './giftShop.ts'
 import { createSalonReports, createSalonReportRoutes } from './reports.ts'
 import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
+import { createRetailStock, createRetailStockRoutes } from './retailStock.ts'
 import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
+import { createLateTips } from './lateTip.ts'
+import { createSaleReceipts } from './saleReceipt.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
 import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
 import { createCardOnFileRoutes } from './cardOnFile.ts'
 import { createMemberCardRoutes } from './cardPages.ts'
+import { createBoothRentRoutes, createRenterCardRoutes } from './boothRentRoutes.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
 import { company } from '../../db/schema/index.ts'
+import { asc } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { pricesOnlyForMoneySeats } from './prices.ts'
 import { canSeeWith } from '../deps.ts'
@@ -51,6 +58,17 @@ export async function settleMembershipsForAll(d: CrmDeps) {
   for (const co of await d.db.select({ id: company.id }).from(company)) {
     if (!(await d.features.isFeatureEnabled(co.id, 'salon_memberships'))) continue
     billed += (await s.memberships.settleMembershipBilling(co.id).catch((e: any) => { d.logger.error('[memberships] timed billing failed', { company: co.id, error: e?.message }); return [] })).length
+  }
+  return billed
+}
+
+/** One timed pass: every business with Booth rent on has its due rent invoiced (claimed, once per renter and period) and its declined charges tried again. */
+export async function settleBoothRentForAll(d: CrmDeps) {
+  const s = salonServicesFor(d)
+  let billed = 0
+  for (const co of await d.db.select({ id: company.id }).from(company)) {
+    if (!(await d.features.isFeatureEnabled(co.id, 'booth_rent'))) continue
+    billed += (await s.boothRent.settle(co.id).catch((e: any) => { d.logger.error('[booth-rent] timed billing failed', { company: co.id, error: e?.message }); return [] })).length
   }
   return billed
 }
@@ -76,6 +94,29 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     setTimeout(() => { void tick() }, 5 * 60_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
+  // Booth rent comes due on its own: every 6 hours, each business with Booth rent on has its due rent invoiced and its declined charges tried again. Boot only, never in tests.
+  if (salonBook) d.services.addJob(() => {
+    const tick = () => settleBoothRentForAll(d)
+    setTimeout(() => { void tick() }, 6 * 60_000)
+    setInterval(() => { void tick() }, 6 * 3600_000)
+  })
+  // Retail: products, stock by place, suppliers and purchase orders (retail.ts, retailStock.ts). A product reaching its level emails the salon.
+  const retailStock = createRetailStock(d)
+  const retail = createSalonRetail(d, s, { afterChange: (companyId) => { void retailStock.alertLow(companyId) } })
+  d.services.useLineEdit?.(retail.lineEdit)
+  ;(d.services as any).retailStockJobs = { alertLow: retailStock.alertLow, weeklySummary: retailStock.weeklySummary }
+  // Timed: products at their level that nobody was told about yet (a stock change from outside a sale), and the Monday summary. Boot only, never in tests.
+  d.services.addJob(() => {
+    const tick = async () => {
+      try {
+        const [co] = await d.db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
+        if (!co) return
+        await retailStock.alertLow(co.id); await retailStock.weeklySummary(co.id)
+      } catch (e: any) { d.logger.warn('[salon-retail] timed pass failed', { error: e?.message }) }
+    }
+    setTimeout(() => { void tick() }, 5 * 60_000)
+    setInterval(() => { void tick() }, 15 * 60_000)
+  })
   // Stylist commissions: the stylist of a paid visit earns by themselves (not ready: owner tests it first).
   const retention = createRetention(d, s)
   // The timed pass: every 15 minutes, for each salon with automatic sends on (retention.ts). Boot only, never in tests.
@@ -84,9 +125,27 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   // Gift cards sold at the desk and spent at checkout (not ready); a refund by gift card goes back onto the card, inside the refund's own transaction.
   const giftCards = createSalonGiftCards(d, s)
   d.services.useTenderRefund('gift_card', giftCards.creditBack)
+  // The public page that sells a card online and the page that checks a balance; a card bought online or on the reader goes live when its sale is paid.
+  const giftShop = createGiftShop(d, giftCards)
+  d.services.useConnectedEvents?.(giftShop.claim)
+  d.services.onInvoicePaid?.((invoiceId: string) => giftCards.activateRecorded(invoiceId))
+  // Timed: cards due to be emailed, free bonuses whose last day has passed, and online sales nobody paid. Boot only, never in tests.
+  // Reachable by tests (the same passes, one at a time).
+  ;(d.services as any).giftCardJobs = { deliverDue: giftCards.deliverDue, expireDue: giftCards.expireDue, expirePending: giftCards.expirePending }
+  d.services.addJob(() => {
+    const tick = async () => { try { await giftCards.deliverDue(); await giftCards.expireDue(); await giftCards.expirePending() } catch (e: any) { d.logger.warn('[gift-cards] timed pass failed', { error: e?.message }) } }
+    setTimeout(() => { void tick() }, 4 * 60_000)
+    setInterval(() => { void tick() }, 15 * 60_000)
+  })
   d.services.useCommissionEarner?.({ earn: commissions.earnForInvoice, sweep: commissions.sweep })
   // A client's card saved on Stripe's own page arrives as a connected-account event: the salon's cards claim it.
   d.services.useConnectedEvents?.(s.cards.claim)
+  // A tip added after the visit (the link in the receipt) is paid on Stripe's own page; its finished event is claimed here. A paid sale is
+  // emailed its receipt however its money arrived (reader, typed in, card online, bank): once.
+  const lateTips = createLateTips(d)
+  const receipts = createSaleReceipts(d, lateTips)
+  d.services.useConnectedEvents?.(lateTips.claim)
+  d.services.onInvoicePaid?.(receipts.onPaid)
   // The card an online booking waited for: saved, so the booking stands (booking/engine.ts cardSaved).
   d.services.bookingCard.cards = s.cards
   s.cards.onSaved(async ({ companyId, metadata }) => { if (metadata.booking_token) await d.services.bookingCard.confirm?.(companyId, metadata.booking_token) })
@@ -107,17 +166,31 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     // Client retention, rebook-rate and retail reports (not ready: owner tests it first).
     { path: '/api/salon-reports', access: 'user', feature: 'salon_reports', router: createSalonReportRoutes(d, createSalonReports(d)) } as Mount,
     // Retail products with stock, sold onto a sale (not ready: owner tests it first).
-    { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, createSalonRetail(d, s)) } as Mount,
+    { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, retail) } as Mount,
+    { path: '/api/salon-retail-stock', access: 'user', feature: 'salon_retail', router: createRetailStockRoutes(d, retailStock) } as Mount,
     // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
-    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d)) } as Mount,
+    { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d, { receipts, afterPaid: giftCards.activateRecorded })) } as Mount,
+    // The receipt's private tip page (404 while Checkout at the chair is off).
+    { path: '/api/late-tip', access: 'public', feature: 'chair_checkout', router: lateTips.routes() } as Mount,
     // Gift cards: sell, spend as a payment, balance (not ready: owner tests it first).
     { path: '/api/salon-gift-cards', access: 'user', feature: 'salon_gift_cards', router: createSalonGiftCardRoutes(d, giftCards) } as Mount,
+    // Buy a gift card online, on the salon's own Stripe account (off until the owner switches online sales on).
+    { path: '/api/gift-shop', access: 'public', feature: 'salon_gift_cards', router: giftShop.shopRoutes() } as Mount,
+    // Check a gift card's balance by its number.
+    { path: '/api/gift-balance', access: 'public', feature: 'salon_gift_cards', router: giftShop.balanceRoutes() } as Mount,
     // Automatic rebooking, birthday, win-back and next-visit messages (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/retention', access: 'user', feature: 'retention_sends', router: createRetentionRoutes(d, retention) } as Mount] : []),
+    // The single-use offer codes those messages carry: the list, the report, and taking one off a sale.
+    ...(salonBook ? [{ path: '/api/retention-offers', access: 'user', feature: 'retention_sends', router: createOfferRoutes(d, s.clock) } as Mount] : []),
     // Cards on file and no-show / late-cancel fees (not ready: owner tests it first).
     ...(salonBook ? [{ path: '/api/card-on-file', access: 'user', feature: 'card_on_file', router: priced(createCardOnFileRoutes(d, s.cards, s.book)) } as Mount] : []),
     // The paused member's private card page, linked from the email (404 while Card on file is off).
     ...(salonBook ? [{ path: '/api/member-card', access: 'public', feature: 'card_on_file', router: createMemberCardRoutes(d, s.cards) } as Mount] : []),
+    // Chair renters' rent and the renter's own card page (not ready: owner tests it first).
+    ...(salonBook ? [
+      { path: '/api/booth-rent', access: 'user', feature: 'booth_rent', router: createBoothRentRoutes(d, s, s.boothRent) } as Mount,
+      { path: '/api/renter-card', access: 'public', feature: 'booth_rent', router: createRenterCardRoutes(d, s.cards) } as Mount,
+    ] : []),
     ...(settings.loyalty ? [] : [{ path: '/api/loyalty', access: 'user', feature: 'loyalty_rewards', router: createLoyaltyRoutes(d) } as Mount]),
   ]
 }

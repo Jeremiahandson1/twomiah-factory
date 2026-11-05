@@ -8,7 +8,8 @@
  * phone tile: a tile opens exactly what it counts.
  */
 import type { TileDef } from '../home/tiles'
-import { type ScreenSpec, type Row, words, money, clock, dayTime, dayOnly, join } from './kit'
+import { type ScreenSpec, type Row, words, money, clock, dayTime, dayOnly, join, calDay } from './kit'
+import { standingWords } from '../forms/intakeForm'
 
 const STATS = '/api/dashboard/stats'
 const paged = (b: any): number => Number(b?.pagination?.total ?? (Array.isArray(b?.data) ? b.data.length : Array.isArray(b) ? b.length : 0))
@@ -40,6 +41,9 @@ const steps = (f: any): string | undefined => {
   return a.length ? a.map((x: any) => [x.product, x.shade, x.parts ? `${x.parts} parts` : ''].filter(Boolean).join(' ')).join(' + ') : undefined
 }
 
+/** The forms the server lists for this client (GET /api/intake-forms/for-client), whatever the shape the list came in. */
+const formsOf = (d: any): any[] => (Array.isArray(d._also?.forms) ? d._also.forms : Array.isArray(d._also?.forms?.data) ? d._also.forms.data : [])
+
 export const SALON: ScreenSpec[] = [
   {
     id: 'salon-today', title: "Today's book", any: ['schedule:read'], feature: 'salon_booking',
@@ -66,7 +70,7 @@ export const SALON: ScreenSpec[] = [
     rows: (c) => ({ id: c.id, key: c.id, title: c.name || 'Client', subtitle: join(c.phone || c.mobile, c.hairType), meta: c.stylistFirstName }),
     empty: { title: 'No clients yet', body: 'Clients show here once they are added.' },
     detail: {
-      path: (id) => `/api/clients/${id}`, also: { formulas: (id) => `/api/clients/${id}/formulas` },
+      path: (id) => `/api/clients/${id}`, also: { formulas: (id) => `/api/clients/${id}/formulas`, forms: (id) => `/api/intake-forms/for-client?contactId=${id}` },
       title: (d) => d.contact?.name || 'Client', subtitle: (d) => join(d.contact?.mobile || d.contact?.phone, d.profile?.pronouns),
       sections: [
         { title: 'Before they sit', fields: [
@@ -75,6 +79,10 @@ export const SALON: ScreenSpec[] = [
         ] },
         { title: 'Kept formulas', empty: 'No formula kept yet.', rows: (d) => (d._also?.formulas?.formulas || []).map((f: any) => ({
           key: f.id, title: f.label || 'Formula', subtitle: join(steps(f.formula), f.developerVolume && `${f.developerVolume} vol`, f.processingMin && `${f.processingMin} min`), meta: dayOnly(f.savedAt) })) },
+        // The salon's intake and consent forms: where this client stands with each, and the ones to fill in with them now (the screen asks contacts:update).
+        { feature: 'intake_forms', title: 'Forms', empty: 'No forms apply to this client.',
+          rows: (d) => formsOf(d).map((f: any) => ({ key: f.formId, title: f.name, subtitle: standingWords(f, (d) => calDay(d) || d), badge: f.state === 'valid' ? 'Done' : f.state === 'expired' ? 'Run out' : 'To do', tone: f.state === 'valid' ? 'success' : 'warning' })),
+          links: (d) => formsOf(d).filter((f: any) => f.state !== 'valid').map((f: any) => ({ label: `Fill in “${f.name}” with ${d.contact?.name || 'them'}`, url: '', icon: 'create', route: `/(details)/intake-form?contactId=${encodeURIComponent(d.contact?.id || '')}&formId=${encodeURIComponent(f.formId)}&clientName=${encodeURIComponent(d.contact?.name || '')}` })) },
         { title: 'Coming up', rows: (d) => (d.appointments || []).filter((a: any) => new Date(a.startTime) > new Date() && !['cancelled', 'no_show'].includes(a.status)).slice(0, 5)
           .map((a: any) => ({ key: a.id, title: a.serviceName || 'Appointment', meta: dayTime(a.startTime), badge: words(a.status) })) },
         { title: 'Past visits', empty: 'No visits yet.', rows: (d) => (d.serviceRecords || []).slice(0, 10).map((r: any) => ({

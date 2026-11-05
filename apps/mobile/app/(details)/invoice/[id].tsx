@@ -11,6 +11,7 @@ import { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
+import { canOfferCode, offerCodeTyped, offerQuestion } from '../../../src/forms/offerCode'
 import { invoiceStatusLabel, paymentMethodLabel } from '../../../src/home/labels'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { useVertical } from '../../../src/vertical/VerticalContext'
@@ -46,7 +47,7 @@ export default function InvoiceDetailScreen() {
   const [refused, setRefused] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [sheet, setSheet] = useState<'pay' | 'send' | null>(null)
+  const [sheet, setSheet] = useState<'pay' | 'send' | 'offer' | null>(null)
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('cash')
   // A salon records the stylist's tip with the payment, as its desktop does (verticals/salon/settings.ts invoicing.tips).
@@ -56,6 +57,9 @@ export default function InvoiceDetailScreen() {
   const tapToPay = hasFeature('tap_to_pay')
   const [tip, setTip] = useState('')
   const [busy, setBusy] = useState(false)
+  // An offer code the client was sent (retention_sends, not ready): typed on the sale, checked by the server, then taken off once.
+  const [offerText, setOfferText] = useState('')
+  const [offerQ, setOfferQ] = useState<{ words: string; discount: number; cappedAtSale?: boolean } | null>(null)
 
   const load = useCallback(async () => {
     const res = await get(`/api/invoices/${id}`)
@@ -85,6 +89,24 @@ export default function InvoiceDetailScreen() {
     setBusy(false)
     if (res.ok) { haptics.success(); toast.success('Payment recorded'); setSheet(null); load() }
     else { haptics.error(); toast.error(res.error || 'Could not record the payment') }
+  }
+  const checkOffer = async () => {
+    const code = offerCodeTyped(offerText)
+    if (!code) { toast.error('Type the code from the client’s message'); return }
+    setBusy(true)
+    const res = await post('/api/retention-offers/redeem', { code, invoiceId: id, preview: true })
+    setBusy(false)
+    if (res.ok) setOfferQ(res.data)
+    else { haptics.error(); setOfferQ(null); toast.error(res.error || 'That code could not be used') }
+  }
+  const takeOffer = async () => {
+    const code = offerCodeTyped(offerText)
+    if (!code) return
+    setBusy(true)
+    const res = await post('/api/retention-offers/redeem', { code, invoiceId: id })
+    setBusy(false)
+    if (res.ok) { haptics.success(); toast.success(`${money(num(res.data?.discount))} off`); setSheet(null); setOfferText(''); setOfferQ(null); load() }
+    else { haptics.error(); toast.error(res.error || 'That code could not be used') }
   }
   const sendInvoice = async () => {
     setBusy(true)
@@ -129,6 +151,10 @@ export default function InvoiceDetailScreen() {
           <Group><ListRow icon="person" title={invoice.contact.name} subtitle="Customer" divider={false} onPress={() => router.push(`/(details)/contact/${invoice.contact.id || invoice.contactId}` as any)} /></Group>
         ) : null}
 
+        {vertical === 'salon' && canOfferCode({ feature: hasFeature('retention_sends'), mayUpdate: canUpdate, status: String(invoice.status) }) ? (
+          <Group><ListRow icon="pricetag" title="Offer code" subtitle="From a message the client was sent" divider={false} onPress={() => { setOfferText(''); setOfferQ(null); setSheet('offer') }} /></Group>
+        ) : null}
+
         {items.length > 0 ? (
           <View>
             <SectionHeader title="Line items" />
@@ -156,6 +182,16 @@ export default function InvoiceDetailScreen() {
           <DText variant="captionStrong" tone="textSecondary">How was it paid?</DText>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>{METHODS.map((m) => <Chip key={m.id} label={m.label} selected={method === m.id} onPress={() => setMethod(m.id)} />)}</View>
           <Button label="Record payment" size="lg" fullWidth loading={busy} onPress={recordPayment} />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={sheet === 'offer'} title="Offer code" onClose={() => setSheet(null)}>
+        <View style={{ gap: space[3] }}>
+          <TextField label="Code" value={offerText} onChangeText={(v) => { setOfferText(v.toUpperCase()); setOfferQ(null) }} autoCapitalize="characters" autoCorrect={false} />
+          {offerQ ? <DText variant="body">{offerQuestion(offerQ)}</DText> : null}
+          {offerQ
+            ? <Button label="Take it off" size="lg" fullWidth loading={busy} onPress={takeOffer} />
+            : <Button label="Check the code" size="lg" fullWidth loading={busy} onPress={checkOffer} />}
         </View>
       </BottomSheet>
 

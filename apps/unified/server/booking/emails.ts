@@ -20,6 +20,8 @@ export type BookingMessage = {
   intro?: string | null
   subject?: string | null
   deposit?: string | null
+  /** The vertical's own sentence for this booking (engine addOn.note), shown under the booking's details. */
+  note?: string | null
 }
 
 /** "Tuesday, November 3, 2026 at 9:00 AM CST" in the business's zone. */
@@ -65,8 +67,8 @@ export const bookingTemplates: Record<string, Template> = {
     const intro = m.intro ? `<div>${escHtml(fill(m.intro, m, b)).replace(/\n/g, '<br>')}</div>` : `<p>Hi ${escHtml(m.customerName)},</p><p>Your booking is confirmed.</p>`
     return {
       subject: m.subject ? fill(m.subject, m, b) : `Booking confirmed — ${m.serviceName}`,
-      html: page(b, 'Booking confirmed', `${intro}${card(m)}${m.deposit ? `<p>Deposit paid: ${escHtml(m.deposit)}.</p>` : ''}<p style="font-size:14px;color:#4b5563;">A calendar invite is attached. Need to change it? Use the button below.</p>`, { href: m.manageUrl, label: 'Manage your booking' }),
-      text: `Hi ${m.customerName}, your booking is confirmed: ${m.serviceName}, ${m.when}.${m.customerAddress ? ' ' + m.customerAddress + '.' : ''}\n\nReschedule or cancel: ${m.manageUrl}`,
+      html: page(b, 'Booking confirmed', `${intro}${card(m)}${m.deposit ? `<p>Deposit paid: ${escHtml(m.deposit)}.</p>` : ''}${m.note ? `<p style="font-weight:600;">${escHtml(m.note)}</p>` : ''}<p style="font-size:14px;color:#4b5563;">A calendar invite is attached. Need to change it? Use the button below.</p>`, { href: m.manageUrl, label: 'Manage your booking' }),
+      text: `Hi ${m.customerName}, your booking is confirmed: ${m.serviceName}, ${m.when}.${m.customerAddress ? ' ' + m.customerAddress + '.' : ''}\n\nReschedule or cancel: ${m.manageUrl}${m.note ? '\n\n' + m.note : ''}`,
     }
   },
   bookingNewForOwner: (m: BookingMessage, b) => ({
@@ -96,8 +98,8 @@ export const bookingTemplates: Record<string, Template> = {
   }),
   bookingReminder: (m: BookingMessage, b) => ({
     subject: `Reminder: ${m.serviceName}, ${m.when}`,
-    html: page(b, 'See you soon', `<p>Hi ${escHtml(m.customerName)},</p><p>A reminder of your booking:</p>${card(m)}`, { href: m.manageUrl, label: 'Reschedule or cancel' }),
-    text: `Hi ${m.customerName}, a reminder: ${m.serviceName}, ${m.when}.\n\nReschedule or cancel: ${m.manageUrl}`,
+    html: page(b, 'See you soon', `<p>Hi ${escHtml(m.customerName)},</p><p>A reminder of your booking:</p>${card(m)}${m.note ? `<p style="font-weight:600;">${escHtml(m.note)}</p>` : ''}`, { href: m.manageUrl, label: 'Reschedule or cancel' }),
+    text: `Hi ${m.customerName}, a reminder: ${m.serviceName}, ${m.when}.${m.note ? '\n\n' + m.note : ''}\n\nReschedule or cancel: ${m.manageUrl}`,
   }),
   bookingRebook: (m: BookingMessage, b) => ({
     subject: `Ready for your next ${m.serviceName}?`,

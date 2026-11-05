@@ -64,8 +64,21 @@ const PLAN_TYPE_WORDS: Record<string, string> = {
 const listOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : [])
 type TierRow = { min: string; max: string; rate: string }
 const blankTiers = (): TierRow[] => [{ min: '0', max: '5000', rate: '40' }, { min: '5000.01', max: '1000000', rate: '45' }]
-const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[], salesKind: 'all', tiers: blankTiers() })
-const SALES_KIND_WORDS: Record<string, string> = { all: 'Services and retail', services: 'Services only', retail: 'Retail only' }
+const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[], salesKind: 'all', tierBasis: 'sales', tierCadence: 'month', scope: blankScope(), tiers: blankTiers() })
+const SALES_KIND_WORDS: Record<string, string> = { all: 'Services and retail', services: 'Services only', retail: 'Retail only', packages: 'Prepaid packages sold', gift_cards: 'Gift cards sold', memberships: 'Memberships sold' }
+const TIER_BASIS_WORDS: Record<string, string> = { sales: 'Money sold', count: 'Number of services or items sold' }
+const TIER_CADENCE_WORDS: Record<string, string> = { week: 'Each week (Monday to Sunday)', fortnight: 'Every two weeks', month: 'Each calendar month', quarter: 'Each quarter' }
+const CADENCE_SHORT: Record<string, string> = { week: 'this week', fortnight: 'this fortnight', month: 'this month', quarter: 'this quarter' }
+type Scope = { serviceIds: string[]; serviceCategories: string[]; productIds: string[]; productCategories: string[] }
+const blankScope = (): Scope => ({ serviceIds: [], serviceCategories: [], productIds: [], productCategories: [] })
+const scopeOf = (p: any): Scope => ({ ...blankScope(), ...(p?.scope && typeof p.scope === 'object' ? p.scope : {}) })
+const hasScope = (sc: Scope) => Object.values(sc).some((v) => v.length > 0)
+type Choices = { services: any[]; products: any[] }
+const scopeWords = (sc: Scope, c: Choices) => [
+  ...sc.serviceIds.map((id) => c.services.find((x) => x.id === id)?.name || 'a service'), ...sc.serviceCategories.map((x) => `${x} services`),
+  ...sc.productIds.map((id) => c.products.find((x) => x.id === id)?.name || 'a product'), ...sc.productCategories.map((x) => `${x} products`),
+].join(', ')
+const uniq = (xs: Array<string | null | undefined>) => [...new Set(xs.filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b))
 /** The people a plan names (commission_plan.user_ids) — empty when it names nobody. */
 const namedOn = (p: any): string[] => (Array.isArray(p?.userIds) ? p.userIds.map(String) : [])
 /** The server's planPaysPerson (tenant-backend commissions.ts): a plan that names people pays them only; one that names
@@ -75,7 +88,7 @@ export const paysPerson = (plan: any, userId: string, all: any[]) => {
   if (named.length) return named.includes(userId)
   return !all.some((p) => p.id !== plan.id && p.isActive !== false && namedOn(p).includes(userId))
 }
-const personName = (u: any) => [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email || 'Former team member'
+const personName = (u: any) => ([u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email || 'Former team member') + (u?.login === false ? ' (no login)' : '')
 /** Who a plan pays by itself when an invoice is paid in full — the server's COMMISSION_AUTO_EARN. */
 const AUTO_WORDS: Record<string, string> = {
   none: 'No — record each one by hand',
@@ -85,11 +98,22 @@ const AUTO_WORDS: Record<string, string> = {
 /** Offered only where the config says the trade pays the job's seller (CommissionsConfig.salesRepAutoEarn). */
 const SALES_REP_AUTO_WORDS: Record<string, string> = { job_sales_rep: "Yes — the job\u2019s sales rep, when the whole job is paid" }
 const SALON_AUTO_WORDS: Record<string, string> = { none: 'No — record each one by hand', visit_stylist: 'Yes — the stylist of the visit, when its bill is paid in full' }
-const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', manual: 'Recorded' }
+const SOURCE_WORDS: Record<string, string> = { auto: 'Automatic', reversal: 'Taken back', refund: 'Taken back in part', manual: 'Recorded' }
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
 const blankRecord = { userId: '', planId: '', invoiceId: '', jobId: '', baseAmount: '', commissionAmount: '', notes: '' }
 /** Where a commission can still be voided or moved to another person: not yet paid out, and not already cancelled. */
 const OPEN = ['pending', 'approved', 'disputed']
+
+function ScopePick({ label, value, options, onChange }: { label: string; value: string[]; options: Array<{ id: string; name: string }>; onChange: (v: string[]) => void }) {
+  if (!options.length) return null
+  return (
+    <label className="mb-2 block text-sm text-gray-700 dark:text-slate-200">{label}
+      <select multiple size={Math.min(5, options.length)} value={value} onChange={(e) => onChange(Array.from(e.target.selectedOptions).map((o) => o.value))} className={inputCls}>
+        {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+    </label>
+  )
+}
 
 export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const { can } = usePermissions()
@@ -129,6 +153,18 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [recordOpen, setRecordOpen] = useState(false)
   const [recordForm, setRecordForm] = useState(blankRecord)
   const [people, setPeople] = useState<any[]>([])
+  // A salon also pays people with no login (a chair-only stylist), so it lists everyone a plan can name from the commission routes themselves.
+  const usersPath = config.salesKinds ? '/api/commissions/payees' : '/api/company/users'
+  // The services and products a salon plan can be limited to.
+  const [choices, setChoices] = useState<Choices>({ services: [], products: [] })
+  const loadChoices = async () => {
+    if (!config.salesKinds) return
+    let services: any[] = [], products: any[] = []
+    try { services = listOf(await api.get('/api/service-menu')) } catch { /* the pickers stay empty */ }
+    try { const r: any = await api.get('/api/salon-retail/manage'); products = Array.isArray(r?.products) ? r.products : listOf(r) } catch { /* idem */ }
+    setChoices({ services, products })
+  }
+  const asPeople = (r: any): any[] => listOf(r).map((u: any) => (u.name && !u.firstName ? { ...u, firstName: u.name, lastName: '' } : u))
   const [invoices, setInvoices] = useState<any[]>([])
   const [jobs, setJobs] = useState<any[]>([])
   // Reassign: the commission being moved, and to whom.
@@ -143,8 +179,9 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     try { setRecords(listOf(await api.get('/api/commissions'))) } catch (e) { toast.error(errMsg(e, 'Could not load commissions')) }
     if (mayReadPlans) {
       try { setPlans(listOf(await api.get('/api/commissions/plans'))) } catch (e) { toast.error(errMsg(e, 'Could not load commission plans')) }
+      void loadChoices()
       // Names for the people each plan pays (and the forms' lists).
-      try { setPeople(listOf(await api.get('/api/company/users'))) } catch { /* the cards fall back to "Former team member" */ }
+      try { setPeople(asPeople(await api.get(usersPath))) } catch { /* the cards fall back to "Former team member" */ }
     } else setPlans([])
     setLoading(false)
   }, [api, mayReadPlans])
@@ -152,11 +189,11 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
 
   // ── plans ──
   // The people a plan can name: the team's logins (switched-off ones only where a plan already names them).
-  const loadPeople = async () => { try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) } }
+  const loadPeople = async () => { try { setPeople(asPeople(await api.get(usersPath))) } catch { setPeople([]) } }
   const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true); loadPeople() }
   const openEditPlan = (p: any) => {
     setEditingPlan(p)
-    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
+    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', tierBasis: p.tierBasis || 'sales', tierCadence: p.tierCadence || 'month', scope: scopeOf(p), tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
     setPlanOpen(true)
     loadPeople()
   }
@@ -164,7 +201,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const savePlan = async (e: React.FormEvent) => {
     e.preventDefault()
     const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: autoFor(planForm.planType, planForm.autoEarn), userIds: planForm.userIds }
-    if (config.salesKinds) body.salesKind = planForm.salesKind
+    if (config.salesKinds) { body.salesKind = planForm.salesKind; body.scope = planForm.scope; if (planForm.planType === 'tiered') { body.tierBasis = planForm.tierBasis; body.tierCadence = planForm.tierCadence } }
     if (planForm.planType === 'flat_rate') body.flatRateAmount = Number(planForm.flatRateAmount || 0)
     else if (planForm.planType === 'tiered') body.tiers = planForm.tiers.map((t) => ({ min: Number(t.min), max: Number(t.max), rate: Number(t.rate) }))
     else body.percentRate = Number(planForm.percentRate || 0)
@@ -190,7 +227,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     setRecordForm(blankRecord)
     setRecordOpen(true)
     // Each list on its own: a refusal on one must not empty the others.
-    try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) }
+    try { setPeople(asPeople(await api.get(usersPath))) } catch { setPeople([]) }
     try { setInvoices(listOf(await api.get('/api/invoices', { limit: 100 })).filter((i: any) => !['draft', 'void', 'voided', 'cancelled'].includes(String(i.status)))) } catch { setInvoices([]) }
     try { setJobs(listOf(await api.get('/api/jobs', { limit: 100 }))) } catch { setJobs([]) }
   }
@@ -241,7 +278,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const openMove = async (row: any) => {
     setMoving(row)
     setMoveTo('')
-    if (!people.length) { try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) } }
+    if (!people.length) { try { setPeople(asPeople(await api.get(usersPath))) } catch { setPeople([]) } }
   }
   const saveMove = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -256,7 +293,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   }
 
   const loadStatement = async () => {
-    if (mayReadPlans && !people.length) { try { setPeople(listOf(await api.get('/api/company/users')).filter((u: any) => u.isActive !== false)) } catch { setPeople([]) } }
+    if (mayReadPlans && !people.length) { try { setPeople(asPeople(await api.get(usersPath)).filter((u: any) => u.isActive !== false)) } catch { setPeople([]) } }
     try { setStatement(await api.get('/api/commissions/statement', { userId: stmtWho || undefined, from: stmtFrom || undefined, to: stmtTo || undefined })) }
     catch (err) { setStatement(null); toast.error(errMsg(err, 'Could not load the statement')) }
   }
@@ -279,7 +316,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
         <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-wrap items-end gap-3 dark:bg-slate-900 dark:border-slate-700">
           {mayReadPlans && (
             <Field label="Person">
-              <select value={stmtWho} onChange={(e) => setStmtWho(e.target.value)} onFocus={() => { if (!people.length) api.get('/api/company/users').then((r: any) => setPeople(listOf(r).filter((u: any) => u.isActive !== false))).catch(() => {}) }} className={inputCls}>
+              <select value={stmtWho} onChange={(e) => setStmtWho(e.target.value)} onFocus={() => { if (!people.length) api.get(usersPath).then((r: any) => setPeople(asPeople(r).filter((u: any) => u.isActive !== false))).catch(() => {}) }} className={inputCls}>
                 <option value="">Me</option>
                 {people.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</option>)}
               </select>
@@ -405,8 +442,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               <div className="text-sm text-gray-900 dark:text-slate-100">
                 {p.planType === 'flat_rate' && <>{money(p.flatRateAmount)} per job</>}
                 {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {baseWords[p.planType]}</>}
-                {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets{config.salesKinds ? ' by this month’s sales' : ''}</>}
-                {config.salesKinds && <> · {SALES_KIND_WORDS[p.salesKind || 'all']}</>}
+                {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets{config.salesKinds ? ` by ${p.tierBasis === 'count' ? 'the number of services or items sold' : 'the money sold'} ${CADENCE_SHORT[p.tierCadence || 'month']}` : ''}</>}
+                {config.salesKinds && <> · {SALES_KIND_WORDS[p.salesKind || 'all']}{hasScope(scopeOf(p)) && <> · only {scopeWords(scopeOf(p), choices)}</>}</>}
               </div>
               {p.autoEarn === 'job_sales_rep'
                 ? <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays the job&rsquo;s sales rep{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when the whole job is paid</p>
@@ -448,14 +485,34 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               </select>
             </Field>
           )}
+          {config.salesKinds && ['all', 'services', 'retail'].includes(planForm.salesKind) && (
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Only for these (optional)</legend>
+              <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">Leave everything unchosen and the plan is paid on all of its sales. Choose a service, a product or a category and the plan is paid on those only; it beats a plan for everything, and a plan for one item beats a plan for its category. Hold Ctrl or Cmd to choose several.</p>
+              {planForm.salesKind !== 'retail' && (<>
+                <ScopePick label="Services" value={planForm.scope.serviceIds} options={choices.services.map((x) => ({ id: x.id, name: x.name }))} onChange={(v) => setPlanForm((prev) => ({ ...prev, scope: { ...prev.scope, serviceIds: v } }))} />
+                <ScopePick label="Service categories" value={planForm.scope.serviceCategories} options={uniq(choices.services.map((x) => x.category)).map((c) => ({ id: c, name: c }))} onChange={(v) => setPlanForm((prev) => ({ ...prev, scope: { ...prev.scope, serviceCategories: v } }))} />
+              </>)}
+              {planForm.salesKind !== 'services' && (<>
+                <ScopePick label="Products" value={planForm.scope.productIds} options={choices.products.map((x) => ({ id: x.id, name: [x.brand, x.name].filter(Boolean).join(' ') }))} onChange={(v) => setPlanForm((prev) => ({ ...prev, scope: { ...prev.scope, productIds: v } }))} />
+                <ScopePick label="Product categories" value={planForm.scope.productCategories} options={uniq(choices.products.map((x) => x.category)).map((c) => ({ id: c, name: c }))} onChange={(v) => setPlanForm((prev) => ({ ...prev, scope: { ...prev.scope, productCategories: v } }))} />
+              </>)}
+            </fieldset>
+          )}
           {planForm.planType === 'tiered' && (
             <fieldset>
               <legend className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Brackets</legend>
-              <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">The rate is found from the person&rsquo;s sales so far this month, including this one, and applies to this sale only &mdash; it is not paid back on earlier sales.</p>
+              {config.salesKinds && (
+                <div className="mb-2 grid gap-2 sm:grid-cols-2">
+                  <Field label="Brackets count"><select value={planForm.tierBasis} onChange={(e) => setPlanForm((prev) => ({ ...prev, tierBasis: e.target.value }))} className={inputCls}>{Object.entries(TIER_BASIS_WORDS).map(([v, w]) => <option key={v} value={v}>{w}</option>)}</select></Field>
+                  <Field label="Counted over"><select value={planForm.tierCadence} onChange={(e) => setPlanForm((prev) => ({ ...prev, tierCadence: e.target.value }))} className={inputCls}>{Object.entries(TIER_CADENCE_WORDS).map(([v, w]) => <option key={v} value={v}>{w}</option>)}</select></Field>
+                </div>
+              )}
+              <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">The rate is found from the person&rsquo;s {config.salesKinds && planForm.tierBasis === 'count' ? 'services or items sold' : 'sales'} so far {config.salesKinds ? CADENCE_SHORT[planForm.tierCadence] : 'this month'}, including this one, and applies to this sale only &mdash; it is not paid back on earlier sales.</p>
               {planForm.tiers.map((t, i) => (
                 <div key={i} className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-                  <span>From $</span><input aria-label={`Bracket ${i + 1} from`} type="number" min="0" step="0.01" value={t.min} onChange={(e) => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.map((x, k) => (k === i ? { ...x, min: e.target.value } : x)) }))} className={inputCls + ' w-28'} />
-                  <span>to $</span><input aria-label={`Bracket ${i + 1} to`} type="number" min="0" step="0.01" value={t.max} onChange={(e) => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.map((x, k) => (k === i ? { ...x, max: e.target.value } : x)) }))} className={inputCls + ' w-28'} />
+                  <span>From {config.salesKinds && planForm.tierBasis === 'count' ? '' : '$'}</span><input aria-label={`Bracket ${i + 1} from`} type="number" min="0" step={config.salesKinds && planForm.tierBasis === 'count' ? '1' : '0.01'} value={t.min} onChange={(e) => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.map((x, k) => (k === i ? { ...x, min: e.target.value } : x)) }))} className={inputCls + ' w-28'} />
+                  <span>to {config.salesKinds && planForm.tierBasis === 'count' ? '' : '$'}</span><input aria-label={`Bracket ${i + 1} to`} type="number" min="0" step={config.salesKinds && planForm.tierBasis === 'count' ? '1' : '0.01'} value={t.max} onChange={(e) => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.map((x, k) => (k === i ? { ...x, max: e.target.value } : x)) }))} className={inputCls + ' w-28'} />
                   <span>pays</span><input aria-label={`Bracket ${i + 1} rate`} type="number" min="0" max="100" step="0.1" value={t.rate} onChange={(e) => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.map((x, k) => (k === i ? { ...x, rate: e.target.value } : x)) }))} className={inputCls + ' w-20'} /><span>%</span>
                   {planForm.tiers.length > 1 && <button type="button" onClick={() => setPlanForm((prev) => ({ ...prev, tiers: prev.tiers.filter((_, k) => k !== i) }))} className="text-red-700 underline dark:text-red-300">Remove</button>}
                 </div>

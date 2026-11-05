@@ -379,17 +379,28 @@ export function createStripeService(deps: StripeServiceDeps) {
     cancelUrl: string
     /** When the page stops taking payment: Stripe allows 30 minutes to 24 hours from now. */
     expiresAt: Date
+    /**
+     * Keep the paying card for later charges too (one page, not two): the card is saved on the business's Stripe customer for the
+     * client and reaches the app as checkout.session.completed (kind booking_deposit, save_card 1), where retrieveDepositCard reads it.
+     */
+    keepCard?: { contactRow: any; metadata?: Record<string, string> }
   }): Promise<{ url: string; sessionId: string; stripeAccount: string } | null> {
     if (!stripe) return null
     const stripeAccount = await connectedAccountFor(params.companyId)
     if (!stripeAccount) return null
-    const metadata = { booking_id: params.bookingId, company_id: params.companyId, kind: 'booking_deposit' }
+    const keep = params.keepCard
+    const customer = keep ? await getOrCreateCustomer(keep.contactRow, stripeAccount) : null
+    const metadata = {
+      booking_id: params.bookingId, company_id: params.companyId, kind: 'booking_deposit',
+      ...(keep ? { ...(keep.metadata || {}), save_card: '1', contact_id: keep.contactRow.id } : {}),
+    }
     const min = Date.now() + 31 * 60_000, max = Date.now() + 23.5 * 3600_000
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      customer_email: params.customerEmail,
+      // A saved card needs a customer to belong to; Stripe takes the email from it.
+      ...(customer ? { customer: customer.id } : { customer_email: params.customerEmail }),
       line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: Math.round(params.amount * 100), product_data: { name: params.description } } }],
-      payment_intent_data: { description: params.description, metadata },
+      payment_intent_data: { description: params.description, metadata, ...(customer ? { setup_future_usage: 'off_session' as const } : {}) },
       metadata,
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
@@ -509,6 +520,26 @@ export function createStripeService(deps: StripeServiceDeps) {
     return { url: session.url, sessionId: session.id, stripeAccount }
   }
 
+  /** The card a finished deposit page kept (createBookingDepositCheckout keepCard): the same shape as retrieveCardSetup. Null when none was kept. */
+  async function retrieveDepositCard(sessionId: string, stripeAccount: string | null) {
+    if (!stripe) return null
+    const session: any = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent.payment_method'] }, requestOpts(stripeAccount))
+    const intent = session?.payment_intent
+    const method = intent && typeof intent === 'object' ? intent.payment_method : null
+    if (!method || typeof method !== 'object' || method.type !== 'card') return null
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
+    if (!customerId) return null
+    return {
+      customerId: customerId as string,
+      paymentMethodId: method.id as string,
+      brand: (method.card?.brand as string | undefined) ?? null,
+      last4: (method.card?.last4 as string | undefined) ?? null,
+      expMonth: (method.card?.exp_month as number | undefined) ?? null,
+      expYear: (method.card?.exp_year as number | undefined) ?? null,
+      metadata: (session.metadata || {}) as Record<string, string>,
+    }
+  }
+
   /** The card a finished setup page saved: Stripe's ids and the brand/last four — never a number. Null when none was saved. */
   async function retrieveCardSetup(sessionId: string, stripeAccount: string | null) {
     if (!stripe) return null
@@ -577,6 +608,24 @@ export function createStripeService(deps: StripeServiceDeps) {
           message: err.message || 'The card was declined.', paymentIntentId: err.payment_intent?.id ?? err.raw?.payment_intent?.id ?? null,
         }
       }
+      throw err
+    }
+  }
+
+  /**
+   * Give back the whole of a charge taken on a saved card (a no-show fee reversed), on the business's connected account. The idempotency key
+   * means a double click cannot refund twice; a refund Stripe already made is a success. A refusal from Stripe is a RESULT the caller shows.
+   */
+  async function refundIntent(p: { companyId: string; paymentIntentId: string; idempotencyKey: string }): Promise<{ ok: true; refundId: string } | { ok: false; message: string }> {
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
+    const stripeAccount = await connectedAccountFor(p.companyId)
+    if (!stripeAccount) throw Object.assign(new Error('This business has not connected its Stripe account'), { status: 400 })
+    try {
+      const refund = await stripe.refunds.create({ payment_intent: p.paymentIntentId }, { stripeAccount, idempotencyKey: p.idempotencyKey })
+      return { ok: true, refundId: refund.id }
+    } catch (err: any) {
+      if (/already.*refund/i.test(err?.message || '')) return { ok: true, refundId: 'already_refunded' }
+      if (err?.type === 'StripeInvalidRequestError' || err?.type === 'StripeCardError') return { ok: false, message: err.message || 'Stripe could not refund it.' }
       throw err
     }
   }
@@ -828,7 +877,8 @@ export function createStripeService(deps: StripeServiceDeps) {
       console.log('[Stripe] Refund on a charge without a PaymentIntent:', charge.id)
       return { handled: false }
     }
-    const [paymentRow] = await db.select().from(payment).where(and(eq(payment.reference, paymentIntentId), sql`${payment.amount}::numeric > 0`)).limit(1)
+    // A tip-only payment (a salon's late tip, paid from the receipt's link: no sale amount, the tip beside it) is an invoice payment too.
+    const [paymentRow] = await db.select().from(payment).where(and(eq(payment.reference, paymentIntentId), sql`(${payment.amount}::numeric > 0 OR ${payment.tipAmount}::numeric > 0)`)).limit(1)
     // Not an invoice payment: a booking deposit refunded at Stripe — the owner's own dashboard, which is where a paid
     // deposit is refunded — is recorded on the booking. This looked only for an invoice payment, so the booking said
     // "$1 · paid" after the money had gone back (live $1 test, 2026-10-21). The deposit's PaymentIntent carries
@@ -992,10 +1042,21 @@ export function createStripeService(deps: StripeServiceDeps) {
     if (net <= 0.005) return { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }
     if (requested > net + 0.005) return { ok: false, status: 400, error: `Refund exceeds what was collected — ${money(net)} still refundable on this invoice.` }
 
+    // A payment that carried a tip (a salon's card reader; the card was charged the sale AND the tip): a refund that returns the rest of
+    // the sale returns the tip with it — the same rule as the salon's own refund button and as a refund made in Stripe's dashboard — and
+    // the refund line records it as a negative tip, which comes off the stylists' tips by their shares. A part refund leaves the tip.
+    let tipBack = 0
+    if (Number(paymentRow.tipAmount || 0) > 0.005 && requested >= Math.min(collected, net) - 0.005) {
+      const rows = await db.select({ tip: payment.tipAmount }).from(payment).where(eq(payment.invoiceId, paymentRow.invoiceId))
+      const tipNet = round2(rows.reduce((t: number, r: any) => t + Number(r.tip || 0), 0))
+      tipBack = round2(Math.max(0, Math.min(Number(paymentRow.tipAmount), tipNet)))
+    }
+
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const refund = await stripe!.refunds.create({
       payment_intent: paymentRow.reference,
-      amount: Math.round(requested * 100),
+      amount: Math.round((requested + tipBack) * 100),
+      ...(tipBack > 0.005 ? { metadata: { tip_cents: String(Math.round(tipBack * 100)) } } : {}),
     }, requestOpts(stripeAccount))
 
     const outcome = await recordStripeRefund(refund, paymentRow)
@@ -1122,6 +1183,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     handleWebhook,
     createPaymentLink,
     createRefund,
+    refundIntent,
     constructWebhookEvent,
     getPublishableKey,
     // every named export is also reachable from the default import — routes call stripeService.<fn>()
@@ -1132,6 +1194,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     chargeInvoiceOffSession,
     createCardSetupCheckout,
     retrieveCardSetup,
+    retrieveDepositCard,
     chargeSavedCard,
     tapToPayConnection,
     createTapToPayIntent,

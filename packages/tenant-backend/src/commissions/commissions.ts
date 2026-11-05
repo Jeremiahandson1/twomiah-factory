@@ -54,6 +54,19 @@ export interface CommissionRoutesDeps {
    * (autoEarn 'visit_stylist'). Off — the default — a plan is exactly what it was; the salon turns it on.
    */
   salesKinds?: boolean
+  /**
+   * Where the business pays people who have no login (the salon's chair-only stylists): the people a plan can name and a commission can belong to,
+   * beside the logins. `find` answers one person of this company or null. Absent: only logins can earn, exactly as before.
+   */
+  payees?: {
+    list: (companyId: string) => Promise<Array<{ id: string; name: string; email: string | null; isActive: boolean; login: boolean }>>
+    find: (companyId: string, id: string) => Promise<{ id: string; name: string; email: string | null; isActive: boolean; login: boolean } | null>
+  }
+  /**
+   * The salon refuses a second plan that would pay the same people for the same sales over the same dates. Returns the words of why, or null.
+   * `plan` is the plan as it would be saved (its values merged over the one being edited); `exceptId` is that plan's own id.
+   */
+  planClash?: (companyId: string, plan: Record<string, any>, exceptId?: string) => Promise<string | null>
 }
 
 /**
@@ -85,7 +98,16 @@ export const COMMISSION_AUTO_EARN_SALES_REP = 'job_sales_rep' as const
 /** Where a business offers it (CommissionRoutesDeps.salesKinds): the stylist of the visit the invoice was raised from. */
 export const VISIT_STYLIST = 'visit_stylist'
 /** What a plan is paid on, where the business offers the choice. */
-export const COMMISSION_SALES_KINDS = ['all', 'services', 'retail'] as const
+export const COMMISSION_SALES_KINDS = ['all', 'services', 'retail', 'packages', 'gift_cards', 'memberships'] as const
+/** What a tiered plan's brackets measure, and the period they are counted over (salon row 15). */
+export const COMMISSION_TIER_BASES = ['sales', 'count'] as const
+export const COMMISSION_TIER_CADENCES = ['week', 'fortnight', 'month', 'quarter'] as const
+const idList = z.array(z.string().min(1).max(64)).max(200).optional()
+/** What a plan is for, where it is for one thing: services or products by id, or by category (an item beats a category beats a general plan). */
+export const planScopeSchema = z.object({
+  serviceIds: idList, serviceCategories: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
+  productIds: idList, productCategories: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
+}).strict()
 
 const planSchema = z.object({
   name: z.string().trim().min(1, 'A plan needs a name'),
@@ -109,6 +131,9 @@ const planSchema = z.object({
 /** The plan's fields for a business that offers sales kinds: the same, plus what it is paid on and the visit's stylist as who it pays. */
 const salonPlanSchema = planSchema.extend({
   salesKind: z.enum(COMMISSION_SALES_KINDS).optional(),
+  tierBasis: z.enum(COMMISSION_TIER_BASES).optional(),
+  tierCadence: z.enum(COMMISSION_TIER_CADENCES).optional(),
+  scope: planScopeSchema.optional(),
   autoEarn: z.enum([...COMMISSION_AUTO_EARN, VISIT_STYLIST]).optional(),
 })
 
@@ -192,6 +217,12 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   const app = new Hono()
   app.use('*', authenticate)
   const planShape: typeof planSchema = (deps.salesKinds ? salonPlanSchema : planSchema) as any
+  /** A person who can earn: a login of this company, or (where the business pays them) someone with no login. */
+  const personOf = async (companyId: string, id: string): Promise<{ id: string; name: string; isActive: boolean; login: boolean } | null> => {
+    const [row] = await db.select().from(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, companyId))).limit(1)
+    if (row) return { id: row.id, name: [row.firstName, row.lastName].filter(Boolean).join(' ') || row.email, isActive: row.isActive !== false, login: true }
+    return deps.payees ? deps.payees.find(companyId, id) : null
+  }
 
   const owned = async (table: any, id: string, companyId: string) => {
     const [row] = await db.select().from(table).where(and(eq(table.id, id), eq(table.companyId, companyId))).limit(1)
@@ -220,7 +251,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (!userIds?.length || !t.commissionPlan.userIds) return null
     const ids = [...new Set(userIds)]
     const rows = await db.select({ id: t.user.id, isActive: t.user.isActive }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, ids)))
-    const found = new Map(rows.map((r: any) => [r.id, r]))
+    const found = new Map<string, any>(rows.map((r: any) => [r.id, r]))
+    for (const id of ids) if (!found.has(id) && deps.payees) { const p = await deps.payees.find(companyId, id); if (p) found.set(id, { id, isActive: p.isActive }) }
     if (ids.some((id) => !found.has(id))) return 'Someone chosen for this plan is not on this account.'
     if (ids.some((id) => (found.get(id) as any).isActive === false && !keep.includes(id))) return 'Someone chosen for this plan has been switched off. Choose people who are still on the team.'
     return null
@@ -238,12 +270,40 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const v: Record<string, any> = { ...data }
     if (data.userIds !== undefined) v.userIds = [...new Set(data.userIds)]
     if (!t.commissionPlan.userIds) delete v.userIds
-    if (!deps.salesKinds || !t.commissionPlan.salesKind) delete v.salesKind
+    if (!deps.salesKinds || !t.commissionPlan.salesKind) { delete v.salesKind; delete v.tierBasis; delete v.tierCadence; delete v.scope }
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
     if (data.percentRate !== undefined) v.percentRate = String(data.percentRate)
     if (data.effectiveFrom !== undefined) v.effectiveFrom = data.effectiveFrom ? new Date(data.effectiveFrom) : null
     if (data.effectiveTo !== undefined) v.effectiveTo = data.effectiveTo ? new Date(data.effectiveTo) : null
     return v
+  }
+
+  /**
+   * The salon's checks on a plan as it would be saved: brackets that make sense, a scope that fits what the plan is paid on, and no second plan for the
+   * same people, sales and dates. Returns the words, or null. Off everywhere else (deps.salesKinds).
+   */
+  const salonPlanRefusal = async (companyId: string, plan: Record<string, any>, exceptId?: string): Promise<{ error: string; code: string } | null> => {
+    if (!deps.salesKinds) return null
+    const kind = plan.salesKind || 'all'
+    const scope = (plan.scope || {}) as Record<string, string[] | undefined>
+    const has = (k: string) => (scope[k]?.length ?? 0) > 0
+    if ((has('serviceIds') || has('serviceCategories')) && !['all', 'services'].includes(kind)) return { error: 'A plan for particular services has to be paid on services.', code: 'scope_kind' }
+    if ((has('productIds') || has('productCategories')) && !['all', 'retail'].includes(kind)) return { error: 'A plan for particular products has to be paid on retail.', code: 'scope_kind' }
+    if (plan.planType === 'tiered') {
+      const tiers = (Array.isArray(plan.tiers) ? plan.tiers : []) as Array<{ min: number; max: number; rate: number }>
+      if (!tiers.length) return { error: 'A tiered plan needs at least one bracket.', code: 'tiers' }
+      const sorted = [...tiers].sort((a, b) => a.min - b.min)
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i].max < sorted[i].min) return { error: 'A bracket ends before it starts.', code: 'tiers' }
+        if (plan.tierBasis === 'count' && (!Number.isInteger(sorted[i].min) || !Number.isInteger(sorted[i].max))) return { error: 'Brackets that count services or items use whole numbers.', code: 'tiers' }
+        if (i > 0 && sorted[i].min <= sorted[i - 1].max) return { error: 'Two brackets overlap. Each number can belong to one bracket only.', code: 'tiers' }
+      }
+    }
+    if (deps.planClash && plan.isActive !== false) {
+      const clash = await deps.planClash(companyId, plan, exceptId)
+      if (clash) return { error: clash, code: 'duplicate_plan' }
+    }
+    return null
   }
 
   app.post('/plans', requirePermission('commissions:create'), async (c) => {
@@ -255,6 +315,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, data.userIds)
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
+    const sr = await salonPlanRefusal(currentUser.companyId, { ...data, autoEarn: data.autoEarn || 'none' })
+    if (sr) return c.json(sr, sr.code === 'duplicate_plan' ? 409 : 400)
     const [created] = await db.insert(t.commissionPlan).values({
       ...planValues(data),
       autoEarn: data.autoEarn || 'none',
@@ -279,6 +341,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
     const notPeople = await peopleRefusal(currentUser.companyId, parsed.data.userIds, Array.isArray(existing.userIds) ? existing.userIds : [])
     if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
+    const sr = await salonPlanRefusal(currentUser.companyId, { ...existing, ...parsed.data, tiers: parsed.data.tiers ?? existing.tiers, userIds: parsed.data.userIds ?? existing.userIds }, id)
+    if (sr) return c.json(sr, sr.code === 'duplicate_plan' ? 409 : 400)
     const set: Record<string, any> = { ...planValues(parsed.data), updatedAt: new Date() }
     if (parsed.data.autoEarn !== undefined && parsed.data.autoEarn !== existing.autoEarn) {
       set.autoSince = parsed.data.autoEarn === 'none' ? null : (existing.autoEarn === 'none' || !existing.autoSince ? new Date() : existing.autoSince)
@@ -297,6 +361,17 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       .where(and(eq(t.commissionPlan.id, id), eq(t.commissionPlan.companyId, currentUser.companyId))).returning()
     if (!gone) return c.json({ error: 'Commission plan not found' }, 404)
     return c.body(null, 204)
+  })
+
+  /** Everyone a plan can name and a commission can belong to: the logins, and where the business pays them the people with no login. */
+  app.get('/payees', requirePermission('commissions:read'), async (c) => {
+    const currentUser = c.get('user') as any
+    const logins = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, isActive: t.user.isActive }).from(t.user).where(eq(t.user.companyId, currentUser.companyId))
+    const extra = deps.payees ? await deps.payees.list(currentUser.companyId) : []
+    return c.json({ data: [
+      ...logins.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email, email: u.email, isActive: u.isActive !== false, login: true })),
+      ...extra,
+    ] })
   })
 
   // ── earnings ─────────────────────────────────────────────────────────────────────────────────────────
@@ -321,7 +396,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       ? await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email })
           .from(t.user).where(and(eq(t.user.companyId, currentUser.companyId), inArray(t.user.id, ids)))
       : []
-    const nameOf = Object.fromEntries(people.map((p: any) => [p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email]))
+    const nameOf: Record<string, string> = Object.fromEntries(people.map((p: any) => [p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email]))
+    if (deps.payees) for (const p of await deps.payees.list(currentUser.companyId)) if (ids.includes(p.id) && !nameOf[p.id]) nameOf[p.id] = p.name
     return c.json({ data: rows.map((r: any) => ({ ...r, userName: nameOf[r.userId] || null })) })
   })
 
@@ -337,7 +413,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const data = parsed.data
     const companyId = currentUser.companyId
 
-    const earner = await owned(t.user, data.userId, companyId)
+    const earner = await personOf(companyId, data.userId)
     if (!earner) return c.json({ error: 'That person is not on this account' }, 400)
     if (data.jobId && !(await owned(t.job, data.jobId, companyId))) return c.json({ error: 'That job is not on this account' }, 400)
 
@@ -463,7 +539,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     if (!OPEN_STATUSES.includes(existing.status)) {
       return c.json({ error: existing.status === 'paid' ? 'This commission has been paid. Record a correction instead of moving it.' : `A ${existing.status} commission cannot be moved.`, code: 'status_order', status: existing.status }, 409)
     }
-    const earner = await owned(t.user, userId, currentUser.companyId)
+    const earner = await personOf(currentUser.companyId, userId)
     if (!earner) return c.json({ error: 'That person is not on this account' }, 400)
     if (earner.isActive === false) return c.json({ error: 'That login is switched off. Choose someone still on the team.', code: 'inactive' }, 400)
     if (earner.id === existing.userId) return c.json({ error: 'It is already theirs.', code: 'unchanged' }, 400)
@@ -474,7 +550,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const [updated] = await db.update(t.commission).set({ userId: earner.id, updatedAt: new Date() } as any)
       .where(and(eq(t.commission.id, existing.id), eq(t.commission.companyId, currentUser.companyId), eq(t.commission.status, existing.status))).returning()
     if (!updated) return c.json({ error: 'This commission changed while you were looking at it. Reload and try again.', code: 'changed' }, 409)
-    const name = [earner.firstName, earner.lastName].filter(Boolean).join(' ') || earner.email
+    const name = earner.name
     audited(c, updated, { userId: { old: existing.userId, new: earner.id } }, `Commission moved to ${name}`)
     return c.json({ ...updated, userName: name })
   })
@@ -489,7 +565,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const userId = c.req.query('userId') || currentUser.userId
     const canSeeEveryone = await canSee(currentUser.role, 'commissions:read', currentUser.userId)
     if (userId !== currentUser.userId && !canSeeEveryone) return c.json({ error: 'You can see your own statement only.' }, 403)
-    const person = await owned(t.user, userId, companyId)
+    const person = await personOf(companyId, userId)
     if (!person) return c.json({ error: 'That person is not on this account' }, 404)
     const day = /^\d{4}-\d{2}-\d{2}$/
     const fromQ = c.req.query('from'), toQ = c.req.query('to')
@@ -501,7 +577,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const total = (status: string) => cents(lines.filter((l: any) => l.status === status).reduce((a: number, l: any) => a + Number(l.commissionAmount || 0), 0))
     const totals = { pending: total('pending'), approved: total('approved'), paid: total('paid'), disputed: total('disputed') }
     return c.json({
-      person: { id: person.id, name: [person.firstName, person.lastName].filter(Boolean).join(' ') || person.email },
+      person: { id: person.id, name: person.name },
       from: fromQ || null, to: toQ || null,
       lines: lines.filter((l: any) => l.status !== 'cancelled' && l.status !== 'void'),
       totals: { ...totals, owed: cents(totals.pending + totals.approved) },

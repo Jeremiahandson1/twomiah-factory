@@ -152,6 +152,37 @@ ${data.disclosure}`,
   }),
 
   /**
+   * The receipt for a paid sale at the salon (salon parity row 11): what was bought, what was paid, the tip so far, and — when the salon allows
+   * it — a button to add a tip afterwards (data.tipPath, the sale's private tip page). Everything typed by a person is escaped.
+   */
+  saleReceipt: (data, b, appUrl) => {
+    const m = (v: unknown) => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const lines = (Array.isArray(data.lines) ? data.lines : []) as Array<{ description: string; total: number }>
+    const link = data.tipPath ? appUrl + String(data.tipPath) : ''
+    const rows = lines.map((l) => `<tr><td>${escHtml(l.description)}</td><td style="text-align:right;">${m(l.total)}</td></tr>`).join('')
+    return {
+      subject: `Your receipt from ${b.companyName} - ${data.invoiceNumber}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">Receipt</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Thank you for visiting ${escHtml(b.companyName)}.</p>
+          <table style="width:100%;border-collapse:collapse;">${rows}
+            <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>${m(data.total)}</strong></td></tr>
+            ${Number(data.tip) > 0 ? `<tr><td>Tip</td><td style="text-align:right;">${m(data.tip)}</td></tr>` : ''}
+          </table>
+          <p>Invoice ${escHtml(data.invoiceNumber)}</p>
+          ${link ? `<p>Want to leave a tip for the team? <a href="${escHtml(link)}" style="display:inline-block;padding:10px 18px;background:#0f766e;color:#fff;border-radius:8px;text-decoration:none;">Add a tip</a></p>` : ''}
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>`,
+      text: `Receipt ${data.invoiceNumber} from ${b.companyName}\n${lines.map((l) => `${l.description}: ${m(l.total)}`).join('\n')}\nTotal: ${m(data.total)}${Number(data.tip) > 0 ? `\nTip: ${m(data.tip)}` : ''}${link ? `\n\nAdd a tip for the team: ${link}` : ''}`,
+    }
+  },
+
+  /**
    * The quote, as the customer receives it. (E2E run 1, 10/14: it arrived as "Quote from …: undefined", with no
    * number, no lines and no way to approve.) Everything here was typed by a person — escaped. The internal cost of a
    * line is never passed in. The button opens the quote's own private link (data.documentPath, /d/<token>), where the
@@ -582,6 +613,160 @@ ${data.disclosure}`,
       </div></body></html>
     `,
     text: `${data.clientName}'s ${data.plan} membership was paused after their card was declined on every try (invoice ${data.invoiceNumber}, $${data.amount}). They have been emailed a link to give a new card. Resume it in Memberships once it is sorted out.`,
+  }),
+  // To staff who hold the payments permission: a member's card was declined (every decline, not only the last).
+  membershipDeclinedStaff: (data, b) => ({
+    subject: `Card declined — ${data.clientName}'s ${data.plan} membership (try ${data.attempt} of ${data.tries})`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>A membership card was declined</h2>
+          <p>${escHtml(data.clientName)}'s card was declined for <strong>$${escHtml(data.amount)}</strong> (${escHtml(data.plan)} membership, invoice ${escHtml(data.invoiceNumber)}). This was try ${escHtml(data.attempt)} of ${escHtml(data.tries)}.</p>
+          <p>${escHtml(data.reason)} ${escHtml(data.backup)}</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s card was declined for $${data.amount} (${data.plan} membership, invoice ${data.invoiceNumber}), try ${data.attempt} of ${data.tries}. ${data.reason} ${data.backup} ${data.next}`,
+  }),
+  // Booth rent (salon/boothRent.ts): the invoice notice, the receipt, a declined charge, the pause and its link, the card link, the statement.
+  boothRentInvoice: (data, b) => ({
+    subject: `Rent due ${data.due} — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your rent is due</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Your chair rent of <strong>$${escHtml(data.amount)}</strong> is due on ${escHtml(data.due)} (invoice ${escHtml(data.invoiceNumber)}). Please pay it at the desk or by the way we agreed.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your chair rent of $${data.amount} is due on ${data.due} (invoice ${data.invoiceNumber}). Please pay it at the desk or by the way we agreed.`,
+  }),
+  boothRentCharged: (data, b) => ({
+    subject: `Receipt: chair rent — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Receipt</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We charged <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your chair rent (invoice ${escHtml(data.invoiceNumber)}).</p>
+          <p>If you think this is a mistake, please reply to this email or contact us and we will look into it.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we charged $${data.amount} to your ${data.card} for your chair rent (invoice ${data.invoiceNumber}). If you think this is a mistake, reply to this email or contact ${b.companyName}.`,
+  }),
+  boothRentPaymentFailed: (data, b) => ({
+    subject: `We could not charge your card — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your rent payment</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We tried to charge <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your chair rent (invoice ${escHtml(data.invoiceNumber)}), but it did not go through.</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we tried to charge $${data.amount} to your ${data.card} for your chair rent (invoice ${data.invoiceNumber}), but it did not go through. ${data.next}`,
+  }),
+  boothRentPaused: (data, b) => ({
+    subject: `Automatic rent payments are paused — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Automatic rent payments are paused</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We could not charge <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your chair rent (invoice ${escHtml(data.invoiceNumber)}), so automatic payments are paused. The rent is still owed.</p>
+          <p style="text-align:center;margin:24px 0;"><a href="${escHtml(data.link)}" style="background:#0f766e;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Update my card</a></p>
+          <p>Once a new card is saved we will charge what is unpaid and automatic payments start again.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we could not charge $${data.amount} to your ${data.card} for your chair rent (invoice ${data.invoiceNumber}), so automatic payments are paused. The rent is still owed. Update your card here: ${data.link}`,
+  }),
+  boothRentPausedSalon: (data, b) => ({
+    subject: `Rent autopay paused for a declined card — ${data.clientName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Autopay paused for a declined card</h2>
+          <p>${escHtml(data.clientName)}'s automatic rent payments were paused after their card was declined on every try (invoice ${escHtml(data.invoiceNumber)}, $${escHtml(data.amount)}). They have been emailed a link to give a new card. The rent is still owed. Resume it in Booth rent once it is sorted out.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s automatic rent payments were paused after their card was declined on every try (invoice ${data.invoiceNumber}, $${data.amount}). They have been emailed a link to give a new card. The rent is still owed.`,
+  }),
+  boothRentDeclinedStaff: (data, b) => ({
+    subject: `Card declined — ${data.clientName}'s chair rent (try ${data.attempt} of ${data.tries})`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>A rent card was declined</h2>
+          <p>${escHtml(data.clientName)}'s card was declined for <strong>$${escHtml(data.amount)}</strong> (chair rent, invoice ${escHtml(data.invoiceNumber)}). This was try ${escHtml(data.attempt)} of ${escHtml(data.tries)}.</p>
+          <p>${escHtml(data.reason)} ${escHtml(data.backup)}</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s card was declined for $${data.amount} (chair rent, invoice ${data.invoiceNumber}), try ${data.attempt} of ${data.tries}. ${data.reason} ${data.backup} ${data.next}`,
+  }),
+  boothRentCardLink: (data, b) => ({
+    subject: `Pay your chair rent by card — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Pay your rent by card</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Your chair rent is ${escHtml(data.rent)}. Give us a card on our payment provider's secure page and it is charged when each rent is due.</p>
+          <p style="text-align:center;margin:24px 0;"><a href="${escHtml(data.link)}" style="background:#0f766e;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Add my card</a></p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your chair rent is ${data.rent}. Add a card here and it is charged when each rent is due: ${data.link}`,
+  }),
+  boothRentStatement: (data, b) => ({
+    subject: `Your rent statement — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your rent statement</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Your chair-rent statement from ${escHtml(data.from)} to ${escHtml(data.to)}.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th align="left">Date</th><th align="left">What</th><th align="right">Charged</th><th align="right">Paid</th><th align="right">Balance</th></tr></thead><tbody>${data.rows}</tbody></table>
+          <p>Owed at the start: $${escHtml(data.opening)}. Charged: $${escHtml(data.charged)}. Paid: $${escHtml(data.paid)}. <strong>Owed now: $${escHtml(data.closing)}.</strong></p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your chair-rent statement from ${data.from} to ${data.to}. Owed at the start: $${data.opening}. Charged: $${data.charged}. Paid: $${data.paid}. Owed now: $${data.closing}.\n${data.text}`,
   }),
   // A membership charge that did not go through: what happened, and what happens next.
   membershipPaymentFailed: (data, b) => ({

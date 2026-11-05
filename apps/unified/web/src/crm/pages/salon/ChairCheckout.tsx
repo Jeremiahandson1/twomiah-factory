@@ -6,7 +6,7 @@
 // The phone app never takes a card: the card is tapped on the reader. Every right is also checked by the server.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Loader2, ShoppingBag, Trash2 } from 'lucide-react'
+import { CreditCard, Loader2, ScanLine, ShoppingBag, Trash2 } from 'lucide-react'
 import { api, useAuth, useToast, usePermissions, useConfirm, usePrompt, money } from '../../../shared'
 import { Button, inputCls } from '@twomiah/tenant-ui/src/invoicing/ui'
 
@@ -16,6 +16,7 @@ const toCents = (v: string) => Math.round(Number(v) * 100)
 const CLOSED = new Set(['paid', 'void', 'refunded', 'draft'])
 
 interface Reader { id: string; label: string; deviceType: string | null; simulated: boolean; status?: string | null }
+interface TipInfo { amountCents: number; eligibleCents: number; retailLeftOut: boolean; suggestions: Array<{ percent: number; cents: number }> }
 interface Charge { id: string; status: string; failure: string | null; amountCents: number; tipCents: number; readerLabel: string | null; paymentId: string | null }
 interface ReaderPayment { chargeId: string; paymentId: string; amountCents: number; tipCents: number; refundedCents: number; tipRefundedCents?: number }
 
@@ -35,6 +36,7 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
   const [amount, setAmount] = useState('')
   const [tip, setTip] = useState('')
   const [onReaderTip, setOnReaderTip] = useState(false)
+  const [tipInfo, setTipInfo] = useState<TipInfo | null>(null)
   const [charge, setCharge] = useState<Charge | null>(null)
   const [paid, setPaid] = useState<ReaderPayment[]>([])
   const [problem, setProblem] = useState('')
@@ -65,11 +67,19 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
     api.get(`/api/chair-checkout/sales/${invoiceId}/charge`).then((r: { charge: Charge | null }) => { if (r.charge) { setCharge(r.charge); if (r.charge.status === 'pending') poll(r.charge.id) } }).catch(() => {})
     loadPaid()
   }, [on, invoiceId, poll, loadPaid])
+  // The salon's tip percentages, worked on the services of what is being charged (retail on the sale is left out) — the server decides.
+  const saleCents = amount ? toCents(amount) : dueCents
+  useEffect(() => {
+    if (!on || !owing || !(saleCents > 0)) return
+    let live = true
+    api.get(`/api/chair-checkout/sales/${invoiceId}/tip-info?amountCents=${saleCents}`).then((r: TipInfo) => { if (live) setTipInfo(r) }).catch(() => { if (live) setTipInfo(null) })
+    return () => { live = false }
+  }, [on, owing, invoiceId, saleCents])
   if (!on || status === 'void' || status === 'draft') return null
   if (!owing && !paid.length) return null
 
   const sale = amount ? toCents(amount) : dueCents
-  const chip = (pct: number) => setTip(((sale * pct) / 100 / 100).toFixed(2))
+  const chip = (cents: number) => setTip((cents / 100).toFixed(2))
   const send = async () => {
     setBusy(true); setProblem('')
     try {
@@ -134,9 +144,10 @@ export function ChairCheckoutPanel({ invoiceId, status, balance, reload }: { inv
           </div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={onReaderTip} onChange={(e) => { setOnReaderTip(e.target.checked); if (e.target.checked) setTip('') }} />Let the client choose the tip on the reader</label>
           <div className={'flex flex-wrap gap-2' + (onReaderTip ? ' hidden' : '')} role="group" aria-label="Tip shortcuts">
-            {[15, 18, 20].map((n) => <button key={n} type="button" onClick={() => chip(n)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">{n}%</button>)}
+            {(tipInfo?.suggestions ?? [15, 18, 20].map((percent) => ({ percent, cents: Math.round((sale * percent) / 100) }))).map((x) => <button key={x.percent} type="button" onClick={() => chip(x.cents)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">{x.percent}%</button>)}
             <button type="button" onClick={() => setTip('')} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">No tip</button>
           </div>
+          {tipInfo?.retailLeftOut && <p className="text-xs text-gray-600 dark:text-slate-400">Tip percentages are worked on the services ({cents(tipInfo.eligibleCents)}), not on the retail on this sale.</p>}
           {readers.length > 1 && <label className="block">Reader<select value={readerId} onChange={(e) => setReaderId(e.target.value)} className={inputCls + ' mt-1'}>{readers.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></label>}
           {problem && <p role="alert" className="text-red-700 dark:text-red-300">{problem}</p>}
           <Button onClick={send} disabled={busy || !readerId}>{busy ? 'Sending…' : onReaderTip ? `Send ${cents(sale)} to the reader` : `Send ${cents(sale + (tip ? toCents(tip) : 0))} to the reader`}</Button>
@@ -185,6 +196,7 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
   const [qty, setQty] = useState('1')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState('')
+  const [code, setCode] = useState('')
   const on = hasFeature('salon_retail') && known && (can('invoices:update') || can('retail:sell')) && !CLOSED.has(status)
   const load = useCallback(() => { api.get('/api/salon-retail').then((r: { products: Product[] }) => setProducts(r.products)).catch(() => setProducts([])) }, [])
   useEffect(() => { if (on) load() }, [on, load])
@@ -196,6 +208,16 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
     try { await api.post('/api/salon-retail/sell', { invoiceId, items: [{ productId, quantity: Number(qty) || 1 }] }); toast.success('Added to the sale'); setQty('1'); load(); reload?.() }
     catch (e: any) { setProblem(e?.message || 'That could not be added.') } finally { setBusy(false) }
   }
+  // A keyboard / USB scanner types the barcode and presses Enter: the product it finds is put on the sale (one unit; scan again for another).
+  const scanOn = async () => {
+    const c = code.trim(); if (!c) return
+    setBusy(true); setProblem('')
+    try {
+      const r = await api.get(`/api/salon-retail-stock/scan?code=${encodeURIComponent(c)}`)
+      await api.post('/api/salon-retail/sell', { invoiceId, items: [{ productId: r.product.id, quantity: 1 }] })
+      toast.success(`${[r.product.brand, r.product.name].filter(Boolean).join(' ')} added`); load(); reload?.()
+    } catch (e: any) { setProblem(e?.message || 'That could not be added.') } finally { setBusy(false); setCode('') }
+  }
   const remove = async (lineId: string) => {
     setBusy(true); setProblem('')
     try { await api.delete(`/api/salon-retail/lines/${lineId}`); toast.success('Taken off the sale'); load(); reload?.() }
@@ -205,6 +227,7 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
   return (
     <section aria-label="Sell retail" className={box} data-testid="retail-panel">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-slate-100"><ShoppingBag className="h-4 w-4 text-teal-700 dark:text-teal-300" aria-hidden="true" />Sell retail</h2>
+      <div className="relative mt-2"><ScanLine className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-500 dark:text-slate-300" aria-hidden="true" /><input aria-label="Scan a barcode" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void scanOn() } }} placeholder="Scan a barcode to add it" className={inputCls + ' pl-9'} disabled={busy} /></div>
       {products === null ? <Loader2 className="mt-2 h-5 w-5 animate-spin text-gray-500" /> : inStock.length === 0 ? <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{products.length ? 'Everything is out of stock.' : 'No retail products yet.'}</p> : (
         <div className="mt-2 flex flex-wrap items-end gap-2 text-sm text-gray-900 dark:text-slate-100">
           <label className="min-w-0 flex-1">Product<select value={productId} onChange={(e) => setProductId(e.target.value)} className={inputCls + ' mt-1'}><option value="">Choose…</option>{inStock.map((p) => <option key={p.id} value={p.id}>{[p.brand, p.name].filter(Boolean).join(' ')} — {cents(p.priceCents)} ({p.onHand} left)</option>)}</select></label>
@@ -218,6 +241,42 @@ export function RetailSellPanel({ invoiceId, status, lines, reload }: { invoiceI
           {retailLines.map((l) => <li key={l.id} className="flex items-center justify-between gap-2 py-1.5"><span>{l.quantity} × {l.description}</span><button type="button" aria-label={`Take ${l.description} off the sale`} onClick={() => remove(l.id)} disabled={busy} className="rounded p-1 text-gray-600 hover:text-red-700 dark:text-slate-300"><Trash2 className="h-4 w-4" aria-hidden="true" /></button></li>)}
         </ul>
       )}
+    </section>
+  )
+}
+
+/**
+ * After a refund: the retail products on the sale, and a choice of which units go back on the shelf (a returned bottle may not be fit to resell).
+ * The server refuses more than were sold, anything before a refund, and a second return of the same unit.
+ */
+export function ReturnToShelfPanel({ invoiceId, refunded, reload }: { invoiceId: string; refunded: boolean; reload?: () => void }) {
+  const toast = useToast()
+  const { hasFeature } = useAuth()
+  const { can, known } = usePermissions()
+  const [lines, setLines] = useState<Array<{ productId: string; name: string; sold: number; returned: number; canReturn: number }> | null>(null)
+  const [qty, setQty] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+  const on = hasFeature('salon_retail') && known && (can('payments:delete') || can('inventory:update')) && refunded
+  const load = useCallback(() => { api.get(`/api/salon-retail-stock/sales/${invoiceId}/retail`).then((r: { lines: NonNullable<typeof lines> }) => setLines(r.lines)).catch(() => setLines([])) }, [invoiceId])
+  useEffect(() => { if (on) load() }, [on, load])
+  if (!on || !lines || !lines.length) return null
+  const go = async () => {
+    const items = lines.filter((l) => Number(qty[l.productId]) > 0).map((l) => ({ productId: l.productId, quantity: Number(qty[l.productId]) }))
+    if (!items.length) { setProblem('Say how many go back on the shelf.'); return }
+    setBusy(true); setProblem('')
+    try { const r = await api.post(`/api/salon-retail-stock/sales/${invoiceId}/return-to-shelf`, { items }); setLines(r.lines); setQty({}); toast.success('Back on the shelf'); reload?.() }
+    catch (e: any) { setProblem(e?.message || 'That did not save.') } finally { setBusy(false) }
+  }
+  return (
+    <section aria-label="Put units back on the shelf" className={box} data-testid="return-shelf-panel">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-slate-100"><ShoppingBag className="h-4 w-4 text-teal-700 dark:text-teal-300" aria-hidden="true" />Put units back on the shelf?</h2>
+      <p className="mt-1 text-xs text-gray-700 dark:text-slate-300">A refund does not change the shelf count by itself. Choose what is fit to sell again.</p>
+      <ul className="mt-2 divide-y divide-gray-100 text-sm text-gray-900 dark:divide-slate-800 dark:text-slate-100">
+        {lines.map((l) => <li key={l.productId} className="flex items-center justify-between gap-2 py-1.5"><span>{l.name}<span className="block text-xs text-gray-600 dark:text-slate-400">{l.sold} sold · {l.returned} back on the shelf</span></span>{l.canReturn > 0 ? <input inputMode="numeric" aria-label={`Back on the shelf: ${l.name}`} value={qty[l.productId] || ''} onChange={(e) => setQty((p) => ({ ...p, [l.productId]: e.target.value }))} placeholder={`0–${l.canReturn}`} className={inputCls + ' w-24'} /> : <span className="text-xs">All back</span>}</li>)}
+      </ul>
+      {problem && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{problem}</p>}
+      <Button className="mt-2" variant="secondary" onClick={go} disabled={busy}>Put back on the shelf</Button>
     </section>
   )
 }
@@ -265,6 +324,7 @@ export default function CardReadersSettingsPage() {
           </ul>
         )}
       </section>
+      <TipSettingsSection mayEdit={mayEdit} />
       {mayEdit && (
         <section className={box} aria-label="Add a reader">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add a reader</h2>
@@ -278,4 +338,148 @@ export default function CardReadersSettingsPage() {
       )}
     </div>
   )
+}
+
+
+interface TipPerson { key: string; name: string; percent: number; cents: number }
+interface TipView { tipCents: number; manual: boolean; people: TipPerson[] }
+
+/**
+ * Who the sale's tip goes to (salon parity row 10; server crm/salon/tipShares.ts): split by the value of each person's services unless the
+ * salon sets the shares here — at checkout or any time after. The Tips by stylist report follows at once, and a tip given back comes off each
+ * share the same way. Shown beside a sale that has a tip or more than one person on it.
+ */
+export function TipSplitPanel({ invoiceId, reload }: { invoiceId: string; reload?: () => void }) {
+  const toast = useToast()
+  const { hasFeature } = useAuth()
+  const { can, known } = usePermissions()
+  const on = hasFeature('chair_checkout') && known
+  const mayEdit = on && (can('invoices:update') || can('cardreader:use'))
+  const [view, setView] = useState<TipView | null>(null)
+  const [edit, setEdit] = useState<Array<{ key: string; name: string; percent: string }> | null>(null)
+  const [team, setTeam] = useState<Array<{ key: string; name: string }>>([])
+  const [problem, setProblem] = useState('')
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(() => { api.get(`/api/chair-checkout/sales/${invoiceId}/tip-split`).then((r: TipView) => setView(r)).catch(() => setView(null)) }, [invoiceId])
+  useEffect(() => { if (on) load() }, [on, load])
+  if (!on || !view || (view.tipCents === 0 && view.people.length < 2)) return null
+
+  const startEdit = async () => {
+    setProblem('')
+    setEdit(view.people.map((p) => ({ key: p.key, name: p.name, percent: String(p.percent) })))
+    try {
+      const r: any = await api.get('/api/team/assignable')
+      setTeam(((r?.data ?? r) as any[]).map((m) => ({ key: m.kind === 'member' ? `m:${m.id}` : `u:${m.id}`, name: m.name || [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Team member' })))
+    } catch { setTeam([]) }
+  }
+  const save = async (reset: boolean) => {
+    setBusy(true); setProblem('')
+    try {
+      const body = reset ? { reset: true } : { shares: (edit || []).map((e) => ({ key: e.key, percent: Number(e.percent) })) }
+      const r: TipView = await api.put(`/api/chair-checkout/sales/${invoiceId}/tip-split`, body)
+      setView(r); setEdit(null); toast.success(reset ? 'Back to splitting by service value' : 'Tip split saved'); reload?.()
+    } catch (e: any) { setProblem(e?.data?.fields?.shares || e?.message || 'The split could not be saved.') } finally { setBusy(false) }
+  }
+  const total = (edit || []).reduce((t, e) => t + (Number(e.percent) || 0), 0)
+
+  return (
+    <section className={box} aria-labelledby="tip-split-heading">
+      <h3 id="tip-split-heading" className="font-semibold text-gray-900 dark:text-slate-100">Who gets the tip</h3>
+      {!edit ? (
+        <>
+          <p className="text-sm text-gray-600 dark:text-slate-300">{view.manual ? 'Split the way you set it for this sale.' : 'Split by the value of each person\'s services on the visit.'}{view.tipCents ? ` The tip so far is ${cents(view.tipCents)}.` : ''}</p>
+          <ul className="mt-2 text-sm">
+            {view.people.map((p) => <li key={p.key} className="flex justify-between"><span>{p.name}</span><span>{p.percent}%{view.tipCents ? ` · ${cents(p.cents)}` : ''}</span></li>)}
+          </ul>
+          {mayEdit && <Button onClick={startEdit} className="mt-2">Change the split</Button>}
+        </>
+      ) : (
+        <div className="space-y-2">
+          {edit.map((e, i) => (
+            <label key={e.key} className="flex items-center justify-between gap-2 text-sm">
+              <span>{e.name}</span>
+              <span className="flex items-center gap-1"><input inputMode="decimal" aria-label={`${e.name} share`} value={e.percent} onChange={(ev) => setEdit(edit.map((x, j) => (j === i ? { ...x, percent: ev.target.value } : x)))} className={inputCls + ' w-24'} />%
+                <button type="button" aria-label={`Remove ${e.name}`} onClick={() => setEdit(edit.filter((_, j) => j !== i))} className="text-gray-500 hover:text-red-600"><Trash2 className="h-4 w-4" aria-hidden="true" /></button></span>
+            </label>
+          ))}
+          {team.filter((m) => !edit.some((e) => e.key === m.key)).length > 0 && (
+            <select aria-label="Add a person" className={inputCls} value="" onChange={(ev) => { const m = team.find((x) => x.key === ev.target.value); if (m) setEdit([...edit, { key: m.key, name: m.name, percent: '0' }]) }}>
+              <option value="">Add a person…</option>
+              {team.filter((m) => !edit.some((e) => e.key === m.key)).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}
+            </select>
+          )}
+          <p className={'text-xs ' + (Math.round(total * 100) === 10000 ? 'text-gray-600 dark:text-slate-400' : 'text-red-700 dark:text-red-300')} role="status">Shares add up to {Math.round(total * 100) / 100}% — they need to be 100%.</p>
+          {problem && <p className="text-sm text-red-700 dark:text-red-300" role="alert">{problem}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => save(false)} disabled={busy}>{busy ? 'Saving…' : 'Save the split'}</Button>
+            {view.manual && <Button onClick={() => save(true)} disabled={busy}>Back to service value</Button>}
+            <button type="button" onClick={() => setEdit(null)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-800">Cancel</button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+
+interface TipSettingsView { presets: number[]; lateTipLink: boolean; sendReceipts: boolean; readers?: { updated: number; failed: string[] } }
+
+/** Settings › Card readers › Tips (salon parity row 11): up to three percentages for the desk and the reader's own screen, the receipt, and its tip link. */
+function TipSettingsSection({ mayEdit }: { mayEdit: boolean }) {
+  const toast = useToast()
+  const [loaded, setLoaded] = useState(false)
+  const [presets, setPresets] = useState<string[]>(['15', '18', '20'])
+  const [lateTipLink, setLateTipLink] = useState(true)
+  const [sendReceipts, setSendReceipts] = useState(true)
+  const [problem, setProblem] = useState('')
+  const [warning, setWarning] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api.get('/api/chair-checkout/tip-settings').then((r: TipSettingsView) => { setPresets(r.presets.map(String)); setLateTipLink(r.lateTipLink); setSendReceipts(r.sendReceipts); setLoaded(true) }).catch(() => setLoaded(true))
+  }, [])
+  const save = async () => {
+    setBusy(true); setProblem(''); setWarning('')
+    try {
+      const list = presets.map((p) => p.trim()).filter(Boolean).map(Number)
+      const r: TipSettingsView = await api.put('/api/chair-checkout/tip-settings', { presets: list, lateTipLink, sendReceipts })
+      setPresets(r.presets.map(String))
+      if (r.readers?.failed.length) setWarning(`Saved, but a reader's tip screen could not be changed yet: ${r.readers.failed[0]}`)
+      else toast.success('Tip settings saved')
+    } catch (e: any) { setProblem(e?.data?.fields?.presets || e?.message || 'The tip settings could not be saved.') } finally { setBusy(false) }
+  }
+  return (
+    <section className={box} aria-label="Tips">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tips</h2>
+      <p className="mt-1 text-sm text-gray-600 dark:text-slate-300">The percentages offered at the desk and on the reader&rsquo;s own screen (up to three). They are worked on the services on the sale, not on retail or gift cards.</p>
+      {!loaded ? <Loader2 className="mt-2 h-5 w-5 animate-spin text-gray-500" /> : (
+        <div className="mt-3 space-y-3 text-sm text-gray-900 dark:text-slate-100">
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((i) => (
+              <label key={i}>Tip {i + 1} (%)<input inputMode="numeric" aria-label={`Tip percentage ${i + 1}`} value={presets[i] ?? ''} disabled={!mayEdit} onChange={(e) => setPresets(Object.assign([...presets, '', '', ''].slice(0, 3), { [i]: e.target.value }))} className={inputCls + ' mt-1'} /></label>
+            ))}
+          </div>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={sendReceipts} disabled={!mayEdit} onChange={(e) => setSendReceipts(e.target.checked)} />Email a receipt when a sale is paid</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={lateTipLink} disabled={!mayEdit || !sendReceipts} onChange={(e) => setLateTipLink(e.target.checked)} />Let the client add a tip afterwards from a link in the receipt</label>
+          {problem && <p role="alert" className="text-red-700 dark:text-red-300">{problem}</p>}
+          {warning && <p role="status" className="text-amber-800 dark:text-amber-300">{warning}</p>}
+          {mayEdit && <div className="flex justify-end"><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save tips'}</Button></div>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** "Email the receipt" beside a paid sale (the app sends one by itself when a sale is paid; this sends it again). */
+export function SaleReceiptButton({ invoiceId, status }: { invoiceId: string; status: string }) {
+  const toast = useToast()
+  const { hasFeature } = useAuth()
+  const { can, known } = usePermissions()
+  const [busy, setBusy] = useState(false)
+  if (!hasFeature('chair_checkout') || !known || status !== 'paid' || !(can('invoices:update') || can('cardreader:use'))) return null
+  const send = async () => {
+    setBusy(true)
+    try { await api.post(`/api/chair-checkout/sales/${invoiceId}/receipt`, {}); toast.success('Receipt emailed') }
+    catch (e: any) { toast.error(e?.message || 'The receipt could not be sent.') } finally { setBusy(false) }
+  }
+  return <Button onClick={send} disabled={busy}>{busy ? 'Sending…' : 'Email the receipt'}</Button>
 }

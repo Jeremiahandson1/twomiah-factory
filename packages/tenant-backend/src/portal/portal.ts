@@ -12,7 +12,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
-import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
+import { eq, and, inArray, count, sql, desc, asc, gte, lt, lte, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
@@ -46,6 +46,28 @@ export interface PortalFileService {
   generateThumbnail: (p: string, size: number) => Promise<string>
   getFileUrl: (p: string, companyId: string) => string
 }
+/**
+ * What the salon vertical supplies beyond the appointment list (apps/unified server/crm/salon/portalHooks.ts). Every method is handed the
+ * client the portal link belongs to and answers for THAT client only; the portal checks the section is on (`portal_appointments`) first.
+ */
+export interface PortalSalonHooks {
+  /** For the Past tab: which menu services can be booked again online, by menu id → the booking service's address and name. */
+  bookAgain?: (companyId: string, serviceMenuIds: string[]) => Promise<Record<string, { slug: string; name: string }>>
+  /** The account page: memberships, gift cards, loyalty. null = nothing to show (the section is then not offered). */
+  account?: (c: { companyId: string; contactId: string }) => Promise<unknown | null>
+  /** Which of these upcoming appointments a client can move or cancel from the portal although no booking link was made (desk bookings). */
+  manageable?: (c: { companyId: string; contactId: string }, appointmentIds: string[]) => Promise<string[]>
+  /** The private page that moves or cancels this appointment (making the booking record the page needs, if the desk made it), or why not. */
+  manage?: (c: { companyId: string; contactId: string; appointmentId: string }) => Promise<{ url: string } | { problem: string }>
+  /** Booking inside the portal: the same services, people, days, times and rules as the public booking page. */
+  booking?: {
+    services: (companyId: string) => Promise<unknown[] | null>
+    people: (companyId: string) => Promise<unknown[]>
+    dates: (companyId: string, slug: string, who: string | null) => Promise<unknown[]>
+    times: (companyId: string, slug: string, date: string, who: string | null) => Promise<unknown[]>
+    book: (c: { companyId: string; contact: any }, input: { slug: string; date: string; time: string; who: string | null; notes: string | null; phone?: string | null }) => Promise<{ token: string; status: string; url: string; next: 'deposit' | 'card' | 'forms' | null }>
+  }
+}
 export interface PortalOptions {
   /** Base URL the emailed link points at. Default: process.env.FRONTEND_URL. */
   frontendUrl?: () => string
@@ -61,7 +83,13 @@ export interface PortalOptions {
    * private link to manage a booking made online (the booking's own page, which moves or cancels it under the salon's rules).
    * Offered only where the business has the `portal_appointments` feature on — never on a silent default.
    */
-  appointments?: { appointment: any; service?: any; stylist?: any; booking?: any; manageUrl?: (bookingToken: string) => string }
+  appointments?: {
+    appointment: any; service?: any; stylist?: any; booking?: any; manageUrl?: (bookingToken: string) => string
+    /** Chair-only team members (id, name): where an appointment names one instead of a login, their first name is shown. */
+    member?: any
+    /** The salon's side (past visits, the account page, moving a desk booking, booking inside the portal). Absent: the list alone, as before. */
+    salon?: PortalSalonHooks
+  }
   disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets' | 'visits' | 'jobFiles'>
 }
 /**
@@ -246,6 +274,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     // salon: the client's upcoming appointments. NEVER on from what is mounted: it is offered only where the business has the
     // `portal_appointments` feature switched on (sectionsFor adds it), so a missing lookup or an empty list is not a yes.
     appointments: false,
+    // salon: memberships, gift cards and loyalty (the salon hook answers; offered with the appointments section, on the same switch).
+    account: false,
   }
   const appointmentsConfigured = !!o.appointments?.appointment
   const app = new Hono()
@@ -573,6 +603,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (needed && !needed.every((f) => featureSatisfied(f, enabled))) out[section] = false
     }
     out.appointments = appointmentsConfigured && enabled.includes('portal_appointments')
+    out.account = out.appointments && !!o.appointments?.salon?.account
     return out
   }
   /** Taking a module out of the nav has to close its endpoints too — hiding a module used to leave its API wide open (#167). */
@@ -645,33 +676,118 @@ export function createPortalRoutes(deps: PortalDeps) {
     })
   }
   // ---- appointments (salon)
-  // The client's own upcoming appointments, read-only: when, what and with whom (first name) — never a price, a note or a formula.
-  // One booked online carries the link to its own page, where the salon's rules decide whether it can still be moved or cancelled.
+  // The client's own appointments: when, what and with whom (first name) — never a price, a note or a formula. Upcoming ones carry the way to
+  // move or cancel them: the link to a booking made online, or (a booking made at the desk) a request that makes the same private page.
+  // Past ones carry "Book again". Booking a new appointment, and the account page, are the salon's hooks (PortalSalonHooks).
   if (appointmentsConfigured && o.appointments) {
     const cfg = o.appointments
+    const hooks = cfg.salon
+    const firstWord = (v: unknown) => String(v ?? '').trim().split(/\s+/)[0] || null
+    /** The stylist's first name for each appointment: a login's, or a chair-only team member's. */
+    const withNames = async (companyId: string, rows: any[]) => {
+      const stylistIds = [...new Set(rows.map((r: any) => r.stylistId).filter(Boolean))] as string[]
+      const memberIds = [...new Set(rows.map((r: any) => r.stylistMemberId).filter(Boolean))] as string[]
+      const [users, members] = await Promise.all([
+        stylistIds.length && cfg.stylist ? db.select({ id: cfg.stylist.id, firstName: cfg.stylist.firstName }).from(cfg.stylist).where(and(eq(cfg.stylist.companyId, companyId), inArray(cfg.stylist.id, stylistIds))) : [],
+        memberIds.length && cfg.member ? db.select({ id: cfg.member.id, name: cfg.member.name }).from(cfg.member).where(and(eq(cfg.member.companyId, companyId), inArray(cfg.member.id, memberIds))) : [],
+      ])
+      return (r: any): string | null => (r.stylistId ? users.find((u: any) => u.id === r.stylistId)?.firstName : null) ?? (r.stylistMemberId ? firstWord(members.find((m: any) => m.id === r.stylistMemberId)?.name) : null) ?? null
+    }
+    const picked = (a: any) => ({ id: a.id, startTime: a.startTime, endTime: a.endTime, status: a.status, serviceId: a.serviceId, stylistId: a.stylistId, stylistMemberId: a.stylistMemberId })
+
     app.get('/p/:token/appointments', portalAuth, gate('appointments'), async (c) => {
       const { contact } = P(c)
       const a = cfg.appointment
-      const rows = await db.select({ id: a.id, startTime: a.startTime, endTime: a.endTime, status: a.status, serviceId: a.serviceId, stylistId: a.stylistId }).from(a)
+      const rows = await db.select(picked(a) as any).from(a)
         .where(and(eq(a.companyId, contact.companyId), eq(a.contactId, contact.id), gte(a.startTime, new Date()), notInArray(a.status, ['cancelled', 'no_show', 'completed'])))
         .orderBy(asc(a.startTime), asc(a.id)).limit(50)
       const serviceIds = [...new Set(rows.map((r: any) => r.serviceId).filter(Boolean))] as string[]
-      const stylistIds = [...new Set(rows.map((r: any) => r.stylistId).filter(Boolean))] as string[]
       const apptIds = rows.map((r: any) => r.id) as string[]
-      const [services, stylists, bookings] = await Promise.all([
+      const [services, nameOf, bookings, canManage] = await Promise.all<any>([
         serviceIds.length && cfg.service ? db.select({ id: cfg.service.id, name: cfg.service.name }).from(cfg.service).where(and(eq(cfg.service.companyId, contact.companyId), inArray(cfg.service.id, serviceIds))) : [],
-        stylistIds.length && cfg.stylist ? db.select({ id: cfg.stylist.id, firstName: cfg.stylist.firstName }).from(cfg.stylist).where(and(eq(cfg.stylist.companyId, contact.companyId), inArray(cfg.stylist.id, stylistIds))) : [],
+        withNames(contact.companyId, rows),
         apptIds.length && cfg.booking && cfg.manageUrl ? db.select({ appointmentId: cfg.booking.appointmentId, token: cfg.booking.token, status: cfg.booking.status }).from(cfg.booking).where(and(eq(cfg.booking.companyId, contact.companyId), inArray(cfg.booking.appointmentId, apptIds), notInArray(cfg.booking.status, ['cancelled']))) : [],
+        apptIds.length && hooks?.manageable ? hooks.manageable({ companyId: contact.companyId, contactId: contact.id }, apptIds) : [],
       ])
       return c.json(rows.map((r: any) => {
         const link = bookings.find((b: any) => b.appointmentId === r.id)
         return {
           id: r.id, startTime: r.startTime, endTime: r.endTime, status: r.status,
           service: services.find((s: any) => s.id === r.serviceId)?.name ?? null,
-          with: stylists.find((s: any) => s.id === r.stylistId)?.firstName ?? null,
+          with: nameOf(r),
           manageUrl: link && cfg.manageUrl ? cfg.manageUrl(link.token) : null,
+          // A link, or the desk's own booking that the page can be made for: either way the client can move or cancel it here.
+          canManage: !!link || (canManage as string[]).includes(r.id),
         }
       }))
+    })
+
+    // The visits that happened, newest first, each with the way to book that service again.
+    app.get('/p/:token/appointments/past', portalAuth, gate('appointments'), async (c) => {
+      const { contact } = P(c)
+      const a = cfg.appointment
+      const rows = await db.select(picked(a) as any).from(a)
+        .where(and(eq(a.companyId, contact.companyId), eq(a.contactId, contact.id), eq(a.status, 'completed'), lt(a.startTime, new Date())))
+        .orderBy(desc(a.startTime), desc(a.id)).limit(50)
+      const serviceIds = [...new Set(rows.map((r: any) => r.serviceId).filter(Boolean))] as string[]
+      const [services, nameOf, again] = await Promise.all([
+        serviceIds.length && cfg.service ? db.select({ id: cfg.service.id, name: cfg.service.name }).from(cfg.service).where(and(eq(cfg.service.companyId, contact.companyId), inArray(cfg.service.id, serviceIds))) : [],
+        withNames(contact.companyId, rows),
+        serviceIds.length && hooks?.bookAgain ? hooks.bookAgain(contact.companyId, serviceIds) : {},
+      ])
+      return c.json(rows.map((r: any) => ({
+        id: r.id, startTime: r.startTime, endTime: r.endTime, status: r.status,
+        service: services.find((s: any) => s.id === r.serviceId)?.name ?? null,
+        with: nameOf(r),
+        bookAgain: r.serviceId ? (again as any)[r.serviceId] ?? null : null,
+      })))
+    })
+
+    // Move or cancel one of the client's own: the private page that does it under the salon's rules (made now for a desk booking).
+    app.post('/p/:token/appointments/:id/manage', portalAuth, gate('appointments'), async (c) => {
+      const { contact } = P(c)
+      if (!hooks?.manage) return c.json({ error: 'Please call us to change this appointment.', code: 'CALL_US' }, 409)
+      const out = await hooks.manage({ companyId: contact.companyId, contactId: contact.id, appointmentId: c.req.param('id') })
+      if ('problem' in out) return c.json({ error: out.problem, code: 'CALL_US' }, 409)
+      return c.json({ url: out.url })
+    })
+
+    // Booking a new appointment from inside the portal: the booking page's own services, days and times, for this client.
+    if (hooks?.booking) {
+      const bk = hooks.booking
+      const off = (c: any) => c.json({ error: 'Online booking is not open.', code: 'BOOKING_CLOSED' }, 404)
+      const failed = (c: any, e: any) => c.json({ error: e?.message || 'That could not be done.', ...(e?.code ? { code: e.code } : {}) }, e?.status && e.status >= 400 && e.status < 500 ? e.status : 400)
+      app.get('/p/:token/book/services', portalAuth, gate('appointments'), async (c) => {
+        const rows = await bk.services(P(c).contact.companyId)
+        return rows === null ? off(c) : c.json(rows)
+      })
+      app.get('/p/:token/book/people', portalAuth, gate('appointments'), async (c) => c.json(await bk.people(P(c).contact.companyId)))
+      app.get('/p/:token/book/services/:slug/dates', portalAuth, gate('appointments'), async (c) => {
+        try { return c.json(await bk.dates(P(c).contact.companyId, c.req.param('slug'), c.req.query('who') || null)) } catch (e: any) { return failed(c, e) }
+      })
+      app.get('/p/:token/book/services/:slug/times', portalAuth, gate('appointments'), async (c) => {
+        try { return c.json(await bk.times(P(c).contact.companyId, c.req.param('slug'), c.req.query('date') || '', c.req.query('who') || null)) } catch (e: any) { return failed(c, e) }
+      })
+      app.post('/p/:token/book/services/:slug', portalAuth, gate('appointments'), async (c) => {
+        const { contact } = P(c)
+        const b = (await c.req.json().catch(() => null)) ?? {}
+        try {
+          const made = await bk.book({ companyId: contact.companyId, contact }, {
+            slug: c.req.param('slug'), date: String(b.date ?? ''), time: String(b.time ?? ''), who: b.who ? String(b.who) : null, notes: b.notes ? String(b.notes).slice(0, 500) : null, phone: b.phone ? String(b.phone).slice(0, 40) : null,
+          })
+          return c.json(made, 201)
+        } catch (e: any) { return failed(c, e) }
+      })
+    }
+  }
+
+  // ---- account (salon): memberships with their credits, gift-card balances, loyalty points. Read-only, this client's own.
+  if (appointmentsConfigured && o.appointments?.salon?.account) {
+    const account = o.appointments.salon.account
+    app.get('/p/:token/account', portalAuth, gate('account'), async (c) => {
+      const { contact } = P(c)
+      const out = await account({ companyId: contact.companyId, contactId: contact.id })
+      return out === null ? c.json({ error: 'This section is not available on your account.', code: 'FEATURE_NOT_ENABLED' }, 404) : c.json(out)
     })
   }
 
