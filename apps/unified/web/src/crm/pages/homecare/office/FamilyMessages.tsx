@@ -6,7 +6,7 @@
 //   Alert rules     when something happens on a visit, who is told and how, in the agency's words (row 7 extras; /api/family-comms/alert-rules)
 // Server: server/crm/homecare/portals/familyComms.ts on /api/family-comms (care-portal:update).
 import { useCallback, useEffect, useState } from 'react'
-import { useConfirm, useToast } from '../../../../shared'
+import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
 
@@ -31,6 +31,7 @@ function Requests() {
   const [list, setList] = useState<Req[]>([])
   const [open, setOpen] = useState(0)
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const mayAnswer = useMayWrite('care-portal:update')   // PUT /api/family-comms/requests/:id
   const load = useCallback(async () => {
     try {
       setList(rows<Req>(await api.get('/api/family-comms/requests', status ? { status } : {})))
@@ -62,13 +63,13 @@ function Requests() {
           </div>
           <div className={soft}>{r.relativeName}{r.relationship ? ` (${r.relationship})` : ''}{r.visitDate ? ` · about ${r.visitDate}` : ''}</div>
           <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0' }}>{r.details}</p>
-          {r.status === 'open' ? (
+          {r.status === 'open' ? (mayAnswer ? (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input className={inp} style={{ flex: 1, minWidth: 200 }} placeholder="A note for the relative (optional)" value={notes[r.id] || ''} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
               <button className="hc-btn hc-btn-primary" onClick={() => handle(r, 'done')}>Done</button>
               <button className="hc-btn hc-btn-secondary" onClick={() => handle(r, 'declined')}>Decline</button>
             </div>
-          ) : r.handledNote ? <div className={soft}>Your note: {r.handledNote}</div> : null}
+          ) : <div className={soft}>Waiting for the office.</div>) : r.handledNote ? <div className={soft}>Your note: {r.handledNote}</div> : null}
         </div>
       ))}
     </div>
@@ -115,6 +116,7 @@ function WordingTab() {
   const toast = useToast()
   const [w, setW] = useState<Wording | null>(null)
   const [problem, setProblem] = useState<Record<string, string>>({})
+  const mayEdit = useMayWrite('care-portal:update')   // PUT /api/family-comms/text-wording
   useEffect(() => { api.get('/api/family-comms/text-wording').then((r) => setW(r as Wording)).catch((e) => toast.error(errorMessage(e))) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
   if (!w) return <div className={card}>Loading…</div>
   const save = async () => {
@@ -125,7 +127,7 @@ function WordingTab() {
   const field = (k: 'arrivalText' | 'departureText', label: string) => (
     <div style={{ marginBottom: 12 }}>
       <label className="block text-sm font-semibold mb-1" htmlFor={k}>{label}</label>
-      <textarea id={k} className={inp} rows={2} maxLength={300} value={w[k]} onChange={(e) => setW({ ...w, [k]: e.target.value })} />
+      <textarea id={k} className={inp} rows={2} maxLength={300} readOnly={!mayEdit} value={w[k]} onChange={(e) => setW({ ...w, [k]: e.target.value })} />
       {problem[k] ? <div style={{ color: 'var(--hc-danger-ink, #b91c1c)' }} className="text-sm">{problem[k]}</div> : null}
     </div>
   )
@@ -134,10 +136,10 @@ function WordingTab() {
       <p className={soft}>You can use {w.tags.map((t) => `{${t}}`).join(', ')}. If you leave out {'{agency}'} the agency name is put in front. &ldquo;Reply STOP to stop these texts.&rdquo; is added unless your words already say STOP.</p>
       {field('arrivalText', 'When the caregiver arrives')}
       {field('departureText', 'When the caregiver finishes')}
-      <div style={{ display: 'flex', gap: 8 }}>
+      {mayEdit && <div style={{ display: 'flex', gap: 8 }}>
         <button className="hc-btn hc-btn-primary" onClick={save}>Save</button>
         <button className="hc-btn hc-btn-secondary" onClick={() => setW({ ...w, ...w.defaults })}>Use our wording</button>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -146,6 +148,7 @@ function EmailsTab() {
   const toast = useToast()
   const [list, setList] = useState<Tpl[]>([])
   const [problem, setProblem] = useState<Record<string, Record<string, string>>>({})
+  const mayEdit = useMayWrite('care-portal:update')   // PUT and DELETE /api/family-comms/email-templates/:kind
   const load = useCallback(() => api.get('/api/family-comms/email-templates').then((r) => setList(rows<Tpl>(r))).catch((e) => toast.error(errorMessage(e))), [toast])
   useEffect(() => { load() }, [load])
   const edit = (kind: string, patch: Partial<Tpl>) => setList((cur) => cur.map((t) => (t.kind === kind ? { ...t, ...patch } : t)))
@@ -161,19 +164,19 @@ function EmailsTab() {
         <div key={t.kind} className={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <strong>{t.label}{t.custom ? ' (your wording)' : ''}</strong>
-            {t.switchable ? <label className="text-sm"><input type="checkbox" checked={t.enabled} onChange={(e) => edit(t.kind, { enabled: e.target.checked })} /> Send this email</label> : <span className={soft}>Always sent</span>}
+            {t.switchable ? <label className="text-sm"><input type="checkbox" disabled={!mayEdit} checked={t.enabled} onChange={(e) => edit(t.kind, { enabled: e.target.checked })} /> Send this email</label> : <span className={soft}>Always sent</span>}
           </div>
           <p className={soft}>You can use {t.tags.map((x) => `{${x}}`).join(', ')}.</p>
           <label className="block text-sm font-semibold mb-1" htmlFor={`s-${t.kind}`}>Subject</label>
-          <input id={`s-${t.kind}`} className={inp} value={t.subject} onChange={(e) => edit(t.kind, { subject: e.target.value })} />
+          <input id={`s-${t.kind}`} className={inp} readOnly={!mayEdit} value={t.subject} onChange={(e) => edit(t.kind, { subject: e.target.value })} />
           {problem[t.kind]?.subject ? <div className="text-sm" style={{ color: 'var(--hc-danger-ink, #b91c1c)' }}>{problem[t.kind].subject}</div> : null}
           <label className="block text-sm font-semibold mb-1 mt-2" htmlFor={`b-${t.kind}`}>Words</label>
-          <textarea id={`b-${t.kind}`} className={inp} rows={7} value={t.body} onChange={(e) => edit(t.kind, { body: e.target.value })} />
+          <textarea id={`b-${t.kind}`} className={inp} rows={7} readOnly={!mayEdit} value={t.body} onChange={(e) => edit(t.kind, { body: e.target.value })} />
           {problem[t.kind]?.body ? <div className="text-sm" style={{ color: 'var(--hc-danger-ink, #b91c1c)' }}>{problem[t.kind].body}</div> : null}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          {mayEdit && <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button className="hc-btn hc-btn-primary" onClick={() => save(t)}>Save</button>
             {t.custom ? <button className="hc-btn hc-btn-secondary" onClick={() => reset(t)}>Use our wording</button> : null}
-          </div>
+          </div>}
         </div>
       ))}
     </div>
@@ -187,6 +190,8 @@ function RulesTab() {
   const [opts, setOpts] = useState<RuleOptions | null>(null)
   const [form, setForm] = useState<(typeof BLANK_RULE & { id?: string }) | null>(null)
   const [problem, setProblem] = useState<Record<string, string>>({})
+  const mayCreate = useMayWrite('care-portal:create')   // POST /api/family-comms/alert-rules
+  const mayUpdate = useMayWrite('care-portal:update')   // PUT and DELETE /api/family-comms/alert-rules/:id
   const load = useCallback(() => api.get('/api/family-comms/alert-rules').then((r) => setRules(rows<Rule>(r))).catch((e) => toast.error(errorMessage(e))), [toast])
   useEffect(() => { load(); api.get('/api/family-comms/alert-rules/options').then((r) => setOpts(r as RuleOptions)).catch(() => { /* the form stays closed */ }) }, [load])
   const channelsFor = (audience: string) => opts?.audiences.find((a) => a.id === audience)?.channels ?? []
@@ -209,7 +214,7 @@ function RulesTab() {
     <div>
       <div className={card}>
         <p className={soft}>Say when something happens on a visit, who is told, and how. Relatives are only reached the way they agreed to (text, email, or an app notice they turned on themselves). The office always gets a notice in the app as well. The standard arrival and finish notices keep going without any rule.</p>
-        <button className="hc-btn hc-btn-primary" onClick={() => { setForm({ ...BLANK_RULE }); setProblem({}) }}>+ New rule</button>
+        {mayCreate && <button className="hc-btn hc-btn-primary" onClick={() => { setForm({ ...BLANK_RULE }); setProblem({}) }}>+ New rule</button>}
       </div>
       {rules.length === 0 ? <div className={card}><span className={soft}>No rules yet.</span></div> : (
         <div className={card}>
@@ -222,11 +227,11 @@ function RulesTab() {
                   <td>{r.triggerLabel}{r.trigger === 'late_clock_in' ? ` (${r.minutes}+ minutes after the scheduled start)` : ''}</td>
                   <td>{r.audienceLabel}</td>
                   <td>{r.channels.map((c) => CHANNEL_NAMES[c] ?? c).join(', ')}</td>
-                  <td><input type="checkbox" aria-label={`${r.name} is on`} checked={r.isActive} onChange={() => toggle(r)} /></td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
+                  <td><input type="checkbox" aria-label={`${r.name} is on`} disabled={!mayUpdate} checked={r.isActive} onChange={() => toggle(r)} /></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{mayUpdate && <>
                     <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setForm({ id: r.id, name: r.name, trigger: r.trigger, minutes: String(r.minutes ?? 15), audience: r.audience, channels: r.channels, message: r.message ?? '' }); setProblem({}) }}>Edit</button>{' '}
                     <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => remove(r)}>Remove</button>
-                  </td>
+                  </>}</td>
                 </tr>
               ))}
             </tbody>

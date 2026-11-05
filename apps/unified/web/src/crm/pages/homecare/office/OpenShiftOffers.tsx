@@ -5,7 +5,7 @@
 //   Settings  what caregivers see: everything offered, only what was sent to them, or nothing; and how many days ahead
 // Server: server/crm/homecare/scheduling/openShiftOffers.ts on /api/open-shift-offers (the sending itself is /api/open-shifts/:id/notify).
 import { useCallback, useEffect, useState } from 'react'
-import { useConfirm, useToast } from '../../../../shared'
+import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { api, listAll, rows, errorMessage } from '../lib/http'
 import { agencyToday } from '../lib/agencyClock'
 
@@ -37,6 +37,7 @@ function Outbox({ s, onChanged }: { s: Posting; onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [sms, setSms] = useState(false)
   const [email, setEmail] = useState(false)
+  const mayUpdate = useMayWrite('care-schedule:update')   // POST /:id/resend and PUT /:id/deadline
   const load = useCallback(async () => {
     try { setList(rows<Message>(await api.get(`/api/open-shift-offers/${s.id}/outbox`))) } catch (e) { toast.error(errorMessage(e, 'Could not load the messages')) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,6 +59,7 @@ function Outbox({ s, onChanged }: { s: Posting; onChanged: () => void }) {
   const failed = (list || []).filter((m) => m.status === 'failed').length
   return (
     <div style={{ marginTop: 8 }}>
+      {mayUpdate && <>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end', marginBottom: 8 }}>
         <label className={soft}>Answer by (date and time)
           <input className={inp} style={{ width: 190 }} placeholder="2026-11-02 17:00" value={by} onChange={(e) => setBy(e.target.value)} /></label>
@@ -70,6 +72,7 @@ function Outbox({ s, onChanged }: { s: Posting; onChanged: () => void }) {
         <button className={btn2} disabled={busy} onClick={() => resend('new')}>Send to newly eligible</button>
         <button className={btn2} disabled={busy} onClick={() => resend('everyone')}>Send to everyone again</button>
       </div>
+      </>}
       {list === null ? <p className={soft}>Loading…</p> : list.length === 0 ? <p className={soft}>Nothing has been sent for this shift yet.</p> : (
         <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
           <thead><tr className={soft} style={{ textAlign: 'left' }}><th>Caregiver</th><th>How</th><th>Sent to</th><th>Result</th></tr></thead>
@@ -134,6 +137,7 @@ function SeriesTab({ onPosted }: { onPosted: () => void }) {
   const [f, setF] = useState({ scheduleId: '', from: agencyToday(), weeks: '4', bonus: '', autoAssign: false, respondBy: '' })
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const mayCreate = useMayWrite('care-schedule:create')   // POST /api/open-shift-offers/series/:scheduleId
   useEffect(() => {
     Promise.all([api.get('/api/schedules-all'), listAll('/api/clients'), listAll('/api/caregivers')])
       .then(([s, c, g]) => { setScheds(rows<Sched>(s).filter((x) => x.dayOfWeek !== null && x.dayOfWeek !== undefined)); setClients(rows<Named>(c)); setCgs(rows<Named>(g)) })
@@ -167,7 +171,7 @@ function SeriesTab({ onPosted }: { onPosted: () => void }) {
         <label className={soft}>Answer by <input className={inp} placeholder="2026-11-02 17:00" value={f.respondBy} onChange={(e) => setF({ ...f, respondBy: e.target.value })} /></label>
       </div>
       <label className={soft} style={{ display: 'block', marginBottom: 8 }}><input type="checkbox" checked={f.autoAssign} onChange={(e) => setF({ ...f, autoAssign: e.target.checked })} /> The first to accept gets it without waiting for the office</label>
-      <button className={btn} disabled={busy || !f.scheduleId} onClick={post}>Offer the series</button>
+      {mayCreate && <button className={btn} disabled={busy || !f.scheduleId} onClick={post}>Offer the series</button>}
       {result ? <p style={{ marginTop: 8 }}>{result}</p> : null}
     </div>
   )
@@ -178,6 +182,7 @@ function SettingsTab() {
   const [s, setS] = useState<Settings | null>(null)
   const [days, setDays] = useState('')
   const [vis, setVis] = useState('all')
+  const mayEdit = useMayWrite('care-schedule:update')   // PUT /api/open-shift-offers/settings
   useEffect(() => {
     api.get('/api/open-shift-offers/settings').then((r: any) => { setS(r); setVis(r.visibility); setDays(r.daysAhead ? String(r.daysAhead) : '') }).catch((e) => toast.error(errorMessage(e, 'Could not load the settings')))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,12 +196,12 @@ function SettingsTab() {
       <strong>What caregivers see</strong>
       <div style={{ margin: '8px 0' }}>
         {s.visibilityOptions.map((o) => (
-          <label key={o.code} style={{ display: 'block', padding: '4px 0' }}><input type="radio" name="vis" checked={vis === o.code} onChange={() => setVis(o.code)} /> {o.label}</label>
+          <label key={o.code} style={{ display: 'block', padding: '4px 0' }}><input type="radio" name="vis" disabled={!mayEdit} checked={vis === o.code} onChange={() => setVis(o.code)} /> {o.label}</label>
         ))}
       </div>
       <label className={soft}>Only shifts within this many days (leave empty for no limit)
-        <input className={inp} style={{ maxWidth: 160 }} inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} /></label>
-      <div style={{ marginTop: 12 }}><button className={btn} onClick={save}>Save</button></div>
+        <input className={inp} style={{ maxWidth: 160 }} inputMode="numeric" readOnly={!mayEdit} value={days} onChange={(e) => setDays(e.target.value)} /></label>
+      {mayEdit && <div style={{ marginTop: 12 }}><button className={btn} onClick={save}>Save</button></div>}
     </div>
   )
 }
@@ -204,7 +209,8 @@ function SettingsTab() {
 export default function OpenShiftOffers() {
   const [tab, setTab] = useState<Tab>('board')
   const [key, setKey] = useState(0)
-  const tabs: [Tab, string][] = [['board', 'Offers'], ['series', 'Offer a series'], ['settings', 'What caregivers see']]
+  const mayPost = useMayWrite('care-schedule:create')   // offering a series is a create
+  const tabs: [Tab, string][] = [['board', 'Offers'], ...(mayPost ? [['series', 'Offer a series'] as [Tab, string]] : []), ['settings', 'What caregivers see']]
   return (
     <div style={{ padding: 16, maxWidth: 960 }}>
       <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: 12 }}>Open shift offers</h1>

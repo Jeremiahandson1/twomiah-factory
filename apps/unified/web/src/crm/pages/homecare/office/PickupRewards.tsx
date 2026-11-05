@@ -4,7 +4,7 @@
 //   Rewards   the reward catalogue, and the requests to hand over (declining returns the points)
 // Server: server/crm/homecare/scheduling/pickupRewards.ts on /api/care-rewards.
 import { useCallback, useEffect, useState } from 'react'
-import { useConfirm, useToast } from '../../../../shared'
+import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { moneyCents } from '@twomiah/tenant-ui/src/money'
 import { api, rows, errorMessage } from '../lib/http'
 import { agencyToday, formatAgencyDateTime } from '../lib/agencyClock'
@@ -69,6 +69,7 @@ function Points() {
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [board, setBoard] = useState<Board[]>([])
   const [adj, setAdj] = useState({ caregiverId: '', points: '', note: '' })
+  const mayEdit = useMayWrite('care-schedule:update')   // PUT /api/care-rewards/rules and POST /adjust
   const load = useCallback(async () => {
     try {
       const r = (await api.get('/api/care-rewards/rules')) as Rules
@@ -88,7 +89,7 @@ function Points() {
   if (!rules) return <div className={card}>Loading…</div>
   const field = (key: string, label: string, hint?: string) => (
     <label className={soft} style={{ display: 'block', marginBottom: 8 }}>{label}
-      <input className={inp} inputMode="numeric" value={draft[key] ?? ''} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+      <input className={inp} inputMode="numeric" readOnly={!mayEdit} value={draft[key] ?? ''} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
       {hint && <span style={{ fontSize: '0.8rem' }}>{hint}</span>}
     </label>
   )
@@ -101,10 +102,10 @@ function Points() {
         {field('pointsPerOnTime', 'Points for each on-time clock-in', 'On time = clocked in within 7 minutes after the scheduled start (early is fine).')}
         {field('minHoursPerWeek', 'Weekly minimum hours (0 = no minimum)', 'Counted for each finished work week.')}
         {field('pointsForMinHours', 'Points for a week at or over the minimum')}
-        <div style={{ display: 'flex', gap: 8 }}>
+        {mayEdit && <div style={{ display: 'flex', gap: 8 }}>
           <button className={btn} onClick={() => save(true)}>{rules.enabled ? 'Save' : 'Save and turn on'}</button>
           {rules.enabled && <button className={btn2} onClick={() => save(false)}>Turn off</button>}
-        </div>
+        </div>}
       </div>
       <div className={card}>
         <strong>Who has points</strong>
@@ -117,7 +118,7 @@ function Points() {
           </table>
         )}
       </div>
-      <div className={card}>
+      {mayEdit && <div className={card}>
         <strong>Add or take away points</strong>
         <p className={soft}>The caregiver sees your reason on their points page.</p>
         <select className={inp} value={adj.caregiverId} onChange={(e) => setAdj({ ...adj, caregiverId: e.target.value })} aria-label="Caregiver" style={{ marginBottom: 8 }}>
@@ -128,7 +129,7 @@ function Points() {
         <input className={inp} style={{ marginBottom: 8 }} placeholder="Why" value={adj.note} onChange={(e) => setAdj({ ...adj, note: e.target.value })} />
         <button className={btn} disabled={!adj.caregiverId || !adj.points} onClick={adjust}>Adjust</button>
         <p className={soft} style={{ marginTop: 8 }}>Only caregivers who have already earned points are listed here.</p>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -141,6 +142,7 @@ function Rewards() {
   const [status, setStatus] = useState('requested')
   const [f, setF] = useState({ name: '', description: '', costPoints: '' })
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const mayEdit = useMayWrite('care-schedule:update')   // POST /items, PUT /items/:id and PUT /requests/:id
   const load = useCallback(async () => {
     try {
       setItems(rows<Item>(await api.get('/api/care-rewards/items')))
@@ -172,7 +174,7 @@ function Rewards() {
           <div key={r.id} className="border-t border-gray-200 dark:border-slate-700" style={{ padding: '8px 0' }}>
             <div><strong>{r.name}</strong> — {r.firstName} {r.lastName} · {r.points} points</div>
             <div className={soft}>{formatAgencyDateTime(r.createdAt)} · {r.statusLabel}{r.handledNote ? ` · “${r.handledNote}”` : ''}</div>
-            {r.status === 'requested' && (
+            {r.status === 'requested' && mayEdit && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                 <input className={inp} style={{ maxWidth: 260 }} placeholder="Note to the caregiver (optional)" value={notes[r.id] || ''} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
                 <button className={btn} onClick={() => handle(r, 'fulfil')}>Mark as given</button>
@@ -187,15 +189,15 @@ function Rewards() {
         {items.length === 0 ? <p className={soft}>No rewards yet — add one below.</p> : items.map((i) => (
           <div key={i.id} className="border-t border-gray-200 dark:border-slate-700" style={{ padding: '8px 0', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
             <div><strong>{i.name}</strong> · {i.costPoints} points{!i.isActive && <span className={soft}> · hidden from caregivers</span>}{i.description && <div className={soft}>{i.description}</div>}</div>
-            <button className={btn2} onClick={() => toggle(i)}>{i.isActive ? 'Hide' : 'Show'}</button>
+            {mayEdit && <button className={btn2} onClick={() => toggle(i)}>{i.isActive ? 'Hide' : 'Show'}</button>}
           </div>
         ))}
-        <div style={{ marginTop: 12 }}>
+        {mayEdit && <div style={{ marginTop: 12 }}>
           <input className={inp} style={{ marginBottom: 8 }} placeholder="Reward, e.g. $25 grocery card" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
           <input className={inp} style={{ marginBottom: 8 }} placeholder="A line about it (optional)" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
           <input className={inp} style={{ marginBottom: 8 }} placeholder="Cost in points" inputMode="numeric" value={f.costPoints} onChange={(e) => setF({ ...f, costPoints: e.target.value })} />
           <button className={btn} disabled={!f.name.trim() || !f.costPoints} onClick={add}>Add reward</button>
-        </div>
+        </div>}
       </div>
     </div>
   )

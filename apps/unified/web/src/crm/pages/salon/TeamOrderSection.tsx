@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { GripVertical, ArrowUp, ArrowDown, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast } from '../../../shared'
+import { useMayWrite, useToast } from '../../../shared'
 import { fetchStaff, staffName, type StaffMember } from './staff'
 import { moveItem } from './bookViews'
 
@@ -13,7 +13,11 @@ const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-70
 export default function TeamOrderSection() {
   const toast = useToast()
   const [people, setPeople] = useState<StaffMember[] | null>(null)
-  const [mayChange, setMayChange] = useState(false)
+  // The server's rule (bookLayout.ts mayOrder): sees the whole Book AND holds schedule:update. It says the first in `mayChange`;
+  // the permission is asked here as well, so the screen and the route read the same rule.
+  const [serverMay, setMayChange] = useState(false)
+  const maySchedule = useMayWrite('schedule:update')   // PUT /api/book-blocks/team-order
+  const mayChange = serverMay && maySchedule
   const [saved, setSaved] = useState(false)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)

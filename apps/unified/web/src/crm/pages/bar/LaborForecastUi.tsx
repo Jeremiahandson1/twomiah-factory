@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '../../../api';
+import { useMayWrite } from '../../../shared';
 import FormError, { errorText } from '../../ui/FormError';
 import { BTN, ON, CARD, LABEL, INPUT, MUTED, money } from './registerUi';
 
@@ -35,6 +36,7 @@ export default function LaborForecast({ weekStart, version }: { weekStart: strin
   const [weeks, setWeeks] = useState('');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const mayEdit = useMayWrite('bar:update');   // PUT /api/schedule/labor-forecast/settings asks bar:update
   const load = useCallback(() => api.get(`/api/schedule/labor-forecast?day=${weekStart}`).then((x: Forecast) => { setF(x); setTarget(String(x.settings.targetPct)); setWeeks(String(x.settings.weeks)); setErr(''); }).catch((e: unknown) => setErr(errorText(e, 'Could not work out the forecast.'))), [weekStart]);
   // The suggestion sits beside the schedule: it is read again whenever a shift is added, moved or removed.
   useEffect(() => { load(); }, [load, version]);
@@ -55,11 +57,11 @@ export default function LaborForecast({ weekStart, version }: { weekStart: strin
               : `${money(t.salesCents)} forecast for the week. At ${f.settings.targetPct}% labor that is ${money(t.budgetCents)} of wages; the schedule is ${t.scheduledWagesCents === null ? 'missing a pay rate' : `${money(t.scheduledWagesCents)}${t.laborPct !== null ? ` (${t.laborPct}%)` : ''}`}.`}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
+        {mayEdit && <div className="flex flex-wrap items-end gap-2">
           <div><label className={LABEL} htmlFor="lftarget">Target labor %</label><input id="lftarget" inputMode="decimal" className={`${INPUT} w-24`} value={target} onChange={(e) => setTarget(e.target.value)} /></div>
           <div><label className={LABEL} htmlFor="lfweeks">Weeks back</label><input id="lfweeks" inputMode="numeric" className={`${INPUT} w-20`} value={weeks} onChange={(e) => setWeeks(e.target.value)} /></div>
           <button type="button" className={`${BTN} ${ON}`} disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
-        </div>
+        </div>}
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
       {saved && <p role="status" className="text-sm text-green-800 dark:text-green-300">Saved.</p>}

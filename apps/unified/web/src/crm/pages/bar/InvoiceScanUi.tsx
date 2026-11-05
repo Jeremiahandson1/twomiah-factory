@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, FileUp, Loader2, Plus } from 'lucide-react';
 import { api } from '../../../api';
+import { useMayWrite } from '../../../shared';
 import FormError, { errorText } from '../../ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom } from './registerUi';
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock';
@@ -31,6 +32,7 @@ export default function InvoicesTab({ vendors }: { vendors: Vendor[] }) {
   const [vendorId, setVendorId] = useState('');
   const pick = useRef<HTMLInputElement>(null);
   const snap = useRef<HTMLInputElement>(null);
+  const mayScan = useMayWrite('bar:update');   // POST /api/stock/invoices (and every change to a scan) asks bar:update
   const load = useCallback(async () => { try { setRows((await api.get('/api/stock/invoices')).data); } catch (e) { setErr(errorText(e, 'Could not load the invoices.')); } }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -57,7 +59,8 @@ export default function InvoicesTab({ vendors }: { vendors: Vendor[] }) {
       <div className={CARD}>
         <p className="text-sm text-gray-900 dark:text-slate-100 font-semibold">Receive an order from the supplier&rsquo;s invoice</p>
         <p className={`text-sm mt-1 ${MUTED}`}>Photograph or upload the invoice (a photo or a PDF). It is read into lines and matched to your stock items. Nothing changes your counts or your prices until you have checked the lines and pressed Receive.</p>
-        <div className="flex flex-wrap items-end gap-2 mt-3">
+        {!mayScan && <p className={`text-sm mt-3 ${MUTED}`}>Your role can see the invoices here but not scan or receive them.</p>}
+        {mayScan && <div className="flex flex-wrap items-end gap-2 mt-3">
           <label className="text-sm text-gray-900 dark:text-slate-100">
             <span className={`block ${LABEL} mb-1`}>Supplier (optional)</span>
             <select className={`${INPUT} min-w-[12rem]`} value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
@@ -69,7 +72,7 @@ export default function InvoicesTab({ vendors }: { vendors: Vendor[] }) {
           <input ref={pick} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" className="sr-only" aria-label="Choose an invoice file" tabIndex={-1} onChange={(e) => send(e.target.files?.[0])} />
           <button className={`${BTN} ${ON} inline-flex items-center gap-2`} disabled={reading} onClick={() => snap.current?.click()}><Camera className="w-4 h-4" />Take a photo</button>
           <button className={`${BTN} ${OFF} inline-flex items-center gap-2`} disabled={reading} onClick={() => pick.current?.click()}><FileUp className="w-4 h-4" />Upload a photo or PDF</button>
-        </div>
+        </div>}
         {reading && <p role="status" className={`text-sm mt-3 inline-flex items-center gap-2 ${MUTED}`}><Loader2 className="w-4 h-4 animate-spin" />Reading the invoice. This can take up to a minute.</p>}
       </div>
       <div className={CARD}>
@@ -117,6 +120,7 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
   const [showPhoto, setShowPhoto] = useState(false);
   const [added, setAdded] = useState('');
   const [result, setResult] = useState<any>(null);
+  const mayScan = useMayWrite('bar:update');   // PATCH, confirm and discard all ask bar:update
   const take = (s: Scan) => { setScan(s); setDraft(draftOf(s)); };
   useEffect(() => { api.get(`/api/stock/invoices/${id}`).then((r: any) => take(r)).catch((e: unknown) => setErr(errorText(e, 'Could not open that invoice.'))); }, [id]);
   useEffect(() => {
@@ -176,6 +180,8 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
     );
   }
   const closed = scan.status !== 'review';
+  // Received, or a role that may only look: nothing on it can be changed here.
+  const locked = closed || !mayScan;
   const live = draft.lines.filter((l) => !l.skip);
   const readyTotal = live.reduce((n, l) => n + Math.round((Number(l.qty) || 0) * (centsFrom(l.cost) ?? 0)), 0);
   return (
@@ -186,18 +192,19 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
       {closed && <div className={CARD}><p className="text-sm text-gray-900 dark:text-slate-100">This invoice was received {when(scan.confirmedAt)}. It can no longer be changed.</p></div>}
+      {!closed && !mayScan && <div className={CARD}><p className="text-sm text-gray-900 dark:text-slate-100">Your role can look at this invoice but not change, receive or discard it.</p></div>}
       {scan.duplicateOf && !closed && (
         <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 px-4 py-3 text-sm">
           Invoice {scan.invoiceNumber} from this supplier was already received{scan.duplicateOf.number ? ` as order #${scan.duplicateOf.number}` : ''}. Receive it again only if this is a different delivery.
-          <label className="flex items-center gap-2 mt-2"><input type="checkbox" className="w-5 h-5" checked={allowDuplicate} onChange={(e) => setAllowDuplicate(e.target.checked)} />This is a different delivery</label>
+          <label className="flex items-center gap-2 mt-2"><input type="checkbox" className="w-5 h-5" disabled={!mayScan} checked={allowDuplicate} onChange={(e) => setAllowDuplicate(e.target.checked)} />This is a different delivery</label>
         </div>
       )}
       {scan.notes && <div className={CARD}><p className={LABEL}>The reader said</p><p className="text-sm text-gray-900 dark:text-slate-100 mt-1">{scan.notes}</p></div>}
       <div className={`${CARD} grid gap-3 sm:grid-cols-3`}>
         <label className="text-sm text-gray-900 dark:text-slate-100"><span className={`block ${LABEL} mb-1`}>Supplier</span>
-          <select className={INPUT} disabled={closed} value={draft.vendorId} onChange={(e) => setDraft({ ...draft, vendorId: e.target.value })}><option value="">None</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
-        <label className="text-sm text-gray-900 dark:text-slate-100"><span className={`block ${LABEL} mb-1`}>Invoice number</span><input className={INPUT} disabled={closed} value={draft.invoiceNumber} onChange={(e) => setDraft({ ...draft, invoiceNumber: e.target.value })} /></label>
-        <label className="text-sm text-gray-900 dark:text-slate-100"><span className={`block ${LABEL} mb-1`}>Invoice date</span><input className={INPUT} disabled={closed} placeholder="2026-10-31" value={draft.invoiceDate} onChange={(e) => setDraft({ ...draft, invoiceDate: e.target.value })} /></label>
+          <select className={INPUT} disabled={locked} value={draft.vendorId} onChange={(e) => setDraft({ ...draft, vendorId: e.target.value })}><option value="">None</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
+        <label className="text-sm text-gray-900 dark:text-slate-100"><span className={`block ${LABEL} mb-1`}>Invoice number</span><input className={INPUT} disabled={locked} value={draft.invoiceNumber} onChange={(e) => setDraft({ ...draft, invoiceNumber: e.target.value })} /></label>
+        <label className="text-sm text-gray-900 dark:text-slate-100"><span className={`block ${LABEL} mb-1`}>Invoice date</span><input className={INPUT} disabled={locked} placeholder="2026-10-31" value={draft.invoiceDate} onChange={(e) => setDraft({ ...draft, invoiceDate: e.target.value })} /></label>
       </div>
       {scan.hasFile && (
         <div className={CARD}>
@@ -217,17 +224,17 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
               <li key={l.n} className={`py-3 ${d.skip ? 'opacity-60' : ''}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p className="text-sm text-gray-900 dark:text-slate-100 min-w-0"><span className="font-semibold">{l.text}</span>{l.size ? <span className={`ml-2 text-xs ${MUTED}`}>{l.size}</span> : null}{l.added ? <span className={`ml-2 text-xs ${MUTED}`}>added by you</span> : null}</p>
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100"><input type="checkbox" className="w-5 h-5" disabled={closed} checked={d.skip} onChange={(e) => set(l.n, { skip: e.target.checked })} />Skip this line</label>
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100"><input type="checkbox" className="w-5 h-5" disabled={locked} checked={d.skip} onChange={(e) => set(l.n, { skip: e.target.checked })} />Skip this line</label>
                 </div>
                 {!d.skip && (
                   <div className="grid gap-2 mt-2 sm:grid-cols-[1fr_6rem_8rem]">
                     <label className="text-sm text-gray-900 dark:text-slate-100"><span className="sr-only">Stock item for {l.text}</span>
-                      <select className={INPUT} disabled={closed} value={d.stockItemId} onChange={(e) => set(l.n, { stockItemId: e.target.value })}>
+                      <select className={INPUT} disabled={locked} value={d.stockItemId} onChange={(e) => set(l.n, { stockItemId: e.target.value })}>
                         <option value="">Not matched: choose the item</option>
                         {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.packName})</option>)}
                       </select></label>
-                    <input aria-label={`${l.text} how many came`} className={INPUT} disabled={closed} inputMode="decimal" placeholder="How many" value={d.qty} onChange={(e) => set(l.n, { qty: e.target.value })} />
-                    <input aria-label={`${l.text} price of one`} className={INPUT} disabled={closed} inputMode="decimal" placeholder="$ each" value={d.cost} onChange={(e) => set(l.n, { cost: e.target.value })} />
+                    <input aria-label={`${l.text} how many came`} className={INPUT} disabled={locked} inputMode="decimal" placeholder="How many" value={d.qty} onChange={(e) => set(l.n, { qty: e.target.value })} />
+                    <input aria-label={`${l.text} price of one`} className={INPUT} disabled={locked} inputMode="decimal" placeholder="$ each" value={d.cost} onChange={(e) => set(l.n, { cost: e.target.value })} />
                   </div>
                 )}
                 {!d.skip && l.stockName && <p className={`text-xs mt-1 ${MUTED}`}>{l.matchedBy === 'saved' ? 'Matched the way you matched it before' : l.matchedBy === 'manual' ? 'Matched by you' : l.sure ? 'Matched by name' : 'A guess'}{l.currentCostCents !== null ? ` · last price ${money(l.currentCostCents)} a ${l.packName}` : ' · no price on file yet'}</p>}
@@ -236,7 +243,7 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
             );
           })}
         </ul>
-        {!closed && (
+        {!locked && (
           <div className="flex flex-wrap gap-2 mt-3">
             <input aria-label="A line the reader missed" className={`${INPUT} flex-1 min-w-[12rem]`} placeholder="A line the reader missed (what it is)" value={added} onChange={(e) => setAdded(e.target.value)} />
             <button className={`${BTN} ${OFF} inline-flex items-center gap-2`} disabled={busy || !added.trim()} onClick={addLine}><Plus className="w-4 h-4" />Add the line</button>
@@ -246,14 +253,14 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
       <div className={`${CARD} flex flex-wrap items-center justify-between gap-2`}>
         <p className="text-sm text-gray-900 dark:text-slate-100">Lines to receive: <span className="font-mono font-bold">{money(readyTotal)}</span>{scan.totalCents !== null ? <span className={MUTED}> · the invoice says <span className="font-mono">{money(scan.totalCents)}</span>{scan.totalCents !== readyTotal ? ' (tax, delivery or a skipped line may account for the difference)' : ''}</span> : null}</p>
       </div>
-      {!closed && step === 'edit' && (
+      {!locked && step === 'edit' && (
         <div className="flex flex-wrap gap-2">
           <button className={`${BTN} ${ON}`} disabled={busy} onClick={receive}>Receive into stock</button>
           <button className={`${BTN} ${OFF}`} disabled={busy} onClick={save}>Save my changes</button>
           <button className={`${BTN} ${DANGER}`} disabled={busy} onClick={() => setStep('discard')}>Throw it away</button>
         </div>
       )}
-      {!closed && step === 'receive' && (
+      {!locked && step === 'receive' && (
         <div className={CARD} role="alertdialog" aria-label="Receive this invoice">
           <p className="text-sm text-gray-900 dark:text-slate-100 font-semibold">Receive {live.length} {live.length === 1 ? 'line' : 'lines'} ({money(readyTotal)})?</p>
           <p className={`text-sm mt-1 ${MUTED}`}>The counts and the prices of these items change now, the same as marking an order as arrived. This makes one received order and cannot be done twice.</p>
@@ -263,7 +270,7 @@ function Review({ id, vendors, onBack }: { id: string; vendors: Vendor[]; onBack
           </div>
         </div>
       )}
-      {!closed && step === 'discard' && (
+      {!locked && step === 'discard' && (
         <div className={CARD} role="alertdialog" aria-label="Throw this invoice away">
           <p className="text-sm text-gray-900 dark:text-slate-100 font-semibold">Throw this scan away?</p>
           <p className={`text-sm mt-1 ${MUTED}`}>Nothing was received from it, so no count or price changes. The photo is deleted.</p>

@@ -47,7 +47,7 @@ export default function ReportBuilder() {
       {tab === 'daily' && <DailyManager />}
       {tab === 'workforce' && <Workforce />}
       {tab === 'performance' && <Performance />}
-      {tab === 'schedules' && <Schedules />}
+      {tab === 'schedules' && <Schedules canManage={billing.update} />}
     </div>
   )
 }
@@ -395,7 +395,8 @@ function Performance() {
 
 // ── Scheduled report emails ──────────────────────────────────────────────────────────────────────────────────────────────────
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-function Schedules() {
+/** Every write here (POST/PUT/PATCH/DELETE /api/report-builder/schedules…) asks care-billing:update: `canManage`. */
+function Schedules({ canManage }: { canManage: boolean }) {
   const toast = useToast()
   const confirm = useConfirm()
   const [kinds, setKinds] = useState<{ kind: string; label: string }[]>([])
@@ -431,8 +432,8 @@ function Schedules() {
   return (
     <>
       <p className="text-sm mb-3 text-gray-600 dark:text-slate-400">A scheduled report is built at the hour you pick on the agency&apos;s clock, stored encrypted, and the people you name get an email with a link that opens after they sign in. The report itself is never attached to the mail; the link works for 14 days.</p>
-      <button type="button" className="hc-btn hc-btn-sm hc-btn-primary mb-3" onClick={() => setForm({ ...blank })}>+ New scheduled report</button>
-      {form && (
+      {canManage && <button type="button" className="hc-btn hc-btn-sm hc-btn-primary mb-3" onClick={() => setForm({ ...blank })}>+ New scheduled report</button>}
+      {form && canManage && (
         <div className={`${card} mb-4`}>
           <div className="grid md:grid-cols-3 gap-3">
             <label className="text-sm">Name<br /><input className={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
@@ -453,7 +454,7 @@ function Schedules() {
       {list.length === 0 ? <Empty text="No scheduled reports yet." /> : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700 mb-4"><table className="w-full text-sm"><thead><tr className="bg-gray-50 dark:bg-slate-800"><th className={TH}>Name</th><th className={TH}>Report</th><th className={TH}>When</th><th className={TH}>To</th><th className={TH}>Next</th><th className={TH}>Last sent</th><th className={TH}></th></tr></thead>
           <tbody>{list.map((s) => <tr key={s.id} className="border-t border-gray-100 dark:border-slate-700"><td className="px-3 py-1 font-semibold">{s.name}{!s.isActive && <span className="ml-1 text-xs text-gray-600 dark:text-slate-400">(paused)</span>}</td><td className="px-3">{s.kindLabel} ({s.format.toUpperCase()})</td><td className="px-3">{s.cadenceLabel}</td><td className="px-3">{(s.recipients as string[]).map((id) => staff.find((u) => u.id === id)?.name ?? '?').join(', ')}</td><td className="px-3">{s.nextRunOn ? formatAgencyDate(s.nextRunOn) : '—'}</td><td className="px-3">{s.lastRunOn ? formatAgencyDate(s.lastRunOn) : 'Never'}</td>
-            <td className="px-3 whitespace-nowrap"><button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mr-1" onClick={() => setForm({ ...s, reportId: s.reportId ?? '' })}>Edit</button><button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mr-1" onClick={() => act(s, 'send')}>Send now</button><button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mr-1" onClick={() => act(s, 'toggle')}>{s.isActive ? 'Pause' : 'Resume'}</button><button type="button" className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => act(s, 'delete')}>Delete</button></td></tr>)}</tbody></table></div>
+            <td className="px-3 whitespace-nowrap">{canManage && <><button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mr-1" onClick={() => setForm({ ...s, reportId: s.reportId ?? '' })}>Edit</button><button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mr-1" onClick={() => act(s, 'send')}>Send now</button><button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mr-1" onClick={() => act(s, 'toggle')}>{s.isActive ? 'Pause' : 'Resume'}</button><button type="button" className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => act(s, 'delete')}>Delete</button></>}</td></tr>)}</tbody></table></div>
       )}
       <h3 className="font-semibold mb-1">Sent</h3>
       {deliveries.length === 0 ? <p className="text-sm text-gray-600 dark:text-slate-400">Nothing sent yet.</p> : (
