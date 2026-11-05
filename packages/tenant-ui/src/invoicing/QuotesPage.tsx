@@ -97,7 +97,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     } catch (e) { toast.error(errMsg(e, 'Failed to load quotes')) }
     finally { setLoading(false) }
     // Customers only: a vendor is never who a quote is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
-    if (cfg.quoteSalesperson) api.get('/api/team/assignable').then((r: any) => { const list = r?.data || (Array.isArray(r) ? r : []); setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' }))) }).catch(() => setTeam([]))
+    // The salesperson list is the Team module's (/api/team is mounted behind the `team` feature): asked only where it is on.
+    if (cfg.quoteSalesperson && (cfg.hasFeature ? cfg.hasFeature('team') : true)) api.get('/api/team/assignable').then((r: any) => { const list = r?.data || (Array.isArray(r) ? r : []); setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' }))) }).catch(() => setTeam([]))
     api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     /**
