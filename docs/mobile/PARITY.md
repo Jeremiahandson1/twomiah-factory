@@ -10,7 +10,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 
 | Trade | Desktop items | Phone has today | A | B | C | D |
 |---|---:|---:|---:|---:|---:|---:|
-| Contractor | 67 | 17 | 12 | 9 | 25 | 21 |
+| Contractor | 67 | 18 | 12 | 9 | 25 | 21 |
 | Basic (general service business) | 48 | 17 | 12 | 3 | 17 | 16 |
 | Field service | 52 | 17 | 12 | 4 | 19 | 17 |
 | Landscaping | 55 | 18 | 13 | 4 | 21 | 17 |
@@ -67,7 +67,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Projects | Change Orders | `/crm/change-orders` | change-orders:read | change_orders (on by default) | owner, admin, manager, viewer | none | B — projects, bids and the price book |
 | Projects | Punch Lists | `/crm/punch-lists` | — | punch_lists (on by default) | all | none | B — projects, bids and the price book |
 | Projects | Daily Logs | `/crm/daily-logs` | — | daily_logs (on by default) | all | none | B — projects, bids and the price book |
-| Projects | Inspections | `/crm/inspections` | — | inspections (on by default) | all | none | B — projects, bids and the price book |
+| Projects | Inspections | `/crm/inspections` | — | inspections (on by default) | all | Inspections on the job (Jobs › job › Inspections, with Inspections on the Phone on): answer the checklist Pass / Fail / Not applicable with a note and photos, and the customer signs; booking a visit, its result and the saved checklists stay on the desktop | B — projects, bids and the price book |
 | Projects | Gantt Chart | `/crm/gantt` | — | gantt_charts (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Field | Field View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Field | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |

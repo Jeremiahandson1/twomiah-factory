@@ -70,7 +70,7 @@ export default function SurveyScreen() {
                     return (
                       <TouchableOpacity key={n} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${n}, ${SCALE_WORDS[n - 1]}`}
                         style={[styles.dot, { borderColor: on ? t.primary : t.border, backgroundColor: on ? t.primary : t.surface }]} onPress={() => set(p.id, q.id, n)}>
-                        <Text style={{ color: on ? '#fff' : t.text, fontWeight: '700' }}>{n}</Text>
+                        <Text style={{ color: on ? t.onPrimary : t.text, fontWeight: '700' }}>{n}</Text>
                       </TouchableOpacity>
                     )
                   })}
