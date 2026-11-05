@@ -19,11 +19,20 @@ export interface Row { open?: { spec: string; id: string }; key: string; title: 
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
 export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string }
 export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
-/** kind 'level' is a fill level: a number of percent from 0 to 100 moved in steps of 5 (empty = not used) — the phone's slider. */
+/**
+ * kind 'level' is a fill level: a number of percent from 0 to 100 (empty = not used) — the phone's draggable slider.
+ * kind 'levels' is ANY NUMBER of them (parity row 15): the value is a JSON list of percents, one per open bottle; + adds a bottle, each has its slider and a remove.
+ */
 export interface Input {
-  id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level'; choices?: string[]; required?: boolean; initial?: (d: any) => string
+  id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level' | 'levels'; choices?: string[]; required?: boolean; initial?: (d: any) => string
   /** Choices the SERVER offers for this row (the carrier's rates): fetched when the sheet opens; the person picks a label, the call gets its value. */
-  options?: { path: (d: any) => string; label: (r: any) => string; value: (r: any) => string; none: string }
+  options?: {
+    path: (d: any) => string; label: (r: any) => string; value: (r: any) => string; none: string
+    /** Where the choices are in the answer when it is not a bare array / `data` (the schedule answers { weeks: [{ shifts }] }); `row` is the record the action is on. */
+    pick?: (body: any, row: any) => any[]
+    /** What the sheet says while the choices load (default: the prices wording the carrier rates were first drawn with). */
+    loading?: string
+  }
 }
 export interface Action {
   id: string
@@ -73,6 +82,8 @@ export interface ScreenSpec {
   }
   /** Actions on the list itself (e.g. "Start a count"). */
   actions?: Action[]
+  /** Buttons under the list that open another screen of the app (the Shifts list opens My availability and Swaps), for a seat with `any` and the business switch on. */
+  links?: Array<{ label: string; route: string; icon?: string; any: string[]; feature?: string }>
   /** A "+" in the header that opens a form screen of its own (an expense with its receipt photo), for a seat with `any`. */
   create?: { label: string; route: string; any: string[] }
 }

@@ -16,6 +16,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post } from '../../../src/api/client'
+import { useOfflineApi } from '../../../src/offline/useOfflineApi'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { useVertical } from '../../../src/vertical/VerticalContext'
 import { useToast } from '../../../src/components/ToastProvider'
@@ -59,7 +60,14 @@ function TapFlow({ sdk, invoiceId, location, onDone }: { sdk: any; invoiceId: st
   const toast = useToast()
   const haptics = useHaptics()
   const { company } = useAuth()
-  const terminal = sdk.useStripeTerminal()
+  // Offline mode (parity row 14): what the SDK says about forwarding, shown in plain words.
+  const [offlineNote, setOfflineNote] = useState('')
+  const terminal = sdk.useStripeTerminal({
+    onDidChangeOfflineStatus: (status: any) => { const n = Number(status?.sdk?.offlinePaymentsCount ?? status?.offlinePaymentsCount ?? 0); setOfflineNote(n > 0 ? `${n} payment${n === 1 ? '' : 's'} taken offline, waiting to be sent to Stripe.` : '') },
+    onDidForwardPaymentIntent: () => setOfflineNote('An offline payment reached Stripe.'),
+    onDidReportForwardingError: (e: any) => setOfflineNote(`An offline payment could not be sent: ${e?.message || 'Stripe refused it'}. It stays on this phone to try again.`),
+  })
+  const queued = useOfflineApi()
   const [invoice, setInvoice] = useState<any>(null)
   const [amount, setAmount] = useState('')
   const [step, setStep] = useState<Step>('loading')
@@ -96,18 +104,38 @@ function TapFlow({ sdk, invoiceId, location, onDone }: { sdk: any; invoiceId: st
       const c = await terminal.easyConnect({ discoveryMethod: 'tapToPay', locationId: location.current!, merchantDisplayName: company?.name || undefined, tosAcceptancePermitted: true })
       if (c?.error) return fail(c.error.message || 'This phone could not be set up as a card reader')
     }
-    // 2. The PaymentIntent, from the server, on the business's account.
+    // 2. The PaymentIntent, from the server, on the business's account. With no signal (restaurant-bar parity row 14,
+    //    Stripe Terminal OFFLINE MODE): the SDK makes it on the phone instead, with the same metadata the server's record
+    //    checks, takes the card, and forwards it to Stripe when the phone is back online - within the limits Stripe sets for
+    //    the account (offline mode and its per-payment and stored totals are switched on in the Stripe Dashboard).
+    let paymentIntentId = '', offline = false
+    let got: any
     const r = await post(`/api/stripe/tap-to-pay/invoices/${invoiceId}/intent`, { amount: want, key: attempt.current })
-    if (!r.ok) return fail(r.error || 'Could not start the payment')
-    const got = await terminal.retrievePaymentIntent(r.data.clientSecret)
-    if (got?.error) return fail(got.error.message || 'Could not start the payment')
-    // 3. The tap: the SDK shows the system's Tap to Pay screen, collects the card and confirms it with Stripe.
+    if (r.ok) {
+      paymentIntentId = r.data.paymentIntentId
+      got = await terminal.retrievePaymentIntent(r.data.clientSecret)
+      if (got?.error) return fail(got.error.message || 'Could not start the payment')
+    } else if (r.status === 0 && terminal.createPaymentIntent) {
+      offline = true
+      got = await terminal.createPaymentIntent({ amount: Math.round(want * 100), currency: 'usd', captureMethod: 'automatic', offlineBehavior: 'force_offline',
+        metadata: { kind: 'tap_to_pay', company_id: String((company as any)?.id || ''), invoice_id: String(invoiceId), invoice_number: String(invoice?.number || ''), offline: '1' } })
+      if (got?.error) return fail(got.error.message || 'No signal, and this phone cannot take the card offline (offline mode is switched on in Stripe).')
+      paymentIntentId = String(got.paymentIntent?.id || '')
+    } else return fail(r.error || 'Could not start the payment')
+    // 3. The tap: the SDK shows the system's Tap to Pay screen, collects the card and confirms it with Stripe (or keeps it, offline).
     setStep('waiting')
     const paid = await terminal.processPaymentIntent({ paymentIntent: got.paymentIntent })
     if (paid?.error) { attempt.current = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`; return fail(paid.error.message || 'The card was not taken') }
+    if (offline || paid?.paymentIntent?.offlineDetails?.requiresUpload) {
+      // Kept on the phone: the SDK forwards it; the record goes through the offline queue and is answered once Stripe has it.
+      const q = await queued.post(`/api/stripe/tap-to-pay/payments/${encodeURIComponent(paymentIntentId || paid?.paymentIntent?.id || '')}/record`, { offline: true }, { recordKey: `tap:${invoiceId}`, label: `${invoice?.number || 'Invoice'} · ${money(want)} taken offline` })
+      haptics.success()
+      toast.success(q.queued ? `${money(want)} taken offline. It is recorded when the phone is back online.` : `${money(want)} taken and recorded`)
+      setStep('done'); onDone(); return
+    }
     // 4. The server reads it from Stripe and records it.
     setStep('recording')
-    const rec = await post(`/api/stripe/tap-to-pay/payments/${encodeURIComponent(r.data.paymentIntentId)}/record`)
+    const rec = await post(`/api/stripe/tap-to-pay/payments/${encodeURIComponent(paymentIntentId)}/record`)
     if (!rec.ok) return fail(rec.error || 'The card was taken but the payment could not be recorded. Record it by hand.')
     if (!rec.data?.recorded) return fail(`Stripe says the payment is ${String(rec.data?.status || 'not finished').replace(/_/g, ' ')}. Nothing was recorded.`)
     haptics.success()
@@ -133,6 +161,7 @@ function TapFlow({ sdk, invoiceId, location, onDone }: { sdk: any; invoiceId: st
         {step === 'connecting' && <DText tone="textSecondary">Setting this phone up as a card reader…</DText>}
         {step === 'waiting' && <DText tone="textSecondary">Ask the customer to tap their card or phone on the back of this phone.</DText>}
         {step === 'recording' && <DText tone="textSecondary">Recording the payment…</DText>}
+        {offlineNote ? <DText tone="textSecondary">{offlineNote}</DText> : null}
         {problem ? <DText tone="danger" accessibilityRole="alert">{problem}</DText> : null}
       </View>
     </Screen>

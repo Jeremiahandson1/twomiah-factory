@@ -14,7 +14,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import { liveSpaceNamed } from '../../data/restaurantEvents.ts'
-import { upcomingEventsUsingSpace, retireSpaceRefusal, auditName } from './eventBooking.ts'
+import { upcomingEventsUsingSpace, retireSpaceRefusal, auditName, findClash, DATE_RE, TIME_RE, isCalendarDate, type HoldWindow } from './eventBooking.ts'
 
 // Capacities and money can't go negative, and "abc" is not a number (H-01, T16 L5). Runs on create and update.
 const NON_NEGATIVE = [
@@ -135,4 +135,53 @@ export function createEventSpaceRoutes(d: CrmDeps) {
   })
 
   return app
+}
+
+// ── The rooms a website form offers (restaurant-bar parity #4) ───────────────────────────────────────────────────────────────
+export interface FormRoom {
+  id: string
+  name: string
+  seatedCapacity: number | null
+  standingCapacity: number | null
+  /** On the asked date (and hours): no held event in the way. null when no date was given. This is a look, NOT a hold. */
+  looksFree: boolean | null
+  /** The room holds the asked number of guests, seated or standing. null when no number was given. */
+  fits: boolean | null
+}
+
+/** The question a form asks of the rooms: which day, which hours, how many guests. Anything malformed is simply not asked. */
+export function roomQuestion(q: { date?: unknown; startTime?: unknown; endTime?: unknown; guests?: unknown }): { date: string | null; win: HoldWindow | undefined; guests: number | null } {
+  const date = typeof q.date === 'string' && DATE_RE.test(q.date) && isCalendarDate(q.date) ? q.date : null
+  const s = typeof q.startTime === 'string' && TIME_RE.test(q.startTime) ? q.startTime : null
+  const e = typeof q.endTime === 'string' && TIME_RE.test(q.endTime) ? q.endTime : null
+  const g = Number.parseInt(String(q.guests ?? ''), 10)
+  return { date, win: s && e && e > s ? { startTime: s, endTime: e } : undefined, guests: Number.isFinite(g) && g > 0 && g <= 100000 ? g : null }
+}
+
+/**
+ * The venue's live rooms with their capacity, and for a date whether each looks free from the live bookings (the same overlap
+ * rule an edit is checked with: findClash). Reading this takes nothing: no hold, no waitlist place. Prices are never in it.
+ */
+export async function roomsForForm(db: any, companyId: string, q: { date?: unknown; startTime?: unknown; endTime?: unknown; guests?: unknown }): Promise<FormRoom[]> {
+  const { date, win, guests } = roomQuestion(q)
+  const rows = await db.select({ id: eventSpace.id, name: eventSpace.name, seated: eventSpace.seatedCapacity, standing: eventSpace.standingCapacity }).from(eventSpace)
+    .where(and(eq(eventSpace.companyId, companyId), eq(eventSpace.active, true))).orderBy(asc(eventSpace.name))
+  const out: FormRoom[] = []
+  for (const r of rows) {
+    const cap = Math.max(Number(r.seated || 0), Number(r.standing || 0))
+    out.push({
+      id: r.id, name: r.name, seatedCapacity: r.seated ?? null, standingCapacity: r.standing ?? null,
+      looksFree: date ? !(await findClash(db, companyId, r.id, date, undefined, win)) : null,
+      fits: guests && cap > 0 ? guests <= cap : null,
+    })
+  }
+  return out
+}
+
+/** The room a visitor named on a form, if it is one of this venue's live rooms; anything else is ignored (the enquiry is still taken). */
+export async function formRoom(db: any, companyId: string, spaceId: unknown): Promise<{ id: string; name: string } | null> {
+  if (typeof spaceId !== 'string' || !spaceId) return null
+  const [row] = await db.select({ id: eventSpace.id, name: eventSpace.name }).from(eventSpace)
+    .where(and(eq(eventSpace.id, spaceId), eq(eventSpace.companyId, companyId), eq(eventSpace.active, true))).limit(1)
+  return row ?? null
 }

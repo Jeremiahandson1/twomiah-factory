@@ -32,6 +32,9 @@ export interface GustoHoursRow {
   bonusDollars?: number | string
   reimbursementDollars?: number | string
   workweeks?: Array<{ start: string; end: string; hours: number; earnings: number }>
+  /** The bar and restaurant pay file (restaurant-bar parity #8): tips paid on the paycheck and cash tips the person declared, in cents. Each column appears only when someone has some. */
+  paycheckTipsCents?: number
+  cashTipsCents?: number
 }
 
 /** A text cell: quoted, and a leading = + - @ made harmless so a name can never run as a spreadsheet formula. */
@@ -40,6 +43,7 @@ const text = (v: unknown) => {
   return `"${(/^[=+\-@\t\r]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`
 }
 const hours = (v: number | string) => Number(v || 0).toFixed(2)
+const dollars = (cents: number | undefined) => ((cents || 0) / 100).toFixed(2)
 const mdy = (ymd: string) => `${ymd.slice(5, 7)}/${ymd.slice(8, 10)}/${ymd.slice(0, 4)}`
 
 /** The Workweeks cell: "11/01/2026-11/07/2026: 28.50 hours, $650.00; ..." */
@@ -51,7 +55,11 @@ export function gustoHoursCsv(rows: GustoHoursRow[], opts: { workweeks?: boolean
   const withBonus = rows.some((r) => Number(r.bonusDollars || 0) > 0)
   const withReimb = rows.some((r) => Number(r.reimbursementDollars || 0) > 0)
   const withWeeks = opts.workweeks === true && rows.some((r) => (r.workweeks ?? []).length > 0)
-  const header = [...GUSTO_HOURS_HEADER, ...(withDouble ? ['Double Overtime Hours'] : []), ...(withHoliday ? ['Holiday Hours'] : []), ...(withBonus ? ['Bonus'] : []), ...(withReimb ? ['Reimbursement'] : []), ...(withWeeks ? ['Workweeks'] : [])]
+  const header: string[] = [...GUSTO_HOURS_HEADER, ...(withDouble ? ['Double Overtime Hours'] : []), ...(withHoliday ? ['Holiday Hours'] : []), ...(withBonus ? ['Bonus'] : []), ...(withReimb ? ['Reimbursement'] : []), ...(withWeeks ? ['Workweeks'] : [])]
+  const withPaycheckTips = rows.some((r) => (r.paycheckTipsCents || 0) > 0)
+  const withCashTips = rows.some((r) => (r.cashTipsCents || 0) > 0)
+  if (withPaycheckTips) header.push('Paycheck Tips')
+  if (withCashTips) header.push('Cash Tips')
   const lines: string[] = [header.join(',')]
   for (const r of rows) {
     const cells = [text(r.firstName), text(r.lastName), text(r.email), hours(r.regularHours), hours(r.overtimeHours), hours(r.totalHours)]
@@ -60,6 +68,8 @@ export function gustoHoursCsv(rows: GustoHoursRow[], opts: { workweeks?: boolean
     if (withBonus) cells.push(hours(r.bonusDollars ?? 0))
     if (withReimb) cells.push(hours(r.reimbursementDollars ?? 0))
     if (withWeeks) cells.push(workweeksCell(r.workweeks))
+    if (withPaycheckTips) cells.push(dollars(r.paycheckTipsCents))
+    if (withCashTips) cells.push(dollars(r.cashTipsCents))
     lines.push(cells.join(','))
   }
   return lines.join('\n')

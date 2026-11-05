@@ -195,6 +195,12 @@ export function TabDialog({ checkId, label, balanceCents, readers, onClose, onCh
     try { await api.post(`/api/food/terminal/tab/${tab.id}/release`, {}); await onChanged(); onClose(); }
     catch (e) { setErr(errorText(e, 'The card was not released.')); } finally { setBusy(false); }
   };
+  // The guest chooses the tip on the reader (parity row 14): a sale for the balance goes to the reader with tipping; paid, the hold goes.
+  const closeOnReader = async () => {
+    if (!tab) return; setErr(''); setBusy(true);
+    try { const r = await api.post(`/api/food/terminal/tab/${tab.id}/close-on-reader`, { readerId: readerId || tab.readerId }); wait.setCharge(r.charge); }
+    catch (e: any) { setErr(e?.data?.code === 'TIPPING_OFF' ? 'Turn on "Ask for a tip on the reader" in Register Settings first.' : errorText(e, 'The reader did not take it.')); } finally { setBusy(false); }
+  };
   const simulated = !!readers.find((r) => r.id === (wait.charge?.readerId || readerId))?.simulated;
   return (
     <Dialog title={`Card tab · ${label}`} onClose={wait.charge?.status === 'pending' ? () => {} : onClose}>
@@ -223,6 +229,7 @@ export function TabDialog({ checkId, label, balanceCents, readers, onClose, onCh
               <div className="flex flex-wrap gap-2 justify-end">
                 <button type="button" className={`${BTN} ${DANGER}`} disabled={busy} onClick={release}>Give the card back</button>
                 {over && <button type="button" className={`${BTN} ${OFF}`} disabled={busy} onClick={() => close(true)}>Close for the hold ({money(tab.amountCents)})</button>}
+                <button type="button" className={`${BTN} ${OFF}`} disabled={busy || balanceCents < 50} onClick={closeOnReader} title="The reader asks the guest for the tip, then takes the card; the hold is released.">Guest tips on the reader</button>
                 <button type="button" className={`${BTN} ${ON}`} disabled={busy || balanceCents <= 0} onClick={() => close(false)}>Close tab and charge</button>
               </div>
             </>

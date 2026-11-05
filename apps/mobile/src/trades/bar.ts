@@ -7,8 +7,10 @@
  * so a tile could not open exactly what it counts. The count itself is a tab screen.
  */
 import type { TileDef } from '../home/tiles'
-import { type ScreenSpec, type Row, words, calDay, hhmm, dayOnly, join } from './kit'
+import { type ScreenSpec, type Row, words, money, calDay, hhmm, dayOnly, join } from './kit'
 import { EVENT_TILES } from './restaurant'
+import { lineRows, lineChoice, fixBody, type ScanLine } from './invoiceScan'
+import { DAY_NAMES, WEEK_CHOICES, DATE_CHOICES, STATUS, STATUS_TONE, weekAfter, windowWords, dateBody, dateWords, shiftWords, swapRows, mayTakeBack, swapChoices, choiceLabel, localDay } from './shiftRequests'
 
 const STATS = '/api/dashboard/stats'
 const paged = (b: any): number => Number(b?.pagination?.total ?? (Array.isArray(b?.data) ? b.data.length : Array.isArray(b) ? b.length : 0))
@@ -54,6 +56,8 @@ export const BAR: ScreenSpec[] = [
           { label: 'Special', get: (d) => d.live?.special?.title }, { label: 'Note', get: (d) => d.live?.note || d.status?.note },
         ] },
         { fields: [{ label: 'Good to know', get: () => 'Changes made here last until 4 AM, then go back to your hours.' }] },
+        // Card tabs held on the phone (parity row 14; bar_tab_preauth + tap_to_pay): its own screen, app/(details)/bar-tabs.tsx, the only card door on the phone besides the invoice's.
+        { feature: 'bar_tab_preauth', links: () => [{ label: 'Card tabs on this phone', url: '', icon: 'card', route: '/(details)/bar-tabs' }] },
       ],
       actions: [
         tonightAction('bar-open', 'Bar: open or closed', 'barOpen'), tonightAction('kitchen-open', 'Kitchen: open or closed', 'kitchenOpen', true),
@@ -78,6 +82,10 @@ export const BAR: ScreenSpec[] = [
       actions: [
         { id: 'put-86', label: 'Put on the 86 board', icon: 'close-circle', any: ['bar:console'], when: (d) => !d.is86ed, request: (d) => ({ method: 'PUT', path: `/api/bar/menu/items/${d.id}/86`, body: { is86ed: true } }), done: 'On the 86 board' },
         { id: 'back-on', label: 'Back on the menu', icon: 'checkmark-circle', any: ['bar:console'], when: (d) => !!d.is86ed, request: (d) => ({ method: 'PUT', path: `/api/bar/menu/items/${d.id}/86`, body: { is86ed: false } }), done: 'Back on the menu' },
+        // "12 left" (menu_item_counts, parity row 13): the count and what it refreshes to at open; each sale takes one, zero 86es it.
+        { id: 'set-count', label: 'How many are left', icon: 'calculator', any: ['bar:console'], feature: 'menu_item_counts',
+          inputs: [{ id: 'stockCount', label: 'Left now (empty stops counting)', kind: 'number', initial: (d) => (d.stockCount == null ? '' : String(d.stockCount)) }, { id: 'stockCountReset', label: 'Refreshes to at open (optional)', kind: 'number', initial: (d) => (d.stockCountReset == null ? '' : String(d.stockCountReset)) }],
+          request: (d, v) => ({ method: 'PUT', path: `/api/bar/menu/items/${d.id}/count`, body: { stockCount: String(v.stockCount ?? '').trim() === '' ? null : Number(v.stockCount), stockCountReset: String(v.stockCountReset ?? '').trim() === '' ? null : Number(v.stockCountReset) } }), done: 'Count saved' },
       ],
     },
   },
@@ -97,18 +105,25 @@ export const BAR: ScreenSpec[] = [
     list: { path: '/api/stock/count' }, pick: (b) => b?.stock || [],
     rows: (i) => ({ id: i.id, key: i.id, title: i.name, subtitle: join(words(i.category), i.packName && i.packSize ? `${i.packName} of ${i.packSize}` : i.packName) }),
     empty: { title: 'No stock items', body: 'A manager adds stock items on the desktop.' },
+    // Receiving from the supplier's invoice (restaurant-bar parity #7): a manager photographs it here; the same routes as the Stock page's Invoices tab.
+    links: [{ label: 'Scan a supplier invoice', route: '/(details)/t/bar-invoices', icon: 'document-text', any: ['bar:update'], feature: 'bar_invoice_scan' }],
     actions: [{ id: 'finish-count', label: 'Finish the count', icon: 'checkmark-done', any: ['bar:register'],
       confirm: { title: 'Finish this count?', body: () => 'This closes the count. A new one starts the next time someone counts.', button: 'Finish count' }, request: () => ({ method: 'POST', path: '/api/stock/count/finish' }), done: 'Count finished' }],
     detail: {
       path: () => null, title: (d) => d.name, subtitle: (d) => d.packName && d.packSize ? `${d.packName} of ${d.packSize}` : undefined,
       sections: [{ fields: [{ label: 'Counting', get: () => 'Count what is on the shelf. The system\'s number stays hidden until you finish.' }] }],
       actions: [{ id: 'save-count', label: 'Save this count', icon: 'create', any: ['bar:register'],
-        // Open bottles by how full each is: sent only when one is filled in (the server takes it only where the venue has switched it on).
+        // Open bottles by how full each is (parity row 15): any number of them on a draggable slider, or weighed - grams typed in
+        // (a Bluetooth scale on the phone needs a native build with a Bluetooth module; see docs/parity/bar-13-fill-levels.md) and
+        // turned into fills by the server from the item's bottle weights. Sent only when filled in (the server takes them only where the venue has switched it on).
         inputs: [{ id: 'packs', label: 'Full packs', kind: 'number' }, { id: 'units', label: 'Loose units', kind: 'number' },
-          { id: 'fill1', label: 'Open bottle 1, how full', kind: 'level' }, { id: 'fill2', label: 'Open bottle 2, how full', kind: 'level' }, { id: 'fill3', label: 'Open bottle 3, how full', kind: 'level' }],
+          { id: 'fills', label: 'Open bottles, how full', kind: 'levels' },
+          { id: 'weights', label: 'Or weigh them: grams, one per bottle, with commas (needs the bottle weights on the item)' }],
         request: (d, v) => {
-          const fills = ['fill1', 'fill2', 'fill3'].filter((k) => String(v[k] ?? '').trim() !== '').map((k) => Number(v[k]) / 100)
-          return { method: 'POST', path: '/api/stock/count/item', body: { stockItemId: d.id, packs: Number(v.packs || 0), units: Number(v.units || 0), ...(fills.length ? { fills } : {}) } }
+          let fills: number[] = []
+          try { fills = (JSON.parse(v.fills || '[]') as unknown[]).map(Number).filter((n) => Number.isFinite(n)).map((n) => Math.min(100, Math.max(0, n)) / 100) } catch { fills = [] }
+          const weightsGrams = String(v.weights ?? '').split(/[,\s]+/).filter(Boolean).map(Number).filter((n) => Number.isFinite(n) && n >= 0)
+          return { method: 'POST', path: '/api/stock/count/item', body: { stockItemId: d.id, packs: Number(v.packs || 0), units: Number(v.units || 0), ...(fills.length ? { fills } : {}), ...(weightsGrams.length ? { weightsGrams } : {}) } }
         }, done: 'Saved' }],
     },
   },
@@ -118,6 +133,31 @@ export const BAR: ScreenSpec[] = [
     pick: (b) => (b?.weeks || []).flatMap((w: any) => (w.published ? w.shifts : []).map((s: any) => ({ ...s, weekStart: w.weekStart }))).sort((a: any, b: any) => String(a.day).localeCompare(String(b.day)) || String(a.start).localeCompare(String(b.start))),
     rows: (s, ctx) => ({ id: `${s.userId}-${s.day}-${s.start}`, key: `${s.userId}-${s.day}-${s.start}`, title: s.name || 'Shift', subtitle: join(s.position, s.note), meta: join(calDay(s.day), `${hhmm(s.start) || s.start}–${hhmm(s.end) || s.end}`), badge: ctx.userId && s.userId === ctx.userId ? 'Me' : undefined, tone: 'info' }),
     empty: { title: 'Not published yet', body: 'The schedule shows here once a manager publishes it.' },
+    // Availability and swaps are the Schedule page's, on the phone (restaurant-bar parity #11): the same routes, each behind its own business switch.
+    links: [
+      { label: 'My availability', route: '/(details)/t/bar-availability/-', icon: 'calendar', any: ['bar:read'], feature: 'bar_availability' },
+      { label: 'Swaps and pick-ups', route: '/(details)/t/bar-swaps', icon: 'swap-horizontal', any: ['bar:read'], feature: 'bar_shift_swaps' },
+      { label: 'Swaps to decide', route: '/(details)/t/bar-swap-decide', icon: 'checkmark-done', any: ['bar:update'], feature: 'bar_shift_swaps' },
+      { label: 'Availability to approve', route: '/(details)/t/bar-availability-ok', icon: 'checkmark-done', any: ['bar:update'], feature: 'bar_availability' },
+      { label: 'One-day changes to approve', route: '/(details)/t/bar-dates-ok', icon: 'checkmark-done', any: ['bar:update'], feature: 'bar_availability' },
+    ],
+    detail: {
+      path: () => null, title: (d) => d.name || 'Shift', subtitle: (d) => shiftWords(d), badge: (d) => (d._me && d.userId === d._me ? 'My shift' : undefined),
+      sections: [{ fields: [{ label: 'Who', get: (d) => d.name }, { label: 'When', get: (d) => shiftWords(d) }, { label: 'Note', get: (d) => d.note }] }],
+      actions: [
+        { id: 'give-shift', label: 'Give this shift away', icon: 'gift', any: ['bar:read'], feature: 'bar_shift_swaps', when: (d) => !!d.id && !!d._me && d.userId === d._me,
+          confirm: { title: 'Give this shift away?', body: (d) => `Your ${shiftWords(d)} goes on the list for the others to take. It stays yours until someone takes it, and a manager may need to approve.`, button: 'Give it away' },
+          inputs: [{ id: 'note', label: 'Note for the others (optional)' }],
+          offline: (d) => ({ key: `shift-offer:${d.id}`, label: `Give away · ${shiftWords(d)}` }),
+          request: (d, v) => ({ method: 'POST', path: '/api/schedule/swaps', body: { kind: 'give', shiftId: d.id, note: v.note || undefined } }), done: 'Your shift is on offer' },
+        { id: 'swap-shift', label: 'Swap this shift', icon: 'swap-horizontal', any: ['bar:read'], feature: 'bar_shift_swaps', when: (d) => !!d.id && !!d._me && d.userId === d._me,
+          inputs: [{ id: 'with', label: 'The shift you would take instead', required: true,
+            options: { path: () => '/api/schedule/published', pick: (b, row) => swapChoices(b, row, localDay()), label: choiceLabel, value: (x) => x.id, none: 'Nobody else has a coming shift on the published schedule.', loading: 'Getting the schedule…' } },
+            { id: 'note', label: 'Note (optional)' }],
+          offline: (d) => ({ key: `shift-offer:${d.id}`, label: `Swap · ${shiftWords(d)}` }),
+          request: (d, v) => ({ method: 'POST', path: '/api/schedule/swaps', body: { kind: 'swap', shiftId: d.id, withShiftId: v.with, note: v.note || undefined } }), done: 'Swap asked. They have to say yes first' },
+      ],
+    },
     actions: [{ id: 'ask-time-off', label: 'Ask for a day off', icon: 'calendar', any: ['bar:read'],
       confirm: { title: 'Ask for a day off', body: () => 'A manager will approve or deny it.', button: 'Send request' },
       inputs: [{ id: 'day', label: 'Day (YYYY-MM-DD)', required: true }, { id: 'note', label: 'Note' }], request: (_d, v) => ({ method: 'POST', path: '/api/schedule/time-off', body: { day: v.day, note: v.note } }), done: 'Request sent' }],
@@ -135,10 +175,201 @@ export const BAR: ScreenSpec[] = [
       ],
     },
   },
+  // ── Invoices read from a photo (restaurant-bar parity #7). The photo needs signal (it is not queued); the reading, the fixes and Receive are the server's.
+  {
+    id: 'bar-invoices', title: 'Supplier invoices', any: ['bar:update'], feature: 'bar_invoice_scan',
+    list: { path: '/api/stock/invoices' },
+    rows: (i) => ({ id: i.id, key: i.id, title: i.supplierName || i.vendorName || 'Invoice', subtitle: join(i.invoiceNumber, `${i.lineCount} lines`, i.status === 'review' ? (i.needsAttention ? `${i.needsAttention} to check` : 'ready to receive') : undefined), meta: dayOnly(i.confirmedAt || i.createdAt),
+      badge: i.status === 'confirmed' ? 'Received' : 'To check', tone: i.status === 'confirmed' ? 'success' : 'warning' }),
+    empty: { title: 'No invoices scanned', body: 'Tap + to photograph a supplier invoice. Nothing changes your counts or prices until you receive it.' },
+    create: { label: 'Scan an invoice', route: '/(details)/stock-invoice', any: ['bar:update'] },
+    detail: {
+      path: (id) => `/api/stock/invoices/${id}`, title: (d) => d.supplierName || d.vendorName || 'Invoice', subtitle: (d) => join(d.invoiceNumber, dayOnly(d.createdAt)),
+      badge: (d) => (d.status === 'confirmed' ? 'Received' : d.needsAttention ? `${d.needsAttention} to check` : 'Ready to receive'),
+      sections: [
+        { fields: [
+          { label: 'Supplier', get: (d) => d.vendorName || d.supplierName }, { label: 'Invoice number', get: (d) => d.invoiceNumber }, { label: 'Invoice date', get: (d) => calDay(d.invoiceDate) },
+          { label: 'The invoice says', get: (d) => (d.totalCents == null ? undefined : money(d.totalCents / 100)) }, { label: 'The lines add up to', get: (d) => money((d.linesTotalCents || 0) / 100) },
+          { label: 'The reader said', get: (d) => d.notes },
+          { label: 'Heads up', get: (d) => (d.duplicateOf ? `Already received${d.duplicateOf.number ? ` as order #${d.duplicateOf.number}` : ''}. Receive again only on the desktop, if this is another delivery.` : undefined) },
+        ] },
+        { title: 'Lines', rows: (d) => lineRows(d), empty: 'No lines.' },
+      ],
+      actions: [
+        { id: 'match-line', label: 'Pick the item for a line', icon: 'create', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          inputs: [
+            { id: 'line', label: 'Which line', required: true, options: { path: (d) => `/api/stock/invoices/${d.id}`, pick: (b) => (b?.lines || []).filter((l: ScanLine) => !l.skip), label: lineChoice, value: (l: ScanLine) => String(l.n), none: 'Every line is skipped.', loading: 'Getting the lines…' } },
+            { id: 'item', label: 'It is this stock item', required: true, options: { path: () => '/api/stock/items', pick: (b) => b?.stock || [], label: (s: any) => `${s.name} (${s.packName})`.slice(0, 60), value: (s: any) => s.id, none: 'No stock items yet.', loading: 'Getting your stock…' } },
+          ],
+          request: (d, v) => ({ method: 'PATCH', path: `/api/stock/invoices/${d.id}`, body: { lines: [{ n: Number(v.line), stockItemId: v.item }] } }), done: 'Matched' },
+        { id: 'fix-line', label: 'Fix how many or the price', icon: 'pencil', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          inputs: [
+            { id: 'line', label: 'Which line', required: true, options: { path: (d) => `/api/stock/invoices/${d.id}`, pick: (b) => (b?.lines || []).filter((l: ScanLine) => !l.skip), label: lineChoice, value: (l: ScanLine) => String(l.n), none: 'Every line is skipped.', loading: 'Getting the lines…' } },
+            { id: 'qty', label: 'How many came (leave empty to keep)', kind: 'number' }, { id: 'price', label: 'Price of one, in dollars (leave empty to keep)', kind: 'number' },
+          ],
+          request: (d, v) => { const f = fixBody(v); return { method: 'PATCH', path: `/api/stock/invoices/${d.id}`, body: 'body' in f ? f.body : { lines: [] } } }, done: 'Fixed' },
+        { id: 'skip-line', label: 'Skip a line', icon: 'close-circle', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          inputs: [{ id: 'line', label: 'Which line', required: true, options: { path: (d) => `/api/stock/invoices/${d.id}`, pick: (b) => (b?.lines || []).filter((l: ScanLine) => !l.skip), label: lineChoice, value: (l: ScanLine) => String(l.n), none: 'Every line is skipped.', loading: 'Getting the lines…' } }],
+          request: (d, v) => ({ method: 'PATCH', path: `/api/stock/invoices/${d.id}`, body: { lines: [{ n: Number(v.line), skip: true }] } }), done: 'Skipped' },
+        { id: 'receive-invoice', label: 'Receive into stock', icon: 'checkmark-done', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          confirm: { title: 'Receive this invoice?', body: (d) => `${(d.lines || []).filter((l: ScanLine) => !l.skip).length} lines come into your stock now: the counts and the prices of these items change, the same as marking an order as arrived. It is done once, and it needs signal.`, button: 'Receive it' },
+          request: (d) => ({ method: 'POST', path: `/api/stock/invoices/${d.id}/confirm`, body: {} }), done: 'Received into stock' },
+        { id: 'discard-invoice', label: 'Throw it away', icon: 'trash', any: ['bar:update'], feature: 'bar_invoice_scan', when: (d) => d.status === 'review',
+          confirm: { title: 'Throw this scan away?', body: () => 'Nothing was received from it, so no count or price changes. The photo is deleted.', button: 'Throw it away' },
+          request: (d) => ({ method: 'POST', path: `/api/stock/invoices/${d.id}/discard`, body: {} }), done: 'Thrown away' },
+      ],
+    },
+  },
   {
     id: 'bar-orders', title: 'Orders on the way', any: ['bar:update'], feature: 'bar_stock',
     list: { path: '/api/stock/orders', query: { tile: 'on_the_way' } }, pick: (b) => b?.orders || [],
     rows: (o) => ({ id: o.id, key: o.id, title: o.vendor?.name || 'Order', subtitle: `${(o.lines || []).length} items`, meta: dayOnly(o.sentAt || o.createdAt), badge: 'Sent', tone: 'info' }),
     empty: { title: 'Nothing on the way', body: 'Deliveries you have sent show here.' },
+  },
+  // ── Availability, swaps and pick-ups (restaurant-bar parity #11). Every write goes through the offline queue and is safe to send twice (the server
+  //    honours the queue's Idempotency-Key); a refusal after the signal comes back (someone else took the shift) shows in the waiting list in the server's words.
+  {
+    id: 'bar-availability', title: 'My availability', any: ['bar:read'], feature: 'bar_availability', single: true,
+    list: { path: '/api/schedule/availability/mine' }, rows: () => ({ id: 'mine', key: 'mine', title: 'My availability' }), empty: { title: 'Nothing set', body: 'Your availability shows here.' },
+    detail: {
+      path: () => '/api/schedule/availability/mine', also: { dates: () => '/api/schedule/availability/dates/mine' },
+      title: () => 'My availability', subtitle: (d) => (d.pending != null ? 'A change is waiting for a manager' : 'When you can work'),
+      sections: [
+        { title: 'My usual week', fields: DAY_NAMES.map((n, i) => ({ label: n, get: (d: any) => windowWords(d.approved || [], i) ?? ((d.approved || []).length ? 'Cannot work' : 'Free any time') })) },
+        { title: 'Waiting for a manager', fields: DAY_NAMES.map((n, i) => ({ label: n, get: (d: any) => (d.pending && d.pending.length ? windowWords(d.pending, i) ?? 'Cannot work' : undefined) }))
+          .concat([{ label: 'Your ask', get: (d: any) => (d.pending && !d.pending.length ? 'Free any time, every day' : undefined) }]) },
+        { title: 'One-day changes', links: () => [{ label: 'Change one day', url: '', icon: 'calendar', route: '/(details)/t/bar-my-dates' }],
+          rows: (d: any) => [...(d._also?.dates?.pending || []), ...(d._also?.dates?.approved || [])].map((e: any): Row => ({ key: e.id, title: calDay(e.day) || e.day, subtitle: dateWords(e), badge: e.status === 'pending' ? 'Waiting' : 'Approved', tone: e.status === 'pending' ? 'warning' : 'success' })) },
+      ],
+      actions: [
+        { id: 'set-weekday', label: 'Change a day of my week', icon: 'create', any: ['bar:read'], feature: 'bar_availability',
+          confirm: { title: 'Change a day of my week', body: () => 'A manager approves the change before the schedule uses it.', button: 'Send for approval' },
+          inputs: [{ id: 'dow', label: 'Which day', kind: 'choice', choices: DAY_NAMES, required: true }, { id: 'what', label: 'On that day', kind: 'choice', choices: Object.values(WEEK_CHOICES), required: true },
+            { id: 'start', label: 'From (like 4 PM), only for between two times' }, { id: 'end', label: 'Until (like 11 PM)' }],
+          offline: () => ({ key: 'availability:mine', label: 'My availability' }),
+          request: (d, v) => ({ method: 'PUT', path: '/api/schedule/availability/mine', body: { windows: weekAfter((d.pending && d.pending.length ? d.pending : d.approved) || [], DAY_NAMES.indexOf(v.dow), v.what, v.start, v.end) } }), done: 'Sent to a manager' },
+        { id: 'free-every-day', label: 'Free any time, every day', icon: 'infinite', any: ['bar:read'], feature: 'bar_availability',
+          confirm: { title: 'Free any time, every day?', body: () => 'This clears your usual week. A manager approves it before the schedule uses it.', button: 'Send for approval' },
+          offline: () => ({ key: 'availability:mine', label: 'My availability' }),
+          request: () => ({ method: 'PUT', path: '/api/schedule/availability/mine', body: { windows: [] } }), done: 'Sent to a manager' },
+      ],
+    },
+  },
+  {
+    id: 'bar-my-dates', title: 'My one-day changes', any: ['bar:read'], feature: 'bar_availability',
+    list: { path: '/api/schedule/availability/dates/mine' }, pick: (b) => [...(b?.pending || []), ...(b?.approved || [])],
+    rows: (e) => ({ id: e.id, key: e.id, title: calDay(e.day) || e.day, subtitle: join(dateWords(e), e.note), badge: e.status === 'pending' ? 'Waiting' : 'Approved', tone: e.status === 'pending' ? 'warning' : 'success' }),
+    empty: { title: 'No one-day changes', body: 'Use "Change one day" when one date is different from your usual week.' },
+    actions: [{ id: 'change-one-day', label: 'Change one day', icon: 'calendar', any: ['bar:read'], feature: 'bar_availability',
+      confirm: { title: 'Change one day', body: () => 'For that date this replaces your usual week. A manager approves it first.', button: 'Send for approval' },
+      inputs: [{ id: 'day', label: 'Day (YYYY-MM-DD)', required: true }, { id: 'mode', label: 'On that day', kind: 'choice', choices: Object.values(DATE_CHOICES), required: true },
+        { id: 'start', label: 'From (like 4 PM), only for between two times' }, { id: 'end', label: 'Until (like 11 PM)' }, { id: 'note', label: 'Note (optional)' }],
+      offline: () => ({ key: 'availability:dates', label: 'One-day availability' }),
+      request: (_d, v) => ({ method: 'POST', path: '/api/schedule/availability/dates/mine', body: dateBody(v) }), done: 'Sent to a manager' }],
+    detail: {
+      path: () => null, title: (d) => calDay(d.day) || d.day, subtitle: (d) => dateWords(d), badge: (d) => (d.status === 'pending' ? 'Waiting for a manager' : 'Approved'),
+      sections: [{ fields: [{ label: 'Day', get: (d) => calDay(d.day) }, { label: 'Then', get: (d) => dateWords(d) }, { label: 'Note', get: (d) => d.note }] }],
+      actions: [{ id: 'take-back-day', label: 'Take this back', icon: 'close-circle', any: ['bar:read'], feature: 'bar_availability', when: (d) => d.status === 'pending',
+        confirm: { title: 'Take this back?', body: () => 'It goes away before a manager sees it.', button: 'Take it back' },
+        offline: (d) => ({ key: `availability:date:${d.id}`, label: `One-day availability · ${calDay(d.day) || d.day}` }),
+        request: (d) => ({ method: 'DELETE', path: `/api/schedule/availability/dates/mine/${d.id}` }), done: 'Taken back' }],
+    },
+  },
+  {
+    id: 'bar-swaps', title: 'Swaps and pick-ups', any: ['bar:read'], feature: 'bar_shift_swaps',
+    list: { path: '/api/schedule/swaps/mine' }, pick: swapRows,
+    rows: (r) => r._group === 'for-me'
+      ? { id: r.id, key: r.id, title: `${r.fromName} offers you a swap`, subtitle: `Their ${shiftWords(r.shift)} for your ${shiftWords(r.withShift)}`, badge: 'For you', tone: 'info' }
+      : r._group === 'on-offer'
+        ? { id: r.id, key: r.id, title: `${r.fromName} is giving a shift away`, subtitle: shiftWords(r.shift), badge: 'Open', tone: 'info' }
+        : { id: r.id, key: r.id, title: r.kind === 'give' ? 'You are giving a shift away' : `Swap with ${r.toName || 'someone'}`, subtitle: shiftWords(r.shift), badge: STATUS[r.status] || words(r.status), tone: STATUS_TONE[r.status] },
+    empty: { title: 'Nothing right now', body: 'Shifts others give away, swaps offered to you and your own requests show here.' },
+    detail: {
+      path: () => null, title: (d) => (d._group === 'on-offer' ? 'A shift to take' : d._group === 'for-me' ? 'A swap for you' : 'My request'), subtitle: (d) => shiftWords(d.shift),
+      badge: (d) => (d._group === 'mine' ? STATUS[d.status] || words(d.status) : undefined),
+      sections: [{ fields: [{ label: 'From', get: (d) => d.fromName }, { label: 'Shift', get: (d) => shiftWords(d.shift) }, { label: 'In return', get: (d) => (d.withShift ? shiftWords(d.withShift) : undefined) }, { label: 'Note', get: (d) => d.note },
+        { label: 'Then', get: (d) => (d._group === 'on-offer' ? (d._pickupsNeedManager ? 'A manager approves before it is yours.' : 'It is yours as soon as you take it.') : d._group === 'for-me' ? (d._swapsNeedManager ? 'If you say yes, a manager approves before anything moves.' : 'If you say yes, the swap happens.') : undefined) }] }],
+      actions: [
+        { id: 'claim-shift', label: 'Take this shift', icon: 'hand-left', any: ['bar:read'], feature: 'bar_shift_swaps', when: (d) => d._group === 'on-offer',
+          confirm: { title: 'Take this shift?', body: (d) => `${shiftWords(d.shift)}. ${d._pickupsNeedManager ? 'A manager approves before it is yours.' : 'It is yours as soon as you take it.'}`, button: 'Take it' },
+          offline: (d) => ({ key: `swap:${d.id}`, label: `Take shift · ${shiftWords(d.shift)}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/swaps/${d.id}/claim` }), done: 'Asked for. You will see it on the schedule once it is yours' },
+        { id: 'accept-swap', label: 'Say yes', icon: 'checkmark-circle', any: ['bar:read'], feature: 'bar_shift_swaps', when: (d) => d._group === 'for-me',
+          confirm: { title: 'Swap shifts?', body: (d) => `You take ${shiftWords(d.shift)} and ${d.fromName} takes ${shiftWords(d.withShift)}. ${d._swapsNeedManager ? 'A manager approves before anything moves.' : 'The schedule changes right away.'}`, button: 'Say yes' },
+          offline: (d) => ({ key: `swap:${d.id}`, label: `Swap with ${d.fromName}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/swaps/${d.id}/accept` }), done: 'You said yes' },
+        { id: 'decline-swap', label: 'Say no', icon: 'close-circle', any: ['bar:read'], feature: 'bar_shift_swaps', when: (d) => d._group === 'for-me',
+          confirm: { title: 'Say no to this swap?', body: (d) => `${d.fromName} will see that you said no.`, button: 'Say no' },
+          offline: (d) => ({ key: `swap:${d.id}`, label: `Swap with ${d.fromName}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/swaps/${d.id}/decline` }), done: 'You said no' },
+        { id: 'cancel-request', label: 'Take it back', icon: 'arrow-undo', any: ['bar:read'], feature: 'bar_shift_swaps', when: mayTakeBack,
+          confirm: { title: 'Take this request back?', body: () => 'The shift stays yours.', button: 'Take it back' },
+          offline: (d) => ({ key: `swap:${d.id}`, label: `Take back · ${shiftWords(d.shift)}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/swaps/${d.id}/cancel` }), done: 'Taken back' },
+      ],
+    },
+  },
+  {
+    id: 'bar-swap-decide', title: 'Swaps to decide', any: ['bar:update'], feature: 'bar_shift_swaps',
+    list: { path: '/api/schedule/swaps', query: { tile: 'pending' } }, pick: (b) => b?.pending || [],
+    rows: (r) => ({ id: r.id, key: r.id, title: r.kind === 'give' ? `${r.fromName} gives a shift to ${r.toName || 'someone'}` : `${r.fromName} and ${r.toName || 'someone'} swap`, subtitle: shiftWords(r.shift), badge: 'Waiting', tone: 'warning' }),
+    empty: { title: 'Nothing waiting', body: 'Swaps and pick-ups that need a manager show here.' },
+    detail: {
+      path: () => null, title: (d) => (d.kind === 'give' ? 'A shift changes hands' : 'A swap'), subtitle: (d) => shiftWords(d.shift),
+      sections: [{ fields: [{ label: 'Giving up', get: (d) => `${d.fromName}: ${shiftWords(d.shift)}` }, { label: 'Taking it', get: (d) => d.toName }, { label: 'In return', get: (d) => (d.withShift ? shiftWords(d.withShift) : undefined) }, { label: 'Note', get: (d) => d.note }] }],
+      actions: [
+        { id: 'approve-swap', label: 'Approve', icon: 'checkmark-circle', any: ['bar:update'], feature: 'bar_shift_swaps',
+          confirm: { title: 'Approve this?', body: (d) => `The schedule changes and ${d.fromName}${d.toName ? ` and ${d.toName}` : ''} are told.`, button: 'Approve' },
+          offline: (d) => ({ key: `swap-decision:${d.id}`, label: `Approve swap · ${d.fromName}` }),
+          request: (d) => ({ method: 'PUT', path: `/api/schedule/swaps/${d.id}`, body: { status: 'approved' } }), done: 'Approved' },
+        { id: 'deny-swap', label: 'Deny', icon: 'close-circle', any: ['bar:update'], feature: 'bar_shift_swaps',
+          confirm: { title: 'Deny this?', body: (d) => `Nothing changes on the schedule. ${d.fromName} is told.`, button: 'Deny' },
+          offline: (d) => ({ key: `swap-decision:${d.id}`, label: `Deny swap · ${d.fromName}` }),
+          request: (d) => ({ method: 'PUT', path: `/api/schedule/swaps/${d.id}`, body: { status: 'denied' } }), done: 'Denied' },
+      ],
+    },
+  },
+  {
+    id: 'bar-availability-ok', title: 'Availability to approve', any: ['bar:update'], feature: 'bar_availability',
+    list: { path: '/api/schedule/availability' }, pick: (b) => (b?.people || []).filter((p: any) => p.pending != null),
+    rows: (p) => ({ id: p.userId, key: p.userId, title: p.name, subtitle: p.pending?.length ? `${p.pending.length} ${p.pending.length === 1 ? 'window' : 'windows'} asked for` : 'Free any time, every day', badge: 'Waiting', tone: 'warning' }),
+    empty: { title: 'Nothing waiting', body: 'Changes to usual weeks that need a manager show here.' },
+    detail: {
+      path: () => null, title: (d) => d.name, subtitle: () => 'Wants to change their usual week',
+      sections: [
+        { title: 'Asked for', fields: DAY_NAMES.map((n, i) => ({ label: n, get: (d: any) => (d.pending?.length ? windowWords(d.pending, i) ?? 'Cannot work' : i === 0 ? 'Free any time, every day' : undefined) })) },
+        { title: 'Now', fields: DAY_NAMES.map((n, i) => ({ label: n, get: (d: any) => windowWords(d.windows || [], i) ?? ((d.windows || []).length ? 'Cannot work' : 'Free any time') })) },
+      ],
+      actions: [
+        { id: 'approve-week', label: 'Approve', icon: 'checkmark-circle', any: ['bar:update'], feature: 'bar_availability',
+          confirm: { title: 'Approve this week?', body: (d) => `The schedule uses ${d.name}'s new week from now on.`, button: 'Approve' },
+          offline: (d) => ({ key: `availability-decision:${d.userId}`, label: `Approve availability · ${d.name}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/availability/${d.userId}/decision`, body: { status: 'approved' } }), done: 'Approved' },
+        { id: 'deny-week', label: 'Deny', icon: 'close-circle', any: ['bar:update'], feature: 'bar_availability',
+          confirm: { title: 'Deny this?', body: (d) => `${d.name}'s usual week stays as it is.`, button: 'Deny' },
+          offline: (d) => ({ key: `availability-decision:${d.userId}`, label: `Deny availability · ${d.name}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/availability/${d.userId}/decision`, body: { status: 'denied' } }), done: 'Denied' },
+      ],
+    },
+  },
+  {
+    id: 'bar-dates-ok', title: 'One-day changes to approve', any: ['bar:update'], feature: 'bar_availability',
+    list: { path: '/api/schedule/availability/dates' }, pick: (b) => b?.pending || [],
+    rows: (e) => ({ id: e.id, key: e.id, title: e.name || 'Someone', subtitle: join(calDay(e.day), dateWords(e)), badge: 'Waiting', tone: 'warning' }),
+    empty: { title: 'Nothing waiting', body: 'One-day changes that need a manager show here.' },
+    detail: {
+      path: () => null, title: (d) => d.name || 'One-day change', subtitle: (d) => calDay(d.day),
+      sections: [{ fields: [{ label: 'Day', get: (d) => calDay(d.day) }, { label: 'Then', get: (d) => dateWords(d) }, { label: 'Note', get: (d) => d.note }] }],
+      actions: [
+        { id: 'approve-day', label: 'Approve', icon: 'checkmark-circle', any: ['bar:update'], feature: 'bar_availability',
+          confirm: { title: 'Approve this day?', body: (d) => `The schedule uses it for ${calDay(d.day)}.`, button: 'Approve' },
+          offline: (d) => ({ key: `availability-day-decision:${d.id}`, label: `Approve one day · ${d.name}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/availability/dates/${d.id}/decision`, body: { status: 'approved' } }), done: 'Approved' },
+        { id: 'deny-day', label: 'Deny', icon: 'close-circle', any: ['bar:update'], feature: 'bar_availability',
+          confirm: { title: 'Deny this day?', body: () => 'Their usual week stays for that date.', button: 'Deny' },
+          offline: (d) => ({ key: `availability-day-decision:${d.id}`, label: `Deny one day · ${d.name}` }),
+          request: (d) => ({ method: 'POST', path: `/api/schedule/availability/dates/${d.id}/decision`, body: { status: 'denied' } }), done: 'Denied' },
+      ],
+    },
   },
 ]

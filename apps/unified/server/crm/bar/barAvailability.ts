@@ -29,12 +29,47 @@ export function cleanWindows(w: unknown): Window[] {
 
 const covers = (ws: Window[], dow: number, from: number, to: number) => ws.some((x) => x.dow === dow && mins(x.start) <= from && mins(x.end) >= to - (to === 1440 ? 1 : 0))
 
-/** May this person work this shift, by their windows? No windows = free to work. */
-export function worksWithin(ws: Window[], day: string, start: string, end: string): boolean {
+/**
+ * One calendar day on its own (restaurant-bar parity #10; 7shifts' one-time availability). For that date it REPLACES the weekly
+ * pattern: off = cannot work, free = any time, between = only start to end.
+ */
+export interface DatedWindow { day: string; mode: 'off' | 'free' | 'between'; start?: string | null; end?: string | null }
+
+/** The first problem with a one-day entry, as a sentence; null when fine. `today` is the company's calendar day. */
+export function datedRefusal(x: { day?: unknown; mode?: unknown; start?: unknown; end?: unknown }, today: string): string | null {
+  const day = String(x?.day ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day + 'T12:00:00Z'))) return 'Which day?'
+  if (day < today) return "That day's already gone."
+  if (x.mode !== 'off' && x.mode !== 'free' && x.mode !== 'between') return 'Say whether you can work that day, cannot, or only between two times.'
+  if (x.mode === 'between') {
+    if (!TIME.test(String(x.start)) || !TIME.test(String(x.end))) return 'Times look like 16:00.'
+    if (mins(String(x.end)) <= mins(String(x.start))) return 'The window ends after it starts. For a late night, say until 23:59 and add the small hours on the next day.'
+  }
+  return null
+}
+
+/** Can this day's answer cover from..to (minutes of that day)? A one-day entry wins over the weekly windows; no weekly windows = free. */
+function coversDay(ws: Window[], dated: Map<string, DatedWindow>, date: string, from: number, to: number): boolean {
+  const d = dated.get(date)
+  if (d) {
+    if (d.mode === 'off') return false
+    if (d.mode === 'free') return true
+    return mins(String(d.start)) <= from && mins(String(d.end)) >= to - (to === 1440 ? 1 : 0)
+  }
   if (!ws.length) return true
-  const dow = dayOfWeek(day)
+  return covers(ws, dayOfWeek(date), from, to)
+}
+
+/** May this person work this shift, by their weekly windows and their one-day entries? Nothing set = free to work. */
+export function worksWithinOn(ws: Window[], dated: DatedWindow[], day: string, start: string, end: string): boolean {
+  const map = new Map(dated.map((d) => [d.day, d]))
   const a = mins(start), b = mins(end)
-  if (b > a) return covers(ws, dow, a, b)
+  if (b > a) return coversDay(ws, map, day, a, b)
   // Past midnight: the evening on its own day, the small hours on the next.
-  return covers(ws, dow, a, 1440) && (b === 0 || covers(ws, dayOfWeek(addDays(day, 1)), 0, b))
+  return coversDay(ws, map, day, a, 1440) && (b === 0 || coversDay(ws, map, addDays(day, 1), 0, b))
+}
+
+/** May this person work this shift, by their weekly windows? No windows = free to work. */
+export function worksWithin(ws: Window[], day: string, start: string, end: string): boolean {
+  return worksWithinOn(ws, [], day, start, end)
 }

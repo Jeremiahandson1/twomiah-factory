@@ -1,6 +1,6 @@
 // Private-events add-on (restaurants, venues and bars): enquiries and bookings, spaces, menus and packages, deposits
 // and the banquet event order's timeline. Column for column from templates/crm-{restaurant,bar}/backend/db/schema.ts.
-import { pgTable, text, boolean, integer, decimal, timestamp, date, json, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, date, json, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact } from './crm.ts'
@@ -31,6 +31,12 @@ export const event = pgTable('event', {
   quotedTotal: decimal('quoted_total', { precision: 10, scale: 2 }),
   depositRequired: decimal('deposit_required', { precision: 10, scale: 2 }),
   source: text('source'),                                  // where the enquiry came from
+  // The website-form campaign the enquiry came in through (restaurant-bar parity #4); its source was copied to `source`.
+  campaignId: text('campaign_id').references(() => eventFormCampaign.id, { onDelete: 'set null' }),
+  // A hold (a tentative event) can lapse (restaurant-bar parity #5): the last day it is kept, a reminder before, and when it was let go.
+  holdUntil: date('hold_until'),
+  holdReminderSentAt: timestamp('hold_reminder_sent_at'),
+  holdReleasedAt: timestamp('hold_released_at'),
   lostReason: text('lost_reason'),                         // why it didn't close — the only way to learn
   dietaryRequirements: text('dietary_requirements'),
   setupNotes: text('setup_notes'),
@@ -89,7 +95,7 @@ export const eventPayment = pgTable('event_payment', {
   reminderOverdueAt: timestamp('reminder_overdue_at'),
   // The card-on-file charge on the due date: tried once a day at most, and what came of it.
   autopayAttemptedAt: timestamp('autopay_attempted_at'),
-  autopayStatus: text('autopay_status'),                   // succeeded / failed
+  autopayStatus: text('autopay_status'),                   // succeeded / failed / processing (a bank debit that has not settled yet)
   autopayError: text('autopay_error'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -231,6 +237,12 @@ export const eventProposal = pgTable('event_proposal', {
   signedUserAgent: text('signed_user_agent'),
   signatureHash: text('signature_hash'),
   consentAt: timestamp('consent_at'),
+  // Contract and signers (restaurant-bar parity #1): the venue's contract template chosen for this event, frozen as sent; the
+  // signers drafted in their send order (each becomes an event_proposal_signer row when it is sent).
+  contractTemplateId: text('contract_template_id'),
+  contractName: text('contract_name'),
+  contractBody: text('contract_body'),
+  signerPlan: json('signer_plan').default([]).notNull(),   // [{role:'client'|'client_second'|'venue', name, email}] in send order
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -253,6 +265,8 @@ export const eventAutopay = pgTable('event_autopay', {
   setupIntentId: text('setup_intent_id'),
   brand: text('brand'),
   last4: text('last4'),
+  method: text('method').default('card').notNull(),        // card / us_bank_account — what the saved payment method is
+  setupMethod: text('setup_method'),                       // what a setup in progress will save (a bank account is verified over days)
   status: text('status').default('pending').notNull(),     // pending (card not saved yet) / active / stopped
   consentAt: timestamp('consent_at'),
   consentIp: text('consent_ip'),
@@ -263,4 +277,134 @@ export const eventAutopay = pgTable('event_autopay', {
 }, (t) => [
   index('event_autopay_company_id_idx').on(t.companyId),
   index('event_autopay_event_id_idx').on(t.eventId),
+])
+
+// A contract the venue writes once and chooses per event (#1): text with {{merge fields}} the proposal fills from the event
+// (client, date, room, head count, menu, totals, deposit schedule, guarantee and minimum terms).
+export const eventContractTemplate = pgTable('event_contract_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),                            // "Wedding contract"
+  body: text('body').notNull(),
+  isDefault: boolean('is_default').default(false).notNull(), // used when an event's proposal names none
+  active: boolean('active').default(true).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_contract_template_company_id_idx').on(t.companyId),
+])
+
+// One person who signs a proposal, in the venue's send order (#1): the client, a second client signer, the venue's own
+// countersignature. Each keeps the same evidence a quote keeps — the drawn signature, the typed name, the consent words and
+// the moment — and has a private link; the next signer's link goes out when the one before signs.
+export const eventProposalSigner = pgTable('event_proposal_signer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  proposalId: text('proposal_id').notNull().references(() => eventProposal.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),                 // 1 = first to sign
+  role: text('role').notNull(),                            // client / client_second / venue
+  name: text('name'),                                      // who the venue invited
+  email: text('email').notNull(),
+  token: text('token').notNull(),                          // the signer's private link
+  status: text('status').default('waiting').notNull(),     // waiting (not their turn) / sent / signed
+  sentAt: timestamp('sent_at'),
+  signature: text('signature'),
+  signedBy: text('signed_by'),
+  signedAt: timestamp('signed_at'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
+  consentText: text('consent_text'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_proposal_signer_position_idx').on(t.proposalId, t.position),
+  index('event_proposal_signer_token_idx').on(t.token),
+  index('event_proposal_signer_company_id_idx').on(t.companyId),
+])
+
+// A client's payment from a US bank account (ACH) toward one instalment (restaurant-bar parity #3). A bank debit is not paid when
+// the client confirms it: it is processing for up to four business days and then succeeds or comes back failed. This row follows
+// that on the venue's own Stripe account; the instalment is recorded on the invoice only when it succeeds, never before.
+export const eventBankPayment = pgTable('event_bank_payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  eventId: text('event_id').notNull().references(() => event.id, { onDelete: 'cascade' }),
+  eventPaymentId: text('event_payment_id').notNull().references(() => eventPayment.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull(),
+  paymentIntentId: text('payment_intent_id').notNull(),
+  stripeAccount: text('stripe_account').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  source: text('source').notNull(),                        // pay_link / proposal_page / autopay
+  status: text('status').default('awaiting').notNull(),    // awaiting (client has not finished) / requires_action (verify the bank) / processing / succeeded / failed / canceled
+  keepForAutopay: boolean('keep_for_autopay').default(false).notNull(), // the client asked to keep this account for the later payments
+  consentAt: timestamp('consent_at'),
+  consentIp: text('consent_ip'),
+  consentText: text('consent_text'),
+  bankName: text('bank_name'),
+  last4: text('last4'),
+  verifyUrl: text('verify_url'),                           // Stripe's page where the client verifies the micro-deposits
+  failureCode: text('failure_code'),
+  failureMessage: text('failure_message'),
+  initiatedAt: timestamp('initiated_at'),
+  settledAt: timestamp('settled_at'),
+  failedAt: timestamp('failed_at'),
+  noticeSentAt: timestamp('notice_sent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_bank_payment_intent_idx').on(t.paymentIntentId),
+  index('event_bank_payment_event_payment_idx').on(t.eventPaymentId),
+  index('event_bank_payment_company_id_idx').on(t.companyId),
+])
+
+// A website-form campaign (restaurant-bar parity #4; Tripleseat's lead form per campaign): one embeddable form, one link, that tags
+// every enquiry it brings in with the same lead source (a list entry from eventSources.ts), so the source report counts it.
+export const eventFormCampaign = pgTable('event_form_campaign', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),                            // "Instagram bio link", "The Knot listing"
+  token: text('token').notNull(),                          // in the form's address; not a secret, it only opens an enquiry form
+  source: text('source').notNull(),                        // an id from EVENT_SOURCES
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_form_campaign_token_idx').on(t.token),
+  index('event_form_campaign_company_id_idx').on(t.companyId),
+])
+
+// What the venue spent advertising to one lead source in one month (restaurant-bar parity #6): the source report divides it by the
+// enquiries and the bookings that source brought, and sets the value booked against it. In integer cents, one row per source and month.
+export const eventMarketingSpend = pgTable('event_marketing_spend', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  source: text('source').notNull(),                        // an id from EVENT_SOURCES
+  month: text('month').notNull(),                          // "2026-10": the month on the venue's clock
+  amountCents: integer('amount_cents').notNull(),
+  note: text('note'),
+  updatedBy: text('updated_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('event_marketing_spend_once_idx').on(t.companyId, t.source, t.month),
+])
+
+// A report emailed on a schedule to chosen seats (restaurant-bar parity #6). Weekly goes on a weekday and covers the seven days before;
+// monthly goes on a day of the month (1-28) and covers the month before. What was sent for which day is kept in reminder_log.
+export const eventReportSchedule = pgTable('event_report_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  report: text('report').notNull(),                        // sources / years
+  frequency: text('frequency').notNull(),                  // weekly / monthly
+  weekday: integer('weekday'),                             // 0 Sunday .. 6 Saturday, for weekly
+  monthDay: integer('month_day'),                          // 1 .. 28, for monthly
+  recipients: json('recipients').$type<string[]>().default([]).notNull(), // user ids
+  active: boolean('active').default(true).notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('event_report_schedule_company_id_idx').on(t.companyId),
 ])

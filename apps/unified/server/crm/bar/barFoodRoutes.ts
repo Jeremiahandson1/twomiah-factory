@@ -75,7 +75,7 @@ export function createBarFoodRoutes(d: CrmDeps, bar: BarServices) {
     ])
     c.header('Cache-Control', 'no-store')
     return one(c, {
-      settings: { ...settings, terminal: { tipping: settings.terminal.tipping } },
+      settings: { ...settings, terminal: { tipping: settings.terminal.tipping, tabHoldHours: settings.terminal.tabHoldHours } },
       readers: on[0] ? readers : [],
       stripe: { platform: !!process.env.STRIPE_SECRET_KEY || !!d.services.testStripeClient, connected: !!connected },
       features: { cardReader: on[0], kiosk: on[1], onlineOrdering: on[2] },
@@ -160,6 +160,33 @@ export function createBarFoodRoutes(d: CrmDeps, bar: BarServices) {
       return r
     })
   })
+  // Parity row 14. The guest chooses the tip on the reader as the tab closes: a sale for the balance with on-reader tipping;
+  // paid, the hold is released. Then a tab held by Tap to Pay on the phone (tap_to_pay as well): the hold is made here, the
+  // phone collects the card, and the hold counts once Stripe confirms it. GET /tabs is the phone's list of open checks.
+  app.post('/terminal/tab/:id/close-on-reader', ...tab, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return act(c, async () => ({ charge: await terminal.closeTabOnReader(actor, c.req.param('id'), String(b.readerId || '')) }))
+  })
+  const phoneTab = [...tab, requireEnabledFeature('tap_to_pay')] as const
+  app.post('/terminal/tab/phone', ...phoneTab, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return act(c, () => terminal.startPhoneTab(actor, { checkId: b.checkId, amountCents: b.amountCents }))
+  })
+  app.post('/terminal/tab/phone/:id/authorized', ...phoneTab, async (c) => {
+    const actor = await actorOf(c)
+    return act(c, async () => {
+      const charge = await terminal.phoneTabAuthorized(actor, c.req.param('id'))
+      if (charge.status === 'authorized') audit.log({ req: c, action: 'update', entity: 'bar_check', entityId: charge.checkId || '', entityName: 'Tab held on the phone', changes: { holdCents: charge.amountCents } })
+      return { charge }
+    })
+  })
+  // The stale-tab pass by hand (a manager; the hourly job runs the same): `now` lets a test move the clock.
+  app.post('/terminal/tabs/sweep', ...tab, requirePermission('bar:update'), async (c) => {
+    const b = await body(c)
+    const now = b.now && !Number.isNaN(Date.parse(String(b.now))) ? new Date(String(b.now)) : new Date()
+    return act(c, async () => ({ released: await terminal.releaseStaleTabs(now) }))
+  })
+  app.get('/tabs', ...tab, async (c) => { const actor = await actorOf(c); c.header('Cache-Control', 'no-store'); return act(c, async () => ({ checks: await terminal.openTabs(actor.companyId) })) })
   app.post('/terminal/tab/:id/release', ...tab, async (c) => {
     const actor = await actorOf(c)
     return act(c, async () => {

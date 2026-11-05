@@ -188,6 +188,10 @@ export { createQuickBooksService, createQuickBooksRoutes } from './integrations/
 export type { QuickBooksService, QuickBooksServiceDeps, QuickBooksRoutesDeps, QuickBooksTables, QuickBooksOptions } from './integrations/quickbooks'
 // The signed OAuth state, also used by the crm-dispensary and crm-roof forks (carries the tenant's callback for the Factory relay).
 export { signQboState, verifyQboState, QBO_STATE_TTL_MS } from './integrations/quickbooksState'
+export { squareAuthorizeUrl, squareExchangeCode, squareRefresh, squareTips, squareStaff, squareHost, ProviderError, SQUARE_VERSION, SQUARE_SCOPES, SQUARE_RENEW_WITHIN_MS } from './integrations/squareTips'
+export type { SquareApp, SquareTokens, SquareTip, ProviderStaff, FetchLike } from './integrations/squareTips'
+export { toastLogin, toastTips, toastStaff, cleanToastHost } from './integrations/toastTips'
+export type { ToastCredentials, ToastToken, ToastTip } from './integrations/toastTips'
 export type { QboStatePayload } from './integrations/quickbooksState'
 export { createReviewsService, createReviewsRoutes, generateGoogleReviewLink } from './integrations/reviews'
 export type { ReviewsService, ReviewsServiceDeps, ReviewsRoutesDeps, ReviewsTables } from './integrations/reviews'

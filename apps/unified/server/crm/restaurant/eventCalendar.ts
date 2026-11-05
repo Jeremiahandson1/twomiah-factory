@@ -4,17 +4,25 @@
 //   · a WAITLIST for a held date (/api/event-waitlist): a guest who wants a room that is taken waits; when the hold is
 //     let go (cancelled, lost, moved) the first waiting guest is offered the date and told;
 //   · a calendar feed per room (/api/event-feed/<token>.ics) that Google, Apple and Outlook subscribe to.
+//   · a MOVE CHECK (POST /api/event-calendar/move-check, restaurant-bar parity #5): what dragging an event to another day, hour or room
+//     would do, read-only — the same overlap, hold and guarantee rules the edit (PUT /api/events/:id) applies, which is the call that
+//     makes the move, so a move is refused exactly when an edit would be;
+//   · HOLDS THAT LAPSE (hold_until on a tentative event, 'event_hold_expiry'): a reminder before, and on a timer the hold is released
+//     and the slot is offered to the waitlist in order.
 // All behind the 'event_calendar' feature (not ready); with it off, the room holds one event a date as it always has.
 import { Hono } from 'hono'
 import crypto from 'node:crypto'
-import { and, asc, eq, gte, inArray, lte, ne } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { event, eventSpace, eventWaitlist, contact, company } from '../../db/schema/index.ts'
+import { event, eventSpace, eventWaitlist, eventProposal, contact, company, user, invoice } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, done, listAll } from '../../http/reply.ts'
 import { createTokenGuessGuard } from '../../http/guards.ts'
-import { DATE_RE, TIME_RE, HELD, findClash, windowsOverlap, isCalendarDate, eventDayWords } from './eventBooking.ts'
+import { lockEventBook } from '../../data/restaurantEvents.ts'
+import { DATE_RE, TIME_RE, HELD, findClash, windowsOverlap, isCalendarDate, eventDayWords, venueToday, validateEventInput, eventWarnings, clashMessage } from './eventBooking.ts'
+import { dayBefore, guaranteeFor, guaranteeOn } from './eventGuarantee.ts'
+import { getEventSettings } from './eventSettings.ts'
 
 const FEED_STATUSES = [...HELD, 'enquiry']
 
@@ -33,7 +41,7 @@ export function createEventCalendarRoutes(d: CrmDeps) {
       .where(and(eq(eventSpace.companyId, u.companyId), eq(eventSpace.active, true))).orderBy(asc(eventSpace.name))
     const events = await db.select({
       id: event.id, name: event.name, status: event.status, eventDate: event.eventDate, startTime: event.startTime, endTime: event.endTime,
-      spaceId: event.spaceId, guestCount: event.guestCount, guestCountFinal: event.guestCountFinal,
+      spaceId: event.spaceId, guestCount: event.guestCount, guestCountFinal: event.guestCountFinal, holdUntil: event.holdUntil,
     }).from(event)
       .where(and(eq(event.companyId, u.companyId), gte(event.eventDate, from), lte(event.eventDate, to), ne(event.status, 'cancelled'), ne(event.status, 'lost')))
       .orderBy(asc(event.eventDate), asc(event.startTime))
@@ -65,6 +73,54 @@ export function createEventCalendarRoutes(d: CrmDeps) {
     await db.update(eventSpace).set({ feedToken: token }).where(eq(eventSpace.id, sp.id))
     await audit.log({ action: 'update', entity: 'event_space', entityId: sp.id, entityName: `${sp.name} calendar feed reset`, req: { user: u } })
     return one(c, { spaceId: sp.id, name: sp.name, path: `/api/event-feed/${token}.ics` })
+  })
+
+  // POST /event-calendar/move-check — what moving an event would do, without doing it. The same rules the edit applies: a bad
+  // time or day, a room that is not yours, a hold in the way (findClash, hours and all), the warnings an edit gives (a past day, a
+  // room too small), and what follows from the guarantee cutoff, a hold's end, the waitlist and a proposal already sent.
+  app.post('/move-check', requirePermission('contacts:update'), async (c) => {
+    const u = c.get('user') as any
+    const b = (await c.req.json().catch(() => null)) ?? ({} as any)
+    const [ev] = typeof b.eventId === 'string' ? await db.select().from(event).where(and(eq(event.id, b.eventId), eq(event.companyId, u.companyId))).limit(1) : []
+    if (!ev) return fail(c, 404, 'Event not found')
+    const target: Record<string, any> = {}
+    for (const k of ['eventDate', 'startTime', 'endTime', 'spaceId']) if (k in b) target[k] = b[k] === '' ? null : b[k]
+    const blocked = (code: string, message: string) => one(c, { ok: false, blocked: { code, message }, warnings: [] as string[], notes: [] as string[] })
+    if (['cancelled', 'lost', 'completed'].includes(ev.status)) return blocked('not_movable', `A ${ev.status} event cannot be moved.`)
+    const bad = validateEventInput(target, ev)
+    if (bad) return blocked('invalid', bad)
+    const next = { eventDate: target.eventDate ?? ev.eventDate, startTime: 'startTime' in target ? target.startTime : ev.startTime, endTime: 'endTime' in target ? target.endTime : ev.endTime, spaceId: 'spaceId' in target ? target.spaceId : ev.spaceId }
+    if ('spaceId' in target && target.spaceId) {
+      const [sp] = await db.select({ id: eventSpace.id }).from(eventSpace).where(and(eq(eventSpace.id, target.spaceId), eq(eventSpace.companyId, u.companyId), eq(eventSpace.active, true))).limit(1)
+      if (!sp) return blocked('space_missing', 'That room is not one of this venue’s rooms.')
+    }
+    if (next.spaceId && HELD.includes(ev.status)) {
+      const clash = await findClash(db, u.companyId, next.spaceId, next.eventDate, ev.id, { startTime: next.startTime, endTime: next.endTime })
+      if (clash) return blocked('space_held', clashMessage(next.eventDate, clash))
+    }
+    const moved = { date: next.eventDate !== ev.eventDate, room: (next.spaceId || null) !== (ev.spaceId || null), hours: (next.startTime || null) !== (ev.startTime || null) || (next.endTime || null) !== (ev.endTime || null) }
+    if (!moved.date && !moved.room && !moved.hours) return blocked('no_change', 'That is where it already is.')
+    const warnings = await eventWarnings(db, u.companyId, { ...ev, ...next }, { date: moved.date, capacity: moved.room })
+    const notes: string[] = []
+    if (await guaranteeOn(d, u.companyId)) {
+      const days = (await getEventSettings(db, u.companyId)).guaranteeDays
+      const today = await venueToday(db, u.companyId)
+      const was = guaranteeFor(ev, days, today), will = guaranteeFor({ eventDate: next.eventDate, status: ev.status }, days, today)
+      if (moved.date && was.locked && !will.locked) notes.push(`The guest count is locked now; on the new day it is open again until ${eventDayWords(will.cutoff!)}.`)
+      else if (moved.date && !was.locked && will.locked) notes.push(`On the new day the guest count is already locked (it was final on ${eventDayWords(will.cutoff!)}): changing it needs a manager and a reason.`)
+      else if (will.locked) notes.push('The guest count stays locked; only a manager changes it, with a reason.')
+    }
+    if (ev.status === 'tentative' && ev.holdUntil && moved.date && ev.holdUntil > next.eventDate) notes.push(`The hold will now end on the event day, ${eventDayWords(next.eventDate)}.`)
+    if (HELD.includes(ev.status) && ev.spaceId && (moved.date || moved.room || moved.hours)) {
+      const waiting = await db.select().from(eventWaitlist).where(and(eq(eventWaitlist.companyId, u.companyId), eq(eventWaitlist.spaceId, ev.spaceId), eq(eventWaitlist.eventDate, ev.eventDate), eq(eventWaitlist.status, 'waiting')))
+      const n = waiting.filter((w: any) => windowsOverlap(w, ev) || windowsOverlap(ev, w)).length
+      if (n) notes.push(`${n} guest${n === 1 ? ' is' : 's are'} waiting for where it is now; the first in line is offered the slot, and told.`)
+    }
+    if (moved.date || moved.room) {
+      const open = await db.select({ id: eventProposal.id }).from(eventProposal).where(and(eq(eventProposal.eventId, ev.id), inArray(eventProposal.status, ['sent', 'viewed', 'partly_signed']))).limit(1)
+      if (open.length) notes.push('A proposal already sent for this event shows the old day and room: send a new one.')
+    }
+    return one(c, { ok: true, blocked: null, warnings, notes, to: next })
   })
 
   return app
@@ -216,4 +272,158 @@ export async function offerWaitlist(d: CrmDeps, companyId: string, spaceId: stri
     d.logger.warn('[events] waitlist offer failed', { error: err?.message })
     return 0
   }
+}
+
+// ── Holds that lapse (restaurant-bar parity #5; Tripleseat's tentative holds, Perfect Venue's hold expiry) ────────────────────────
+// A hold is a tentative event: it keeps its room and hours against everyone else. With 'event_hold_expiry' on it carries the last day
+// it is kept (hold_until, a calendar day on the venue's clock): the venue's default length when it becomes a hold, or a day chosen
+// for that hold alone. A reminder goes a few days before; the hour after the day ends, the hold is released — it goes back to an
+// enquiry, which holds nothing — and the slot is offered to the waitlist, in order. A hold with money paid on it is never released.
+const holdOn = (d: Pick<CrmDeps, 'features'>, companyId: string) => d.features.isFeatureEnabled(companyId, 'event_hold_expiry')
+const plusDays = (date: string, n: number) => dayBefore(date, -n)
+
+/**
+ * The hold columns an event write must carry, from the write's own values: a hold being made gets the venue's default length (or
+ * the day the person chose); one that stops being a hold loses it; one moved to an earlier day cannot outlast it. `body.holdUntil`
+ * null or '' means "never lapses". Returns the first problem as a sentence, or the columns to add (none when nothing changes).
+ * With the feature off it adds nothing and a posted holdUntil is ignored.
+ */
+export async function holdColumns(d: CrmDeps, companyId: string, existing: any | null, updates: Record<string, any>, body: Record<string, any>): Promise<{ error: string | null; cols: Record<string, any> }> {
+  if (!(await holdOn(d, companyId))) return { error: null, cols: {} }
+  const status = 'status' in updates ? updates.status : (existing?.status ?? 'enquiry')
+  const eventDate: string = updates.eventDate ?? existing?.eventDate
+  const had: string | null = existing?.holdUntil ?? null
+  const explicit = Object.prototype.hasOwnProperty.call(body, 'holdUntil')
+  if (status !== 'tentative') {
+    if (explicit && body.holdUntil) return { error: 'Only a tentative hold can have an end day.', cols: {} }
+    return { error: null, cols: had || existing?.holdReminderSentAt ? { holdUntil: null, holdReminderSentAt: null } : {} }
+  }
+  const today = await venueToday(d.db, companyId)
+  let until = had
+  if (explicit) {
+    const v = body.holdUntil
+    if (v === null || v === '') until = null
+    else if (typeof v !== 'string' || !DATE_RE.test(v) || !isCalendarDate(v)) return { error: 'The hold’s last day must be a real date (YYYY-MM-DD).', cols: {} }
+    else if (v < today) return { error: 'A hold cannot end in the past.', cols: {} }
+    else if (eventDate && v > eventDate) return { error: 'A hold cannot last past the event day.', cols: {} }
+    else until = v
+  } else if (existing?.status !== 'tentative') {
+    const days = (await getEventSettings(d.db, companyId)).holdDays
+    until = days > 0 && eventDate && eventDate >= today ? (plusDays(today, days) < eventDate ? plusDays(today, days) : eventDate) : null
+  }
+  if (until && eventDate && until > eventDate) until = eventDate
+  return { error: null, cols: until !== had ? { holdUntil: until, holdReminderSentAt: null } : {} }
+}
+
+/** Who on the venue's side is told about a hold: the event's coordinator, else the business's own address. */
+async function staffFor(d: CrmDeps, co: { id: string; name: string; email: string | null }, coordinatorId: string | null): Promise<{ email: string; name: string } | null> {
+  if (coordinatorId) {
+    const [u] = await d.db.select({ email: user.email, first: user.firstName }).from(user).where(and(eq(user.id, coordinatorId), eq(user.companyId, co.id))).limit(1)
+    if (u?.email) return { email: u.email, name: u.first || 'there' }
+  }
+  return co.email ? { email: co.email, name: co.name } : null
+}
+
+/**
+ * Reminds the venue's team (and, if the venue asks, the client) once, from `holdReminderDays` before a hold's last day until it.
+ * Run hourly by the job in index.ts; callable on its own (the test). Returns how many holds were reminded.
+ */
+export async function runHoldReminders(d: CrmDeps, now = new Date()): Promise<number> {
+  let sent = 0
+  const companies = await d.db.select({ id: company.id, name: company.name, email: company.email }).from(company)
+  for (const co of companies) {
+    if (!(await holdOn(d, co.id))) continue
+    const s = await getEventSettings(d.db, co.id)
+    if (!(s.holdReminderDays > 0)) continue
+    const today = await venueToday(d.db, co.id)
+    const rows = await d.db.select({ ev: event, room: eventSpace.name, cEmail: contact.email, cName: contact.name, optOut: contact.emailOptOut }).from(event)
+      .leftJoin(eventSpace, eq(event.spaceId, eventSpace.id)).leftJoin(contact, eq(event.contactId, contact.id))
+      .where(and(eq(event.companyId, co.id), eq(event.status, 'tentative'), isNotNull(event.holdUntil), isNull(event.holdReminderSentAt), gte(event.holdUntil, today)))
+    for (const r of rows) {
+      const until = String(r.ev.holdUntil)
+      if (today < dayBefore(until, s.holdReminderDays)) continue
+      const staff = await staffFor(d, co, r.ev.coordinatorId)
+      const client = s.holdRemindClient && r.cEmail && !r.optOut ? { email: r.cEmail as string, name: (r.cName as string) || 'there' } : null
+      if (!staff && !client) continue
+      // Claimed before the emails go, so two passes at once send one.
+      const claimed = await d.db.update(event).set({ holdReminderSentAt: now }).where(and(eq(event.id, r.ev.id), isNull(event.holdReminderSentAt))).returning({ id: event.id })
+      if (!claimed.length) continue
+      const where = r.room ? ` in ${r.room}` : ''
+      try {
+        if (staff) {
+          await d.services.emailService.send(staff.email, 'eventNote', {
+            companyName: co.name, contactName: staff.name, subject: `Hold ending ${eventDayWords(until)}: ${r.ev.name}`,
+            headline: `The hold on “${r.ev.name}” ends ${eventDayWords(until)}.`,
+            body: `${r.ev.name} is held for ${eventDayWords(r.ev.eventDate)}${where}. If it is not confirmed by then, the hold is released and the room is offered to the waitlist, in order. To keep it, confirm the booking, or change how long it is held on the event.`,
+            path: `/crm/events/${r.ev.id}`, button: 'Open the event',
+          })
+        }
+        if (client) {
+          await d.services.emailService.send(client.email, 'eventNote', {
+            companyName: co.name, contactName: client.name, subject: `Your date is held until ${eventDayWords(until)}`,
+            headline: `We are holding ${eventDayWords(r.ev.eventDate)} for you until ${eventDayWords(until)}.`,
+            body: 'To keep the date, please confirm with us by then. After that it is released and may be offered to someone else.',
+          })
+        }
+        sent++
+      } catch (err: any) {
+        d.logger.warn('[events] hold reminder not sent', { event: r.ev.id, error: err?.message })
+      }
+    }
+  }
+  return sent
+}
+
+/**
+ * Releases each hold whose last day has passed on the venue's clock: back to an enquiry (it holds nothing), the expiry cleared, the
+ * time kept, and the slot offered to the first guest waiting for it. A hold with a payment recorded is not released — it loses its
+ * end day instead, so it stops being looked at, and stays a hold for staff to settle. Returns how many were released.
+ */
+export async function runHoldReleases(d: CrmDeps, now = new Date()): Promise<number> {
+  let released = 0
+  const companies = await d.db.select({ id: company.id, name: company.name, email: company.email }).from(company)
+  for (const co of companies) {
+    if (!(await holdOn(d, co.id))) continue
+    const today = await venueToday(d.db, co.id)
+    const lapsed = await d.db.select().from(event).where(and(eq(event.companyId, co.id), eq(event.status, 'tentative'), isNotNull(event.holdUntil), lt(event.holdUntil, today)))
+    for (const ev of lapsed) {
+      let outcome: 'released' | 'paid' | 'gone' = 'gone'
+      try {
+        outcome = await d.db.transaction(async (tx: any) => {
+          await lockEventBook(tx, co.id)
+          const [now1] = await tx.select().from(event).where(and(eq(event.id, ev.id), eq(event.status, 'tentative'), isNotNull(event.holdUntil), lt(event.holdUntil, today))).limit(1)
+          if (!now1) return 'gone' as const
+          const [inv] = await tx.select({ paid: invoice.amountPaid }).from(invoice).where(and(eq(invoice.eventId, ev.id), ne(invoice.status, 'void'))).limit(1)
+          if (inv && Number(inv.paid) > 0) {
+            await tx.update(event).set({ holdUntil: null, holdReminderSentAt: null, updatedAt: now }).where(eq(event.id, ev.id))
+            return 'paid' as const
+          }
+          await tx.update(event).set({ status: 'enquiry', holdUntil: null, holdReminderSentAt: null, holdReleasedAt: now, updatedAt: now }).where(eq(event.id, ev.id))
+          return 'released' as const
+        })
+      } catch (err: any) {
+        d.logger.warn('[events] hold not released', { event: ev.id, error: err?.message })
+        continue
+      }
+      if (outcome === 'gone') continue
+      d.realtime.emitToCompany(co.id, d.realtime.EVENTS.REFRESH, { entity: 'event' })
+      if (outcome === 'paid') {
+        await d.audit.log({ action: 'update', entity: 'event', entityId: ev.id, entityName: `${ev.name} — hold kept: a payment is recorded`, companyId: co.id })
+        continue
+      }
+      released++
+      await d.audit.log({ action: 'update', entity: 'event', entityId: ev.id, entityName: `${ev.name} — hold lapsed and released`, changes: { status: { from: 'tentative', to: 'enquiry' }, holdUntil: { from: ev.holdUntil, to: null } }, companyId: co.id })
+      await offerWaitlist(d, co.id, ev.spaceId, ev.eventDate)
+      const staff = await staffFor(d, co, ev.coordinatorId)
+      if (staff) {
+        await d.services.emailService.send(staff.email, 'eventNote', {
+          companyName: co.name, contactName: staff.name, subject: `Hold released: ${ev.name}`,
+          headline: `The hold on “${ev.name}” lapsed on ${eventDayWords(String(ev.holdUntil))} and was released.`,
+          body: `${ev.name} (${eventDayWords(ev.eventDate)}) is an enquiry again and no longer keeps its room. Guests waiting for the slot were offered it, in order.`,
+          path: `/crm/events/${ev.id}`, button: 'Open the event',
+        }).catch((err: any) => d.logger.warn('[events] hold release not emailed', { error: err?.message }))
+      }
+    }
+  }
+  return released
 }

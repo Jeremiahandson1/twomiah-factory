@@ -14,7 +14,7 @@
 // Moved from templates/crm-bar/backend/src/services/barRegister.ts. The arithmetic and every rule are unchanged (the
 // money is barCheckMoney.ts, untouched); the functions are made with the app's database, live updates, and the
 // grill, Regulars and gift-card services; the check-number counter and the reward-use counts are server/data/bar.ts.
-import { refreshMenu, servingNow, windowWords } from './menuDay.ts'
+import { giveBackToCount, refreshMenu, servingNow, takeFromCount, windowWords } from './menuDay.ts'
 import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import { canRedeem, rewardDiscountCents, type BasketLine, type Reward } from '@twomiah/tenant-backend'
 import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barTap, barTerminalCharge, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema/index.ts'
@@ -200,6 +200,8 @@ async function menuForRegister(companyId: string) {
     id: s.id, name: s.name, kind: s.kind,
     items: items.filter(i => i.sectionId === s.id).map(i => ({
       id: i.id, name: i.name, is86ed: i.is86ed, description: i.description, imageUrl: i.imageUrl,
+      // "12 left" (menu_item_counts): null when the item is not counted.
+      stockCount: i.stockCount,
       sizes: sizesOf(i, s.description).map(v => ({ id: v.id, name: v.name, priceCents: v.priceCents })),
       modifiers: modifiersOf(i),
     })),
@@ -267,6 +269,8 @@ async function addItem(actor: Actor, checkId: string, input: { menuItemId?: stri
         qty: qtyOf(input.qty), unitPriceCents: price, note, seat: seatOf(input.seat),
         toKitchen: row.item.toKitchen ?? (row.section?.kind !== 'drink'), addedById: actor.id, addedByName: actor.name, companyId,
       })
+      // A counted item ("12 left", menu_item_counts): the sale takes its share, and at zero the item 86es itself.
+      await takeFromCount(tx, companyId, row.item.id, qtyOf(input.qty))
     }
     await tx.update(barCheck).set({ updatedAt: new Date() }).where(eq(barCheck.id, checkId))
   })
@@ -286,9 +290,18 @@ async function updateItem(actor: Actor, itemId: string, patch: { qty?: number; n
     if (patch.qty !== undefined) {
       const q = Math.floor(Number(patch.qty))
       if (!Number.isFinite(q)) throw new CheckError('Check the quantity.')
-      if (q < 1) { await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId)); return it.checkId }
+      if (q < 1) {
+        await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId))
+        if (it.menuItemId && it.kind === 'item') await giveBackToCount(tx, companyId, it.menuItemId, it.qty)   // a counted item comes back to the count
+        return it.checkId
+      }
       if (q > 50) throw new CheckError('Check the quantity.')
       set.qty = q
+      // A counted item: more takes the difference, fewer gives it back.
+      if (it.menuItemId && it.kind === 'item' && q !== it.qty) {
+        if (q > it.qty) await takeFromCount(tx, companyId, it.menuItemId, q - it.qty)
+        else await giveBackToCount(tx, companyId, it.menuItemId, it.qty - q)
+      }
     }
     if (patch.note !== undefined) set.note = clean(patch.note, 140)
     if (patch.seat !== undefined) set.seat = seatOf(patch.seat)
@@ -318,10 +331,15 @@ async function voidItem(actor: Actor, itemId: string, reason: string, byName: st
     await refuseWhileOnReader(tx, companyId, it.checkId)
     if (it.state === 'void') throw new CheckError('Already voided.', 409)
     if (it.kind === 'reward') { await unredeemInTx(tx, companyId, it, byName); return it.checkId }
-    if (it.state === 'held' || (it.kind === 'giftcard' && !it.giftCardId)) { await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId)); return it.checkId }
+    if (it.state === 'held' || (it.kind === 'giftcard' && !it.giftCardId)) {
+      await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId))
+      if (it.menuItemId && it.kind === 'item') await giveBackToCount(tx, companyId, it.menuItemId, it.qty)   // a counted item comes back to the count
+      return it.checkId
+    }
     const why = clean(reason, 80)
     if (!why) throw new CheckError('Give a reason for the void.')
     await tx.update(barCheckItem).set({ state: 'void', voidReason: why, voidedByName: byName }).where(eq(barCheckItem.id, itemId))
+    if (it.menuItemId && it.kind === 'item') await giveBackToCount(tx, companyId, it.menuItemId, it.qty)
     const view = await getCheck(companyId, it.checkId, tx)
     // Voiding below what's already paid would owe the guest money: refuse (the transaction rolls the void back).
     if (view.totals.balanceCents < 0) throw new CheckError('That would take the check below what has been paid. Void a payment first.', 409)
@@ -495,6 +513,7 @@ async function checkFromOrderInTx(tx: Tx, by: Actor, o: { kind: 'kiosk' | 'onlin
   const [row] = await tx.insert(barCheck).values({ number, kind: o.kind, label: o.label.slice(0, 40), spot: o.spot, note: o.note, openedById: by.id || null, openedByName: by.name, companyId }).returning({ id: barCheck.id })
   for (const l of o.lines) {
     await tx.insert(barCheckItem).values({ checkId: row.id, menuItemId: l.menuItemId, name: l.name, size: l.size, qty: l.qty, unitPriceCents: l.unitPriceCents, note: l.note, toKitchen: l.toKitchen, addedById: by.id || null, addedByName: by.name, companyId })
+    await takeFromCount(tx, companyId, l.menuItemId, l.qty)   // a kiosk or website order takes from the count too
   }
   const fired = payment ? (await recordCardInTx(tx, by, row.id, payment, false)).fired : false
   return { checkId: row.id as string, number, fired }

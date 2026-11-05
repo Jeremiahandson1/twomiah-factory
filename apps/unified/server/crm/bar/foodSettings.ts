@@ -18,6 +18,8 @@ export interface FoodSettings {
     locationId: string | null
     locationAccount: string | null
     configurationId: string | null
+    /** A card tab open longer than this is released by itself (parity row 14, Toast's pre-auth settings): 1 to 168 hours. */
+    tabHoldHours: number
   }
   /** The register opens long tabs ("Mike's tab"). A bar's yes; a restaurant or a truck rings walk-ups and tables. */
   tabs: boolean
@@ -42,7 +44,7 @@ export class FoodSettingsError extends Error { constructor(message: string, publ
 
 export function foodDefaults(opts: { tabs?: boolean } = {}): FoodSettings {
   return {
-    terminal: { tipping: false, locationId: null, locationAccount: null, configurationId: null },
+    terminal: { tipping: false, locationId: null, locationAccount: null, configurationId: null, tabHoldHours: 24 },
     tabs: opts.tabs ?? true,
     kiosk: { payAtCounter: true, idleSeconds: 90, askTable: false },
     ordering: { paused: false, leadMinutes: 20 },
@@ -61,6 +63,7 @@ export function readFoodSettings(raw: unknown, defaults: FoodSettings): FoodSett
   return {
     terminal: {
       tipping: bool(t.tipping, defaults.terminal.tipping), locationId: strOrNull(t.locationId), locationAccount: strOrNull(t.locationAccount), configurationId: strOrNull(t.configurationId),
+      tabHoldHours: int(t.tabHoldHours, defaults.terminal.tabHoldHours, 1, 168),
     },
     tabs: bool(s.tabs, defaults.tabs),
     kiosk: { payAtCounter: bool(k.payAtCounter, defaults.kiosk.payAtCounter), idleSeconds: int(k.idleSeconds, defaults.kiosk.idleSeconds, 30, 600), askTable: bool(k.askTable, defaults.kiosk.askTable) },
@@ -88,6 +91,12 @@ export function deliveryUrl(company: 'doordash' | 'ubereats', v: unknown): strin
 export function applyFoodPatch(cur: FoodSettings, b: Record<string, any>): FoodSettings {
   const next: FoodSettings = JSON.parse(JSON.stringify(cur))
   if (b.tabs !== undefined) { if (typeof b.tabs !== 'boolean') throw new FoodSettingsError('Tabs is on or off.'); next.tabs = b.tabs }
+  // The tab window is the owner's to type; the rest of `terminal` (tipping, the Stripe ids) is the terminal's to write.
+  if (b.terminal && typeof b.terminal === 'object' && b.terminal.tabHoldHours !== undefined) {
+    const n = Math.round(Number(b.terminal.tabHoldHours))
+    if (!Number.isFinite(n) || n < 1 || n > 168) throw new FoodSettingsError('A card tab is released by itself after 1 to 168 hours.')
+    next.terminal.tabHoldHours = n
+  }
   if (b.kiosk && typeof b.kiosk === 'object') {
     if (b.kiosk.payAtCounter !== undefined) next.kiosk.payAtCounter = !!b.kiosk.payAtCounter
     if (b.kiosk.askTable !== undefined) next.kiosk.askTable = !!b.kiosk.askTable

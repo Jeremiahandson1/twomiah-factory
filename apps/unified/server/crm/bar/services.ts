@@ -15,9 +15,14 @@ import { createBarRegister } from './barRegister.ts'
 import { createBarReports } from './barReports.ts'
 import { createBarSchedule } from './barSchedule.ts'
 import { createBarStock } from './barStock.ts'
+import { createBarInvoices } from './barInvoices.ts'
+import { claudeInvoiceReader } from './barInvoiceReader.ts'
 import { createFoodSettings, foodDefaults } from './foodSettings.ts'
 import { createBarTerminal, terminalStripe } from './barTerminal.ts'
+import { createBarPayroll } from './barPayroll.ts'
+import { createBarLaborForecast } from './barLaborForecast.ts'
 import { createBarTips } from './barTips.ts'
+import { createBarTipSources } from './barTipSources.ts'
 import { createBarStaffRequests } from './barStaffRequests.ts'
 import { createBarReceipts } from './barReceipts.ts'
 import { createBarOrders } from './barOrders.ts'
@@ -35,9 +40,16 @@ export function createBarServices(d: CrmDeps) {
   const register = createBarRegister(db, emit, kitchen, loyalty, giftCards)
   const reports = createBarReports(db, live, register, (m) => d.services.emailService.sendRaw(m))
   const schedule = createBarSchedule(db, d.audit, live)
+  const labor = createBarLaborForecast({ db, live, schedule })
   const staffRequests = createBarStaffRequests(db, schedule, (m) => d.services.emailService.sendRaw(m), async (companyId) => (await db.select({ email: company.email }).from(company).where(eq(company.id, companyId)).limit(1))[0]?.email ?? null)
   const stock = createBarStock(db)
+  // Invoices read from a photo (restaurant-bar parity #7): the reader is Claude over the Messages API, the file store is the app's.
+  const invoices = createBarInvoices({ db, reader: () => claudeInvoiceReader, storage: () => d.services.storage as any })
   const tips = createBarTips(db, live)
+  const payroll = createBarPayroll({ db, tips })
+  // Tips from another register (Toast, Square) are read just before a night's tips are counted, when the venue has the feature on.
+  const tipSources = createBarTipSources(db, live, { logger: d.logger })
+  tips.setExternalRefresh(async (companyId, day) => (await d.features.isFeatureEnabled(companyId, 'bar_tip_import')) ? tipSources.importDay(companyId, day) : [])
   // Food service: the card reader on the business's own Stripe account, receipts, the kiosk and online orders.
   const food = createFoodSettings(db, foodDefaults({ tabs: d.settings?.foodService?.tabs }))
   const terminal = createBarTerminal({
@@ -68,6 +80,6 @@ export function createBarServices(d: CrmDeps) {
   }
   const sendEmail = (m: { to: string; subject: string; html: string; fromName?: string }) => d.services.emailService.sendRaw(m)
   const receipts = createBarReceipts({ db, register, timezone: (companyId) => reports.barTimezone(companyId), sendEmail, sendText })
-  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, staffRequests, stock, tips, food, terminal, receipts, orders }
+  return { live, floor, managers, giftCards, kitchen, loyalty, register, reports, schedule, staffRequests, stock, invoices, labor, tips, payroll, tipSources, food, terminal, receipts, orders }
 }
 export type BarServices = ReturnType<typeof createBarServices>

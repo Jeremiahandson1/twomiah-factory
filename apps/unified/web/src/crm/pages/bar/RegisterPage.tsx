@@ -20,7 +20,7 @@ import { ChargeWaiting, RefundDialog, ReceiptPanel, TabDialog, useCharge, type C
 
 interface Size { id: string; name: string; priceCents: number | null }
 interface Mod { id: string; name: string; priceCents: number }
-interface MenuItem { id: string; name: string; is86ed: boolean; sizes: Size[]; modifiers?: Mod[] }
+interface MenuItem { id: string; name: string; is86ed: boolean; stockCount?: number | null; sizes: Size[]; modifiers?: Mod[] }
 interface Section { id: string; name: string; kind: string; items: MenuItem[] }
 interface OpenRow { id: string; number: number; kind: string; label: string; spot: string | null; totalCents: number; balanceCents: number; itemCount: number; heldCount: number; foodUpAt: string | null; onGrill: number }
 interface Recent { id: string; number: number; label: string; status: string; totalCents: number | null; closedAt: string }
@@ -199,7 +199,7 @@ export default function RegisterPage() {
                 <button key={i.id} disabled={i.is86ed || !!busy} onClick={() => pick(i)}
                   className={`rounded-xl border min-h-[72px] px-3 py-2 text-left ${i.is86ed ? 'border-gray-200 bg-gray-100 text-gray-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500 line-through' : 'border-gray-300 bg-white text-gray-900 hover:bg-orange-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'}`}>
                   <span className="block font-semibold leading-tight">{i.name}</span>
-                  <span className={`block text-sm mt-1 ${i.is86ed ? '' : MUTED}`}>{i.is86ed ? "86'd" : price}</span>
+                  <span className={`block text-sm mt-1 ${i.is86ed ? '' : MUTED}`}>{i.is86ed ? "86'd" : price}{!i.is86ed && i.stockCount != null ? ` · ${i.stockCount} left` : ''}</span>
                 </button>
               );
             })}

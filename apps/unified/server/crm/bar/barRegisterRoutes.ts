@@ -282,8 +282,19 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   registerRoutes.post('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     try {
+      // Cash tips declared at clock-out (restaurant-bar parity #16): checked before anything is punched, recorded only on a clock-out.
+      const declaring = b.declaredTipCents !== undefined && b.declaredTipCents !== null && b.declaredTipCents !== '' && await isFeatureEnabled(actor.companyId, ['bar_declared_tips'])
+      if (declaring) try { bar.tips.checkCents(b.declaredTipCents) } catch (e: any) { return fail(c, 400, e?.message || 'Check the cash tips.') }
       const r = await punchByPin(actor, b.pin)
-      return one(c, { ok: true, ...r, on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
+      let declaredTip: { recordedCents: number } | { skipped: string } | undefined
+      if (declaring) {
+        if (r.action === 'out') {
+          try { declaredTip = { recordedCents: (await bar.tips.declareMine(actor.companyId, r.userId, { amountCents: b.declaredTipCents, mode: 'add' }, 'tablet')).amountCents } }
+          catch (e: any) { declaredTip = { skipped: e?.message || 'The cash tips were not recorded.' } }   // the clock-out stands
+        } else declaredTip = { skipped: 'Cash tips are taken when you clock out.' }
+      }
+      const { userId: _who, ...shown } = r
+      return one(c, { ok: true, ...shown, ...(declaredTip ? { declaredTip } : {}), on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
     } catch (e: any) {
       if (e instanceof RotaError) return fail(c, e.status as any, e.message)
       logger.error('[register] clock', { error: e?.message || String(e) })
