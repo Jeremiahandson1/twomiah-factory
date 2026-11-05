@@ -66,21 +66,27 @@ describe('item counts', () => {
   })
 
   test('the count comes back to its refresh figure at the next opening (5 AM with no hours set), and the item with it', async () => {
-    await k.B('PUT', `/api/bar/menu/items/${items.burger.id}/count`, { stockCount: 0, stockCountReset: 6 })
-    expect(await burgerOnRegister()).toMatchObject({ stockCount: 0, is86ed: true })
-    // It was set at 9 PM on a Monday in Eau Claire (pinned on the row, so the clock need not move and the sign-ins stand).
-    await (k.t.db as any).update(k.S.barMenuItem).set({ stockCountedAt: new Date('2026-11-03T03:00:00Z') }).where(eq(k.S.barMenuItem.id, items.burger.id))
-    const hours = { ...EMPTY_HOURS, timezone: 'America/Chicago' } as any
-    // Still the same night (midnight): nothing.
-    expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-03T06:00:00Z'))).toBe(0)
-    expect(await burgerOnRegister()).toMatchObject({ stockCount: 0, is86ed: true })
-    // Past 5 AM (6 AM): refreshed and back on - the same pass the menu's every read runs.
-    expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-03T12:00:00Z'))).toBe(1)
-    expect(await burgerOnRegister()).toMatchObject({ stockCount: 6, is86ed: false })
-    // Once per opening: refreshed at 6 AM, it is not refreshed again at 6:30.
-    expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-03T12:30:00Z'))).toBe(0)
-    // Switched off, the pass does nothing and the count is just a number nobody moves.
-    await k.features(BASE)
-    expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-04T12:00:00Z'))).toBe(0)
+    // Every menu read runs the same pass on the REAL clock, so the night is pinned: 10 PM that Monday, an hour after the count was
+    // set. (Written 10/31, when that Monday was still ahead; once it passed, a read refreshed the count.) Sign-ins issued at the
+    // real time stay good on a clock set back. Put back however the test ends.
+    setSystemTime(new Date('2026-11-03T04:00:00Z'))
+    try {
+      await k.B('PUT', `/api/bar/menu/items/${items.burger.id}/count`, { stockCount: 0, stockCountReset: 6 })
+      expect(await burgerOnRegister()).toMatchObject({ stockCount: 0, is86ed: true })
+      // It was set at 9 PM on a Monday in Eau Claire (pinned on the row, so the clock need not move and the sign-ins stand).
+      await (k.t.db as any).update(k.S.barMenuItem).set({ stockCountedAt: new Date('2026-11-03T03:00:00Z') }).where(eq(k.S.barMenuItem.id, items.burger.id))
+      const hours = { ...EMPTY_HOURS, timezone: 'America/Chicago' } as any
+      // Still the same night (midnight): nothing.
+      expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-03T06:00:00Z'))).toBe(0)
+      expect(await burgerOnRegister()).toMatchObject({ stockCount: 0, is86ed: true })
+      // Past 5 AM (6 AM): refreshed and back on - the same pass the menu's every read runs.
+      expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-03T12:00:00Z'))).toBe(1)
+      expect(await burgerOnRegister()).toMatchObject({ stockCount: 6, is86ed: false })
+      // Once per opening: refreshed at 6 AM, it is not refreshed again at 6:30.
+      expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-03T12:30:00Z'))).toBe(0)
+      // Switched off, the pass does nothing and the count is just a number nobody moves.
+      await k.features(BASE)
+      expect(await resetCountsAtOpen(k.t.db, k.companyId, hours, new Date('2026-11-04T12:00:00Z'))).toBe(0)
+    } finally { setSystemTime() }
   })
 })

@@ -116,7 +116,10 @@ describe('salon: team time off and closed periods', () => {
   })
 
   test('closed dates: only a manager sets them; they list what is booked, warn the desk, draw on every column, and online booking offers and takes nothing', async () => {
-    const closed = next(2, 12)      // a Tuesday, so online hours (Mon–Fri) would offer it if it were open
+    // A Tuesday, so online hours (Mon–Fri) would offer it if it were open. Always the Tuesday a week after next(2, 8), whose
+    // bookings it must not count (with next(2, 12) they were the same Tuesday whenever today was a Wednesday or Thursday), and
+    // early enough that the same Tuesday a week later is inside the 30-day online booking window (booking_settings.max_days_out).
+    const closed = next(2, 15)
     const asked = await as('ana', '/api/book-blocks/closed', 'POST', { name: 'Nope', startDate: closed, endDate: closed })
     expect([asked.status, asked.body.code]).toEqual([403, 'MANAGER_ONLY'])
     await book('owner', bea, '10:00', closed)

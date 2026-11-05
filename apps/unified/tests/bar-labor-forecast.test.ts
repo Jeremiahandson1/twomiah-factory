@@ -43,7 +43,7 @@ describe('sales by day and hour (pure)', () => {
     expect(forecastDay(new Map(), '2026-11-07', '2026-10-30', 4).samples).toBe(0)
   })
   test('a day the register took nothing (shut) is not a day of zero sales; the day being planned and today are never samples', () => {
-    const sparse = gridOf(sales.filter((s) => s.at.getDate() !== 16))           // the 16th was shut
+    const sparse = gridOf(sales.filter((s) => businessDayOf(s.at, TZ) !== '2026-10-16'))   // the 16th was shut (its night, on the bar's clock — not the host's)
     const f = forecastDay(sparse, '2026-11-06', '2026-10-30', 4)
     expect(f.sampleDays).toEqual(['2026-10-23', '2026-10-09']); expect(f.totalCents).toBe(35250)   // (32500 + 38000) / 2, not / 3
     expect(forecastDay(grid, '2026-10-30', '2026-10-30', 4).sampleDays).toEqual(['2026-10-23', '2026-10-16', '2026-10-09'])

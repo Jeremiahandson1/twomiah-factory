@@ -165,6 +165,9 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         const page = await t.call(`/api/visit-confirm/${token}`)
         expect(page.status).toBe(200)
         expect(await data(page)).toMatchObject({ jobId: j.id, title: 'Furnace tune-up', when: 'Saturday, October 31 at 9:00 AM', confirmed: false, companyName: 'Test Builders' })
+        // The button reads the REAL clock (a visit already past cannot be confirmed), so the visit is moved to the real tomorrow
+        // before it is pressed; the reminder above was sent on the pinned clock. (Written 10/31, when 10/31 was still ahead.)
+        await t.db.update(t.schema.job).set({ scheduledDate: tomorrow() } as any).where(eq(t.schema.job.id, j.id))
         const ok = await t.call(`/api/visit-confirm/${token}`, { method: 'POST', json: {} })
         expect(ok.status).toBe(200)
         expect(await data(ok)).toMatchObject({ confirmed: true })

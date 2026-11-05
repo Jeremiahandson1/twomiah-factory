@@ -211,6 +211,9 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
       field = as(await login('tia@test.example', 'Seat-pass-1'))
       // Tia works every day of the week, all day, so the next open slot is never a day away whatever the real clock says.
       await t.db.insert(t.schema.techHours).values([0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ companyId, userId: tia, weekday, startsAt: '00:00', endsAt: '23:59', kind: 'regular' })) as any)
+      // And only Tia takes visits: the owner has no hours of her own, so she falls back to the business hours (Mon–Fri 9–5) and
+      // was offered on a weekday (written on a Saturday, when she was not). Off for the whole booking window, whatever the day.
+      await t.db.insert(t.schema.techTimeOff).values({ companyId, userId: s.owner.id, startsOn: new Date(Date.now() - 2 * 86_400_000), endsOn: new Date(Date.now() + 30 * 86_400_000), note: 'Not taking visits in this test' } as any)
       await t.db.insert(t.schema.pricebookItem).values([
         { companyId, name: 'Furnace tune-up', type: 'service', price: '129.00', laborHours: '1', active: true, showToCustomer: true },
         { companyId, name: 'Drain cleaning', type: 'service', price: '199.00', laborHours: '1.5', active: true, showToCustomer: true },
