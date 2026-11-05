@@ -72,6 +72,7 @@
   "/api/sms/conversations",
   "/api/storms/events",
   "/api/support/kb",
+  "/api/team/assignable",
   "/api/text-activity/contact/:id"
  ]
 }

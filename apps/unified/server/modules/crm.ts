@@ -21,7 +21,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { asc, desc, eq as eqCol } from 'drizzle-orm'
+import { and, asc, desc, eq, eq as eqCol } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -61,6 +61,7 @@ import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
 import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
 import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
+import { attachedChecklistFiles } from '../crm/field/checklistLife.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH, pictureToken } from '../crm/comms/smsMedia.ts'
@@ -75,6 +76,7 @@ import { createQuoteLineImageRoutes } from '../crm/billing/quoteLineImages.ts'
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
+import { createJobConfirm } from '../crm/field/jobConfirm.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
@@ -227,7 +229,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ownContacts: (userId: string) => ownContactsWhere(db, userId),
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
-      extraFields: { optedOutSms: z.boolean().optional() },
+      extraFields: { optedOutSms: z.boolean().optional(), jobRemindersOff: z.boolean().optional() },
       // The one contact-delete rule, with its guards and its photo-file clean-up (contactDeleter above).
       deleter: contactDeleter,
       // The vertical's contact types, and what a converted lead becomes (CrmSettings.contacts; a dealership sells to
@@ -274,7 +276,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}),
-      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
+      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate, onPause: s.jobHooks.onPause, onResume: s.jobHooks.onResume,
       // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
       // Only for a business that has switched Tech Availability on.
       availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>
@@ -283,7 +285,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, user, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
     sendCosignEmail: (to: string, data: Record<string, unknown>) => s.emailService.send(to, 'quoteCosign', data),
@@ -305,7 +307,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A converted quote's invoice is numbered as every invoice is (CrmSettings.invoices.numbering; templates/crm-rv routes/quotes.ts).
       ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
       // A roofing proposal belongs to its job (quote.job_id; CrmSettings.roof).
-      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', ...(v.roof ? ['jobId'] : [])],
+      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', 'salespersonId', ...(v.roof ? ['jobId'] : [])],
       // An approved roofing proposal converts to a roofing job, made the one way a roofing job is made (ROOF-0001, titled
       // by the property address — server/crm/roof/jobs.ts insertRoofJob), at `signed`: an approved quote is the signed
       // contract. The CRM's default made a JOB-00001 at `pending`, a status no roofing screen has a column for.
@@ -347,7 +349,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         if (invoiceId) void syncEventInvoiceDueDate(db, invoiceId).catch((err: any) => logger.error('[events] invoice due-date sync failed', { error: err?.message }))
       },
     } : {}),
-    sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
+    // An invoice goes out with the checklist PDFs attached to it (crm/field/checklistLife.ts); one that cannot be read is left off.
+    sendInvoiceEmail: async (to: string, data: Record<string, unknown>) => {
+      const attachments = await attachedChecklistFiles(db, s.storage, String(data.invoiceId || ''))
+      return attachments.length ? s.emailService.send(to, 'invoiceSent', data, { attachments }) : s.emailService.sendInvoice(to, data)
+    },
     loadPdf: loadInvoicePdf, audit,
     options: {
       timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.earnCommission(invoiceId); await s.afterInvoicePaid(invoiceId) },
@@ -581,6 +587,19 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       loadInvoicePdf, loadQuotePdf,
       selections: createSelectionsService(own),
       fileService: s.storage,
+      // Field service, basic: the visits still to come, each one confirmed with a button (crm/field/jobConfirm.ts; the Job Reminders feature).
+      // (Only field service and basic list it in their portal menu — verticals' clientNav — and it answers only with Job Reminders on.)
+      upcomingVisits: (() => {
+        const confirm = createJobConfirm(own)
+        return {
+          list: (companyId: string, contactId: string) => confirm.upcomingFor(companyId, contactId),
+          confirm: async (companyId: string, contactId: string, jobId: string) => {
+            const [mine] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, companyId), eq(job.contactId, contactId))).limit(1)
+            if (!mine) return { ok: false as const, error: 'That visit was not found.', status: 404 }
+            return confirm.confirm(companyId, jobId, 'portal')
+          },
+        }
+      })(),
       // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       ...live, logger,

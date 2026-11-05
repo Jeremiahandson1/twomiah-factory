@@ -267,7 +267,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // funded payment, and a Financing page. Hidden until a real lender sandbox run passes (owner: untested features stay
   // off), so no plan, signup, Features page or Factory save switches it on, and nothing advertises it while it is off
   // (apps/unified/tests/not-ready-unseen.test.ts). The RV dealer's F&I page is its deal pipeline's, not this switch's.
-  { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
+  { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
   // Job Reminders — NOT ready (2026-10-30). The reminder text and email the day before a job the office booked
   // (apps/unified server/crm/field/jobReminders.ts), per business, off until the owner switches it on, inside the
   // business's sending hours. Hidden until the owner has tested it; no plan, signup or Features page switches it on.
@@ -309,6 +309,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'wip_report', name: 'Work in Progress Report', description: 'Each open project: contract value, billed, cost to date, percent complete and over or under billing', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'], hidden: true },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
   { id: 'ai_receptionist', name: 'AI Receptionist', description: 'Missed-call text-back: replies by text or email to missed calls and voicemails, with each voicemail written out', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-bar'] },
+  // Not ready (fieldservice parity item 12, 2026-10-31): the business's line answered live by an AI voice that books into real
+  // open slots, takes a message or transfers — every word from the owner's own wording. Needs the owner's voice provider
+  // account (docs/parity/fieldservice-ai-call-answering.md), so it stays hidden until that is in place.
+  { id: 'ai_call_answering', name: 'AI Call Answering', description: 'Answers your line live with an AI voice that books visits into real open times, answers hours, price and service-area questions, takes a message or transfers to a person — using only the wording and services you set', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-bar'], hidden: true, words: ['call answering', 'phone answering', 'live answering'] },
   { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', category: 'Advanced', core: false, templates: [] /* offered to no industry: no screen in any industry's menu or pages (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22). The id stays because the server still gates its API on it. */ },
 
   // Roofing

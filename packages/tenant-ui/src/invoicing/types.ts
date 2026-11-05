@@ -33,6 +33,8 @@ export interface InvoicingConfig {
   siteLabels?: { singular: string; plural: string }
   quoteEquipment?: boolean
   quoteCustomerMessage?: boolean
+  /** A quote names its salesperson (a team member; the writer by default): reports cut quotes by it. */
+  quoteSalesperson?: boolean
   quoteDecline?: boolean
   /**
    * A quote is for one of the customer's jobs (roofing: a proposal belongs to its job — quote.job_id): the form offers

@@ -31,6 +31,7 @@ import { ContactBookings } from '../booking/ContactBookings'
 import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 import { DocumentAside } from './invoiceAside'
+import { JobChecklistsPanel } from './checklistLife'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
 import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { ProposalPanel } from './proposalOptions'
@@ -92,7 +93,8 @@ export function ContactDetail() {
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
 // repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
-const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+// Find a time on the form follows Tech Availability (not ready): the slots come from people's shifts (/api/availability/find).
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking'), findTime: hasFeature('tech_availability') })
 /** The kinds of job the owner's checklists are written for (Job Checklists, NOT READY) — the job form's "Job type" box. */
 function useChecklistJobTypes(on: boolean): string[] | undefined {
   const [types, setTypes] = useState<string[] | undefined>()
@@ -120,7 +122,7 @@ export function JobDetail() {
     ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
-    aside: (job: Record<string, any>) => <JobBillingPanel job={job} />,
+    aside: (job: Record<string, any>) => <><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }
 /**
@@ -134,7 +136,7 @@ const invoicingFor = (hasFeature: (f: string) => boolean) => {
   // Optional quote lines and a deposit on approval: every vertical's quotes have the columns (server 0034).
   // Estimating: sections, markup on cost and multi-line lines for every vertical's quotes (server 0041). Allowances only where
   // Selections is on (a contractor's), cost codes only where quotes attach to projects (the approved quote's budget).
-  return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true,
+  return { ...i, siteLabels: v().sites, hasFeature, quoteOptions: true, quoteDeposit: true, quoteSalesperson: true,
     quoteSections: true, quoteAllowances: hasFeature('selections'), quoteCostCodes: !!i.projects && hasFeature('projects'),
     pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
     projects: !!i.projects && hasFeature('projects'),
@@ -173,7 +175,9 @@ export function InvoiceDetail() {
   return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can, aside: DocumentAside } as any} />
 }
 export function Schedule() {
-  const { hasFeature, user } = useAuth()
+  const { hasFeature, user, company } = useAuth()
+  // The business's hours muted on the calendar (Jobber), with Tech Availability (not ready): company.settings.businessHours.
+  const businessHours = hasFeature('tech_availability') ? ((company as any)?.settings?.businessHours ?? null) : null
   // The week's bookings are the app's own (one booking engine for site and CRM), when the business takes bookings.
   const loadBookings = async (from: string, to: string) => {
     if (!hasFeature('online_booking')) return []
@@ -186,7 +190,7 @@ export function Schedule() {
   // A lane per person and "Optimise route" where the jobs carry people (2026-10-24): every vertical with jobs but roofing,
   // whose work is booked to crews (assignedCrewId), not to people.
   const people = hasFeature('jobs') && !isRoofing
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => `/crm/bookings/${b.id}`, events: !!v().schedule?.events, lanes: people, routes: people, meId: (user as any)?.id ?? null }} />
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => `/crm/bookings/${b.id}`, events: !!v().schedule?.events, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 // A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are

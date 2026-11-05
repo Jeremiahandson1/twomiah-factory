@@ -13,7 +13,7 @@ import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
-interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[]; depositType: '' | 'percent' | 'fixed'; depositValue: number }
+interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[]; depositType: '' | 'percent' | 'fixed'; depositValue: number; salespersonId: string }
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
 // Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES), a viewed quote included.
 const EDITABLE = ['draft', 'sent', 'viewed']
@@ -61,10 +61,11 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
   // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
   const statuses = ['draft', 'sent', 'viewed', 'approved', 'rejected', ...(cfg.quoteDecline ? ['declined'] : []), 'expired']
-  const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()], depositType: '', depositValue: 0 })
+  const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()], depositType: '', depositValue: 0, salespersonId: 'me' })
 
   const [data, setData] = useState<Row[]>([])
   const [contacts, setContacts] = useState<Row[]>([])
+  const [team, setTeam] = useState<Array<{ id: string; name: string }>>([])
   const [projects, setProjects] = useState<Row[]>([])
   const [sites, setSites] = useState<Row[]>([])
   const [equipment, setEquipment] = useState<Row[]>([])
@@ -96,6 +97,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     } catch (e) { toast.error(errMsg(e, 'Failed to load quotes')) }
     finally { setLoading(false) }
     // Customers only: a vendor is never who a quote is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+    if (cfg.quoteSalesperson) api.get('/api/team/assignable').then((r: any) => { const list = r?.data || (Array.isArray(r) ? r : []); setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' }))) }).catch(() => setTeam([]))
     api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     /**
@@ -125,7 +127,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
+    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', salespersonId: item.salespersonId || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -137,7 +139,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       setEditing(null)
       setForm({
         name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: '', siteId: '', equipmentId: '', expiryDate: '',
-        taxRate: Number(item.taxRate), discount: 0, notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '',
+        // A copy is a new quote: its salesperson is chosen as a new quote's is (the one making it, unless changed).
+        salespersonId: 'me', taxRate: Number(item.taxRate), discount: 0, notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '',
         lineItems: formLines(item.lineItems?.filter((li: any) => !li.proposalOptionId), blankLine),
         depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0,
       })
@@ -231,6 +234,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       if (cfg.quoteJobs) payload.jobId = form.jobId
       if (cfg.quoteEquipment) payload.equipmentId = form.equipmentId
       if (cfg.quoteCustomerMessage) payload.customerMessage = form.customerMessage
+      // 'me' on a new quote = say nothing and the server credits the signed-in writer; '' = no salesperson.
+      if (cfg.quoteSalesperson && team.length > 0 && form.salespersonId !== 'me') payload.salespersonId = form.salespersonId || null
       if (cfg.quoteDeposit) { payload.depositType = form.depositType || null; payload.depositValue = form.depositType ? form.depositValue : null }
       let saved: any
       if (editing) { saved = await api.put(`/api/quotes/${editing.id}`, payload); toast.success('Quote updated') }
@@ -351,6 +356,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
           )}
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
           {markupDefaults && <MarginSummary lines={cfg.quoteOptions ? countedLines(form.lineItems) : form.lineItems} />}
+          {cfg.quoteSalesperson && team.length > 0 && <Field label="Salesperson"><select value={form.salespersonId} onChange={e => setForm((f) => ({ ...f, salespersonId: e.target.value }))} className={inputCls} aria-label="Salesperson">{!editing && <option value="me">Me</option>}<option value="">No salesperson</option>{team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>}
           {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm((f) => ({ ...f, customerMessage: e.target.value }))} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
           <Field label={<>Notes <span className="text-gray-500 dark:text-slate-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
           <Field label="Terms"><textarea value={form.terms} onChange={e => setForm((f) => ({ ...f, terms: e.target.value }))} rows={2} className={inputCls} /></Field>

@@ -1,7 +1,9 @@
 // Good / Better / Best beside a quote (server: packages/tenant-backend invoicing/quoteOptions.ts, quotes.ts /:id/proposal).
-// The office builds two to six options — lines, a brand, a warranty, photos — the homeowner picks one on the quote's link
-// and signs, and the quote's price becomes that option's. Here: what the options are and which is chosen, "Choose for the
-// customer" (a yes by phone), the editor, and building the options from a pricebook item's Good / Better / Best tiers.
+// The office builds up to three SETS of options — a set the customer picks one of (Good / Better / Best), or an additive set
+// they add any of (add-ons) — each option with lines, a brand, a warranty, photos, files, upgrades and its own discount. The
+// customer picks on the quote's link and signs, and the quote's price follows every pick. Here: what the sets are and what is
+// picked, "Choose for the customer" (a yes by phone), the upgrades of a picked option, the editor, building a set from a
+// pricebook item's Good / Better / Best tiers, and the proposal's pages (cover, About Us, terms to initial, a cosigner).
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, FileText, Layers, Loader2, Upload } from 'lucide-react'
 import { api } from '../api'
@@ -14,6 +16,9 @@ const client = api as any
 const OPEN = ['draft', 'sent', 'viewed']
 const MAX_OPTIONS = 6
 const MAX_PHOTOS = 6
+const MAX_SETS = 3
+type SetKind = 'one' | 'any'
+const KIND_LABEL: Record<SetKind, string> = { one: 'The customer picks one', any: 'The customer adds any they want' }
 
 interface Attachment { name: string; url: string }
 interface DocumentView {
@@ -34,15 +39,20 @@ async function uploadProposalFile(quoteId: string, file: File): Promise<{ url: s
 
 interface OptionView {
   id: string; name: string; tier: string | null; brand: string | null; warranty: string | null; description: string | null
-  photos: string[]; recommended: boolean; chosen: boolean; price: string; lines: Array<LineItemInput & { id?: string; total?: string }>
+  photos: string[]; recommended: boolean; chosen: boolean; price: string; addPrice?: string
+  setIndex?: number; setName?: string; setKind?: SetKind
+  lines: Array<LineItemInput & { id?: string; total?: string }>
   upgrades?: Array<LineItemInput & { id?: string; total?: string; selected?: boolean }>
   attachments?: Attachment[]
   discount?: string; discountCents?: number; discountPercent?: number
 }
+interface SetView { index: number; name: string; kind: SetKind; options: OptionView[]; chosenOptionIds: string[]; needsChoice: boolean }
 /** One discount per option: nothing, a dollar amount (kept as cents when saved) or a percent of the option's price before upgrades. */
 interface Draft { attachments: Attachment[]; name: string; tier: string; brand: string; warranty: string; description: string; photos: string[]; recommended: boolean; lines: LineItemInput[]; upgrades: LineItemInput[]; discountType: '' | 'amount' | 'percent'; discountValue: string }
+interface SetDraft { name: string; kind: SetKind; options: Draft[] }
 
 const blank = (tier = ''): Draft => ({ name: tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : '', tier, brand: '', warranty: '', description: '', photos: [], recommended: false, attachments: [], lines: [{ description: '', quantity: 1, unitPrice: 0 }], upgrades: [], discountType: '', discountValue: '' })
+const blankSet = (kind: SetKind = 'one'): SetDraft => ({ name: '', kind, options: kind === 'one' ? [blank('good'), blank('better'), blank('best')] : [blank(), blank()] })
 const cleanLine = (l: LineItemInput & { id?: string }): LineItemInput => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), ...(l.type ? { type: l.type } : {}), ...(l.unitCost !== undefined && l.unitCost !== null ? { unitCost: Number(l.unitCost) } : {}), ...(l.pricebookItemId ? { pricebookItemId: l.pricebookItemId } : {}) })
 const fromView = (o: OptionView): Draft => ({
   attachments: o.attachments || [],
@@ -52,26 +62,34 @@ const fromView = (o: OptionView): Draft => ({
   name: o.name, tier: o.tier || '', brand: o.brand || '', warranty: o.warranty || '', description: o.description || '', photos: o.photos || [], recommended: o.recommended,
   lines: o.lines.map((l) => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), ...(l.type ? { type: l.type } : {}), ...(l.unitCost !== undefined && l.unitCost !== null ? { unitCost: Number(l.unitCost) } : {}), ...(l.pricebookItemId ? { pricebookItemId: l.pricebookItemId } : {}) })),
 })
+/** The sets as the server answers them; a quote answered before sets existed (options only) is one pick-one set. */
+const setsOf = (proposal: any): SetView[] => {
+  if (!proposal) return []
+  if (Array.isArray(proposal.sets) && proposal.sets.length) return proposal.sets
+  const options: OptionView[] = proposal.options || []
+  return options.length ? [{ index: 0, name: 'Options', kind: 'one', options, chosenOptionIds: options.filter((o) => o.chosen).map((o) => o.id), needsChoice: !options.some((o) => o.chosen) }] : []
+}
 
 /** The side panel of a quote. Nothing for a seat that cannot read quotes, a business without the feature that has no options yet, or another document. */
 export function ProposalPanel({ record }: { record: Record<string, any> }) {
   const { hasFeature, can } = useAuth()
   const toast = useToast()
-  const options: OptionView[] = record.proposal?.options || []
+  const sets = setsOf(record.proposal)
+  const optionCount = sets.reduce((n, s) => n + s.options.length, 0)
   const mayEdit = hasFeature('quote_proposals') && can('quotes:update') && OPEN.includes(record.status)
   const mayChoose = can('quotes:update') && OPEN.includes(record.status)
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [pages, setPages] = useState(false)
   const doc: DocumentView | null = record.document || null
-  if (!can('quotes:read') || (!options.length && !hasFeature('quote_proposals'))) return null
+  if (!can('quotes:read') || (!optionCount && !hasFeature('quote_proposals'))) return null
 
   // The page reads the quote when it opens; a change here reloads it, so the total and the lines follow.
   const reload = () => window.location.reload()
-  const choose = async (optionId: string) => {
+  const choose = async (optionId: string, chosen = true) => {
     setBusy(true)
-    try { await client.post(`/api/quotes/${record.id}/proposal/choose`, { optionId }); toast.success('Option chosen'); reload() }
-    catch (e) { toast.error(errMsg(e, 'Could not choose that option')); setBusy(false) }
+    try { await client.post(`/api/quotes/${record.id}/proposal/choose`, { optionId, chosen }); toast.success(chosen ? 'Option chosen' : 'Add-on removed'); reload() }
+    catch (e) { toast.error(errMsg(e, 'Could not change that option')); setBusy(false) }
   }
   // The office ticks an upgrade of the chosen option for a customer who asked by phone.
   const upgrade = async (lineItemId: string, selected: boolean) => {
@@ -85,32 +103,41 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
     catch (e) { toast.error(errMsg(e, 'Could not send it')) }
     finally { setBusy(false) }
   }
+  const needsChoice = !!record.proposal?.needsChoice
   return (
     <section aria-label="Options" data-testid="proposal-panel" className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
       <h2 className="font-semibold mb-3 flex items-center gap-2"><Layers className="w-4 h-4" aria-hidden="true" />Options to choose from</h2>
-      {options.length === 0 && <p className="text-gray-600 dark:text-slate-300">Offer the customer a choice — Good, Better, Best — and let them pick one and sign.</p>}
-      {options.length > 0 && (
+      {optionCount === 0 && <p className="text-gray-600 dark:text-slate-300">Offer the customer a choice — Good, Better, Best — or add-ons they can take any of, and let them pick and sign.</p>}
+      {optionCount > 0 && (
         <>
-          <p className="mb-2 text-gray-600 dark:text-slate-300">{record.proposal.needsChoice ? 'The customer has not chosen yet. Each price is for the whole job; the quote total counts only the lines every option shares until one is chosen.' : 'The customer chose one. The quote is priced at that option.'}</p>
-          <ul className="space-y-2">
-            {options.map((o) => (
-              <li key={o.id} className={`rounded-lg border p-3 ${o.chosen ? 'border-green-600 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-slate-700'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium">{o.name}{o.recommended ? <span className="ml-2 text-xs text-orange-700 dark:text-orange-200">Recommended</span> : null}{o.chosen ? <span className="ml-2 text-xs text-green-800 dark:text-green-300">Chosen</span> : null}</p>
-                    {(o.brand || o.warranty) && <p className="text-xs text-gray-600 dark:text-slate-300">{[o.brand, o.warranty].filter(Boolean).join(' · ')}</p>}
-                    <p className="text-xs text-gray-600 dark:text-slate-300">{o.lines.length} line{o.lines.length === 1 ? '' : 's'}{o.photos.length ? `, ${o.photos.length} photo${o.photos.length === 1 ? '' : 's'}` : ''}{(o.upgrades || []).length ? `, ${o.upgrades!.length} upgrade${o.upgrades!.length === 1 ? '' : 's'}` : ''}{Number(o.discount) > 0 ? `, ${money(o.discount)} off` : ''}</p>
-                    {o.chosen && (o.upgrades || []).length > 0 && (
-                      <ul className="mt-1 space-y-0.5 text-xs">{o.upgrades!.map((u) => <li key={u.id}><label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!u.selected} disabled={!mayChoose || busy} onChange={(e) => upgrade(u.id!, e.target.checked)} aria-label={`Include ${u.description}`} /> Upgrade: {u.description} ({money(u.total)})</label></li>)}</ul>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0"><p className="font-semibold">{money(o.price)}</p>
-                    {mayChoose && !o.chosen && <button type="button" disabled={busy} onClick={() => choose(o.id)} className="text-xs font-medium text-orange-700 underline dark:text-orange-200">Choose for the customer</button>}
-                  </div>
-                </div>
-              </li>
+          <p className="mb-2 text-gray-600 dark:text-slate-300">{needsChoice ? 'The customer has not chosen yet. Each price is for the whole job with that option; the quote total counts only what is chosen so far.' : 'The customer has chosen. The quote is priced at their picks.'}</p>
+          <div className="space-y-4">
+            {sets.map((s) => (
+              <div key={s.index} data-testid="proposal-set">
+                {sets.length > 1 || s.kind === 'any' ? <p className="mb-1 font-medium">{s.name} <span className="text-xs font-normal text-gray-600 dark:text-slate-300">· {s.kind === 'any' ? 'add any' : 'choose one'}{s.needsChoice ? ' · not chosen yet' : ''}</span></p> : null}
+                <ul className="space-y-2">
+                  {s.options.map((o) => (
+                    <li key={o.id} className={`rounded-lg border p-3 ${o.chosen ? 'border-green-600 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-slate-700'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium">{o.name}{o.recommended ? <span className="ml-2 text-xs text-orange-700 dark:text-orange-200">Recommended</span> : null}{o.chosen ? <span className="ml-2 text-xs text-green-800 dark:text-green-300">{s.kind === 'any' ? 'Added' : 'Chosen'}</span> : null}</p>
+                          {(o.brand || o.warranty) && <p className="text-xs text-gray-600 dark:text-slate-300">{[o.brand, o.warranty].filter(Boolean).join(' · ')}</p>}
+                          <p className="text-xs text-gray-600 dark:text-slate-300">{o.lines.length} line{o.lines.length === 1 ? '' : 's'}{o.photos.length ? `, ${o.photos.length} photo${o.photos.length === 1 ? '' : 's'}` : ''}{(o.upgrades || []).length ? `, ${o.upgrades!.length} upgrade${o.upgrades!.length === 1 ? '' : 's'}` : ''}{Number(o.discount) > 0 ? `, ${money(o.discount)} off` : ''}</p>
+                          {o.chosen && (o.upgrades || []).length > 0 && (
+                            <ul className="mt-1 space-y-0.5 text-xs">{o.upgrades!.map((u) => <li key={u.id}><label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!u.selected} disabled={!mayChoose || busy} onChange={(e) => upgrade(u.id!, e.target.checked)} aria-label={`Include ${u.description}`} /> Upgrade: {u.description} ({money(u.total)})</label></li>)}</ul>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0"><p className="font-semibold">{s.kind === 'any' ? `+ ${money(o.addPrice ?? o.price)}` : money(o.price)}</p>
+                          {mayChoose && s.kind === 'one' && !o.chosen && <button type="button" disabled={busy} onClick={() => choose(o.id)} className="text-xs font-medium text-orange-700 underline dark:text-orange-200">Choose for the customer</button>}
+                          {mayChoose && s.kind === 'any' && <button type="button" disabled={busy} onClick={() => choose(o.id, !o.chosen)} className="text-xs font-medium text-orange-700 underline dark:text-orange-200">{o.chosen ? 'Remove for the customer' : 'Add for the customer'}</button>}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </>
       )}
       {doc?.cosigner && (
@@ -120,9 +147,9 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
         </p>
       )}
       {doc && doc.termsClauses.length > 0 && <p className="mt-1 text-xs text-gray-700 dark:text-slate-300">{doc.termsClauses.length} term{doc.termsClauses.length === 1 ? '' : 's'} to initial{doc.initialed ? `; initialed (${doc.initialed})` : ''}.</p>}
-      {mayEdit && <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setEditing(true)} disabled={busy}>{options.length ? 'Edit options' : 'Add options'}</Button><Button variant="secondary" onClick={() => setPages(true)} disabled={busy}>Proposal pages</Button></div>}
+      {mayEdit && <div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setEditing(true)} disabled={busy}>{optionCount ? 'Edit options' : 'Add options'}</Button><Button variant="secondary" onClick={() => setPages(true)} disabled={busy}>Proposal pages</Button></div>}
       {pages && <DocumentEditor quote={record} initial={doc} onClose={() => setPages(false)} onSaved={reload} />}
-      {editing && <OptionsEditor quote={record} initial={options.map(fromView)} onClose={() => setEditing(false)} onSaved={reload} />}
+      {editing && <OptionsEditor quote={record} initial={sets.map((s) => ({ name: sets.length > 1 || s.kind === 'any' ? s.name : '', kind: s.kind, options: s.options.map(fromView) }))} onClose={() => setEditing(false)} onSaved={reload} />}
     </section>
   )
 }
@@ -134,9 +161,9 @@ const discountOf = (d: Draft) => {
   return d.discountType === 'amount' ? { type: 'amount' as const, cents: Math.round(v * 100) } : { type: 'percent' as const, percent: v }
 }
 
-function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<string, any>; initial: Draft[]; onClose: () => void; onSaved: () => void }) {
+function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<string, any>; initial: SetDraft[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast()
-  const [drafts, setDrafts] = useState<Draft[]>(initial.length ? initial : [blank('good'), blank('better'), blank('best')])
+  const [sets, setSets] = useState<SetDraft[]>(initial.length ? initial : [blankSet('one')])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -144,8 +171,9 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
   const [items, setItems] = useState<Array<{ id: string; name: string }>>([])
   const [pickItem, setPickItem] = useState('')
   const { hasFeature } = useAuth()
-  const change = (next: Draft[]) => { setDrafts(next); setDirty(true) }
-  const patch = (i: number, p: Partial<Draft>) => change(drafts.map((d, j) => (j === i ? { ...d, ...p } : d)))
+  const change = (next: SetDraft[]) => { setSets(next); setDirty(true) }
+  const patchSet = (si: number, p: Partial<SetDraft>) => change(sets.map((s, j) => (j === si ? { ...s, ...p } : s)))
+  const patch = (si: number, i: number, p: Partial<Draft>) => patchSet(si, { options: sets[si].options.map((d, j) => (j === i ? { ...d, ...p } : d)) })
 
   // The job's own photos, to choose an option's pictures from (a roofer takes them on the phone); the pricebook, for tiers.
   useEffect(() => {
@@ -153,19 +181,29 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
     if (hasFeature('pricebook')) client.get('/api/pricebook/items', { limit: 200, active: 'true' }).then((r: any) => setItems((r?.data || []).map((x: any) => ({ id: x.id, name: x.name })))).catch(() => {})
   }, [quote.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const body = () => drafts.map((d) => ({
-    name: d.name, tier: d.tier || null, brand: d.brand || null, warranty: d.warranty || null, description: d.description || null,
-    photos: d.photos, recommended: d.recommended, attachments: d.attachments,
-    lines: d.lines.filter((l) => l.description.trim()).map(cleanLine),
-    upgrades: d.upgrades.filter((l) => l.description.trim()).map(cleanLine),
-    discount: discountOf(d),
+  const body = () => sets.map((s) => ({
+    name: s.name.trim() || null, kind: s.kind,
+    options: s.options.map((d) => ({
+      name: d.name, tier: d.tier || null, brand: d.brand || null, warranty: d.warranty || null, description: d.description || null,
+      photos: d.photos, recommended: d.recommended, attachments: d.attachments,
+      lines: d.lines.filter((l) => l.description.trim()).map(cleanLine),
+      upgrades: d.upgrades.filter((l) => l.description.trim()).map(cleanLine),
+      discount: discountOf(d),
+    })),
   }))
   const save = async () => {
-    const bad = drafts.findIndex((d) => d.discountType && !(Number(d.discountValue) > 0))
-    if (bad >= 0) { setError(`Option ${bad + 1}: enter the discount, or choose "No discount".`); return }
+    for (const [si, s] of sets.entries()) {
+      const bad = s.options.findIndex((d) => d.discountType && !(Number(d.discountValue) > 0))
+      if (bad >= 0) { setError(`${sets.length > 1 ? `Set ${si + 1}, o` : 'O'}ption ${bad + 1}: enter the discount, or choose "No discount".`); return }
+    }
     setSaving(true); setError('')
-    try { await client.put(`/api/quotes/${quote.id}/proposal`, { options: body() }); toast.success('Options saved'); onSaved() }
+    try { await client.put(`/api/quotes/${quote.id}/proposal`, { sets: body() }); toast.success('Options saved'); onSaved() }
     catch (e) { setError(errMsg(e, 'Could not save the options')); setSaving(false) }
+  }
+  const clear = async () => {
+    setSaving(true); setError('')
+    try { await client.put(`/api/quotes/${quote.id}/proposal`, { sets: [] }); toast.success('Options removed'); onSaved() }
+    catch (e) { setError(errMsg(e, 'Could not remove the options')); setSaving(false) }
   }
   const fromPricebook = async () => {
     if (!pickItem) return
@@ -173,100 +211,116 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
     try { await client.post(`/api/quotes/${quote.id}/proposal/from-pricebook`, { pricebookItemId: pickItem }); toast.success('Options built from the price book'); onSaved() }
     catch (e) { setError(errMsg(e, 'Could not build the options from that item')); setSaving(false) }
   }
-  // Flip the order the customer sees the options in.
-  const move = (i: number, by: -1 | 1) => { const j = i + by; if (j < 0 || j >= drafts.length) return; const next = [...drafts]; [next[i], next[j]] = [next[j], next[i]]; change(next) }
+  // Flip the order the customer sees a set's options in.
+  const move = (si: number, i: number, by: -1 | 1) => { const opts = sets[si].options; const j = i + by; if (j < 0 || j >= opts.length) return; const next = [...opts]; [next[i], next[j]] = [next[j], next[i]]; patchSet(si, { options: next }) }
   // A photo sent from this screen straight onto the option, and a brochure or spec sheet attached to it.
   const [uploading, setUploading] = useState(false)
-  const sendFile = async (i: number, file: File | undefined, as: 'photo' | 'file') => {
+  const sendFile = async (si: number, i: number, file: File | undefined, as: 'photo' | 'file') => {
     if (!file) return
     setUploading(true); setError('')
     try {
       const got = await uploadProposalFile(quote.id, file)
+      const d = sets[si].options[i]
       if (as === 'photo') {
         if (!got.contentType.startsWith('image/')) { setError('That is not a picture. Use Attach a file for a PDF.'); return }
-        if (drafts[i].photos.length >= MAX_PHOTOS) { setError(`An option shows at most ${MAX_PHOTOS} photos.`); return }
-        patch(i, { photos: [...drafts[i].photos, got.url] })
-      } else patch(i, { attachments: [...drafts[i].attachments, { name: got.name, url: got.url }].slice(0, 8) })
+        if (d.photos.length >= MAX_PHOTOS) { setError(`An option shows at most ${MAX_PHOTOS} photos.`); return }
+        patch(si, i, { photos: [...d.photos, got.url] })
+      } else patch(si, i, { attachments: [...d.attachments, { name: got.name, url: got.url }].slice(0, 8) })
     } catch (e) { setError(errMsg(e, 'Could not upload that file')) } finally { setUploading(false) }
   }
-  const togglePhoto = (i: number, url: string) => {
-    const has = drafts[i].photos.includes(url)
-    if (!has && drafts[i].photos.length >= MAX_PHOTOS) { setError(`An option shows at most ${MAX_PHOTOS} photos.`); return }
-    setError(''); patch(i, { photos: has ? drafts[i].photos.filter((p) => p !== url) : [...drafts[i].photos, url] })
+  const togglePhoto = (si: number, i: number, url: string) => {
+    const d = sets[si].options[i]
+    const has = d.photos.includes(url)
+    if (!has && d.photos.length >= MAX_PHOTOS) { setError(`An option shows at most ${MAX_PHOTOS} photos.`); return }
+    setError(''); patch(si, i, { photos: has ? d.photos.filter((p) => p !== url) : [...d.photos, url] })
   }
 
   return (
     <Modal isOpen onClose={onClose} title="Options to choose from" size="xl" dirty={dirty}>
       <div className="space-y-6">
-        <p className="text-sm text-gray-600 dark:text-slate-300">Each option is priced as the whole job: the lines on the quote itself are in every option, and the lines you add here are that option's own. The customer picks one and signs.</p>
+        <p className="text-sm text-gray-600 dark:text-slate-300">The lines on the quote itself are in every option. A set the customer picks one of is priced as the whole job with that option; an add-on set is anything they want on top, each at what it adds. Up to {MAX_SETS} sets.</p>
         {items.length > 0 && (
           <div className="flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
-            <Field label="Build the options from a price book item's Good / Better / Best">
+            <Field label="Build one set from a price book item's Good / Better / Best (replaces the sets below)">
               <select className={selectCls} value={pickItem} onChange={(e) => setPickItem(e.target.value)} aria-label="Price book item"><option value="">Choose an item…</option>{items.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
             </Field>
             <Button variant="secondary" onClick={fromPricebook} disabled={!pickItem || saving}>Build options</Button>
           </div>
         )}
-        {drafts.map((d, i) => (
-          <fieldset key={i} className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700">
-            <legend className="px-1 text-sm font-semibold">Option {i + 1}
-              <span className="ml-2 inline-flex gap-1 align-middle">
-                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move option ${i + 1} up`} className="rounded border border-gray-300 p-0.5 disabled:opacity-40 dark:border-slate-600"><ArrowUp className="w-3.5 h-3.5" /></button>
-                <button type="button" onClick={() => move(i, 1)} disabled={i === drafts.length - 1} aria-label={`Move option ${i + 1} down`} className="rounded border border-gray-300 p-0.5 disabled:opacity-40 dark:border-slate-600"><ArrowDown className="w-3.5 h-3.5" /></button>
-              </span>
-            </legend>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Name"><input className={inputCls} value={d.name} maxLength={80} onChange={(e) => patch(i, { name: e.target.value })} aria-label={`Option ${i + 1} name`} /></Field>
-              <Field label="Brand"><input className={inputCls} value={d.brand} maxLength={120} placeholder="e.g. GAF Timberline HDZ" onChange={(e) => patch(i, { brand: e.target.value })} aria-label={`Option ${i + 1} brand`} /></Field>
-              <Field label="Level"><select className={`${inputCls}`} value={d.tier} onChange={(e) => patch(i, { tier: e.target.value })} aria-label={`Option ${i + 1} level`}><option value="">—</option><option value="good">Good</option><option value="better">Better</option><option value="best">Best</option></select></Field>
-            </div>
-            <Field label="Warranty"><input className={inputCls} value={d.warranty} maxLength={300} placeholder="e.g. Lifetime shingle warranty, 10-year workmanship" onChange={(e) => patch(i, { warranty: e.target.value })} aria-label={`Option ${i + 1} warranty`} /></Field>
-            <Field label="What the customer is told"><textarea className={inputCls} rows={2} value={d.description} maxLength={2000} onChange={(e) => patch(i, { description: e.target.value })} aria-label={`Option ${i + 1} description`} /></Field>
-            <Field label="Photos" hint={`Up to ${MAX_PHOTOS}. Pick from the job's photos, or paste an https address, one per line.`}>
-              {jobPhotos.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {jobPhotos.map((p) => (
-                    <button type="button" key={p.id} onClick={() => togglePhoto(i, p.url)} aria-pressed={d.photos.includes(p.url)} aria-label={`${d.photos.includes(p.url) ? 'Remove' : 'Use'} ${p.sourcePhotoId ? 'marked copy of photo' : 'photo'} ${p.caption || ''}`.trim()} className={`relative h-14 w-14 overflow-hidden rounded border-2 ${d.photos.includes(p.url) ? 'border-orange-600' : 'border-transparent'}`}><img src={p.url} alt={p.caption || 'Job photo'} className="h-full w-full object-cover" />{p.sourcePhotoId && <span className="absolute left-0 top-0 rounded-br bg-orange-600 px-1 text-[9px] font-semibold text-white">Marked</span>}</button>
-                  ))}
-                </div>
-              )}
-              <label className="mb-2 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Upload a photo
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading} aria-label={`Option ${i + 1} upload a photo`} onChange={(e) => { sendFile(i, e.target.files?.[0], 'photo'); e.target.value = '' }} /></label>
-              <textarea className={inputCls} rows={2} value={d.photos.filter((p) => !jobPhotos.some((j) => j.url === p)).join('\n')} aria-label={`Option ${i + 1} photo addresses`}
-                onChange={(e) => patch(i, { photos: [...d.photos.filter((p) => jobPhotos.some((j) => j.url === p)), ...e.target.value.split('\n').map((x) => x.trim()).filter(Boolean)].slice(0, MAX_PHOTOS) })} />
-            </Field>
-            <LineItemsEditor items={d.lines} onChange={(lines) => patch(i, { lines })} />
-            <Field label="Brochures and files for this option" hint="A manufacturer's brochure or spec sheet (PDF or picture). The customer can open it; a PDF's pages follow the proposal in its PDF.">
-              <ul className="mb-2 space-y-1 text-sm">{d.attachments.map((a) => <li key={a.url} className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-1"><FileText className="w-4 h-4" aria-hidden="true" />{a.name}</span><button type="button" className="text-red-700 underline dark:text-red-300" onClick={() => patch(i, { attachments: d.attachments.filter((x) => x.url !== a.url) })}>Remove</button></li>)}</ul>
-              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Attach a file
-                <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading || d.attachments.length >= 8} aria-label={`Option ${i + 1} attach a file`} onChange={(e) => { sendFile(i, e.target.files?.[0], 'file'); e.target.value = '' }} /></label>
-            </Field>
-            <div className="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
-              <p className="text-sm font-medium">Upgrades for this option</p>
-              <p className="text-xs text-gray-600 dark:text-slate-300">Add-ons the customer can tick after they choose this option, such as copper valleys. They are not in the option's price until ticked.</p>
-              <LineItemsEditor items={d.upgrades} onChange={(upgrades) => patch(i, { upgrades })} />
-            </div>
+        {sets.map((s, si) => (
+          <fieldset key={si} className="space-y-4 rounded-xl border-2 border-gray-300 p-4 dark:border-slate-600" data-testid="set-editor">
+            <legend className="px-1 text-sm font-semibold">Set {si + 1}{s.name ? `: ${s.name}` : ''}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Discount on this option">
-                <select className={inputCls} value={d.discountType} onChange={(e) => patch(i, { discountType: e.target.value as Draft['discountType'], discountValue: e.target.value ? d.discountValue : '' })} aria-label={`Option ${i + 1} discount type`}><option value="">No discount</option><option value="amount">A dollar amount</option><option value="percent">A percent of the option</option></select>
-              </Field>
-              {d.discountType && <Field label={d.discountType === 'amount' ? 'Dollars off' : 'Percent off'} hint="Taken off the option's price before its upgrades; shown to the customer on the option.">
-                <input className={inputCls} type="number" min="0" step={d.discountType === 'amount' ? '0.01' : '0.1'} max={d.discountType === 'percent' ? 100 : undefined} value={d.discountValue} onChange={(e) => patch(i, { discountValue: e.target.value })} aria-label={`Option ${i + 1} discount`} />
-              </Field>}
+              <Field label={sets.length > 1 ? 'Set name (the customer sees it)' : 'Set name (optional)'}><input className={inputCls} value={s.name} maxLength={80} placeholder="e.g. Furnace, Thermostat, Add-ons" onChange={(e) => patchSet(si, { name: e.target.value })} aria-label={`Set ${si + 1} name`} /></Field>
+              <Field label="How the customer chooses"><select className={selectCls} value={s.kind} onChange={(e) => patchSet(si, { kind: e.target.value as SetKind })} aria-label={`Set ${si + 1} kind`}>{(Object.keys(KIND_LABEL) as SetKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}</select></Field>
             </div>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.recommended} onChange={(e) => change(drafts.map((x, j) => ({ ...x, recommended: j === i ? e.target.checked : false })))} /> Recommended</label>
-              {drafts.length > 2 && <button type="button" className="text-sm text-red-700 underline dark:text-red-300" onClick={() => change(drafts.filter((_, j) => j !== i))}>Remove this option</button>}
+            {s.options.map((d, i) => (
+              <fieldset key={i} className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700">
+                <legend className="px-1 text-sm font-semibold">Option {i + 1}
+                  <span className="ml-2 inline-flex gap-1 align-middle">
+                    <button type="button" onClick={() => move(si, i, -1)} disabled={i === 0} aria-label={`Move set ${si + 1} option ${i + 1} up`} className="rounded border border-gray-300 p-0.5 disabled:opacity-40 dark:border-slate-600"><ArrowUp className="w-3.5 h-3.5" /></button>
+                    <button type="button" onClick={() => move(si, i, 1)} disabled={i === s.options.length - 1} aria-label={`Move set ${si + 1} option ${i + 1} down`} className="rounded border border-gray-300 p-0.5 disabled:opacity-40 dark:border-slate-600"><ArrowDown className="w-3.5 h-3.5" /></button>
+                  </span>
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Name"><input className={inputCls} value={d.name} maxLength={80} onChange={(e) => patch(si, i, { name: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} name`} /></Field>
+                  <Field label="Brand"><input className={inputCls} value={d.brand} maxLength={120} placeholder="e.g. GAF Timberline HDZ" onChange={(e) => patch(si, i, { brand: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} brand`} /></Field>
+                  <Field label="Level"><select className={`${inputCls}`} value={d.tier} onChange={(e) => patch(si, i, { tier: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} level`}><option value="">—</option><option value="good">Good</option><option value="better">Better</option><option value="best">Best</option></select></Field>
+                </div>
+                <Field label="Warranty"><input className={inputCls} value={d.warranty} maxLength={300} placeholder="e.g. Lifetime shingle warranty, 10-year workmanship" onChange={(e) => patch(si, i, { warranty: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} warranty`} /></Field>
+                <Field label="What the customer is told"><textarea className={inputCls} rows={2} value={d.description} maxLength={2000} onChange={(e) => patch(si, i, { description: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} description`} /></Field>
+                <Field label="Photos" hint={`Up to ${MAX_PHOTOS}. Pick from the job's photos, or paste an https address, one per line.`}>
+                  {jobPhotos.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {jobPhotos.map((p) => (
+                        <button type="button" key={p.id} onClick={() => togglePhoto(si, i, p.url)} aria-pressed={d.photos.includes(p.url)} aria-label={`${d.photos.includes(p.url) ? 'Remove' : 'Use'} ${p.sourcePhotoId ? 'marked copy of photo' : 'photo'} ${p.caption || ''}`.trim()} className={`relative h-14 w-14 overflow-hidden rounded border-2 ${d.photos.includes(p.url) ? 'border-orange-600' : 'border-transparent'}`}><img src={p.url} alt={p.caption || 'Job photo'} className="h-full w-full object-cover" />{p.sourcePhotoId && <span className="absolute left-0 top-0 rounded-br bg-orange-600 px-1 text-[9px] font-semibold text-white">Marked</span>}</button>
+                      ))}
+                    </div>
+                  )}
+                  <label className="mb-2 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Upload a photo
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading} aria-label={`Set ${si + 1} option ${i + 1} upload a photo`} onChange={(e) => { sendFile(si, i, e.target.files?.[0], 'photo'); e.target.value = '' }} /></label>
+                  <textarea className={inputCls} rows={2} value={d.photos.filter((p) => !jobPhotos.some((j) => j.url === p)).join('\n')} aria-label={`Set ${si + 1} option ${i + 1} photo addresses`}
+                    onChange={(e) => patch(si, i, { photos: [...d.photos.filter((p) => jobPhotos.some((j) => j.url === p)), ...e.target.value.split('\n').map((x) => x.trim()).filter(Boolean)].slice(0, MAX_PHOTOS) })} />
+                </Field>
+                <LineItemsEditor items={d.lines} onChange={(lines) => patch(si, i, { lines })} />
+                <Field label="Brochures and files for this option" hint="A manufacturer's brochure or spec sheet (PDF or picture). The customer can open it; a PDF's pages follow the proposal in its PDF.">
+                  <ul className="mb-2 space-y-1 text-sm">{d.attachments.map((a) => <li key={a.url} className="flex items-center justify-between gap-2"><span className="inline-flex items-center gap-1"><FileText className="w-4 h-4" aria-hidden="true" />{a.name}</span><button type="button" className="text-red-700 underline dark:text-red-300" onClick={() => patch(si, i, { attachments: d.attachments.filter((x) => x.url !== a.url) })}>Remove</button></li>)}</ul>
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-slate-600"><Upload className="w-4 h-4" aria-hidden="true" /> Attach a file
+                    <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading || d.attachments.length >= 8} aria-label={`Set ${si + 1} option ${i + 1} attach a file`} onChange={(e) => { sendFile(si, i, e.target.files?.[0], 'file'); e.target.value = '' }} /></label>
+                </Field>
+                <div className="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
+                  <p className="text-sm font-medium">Upgrades for this option</p>
+                  <p className="text-xs text-gray-600 dark:text-slate-300">Add-ons the customer can tick after they choose this option, such as copper valleys. They are not in the option's price until ticked.</p>
+                  <LineItemsEditor items={d.upgrades} onChange={(upgrades) => patch(si, i, { upgrades })} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Discount on this option">
+                    <select className={inputCls} value={d.discountType} onChange={(e) => patch(si, i, { discountType: e.target.value as Draft['discountType'], discountValue: e.target.value ? d.discountValue : '' })} aria-label={`Set ${si + 1} option ${i + 1} discount type`}><option value="">No discount</option><option value="amount">A dollar amount</option><option value="percent">A percent of the option</option></select>
+                  </Field>
+                  {d.discountType && <Field label={d.discountType === 'amount' ? 'Dollars off' : 'Percent off'} hint="Taken off the option's price before its upgrades; shown to the customer on the option.">
+                    <input className={inputCls} type="number" min="0" step={d.discountType === 'amount' ? '0.01' : '0.1'} max={d.discountType === 'percent' ? 100 : undefined} value={d.discountValue} onChange={(e) => patch(si, i, { discountValue: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} discount`} />
+                  </Field>}
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.recommended} onChange={(e) => patchSet(si, { options: s.options.map((x, j) => ({ ...x, recommended: j === i ? e.target.checked : false })) })} /> Recommended</label>
+                  {s.options.length > 2 && <button type="button" className="text-sm text-red-700 underline dark:text-red-300" onClick={() => patchSet(si, { options: s.options.filter((_, j) => j !== i) })}>Remove this option</button>}
+                </div>
+              </fieldset>
+            ))}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {s.options.length < MAX_OPTIONS && <Button variant="secondary" onClick={() => patchSet(si, { options: [...s.options, blank()] })}>Add another option to this set</Button>}
+              {sets.length > 1 && <button type="button" className="text-sm text-red-700 underline dark:text-red-300" onClick={() => change(sets.filter((_, j) => j !== si))}>Remove this set</button>}
             </div>
           </fieldset>
         ))}
-        {drafts.length < MAX_OPTIONS && <Button variant="secondary" onClick={() => change([...drafts, blank()])}>Add another option</Button>}
+        {sets.length < MAX_SETS && <Button variant="secondary" onClick={() => change([...sets, blankSet(sets.length ? 'any' : 'one')])}>Add another set</Button>}
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
-        <div className="flex justify-end gap-2 border-t border-gray-200 pt-4 dark:border-slate-700">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4 dark:border-slate-700">
+          {initial.length > 0 && <button type="button" className="mr-auto text-sm text-red-700 underline dark:text-red-300" onClick={clear} disabled={saving}>Remove every option</button>}
           <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save options</Button>
         </div>
-        <p className="text-xs text-gray-600 dark:text-slate-300">Saving puts the options in place of the ones above; if the customer had already chosen, they choose again.</p>
+        <p className="text-xs text-gray-600 dark:text-slate-300">Saving puts these sets in place of the ones above; if the customer had already chosen, they choose again.</p>
       </div>
     </Modal>
   )

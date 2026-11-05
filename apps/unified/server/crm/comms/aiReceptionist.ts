@@ -13,11 +13,18 @@ import { fail, one, done, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createAiReceptionistService } from './aiReceptionistService.ts'
+import { createAiCallAnsweringService, type AiCallAnsweringService } from './aiCallAnsweringService.ts'
+import { twilioVoiceProvider, type VoiceProvider } from './voiceProvider.ts'
+import { replyPaths, requestOrigin } from './aiCallAnswering.ts'
 
-export function createAiReceptionistRoutes(d: CrmDeps) {
+export function createAiReceptionistRoutes(d: CrmDeps, opts: { callAnswering?: AiCallAnsweringService; provider?: VoiceProvider } = {}) {
   const { db, logger } = d
   const { requirePermission } = d.permissions
   const aiReceptionist = createAiReceptionistService(d)
+  // Live AI call answering (ai_call_answering): when it is on and inside its hours, the assistant takes the call instead of
+  // the ring-then-voicemail line below (./aiCallAnsweringService.ts; the provider renders what it says).
+  const provider = opts.provider ?? twilioVoiceProvider
+  const callAnswering = opts.callAnswering ?? createAiCallAnsweringService({ ...d, provider })
   const app = new Hono<AppEnv>()
 
   /** The Twilio auth token this company's calls are signed with. */
@@ -46,6 +53,8 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
     const payload: any = await parseTwilioBody(c)
     const v = verifyTwilioRequest(c, payload, await twilioTokenFor(companyId))
     if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio status webhook', v.reason)
+    // A call the live assistant was on has ended (the caller hung up mid-way): its transcript is closed; no missed-call rule.
+    if (payload.CallSid && ['completed', 'no-answer', 'busy', 'failed', 'canceled'].includes(payload.CallStatus) && await callAnswering.hangup(companyId, payload.CallSid)) return c.body(null, 200)
     if (payload.CallStatus === 'no-answer' || payload.CallStatus === 'busy' || payload.CallStatus === 'failed') {
       const callStatus = payload.CallStatus === 'no-answer' ? 'missed' : payload.CallStatus
       aiReceptionist.evaluateRules(companyId, {
@@ -76,10 +85,19 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
     return v.ok ? { companyId, payload } : { refused: refuseUnverifiedWebhook(c, label, v.reason) }
   }
 
-  // A call arrives: ring the forwarding number for 20 seconds; with none, straight to the greeting and voicemail.
+  // A call arrives: the live assistant answers when it is on and inside its hours; else ring the forwarding number for
+  // 20 seconds; with none, straight to the greeting and voicemail.
   app.post('/webhook/voice/:companyId', async (c) => {
     const s = await signed(c, 'Twilio voice webhook')
     if ('refused' in s) return s.refused
+    const incoming = provider.readIncoming(s.payload)
+    if (incoming && await callAnswering.shouldAnswer(s.companyId)) {
+      const paths = replyPaths(s.companyId)
+      const actions = await callAnswering.incoming(s.companyId, incoming, { provider, callbackUrl: `${requestOrigin(c)}${paths.recording}` })
+      const r = provider.render(actions, paths)
+      c.header('Content-Type', r.contentType)
+      return c.body(r.body, 200)
+    }
     const line = await aiReceptionist.callArrived(s.companyId, s.payload)
     if (line.forwardTo) {
       return twiml(c, `<Dial timeout="20" action="/api/ai-receptionist/webhook/dial-result/${xml(s.companyId)}" method="POST">${xml(line.forwardTo)}</Dial>`)

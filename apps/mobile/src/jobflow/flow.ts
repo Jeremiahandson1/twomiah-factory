@@ -10,7 +10,7 @@
  */
 import type { ItemView } from '../offline/engine'
 
-export type StepKey = 'on_my_way' | 'arrived' | 'checklist' | 'photos' | 'signature' | 'complete'
+export type StepKey = 'on_hold' | 'paused' | 'on_my_way' | 'arrived' | 'checklist' | 'photos' | 'signature' | 'complete'
 export type StepState = 'done' | 'waiting' | 'failed' | 'next' | 'todo'
 
 export interface FlowStep { key: StepKey; label: string; state: StepState; note?: string }
@@ -31,6 +31,10 @@ export interface FlowInput {
   checklists: ChecklistInfo | null
   /** null: photos are not counted here. */
   photoCount: number | null
+  /** When the tech first pressed Arrived (the job's startedAt): a job put on hold after that still shows it as done. */
+  startedAt?: string | null
+  /** The server's pausedAt: the tech paused work (lunch, a parts run) and is still on the job. */
+  pausedAt?: string | null
 }
 
 export const jobKey = (id: string) => `job:${id}`
@@ -38,31 +42,62 @@ const MOVES: Array<{ suffix: string; to: string; from: string[] }> = [
   { suffix: '/dispatch', to: 'dispatched', from: ['scheduled'] },
   { suffix: '/start', to: 'in_progress', from: ['scheduled', 'dispatched'] },
   { suffix: '/complete', to: 'completed', from: ['in_progress'] },
+  // Put on hold (waiting on a part, the customer, the weather). Start or On my way picks the job up again.
+  { suffix: '/hold', to: 'on_hold', from: ['scheduled', 'dispatched', 'in_progress'] },
 ]
 const ORDER = ['scheduled', 'dispatched', 'in_progress', 'completed']
+// Pause / resume are a stamp on a started job, not a status (jobs.ts POST /:id/pause, /:id/resume).
+const PAUSES = ['/pause', '/resume']
+
+/**
+ * The body of a move sent from the phone: WHEN the tech tapped, on the phone's clock. A move kept until signal returns still
+ * records the real time (the server believes it only if it is recent), and a customer text such as "on my way" that is long
+ * past is not sent.
+ */
+export const moveBody = (tappedAt: Date = new Date()) => ({ tappedAt: tappedAt.toISOString() })
 
 /** The queued moves of this job, oldest first, that are still to be sent (waiting or sending, not refused). */
 const queuedMoves = (input: FlowInput) =>
   input.queue.filter((q) => q.recordKey === jobKey(input.jobId) && q.method === 'POST')
     .map((q) => ({ q, move: MOVES.find((m) => q.path === `/api/jobs/${input.jobId}${m.suffix}`) }))
     .filter((x): x is { q: typeof x.q; move: typeof MOVES[number] } => !!x.move)
+const queuedPauses = (input: FlowInput) =>
+  input.queue.filter((q) => q.recordKey === jobKey(input.jobId) && q.method === 'POST' && PAUSES.some((p) => q.path === `/api/jobs/${input.jobId}${p}`))
+    .map((q) => ({ q, suffix: PAUSES.find((p) => q.path === `/api/jobs/${input.jobId}${p}`)! }))
+
+/** Is the job paused once what is waiting is sent? A refused pause does not count; a move past in_progress ends it. */
+export function effectivePaused(input: FlowInput): boolean {
+  let paused = !!input.pausedAt
+  const all = input.queue.filter((q) => q.recordKey === jobKey(input.jobId) && q.method === 'POST' && q.state !== 'failed')
+  for (const q of all) {
+    if (q.path === `/api/jobs/${input.jobId}/pause`) paused = true
+    else if (q.path === `/api/jobs/${input.jobId}/resume`) paused = false
+    else if (MOVES.some((m) => q.path === `/api/jobs/${input.jobId}${m.suffix}`)) paused = false
+  }
+  return paused && effectiveStatus(input) === 'in_progress'
+}
 
 /** The status the job will have once what is waiting is sent. A refused move does not count. */
 export function effectiveStatus(input: FlowInput): string {
   let status = input.status
   for (const { q, move } of queuedMoves(input)) {
     if (q.state === 'failed') continue
-    if (ORDER.indexOf(move.to) > ORDER.indexOf(status)) status = move.to
+    if (status === 'completed' || status === 'cancelled') continue
+    if (move.to === 'on_hold') { status = 'on_hold'; continue }
+    // A job on hold is picked up again by any forward move; otherwise a move only goes forward.
+    if (status === 'on_hold' || ORDER.indexOf(move.to) > ORDER.indexOf(status)) status = move.to
   }
   return status
 }
 
-export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]; next: StepKey | null; completeBlockedBy: string | null } {
+export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]; next: StepKey | null; completeBlockedBy: string | null; canHold: boolean; canPause: boolean; paused: boolean } {
   const moves = queuedMoves(input)
   const moveState = (suffix: string, doneBy: string): { state: StepState; note?: string } => {
     const queued = moves.find((m) => m.move.suffix === suffix)
     if (queued?.q.state === 'failed') return { state: 'failed', note: queued.q.refusal?.message || queued.q.lastError || "Couldn't send" }
     if (queued) return { state: 'waiting' }
+    // On hold: the tech had already arrived if the job has a start time.
+    if (input.status === 'on_hold') return suffix === '/start' && input.startedAt ? { state: 'done' } : { state: 'todo' }
     return ORDER.indexOf(input.status) >= ORDER.indexOf(doneBy) ? { state: 'done' } : { state: 'todo' }
   }
   const steps: FlowStep[] = [
@@ -94,9 +129,31 @@ export function buildFlow(input: FlowInput): { status: string; steps: FlowStep[]
   const owedAny = mustDo.length ? mustDo.map((o) => `${o.name} ${o.why}`).join('; ') : null
   const status = effectiveStatus(input)
   const completeBlockedBy = status === 'completed' ? null : owedAny
-  const firstOpen = steps.find((s) => s.state === 'todo' || s.state === 'failed')
+  // A job on hold shows that first, and the one step is to pick it up again (Start: "Resume work").
+  const holdMove = moves.find((m) => m.move.suffix === '/hold')
+  if (status === 'on_hold') {
+    steps.unshift(holdMove?.q.state === 'failed'
+      ? { key: 'on_hold', label: 'On hold', state: 'failed', note: holdMove.q.refusal?.message || holdMove.q.lastError || "Couldn't send" }
+      : { key: 'on_hold', label: 'On hold', state: holdMove ? 'waiting' : 'next', note: holdMove ? undefined : 'Tap Resume work when the job is back on' })
+  }
+  const firstOpen = status === 'on_hold' ? steps[0] : steps.find((s) => s.state === 'todo' || s.state === 'failed')
   // The next step is the first one still to do, in order; Complete only when nothing before it is owed.
   const next: StepKey | null = firstOpen?.key ?? null
   const withNext = steps.map((s) => (s.key === next && s.state === 'todo' ? { ...s, state: 'next' as StepState } : s))
-  return { status, steps: withNext, next, completeBlockedBy }
+  // May the tech put it on hold now? Not when it is already (or about to be) on hold, finished, or cancelled, or a hold was refused.
+  const canHold = ['scheduled', 'dispatched', 'in_progress'].includes(status) && !holdMove
+  // Paused: the job is started and the tech stopped for a while. The one step is Resume work; a pause waiting to send shows so;
+  // a refused pause shows the server's words. Pause is offered only on a started job that is not (about to be) paused.
+  const paused = effectivePaused(input)
+  const pauses = queuedPauses(input)
+  const lastPause = pauses.filter((p) => p.suffix === '/pause').pop()
+  const failedPause = pauses.find((p) => p.q.state === 'failed')
+  if (paused || failedPause) {
+    withNext.unshift(failedPause
+      ? { key: 'paused', label: failedPause.suffix === '/pause' ? 'Pause' : 'Resume work', state: 'failed', note: failedPause.q.refusal?.message || failedPause.q.lastError || "Couldn't send" }
+      : { key: 'paused', label: 'Paused', state: lastPause && lastPause.q.state !== 'failed' ? 'waiting' : 'next', note: lastPause && lastPause.q.state !== 'failed' ? undefined : 'Tap Resume work to carry on' })
+  }
+  const canPause = status === 'in_progress' && !paused && !pauses.some((p) => p.q.state !== 'failed')
+  const nextKey: StepKey | null = status === 'on_hold' ? (holdMove?.q.state === 'failed' ? null : 'on_hold' as StepKey) : paused ? (failedPause ? null : 'paused') : next
+  return { status, steps: withNext, next: nextKey, completeBlockedBy, canHold, canPause, paused }
 }

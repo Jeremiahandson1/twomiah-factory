@@ -15,6 +15,12 @@
 //     and wording other than the marketing toolkit's must be approved by support@wisetack.com
 //     (wisetack.com/marketing-toolkit/hs/compliance). DISCLOSURE below is the toolkit's text, word for word.
 //
+// ONE ADAPTER. Everything that depends on the partner API — its credentials, its address, the request that opens an
+// application, the webhook's header, signature scheme and body, and the address we ask it to call back — is in the
+// `wisetack` adapter at the bottom of this file and nowhere else (apps/unified/tests/financing-parity.test.ts reads
+// service.ts and routes.ts and fails if any of it leaks out). Wisetack's partner documentation, when it arrives, changes
+// this file only. server/crm/financing/sandbox.ts runs the adapter against Wisetack's sandbox with keys a person supplies.
+//
 // WHAT IS NOT PUBLIC: the partner API. Its address, authentication, request and response bodies, webhook event body
 // and webhook signature scheme are published only to signed integration partners (wisetack.com/partnerships; no
 // public reference exists). Everything in this file marked SPEC-PENDING is this app's own contract for that API —
@@ -152,4 +158,40 @@ export async function createTransaction(api: { url: string; key: string }, input
   const applyUrl = String(data?.applyUrl ?? '')
   if (!transactionId || !/^https:\/\//.test(applyUrl)) throw Object.assign(new Error(`${LENDER.name} answered without an application link`), { status: 502 })
   return { transactionId, applyUrl, status: normalizeStatus(data?.status) ?? 'pending' }
+}
+
+/** SPEC-PENDING: the path on THIS server the lender is asked to post status changes to (the tenant's webhook address). */
+export const WEBHOOK_ROUTE = '/webhook/wisetack'
+export const WEBHOOK_PATH = `/api/financing-public${WEBHOOK_ROUTE}`
+
+/** What the rest of the app may know about the lender's partner API: these calls, and nothing else. */
+export interface LenderAdapter {
+  id: string
+  /** Twomiah's partner credentials; null until the lender issues them. */
+  partnerApi(): { url: string; key: string } | null
+  /** The webhook signing secret; null until the lender issues it. */
+  webhookSecret(): string | null
+  /** The header the webhook is signed in. */
+  signatureHeader: string
+  /** Where, under /api/financing-public, this server listens for the lender's webhook. */
+  webhookRoute: string
+  /** The address on this server the lender calls back, given the server's public base address. */
+  callbackUrl(publicBase: string): string
+  /** Open an application at the lender for one customer and one job. */
+  createTransaction: typeof createTransaction
+  /** Is this raw webhook body genuinely the lender's. */
+  verifyWebhook(rawBody: string, signature: string | null | undefined, secret: string): boolean
+  /** A webhook body as an event of ours, or why it is not one. */
+  parseEvent(body: any): LenderEvent | { error: string }
+}
+
+export const wisetack: LenderAdapter = {
+  id: LENDER.id,
+  partnerApi, webhookSecret,
+  signatureHeader: SIGNATURE_HEADER,
+  webhookRoute: WEBHOOK_ROUTE,
+  callbackUrl: (publicBase) => `${publicBase.replace(/\/+$/, '')}${WEBHOOK_PATH}`,
+  createTransaction,
+  verifyWebhook: verifyWisetackWebhook,
+  parseEvent: parseLenderEvent,
 }

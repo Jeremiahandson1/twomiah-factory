@@ -10,7 +10,7 @@
 //   bun run tests/mobile/job-flow.test.ts
 import { buildFlow, effectiveStatus, jobKey, type FlowInput } from '../../apps/mobile/src/jobflow/flow.ts'
 import { describeItem, openFor, orderForList } from '../../apps/mobile/src/offline/describe.ts'
-import { clockView, clockKey, tapBody } from '../../apps/mobile/src/jobflow/clock.ts'
+import { clockView, clockKey, tapBody, placeBody } from '../../apps/mobile/src/jobflow/clock.ts'
 
 let passed = 0, failed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -124,6 +124,20 @@ const item = (over: any) => ({ id: 'i1', method: 'POST', path: '/api/x', body: {
   const refused = clockView(null, [tap('/api/time/clock-in', '2026-11-02T13:02:00.000Z', 'failed', { refusal: { status: 400, message: 'That time is more than 48 hours ago \u2014 ask the office to enter it' } })], U)
   check('a refused clock tap says why and does not count as a clock', refused.state === 'out' && refused.refused?.message.includes('48 hours') && refused.canClockIn)
   check('another person\'s waiting taps are not mine', clockView(null, [{ ...tap('/api/time/clock-in', '2026-11-02T13:02:00.000Z'), recordKey: clockKey('u2') }], U).state === 'out')
+  // Breaks.
+  const brk = (kind: 'start' | 'end', at: string, state: any = 'waiting') => tap(`/api/time/break/${kind}`, at, state)
+  check('clocked in, no break: Start break is offered, End is not', (() => { const v = clockView(open, [], U); return v.canStartBreak && !v.canEndBreak && !v.onBreak })())
+  check('the server says a break is running: End break is offered, since is the server\'s time', (() => { const v = clockView({ ...open, breakStartedAt: '2026-11-02T15:00:00.000Z' }, [], U); return v.onBreak && v.breakSince === '2026-11-02T15:00:00.000Z' && v.canEndBreak && !v.canStartBreak })())
+  check('a break tapped with no signal shows as a break, from the moment tapped', (() => { const v = clockView(open, [brk('start', '2026-11-02T15:05:00.000Z')], U); return v.onBreak && v.breakSince === '2026-11-02T15:05:00.000Z' && v.canEndBreak })())
+  check('…and ending it while still offline closes it', (() => { const v = clockView(open, [brk('start', '2026-11-02T15:05:00.000Z'), brk('end', '2026-11-02T15:35:00.000Z')], U); return !v.onBreak && v.canStartBreak && v.breakSince === null })())
+  check('a break ended on the phone beats the server\'s older word that it is running', (() => { const v = clockView({ ...open, breakStartedAt: '2026-11-02T15:00:00.000Z' }, [brk('end', '2026-11-02T15:30:00.000Z')], U); return !v.onBreak && v.canStartBreak })())
+  check('no clock, no break offered', (() => { const v = clockView(null, [], U); return !v.canStartBreak && !v.canEndBreak })())
+  check('a closed clock is not on a break', (() => { const v = clockView(open, [brk('start', '2026-11-02T15:05:00.000Z'), tap('/api/time/clock-out', '2026-11-02T17:30:00.000Z')], U); return !v.onBreak && !v.canStartBreak })())
+  check('a refused break tap does not count', (() => { const v = clockView(open, [brk('start', '2026-11-02T15:05:00.000Z', 'failed')], U); return !v.onBreak && v.canStartBreak })())
+  // The place stamp.
+  check('a fix becomes the place the server reads', JSON.stringify(placeBody({ latitude: 43.07, longitude: -89.4 })) === JSON.stringify({ place: { lat: 43.07, lng: -89.4 } }))
+  check('the equator and the meridian are real places', JSON.stringify(placeBody({ latitude: 0, longitude: 0 })) === JSON.stringify({ place: { lat: 0, lng: 0 } }))
+  check('no fix, half a fix or an impossible one leaves the place off (a tap is never refused over it)', Object.keys(placeBody(null)).length === 0 && Object.keys(placeBody({ latitude: 43 })).length === 0 && Object.keys(placeBody({ latitude: 143, longitude: 0 })).length === 0 && Object.keys(placeBody({ latitude: 'x', longitude: 1 })).length === 0)
   check('a tap carries the moment it was made', tapBody(new Date('2026-11-02T13:02:00.000Z'), { jobId: 'j1' }).at === '2026-11-02T13:02:00.000Z' && (tapBody(new Date(0), { jobId: 'j1' }) as any).jobId === 'j1')
 }
 

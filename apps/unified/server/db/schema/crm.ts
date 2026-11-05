@@ -40,6 +40,8 @@ export const contact = pgTable('contact', {
   /** Withdrawn SMS consent: the shared sender refuses to text a contact carrying this. */
   optedOutSms: boolean('opted_out_sms').default(false).notNull(),
   emailOptOut: boolean('email_opt_out').default(false).notNull(),
+  // "Don't send this customer automatic job reminders" — their own switch, apart from STOP and unsubscribe (crm/field/jobReminders.ts).
+  jobRemindersOff: boolean('job_reminders_off').default(false).notNull(),
   emailOptOutAt: timestamp('email_opt_out_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -214,6 +216,9 @@ export const job = pgTable('job', {
   actualHours: decimal('actual_hours', { precision: 5, scale: 2 }),
   // When the crew pressed Start (stamped once, by the start moment). With completedAt it is how long a route visit took.
   startedAt: timestamp('started_at'),
+  // Paused (ServiceTitan's Pause): the tech stopped work for a while (lunch, a parts run) without leaving the job — set by
+  // POST /:id/pause, cleared by /resume; the status stays in_progress. Different from on_hold, which stops the job itself.
+  pausedAt: timestamp('paused_at'),
   address: text('address'),
   city: text('city'),
   state: text('state'),
@@ -254,6 +259,10 @@ export const job = pgTable('job', {
   qbCustomerName: text('qb_customer_name'),
   assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
   assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
+  // How the job's revenue is shared when several people are on it: null/'equal' = equal shares, 'hours' = by the billable hours each
+  // logged on the job, 'percent' = the office's own split (`percents`, keyed "u:<user id>" / "m:<member id>", totalling 100).
+  // Written only by /api/team-revenue/jobs/:id/split, which checks it against the crew; read by the team revenue reports.
+  revenueSplit: json('revenue_split').$type<{ mode: 'equal' | 'hours' | 'percent'; percents?: Record<string, number> } | null>(),
   roofAge: integer('roof_age'),
   roofType: text('roof_type'),
   stories: integer('stories'),
@@ -286,8 +295,15 @@ export const job = pgTable('job', {
    * stop lives in the landscaping schema, which imports this file. A deleted stop leaves its visits as they were.
    */
   recurringRouteStopId: text('recurring_route_stop_id'),
+  // The customer said they will be there: by the confirm link in a reminder, the portal, or by texting Y / C back (crm/field/jobConfirm.ts).
+  // A moved visit clears it — they confirmed the old time.
+  confirmedAt: timestamp('confirmed_at'),
+  confirmedVia: text('confirmed_via'),
+  // The private link a reminder carries to confirm this one visit (/confirm-visit/<token>); minted the first time one goes out.
+  confirmToken: text('confirm_token'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
+  uniqueIndex('job_confirm_token_idx').on(t.confirmToken),
   // One visit per stop per day: making a route's visits twice adds nothing the second time.
   uniqueIndex('job_route_stop_day_idx').on(t.recurringRouteStopId, t.scheduledDate).where(jobOnRouteStop),
   index('job_status_idx').on(t.status),
@@ -410,8 +426,14 @@ export const quote = pgTable('quote', {
   // Who made the quote (the rep or tech who wrote it): quote conversion by person (field-service reports, 0041). Null on a
   // quote made before this was recorded, and where a quote was made by the system.
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  // The salesperson credited with the quote (Jobber's "salesperson"): the quote's writer by default, any team member on request,
+  // null for none. Separate from created_by_id, which stays who typed it. Team revenue reports cut quotes by it.
+  salespersonId: text('salesperson_id').references(() => user.id, { onDelete: 'set null' }),
+  // When the quote became a job (stamped by the convert route); the "converted" date basis of the team revenue report.
+  convertedAt: timestamp('converted_at'),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
+  index('quote_salesperson_idx').on(t.salespersonId),
   index('quote_status_idx').on(t.status),
 ])
 
@@ -489,6 +511,13 @@ export const quoteProposalOption = pgTable('quote_proposal_option', {
   discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }).default('0').notNull(),
   // Files attached to this option — a manufacturer's brochure, a spec sheet: [{ name, url }], url a /media file or https (0062).
   attachments: json('attachments'),
+  // The SET this option is one choice of (Jobber: up to three sets on a quote, 2–5 choices each; HCP / ServiceTitan: an
+  // "additive" set whose options may be taken in any combination). `set_index` 0–2 orders the sets; `set_name` is what the
+  // customer sees above the set (null on a quote's only set: "Options"); `set_kind` is 'one' (the customer picks exactly one
+  // of the set) or 'any' (any number, none included — add-ons). Every option in a set carries the same name and kind.
+  setIndex: integer('set_index').default(0).notNull(),
+  setName: text('set_name'),
+  setKind: text('set_kind').default('one').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('quote_proposal_option_quote_id_idx').on(t.quoteId),
@@ -594,6 +623,8 @@ export const invoice = pgTable('invoice', {
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).default('0').notNull(),
   amountRefunded: decimal('amount_refunded', { precision: 12, scale: 2 }).default('0').notNull(), // money returned; amountPaid stays gross so a refund never reopens a balance
+  // The service plan this invoice billed (the plan reports' collected revenue by plan). Null on every other invoice and on plan invoices made before 0054 that no plan could be matched to.
+  serviceAgreementId: text('service_agreement_id'),
   notes: text('notes'),
   qbInvoiceId: text('qb_invoice_id'),
   syncedAt: timestamp('synced_at'),
@@ -635,6 +666,7 @@ export const invoice = pgTable('invoice', {
   // One bill per salon visit (templates/crm-salon schema.ts): checkout relies on this refusal. NULLs never collide, so every
   // invoice raised by hand, with no appointment, is untouched.
   uniqueIndex('invoice_appointment_unique').on(t.companyId, t.appointmentId),
+  index('invoice_service_agreement_idx').on(t.serviceAgreementId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {
@@ -714,6 +746,27 @@ export const timeEntry = pgTable('time_entry', {
   // The entry carries the time the person tapped, so the office sees it flagged "time set by phone, sent late" when approving.
   clockInLateMinutes: integer('clock_in_late_minutes'),
   clockOutLateMinutes: integer('clock_out_late_minutes'),
+  // A break is unpaid time inside the shift: the minutes taken so far, and when the open break began (null: not on a break).
+  // Clocking out subtracts them from the hours.
+  breakStartedAt: timestamp('break_started_at'),
+  breakMinutes: integer('break_minutes').default(0).notNull(),
+  // True when the time on this entry came from a moment the phone said it tapped, more than two minutes before the server
+  // heard it — the approver is shown "time set by the phone". (`clock_in_late_minutes` is the stricter, sent-late case.)
+  timeSetByPhone: boolean('time_set_by_phone').default(false).notNull(),
+  // Where the person was at each tap (the phone's location, when it was allowed) and how the clock was reached:
+  // phone | web | kiosk | job (automatic timekeeping) | geofence.
+  clockInLat: real('clock_in_lat'),
+  clockInLng: real('clock_in_lng'),
+  clockOutLat: real('clock_out_lat'),
+  clockOutLng: real('clock_out_lng'),
+  clockSource: text('clock_source'),
+  /**
+   * The time off this entry was made for (tech_time_off.id, 0055: ServiceTitan's "time off creates a timesheet"). The
+   * Time page shows it as "Time off"; removing the time off removes the entry unless it was already approved. Not a
+   * foreign key: tech_time_off lives in field.ts, which imports this file (server/data/techAvailability.ts keeps the two
+   * in step).
+   */
+  timeOffId: text('time_off_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -728,6 +781,7 @@ export const timeEntry = pgTable('time_entry', {
   index('time_entry_user_id_idx').on(t.userId),
   index('time_entry_job_id_idx').on(t.jobId),
   index('time_entry_date_idx').on(t.date),
+  index('time_entry_time_off_idx').on(t.timeOffId),
 ])
 
 export const expense = pgTable('expense', {

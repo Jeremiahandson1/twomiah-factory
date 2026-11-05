@@ -114,8 +114,9 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     doc.moveDown()
   }
 
-  // A quote whose customer has yet to choose (Good / Better / Best, tenant-backend invoicing/quoteOptions.ts): the lines above
-  // are in every option; each option follows with its own lines and what the whole job comes to with it.
+  // A quote still offering its options (Good / Better / Best, tenant-backend invoicing/quoteOptions.ts): the lines above are
+  // in every option; each SET follows — pick one of it, or add any of it — with each option's lines and what the quote
+  // comes to with it (an add-on: what it adds). While a pick-one set is unpicked the total is "from" the least it can be.
   const options: any[] = Array.isArray(data.options) ? data.options : []
   printSections('before_options')
   // Everything that follows the money: the sections after the options, the terms with the customer's initials, the signatures,
@@ -154,35 +155,47 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     else if (pd?.cosigner && data.signature) doc.moveDown().text(`Cosigner: ${pd.cosigner.name}${pd.cosigner.role ? ` (${pd.cosigner.role})` : ''}`, 72, doc.y, { width: 468 })
   }
   if (options.length) {
-    doc.fontSize(12).font('Helvetica-Bold').text('Options — choose one', 72, doc.y, { width: 468 })
-    doc.font('Helvetica').fontSize(10)
-    if (items.length) doc.fillColor('#555').text('The lines above are included with every option.', { width: 468 }).fillColor('black')
-    doc.moveDown(0.5)
-    for (const op of options) {
-      const y = doc.y
-      doc.font('Helvetica-Bold').text(`${op.name}${op.recommended ? ' (recommended)' : ''}`, 72, y, { width: 360 })
-      const nameEnd = doc.y
-      doc.text(money(Number(op.price)), 456, y, { width: 84, align: 'right' })
-      doc.font('Helvetica')
-      doc.y = Math.max(nameEnd, y + 14)
-      const detail = [op.brand, op.warranty ? `Warranty: ${op.warranty}` : ''].filter(Boolean).join(' · ')
-      if (detail) doc.fillColor('#555').text(detail, 72, doc.y, { width: 468 }).fillColor('black')
-      if (op.description) doc.text(String(op.description), 72, doc.y, { width: 468 })
-      for (const l of op.lines || []) doc.text(`• ${l.description}${Number(l.quantity) !== 1 ? ` (${Number(l.quantity)})` : ''}`, 84, doc.y, { width: 456 })
-      // The option's own discount, taken off its price above; and the add-ons that belong to it alone.
-      if (Number(op.discount) > 0) doc.fillColor('#555').text(`Discount on this option: -${money(Number(op.discount))}`, 72, doc.y, { width: 468 }).fillColor('black')
-      const upgrades: any[] = Array.isArray(op.upgrades) ? op.upgrades : []
-      if (upgrades.length) {
-        doc.fillColor('#555').text('Optional upgrades, offered once this option is chosen:', 72, doc.y, { width: 468 }).fillColor('black')
-        for (const u of upgrades) doc.text(`+ ${u.description}${Number(u.quantity) !== 1 ? ` (${Number(u.quantity)})` : ''}: ${money(Number(u.total ?? Number(u.quantity) * Number(u.unitPrice)))}`, 84, doc.y, { width: 456 })
+    const bySet = new Map<number, any[]>()
+    for (const op of options) { const k = Number(op.setIndex) || 0; bySet.set(k, [...(bySet.get(k) || []), op]) }
+    const sets = [...bySet.entries()].sort((a, b) => a[0] - b[0]).map(([index, ops]) => ({ index, name: String(ops[0].setName || (bySet.size > 1 ? `Options ${index + 1}` : 'Options')), kind: ops[0].setKind === 'any' ? 'any' : 'one', options: ops }))
+    if (items.length) doc.fontSize(10).fillColor('#555').text('The lines above are included whichever options are chosen.', 72, doc.y, { width: 468 }).fillColor('black')
+    for (const s of sets) {
+      doc.moveDown(0.5)
+      doc.fontSize(12).font('Helvetica-Bold').text(`${s.name} — ${s.kind === 'any' ? 'add any you want' : 'choose one'}`, 72, doc.y, { width: 468 })
+      doc.font('Helvetica').fontSize(10)
+      doc.moveDown(0.3)
+      for (const op of s.options) {
+        const y = doc.y
+        doc.font('Helvetica-Bold').text(`${op.name}${op.recommended ? ' (recommended)' : ''}${op.chosen ? ' — chosen' : ''}`, 72, y, { width: 360 })
+        const nameEnd = doc.y
+        doc.text(s.kind === 'any' ? `+ ${money(Number(op.addPrice ?? op.price))}` : money(Number(op.price)), 456, y, { width: 84, align: 'right' })
+        doc.font('Helvetica')
+        doc.y = Math.max(nameEnd, y + 14)
+        const detail = [op.brand, op.warranty ? `Warranty: ${op.warranty}` : ''].filter(Boolean).join(' · ')
+        if (detail) doc.fillColor('#555').text(detail, 72, doc.y, { width: 468 }).fillColor('black')
+        if (op.description) doc.text(String(op.description), 72, doc.y, { width: 468 })
+        for (const l of op.lines || []) doc.text(`• ${l.description}${Number(l.quantity) !== 1 ? ` (${Number(l.quantity)})` : ''}`, 84, doc.y, { width: 456 })
+        // The option's own discount, taken off its price above; and the add-ons that belong to it alone.
+        if (Number(op.discount) > 0) doc.fillColor('#555').text(`Discount on this option: -${money(Number(op.discount))}`, 72, doc.y, { width: 468 }).fillColor('black')
+        const upgrades: any[] = Array.isArray(op.upgrades) ? op.upgrades : []
+        if (upgrades.length) {
+          doc.fillColor('#555').text('Optional upgrades, offered once this option is chosen:', 72, doc.y, { width: 468 }).fillColor('black')
+          for (const u of upgrades) doc.text(`+ ${u.description}${Number(u.quantity) !== 1 ? ` (${Number(u.quantity)})` : ''}: ${money(Number(u.total ?? Number(u.quantity) * Number(u.unitPrice)))}`, 84, doc.y, { width: 456 })
+        }
+        if (s.kind !== 'any' && Number(op.deposit) > 0) doc.fillColor('#555').text(`Deposit on approval: ${money(Number(op.deposit))}`, 72, doc.y, { width: 468 }).fillColor('black')
+        doc.moveDown(0.6)
       }
-      if (Number(op.deposit) > 0) doc.fillColor('#555').text(`Deposit on approval: ${money(Number(op.deposit))}`, 72, doc.y, { width: 468 }).fillColor('black')
-      doc.moveDown(0.6)
     }
-    const lowest = Math.min(...options.map((op) => Number(op.price)))
-    doc.fontSize(12).text(`Total: from ${money(lowest)}, depending on the option chosen`, 72, doc.y, { width: 468, align: 'right' })
-    closing()
-    return
+    const offer = data.offer || {}
+    const needsChoice = offer.needsChoice !== undefined ? !!offer.needsChoice : true
+    if (needsChoice) {
+      const lowest = offer.lowest !== undefined ? Number(offer.lowest) : Math.min(...options.map((op) => Number(op.price)))
+      doc.fontSize(12).text(`Total: from ${money(lowest)}, depending on the options chosen`, 72, doc.y, { width: 468, align: 'right' })
+      closing()
+      return
+    }
+    // Every pick-one set is picked: the totals below are the quote as it stands, add-ons as ticked.
+    doc.moveDown(0.3)
   }
 
   // Full money breakdown, not just a bare Total. (R2-03)

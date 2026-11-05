@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { get, post } from '../../../src/api/client'
 import { openDownload } from '../../../src/api/download'
 import { canOfferCode, offerCodeTyped, offerQuestion } from '../../../src/forms/offerCode'
+import { openLenderPage, mayOfferFinancing } from '../../../src/payments/financing'
 import { invoiceStatusLabel, paymentMethodLabel } from '../../../src/home/labels'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { useVertical } from '../../../src/vertical/VerticalContext'
@@ -77,6 +78,10 @@ export default function InvoiceDetailScreen() {
   const balance = invoice?.balance !== undefined ? num(invoice.balance) : total - paid
   const canPay = canUpdate && balance > 0 && !['void', 'draft', 'refunded'].includes(invoice?.status)
   const canSend = canUpdate && !['void', 'refunded', 'paid'].includes(invoice?.status)
+
+  // Customer financing (consumer_financing, not ready): the phone only opens the lender's own page (src/payments/financing.ts).
+  const financing = mayOfferFinancing(can, hasFeature, balance > 0 && !['void', 'draft', 'refunded', 'paid'].includes(invoice?.status))
+  const openFinancing = async () => { const problem = await openLenderPage('invoice', String(invoice.id)); if (problem) toast.error(problem) }
 
   const openPay = () => { setAmount(balance > 0 ? balance.toFixed(2) : ''); setMethod('cash'); setTip(''); setSheet('pay') }
   const recordPayment = async () => {
@@ -153,6 +158,10 @@ export default function InvoiceDetailScreen() {
 
         {vertical === 'salon' && canOfferCode({ feature: hasFeature('retention_sends'), mayUpdate: canUpdate, status: String(invoice.status) }) ? (
           <Group><ListRow icon="pricetag" title="Offer code" subtitle="From a message the client was sent" divider={false} onPress={() => { setOfferText(''); setOfferQ(null); setSheet('offer') }} /></Group>
+        ) : null}
+
+        {financing ? (
+          <Group><ListRow icon="open-outline" title="Offer customer financing" subtitle="Opens the lender's page" divider={false} onPress={openFinancing} /></Group>
         ) : null}
 
         {items.length > 0 ? (

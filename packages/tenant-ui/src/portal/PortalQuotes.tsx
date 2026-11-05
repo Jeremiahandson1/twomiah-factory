@@ -19,8 +19,11 @@ export interface PortalQuoteData {
   /** The deposit asked on approval, and — once approved — its invoice (tenant-backend portal.ts customerQuote). */
   depositAmount?: string
   deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
-  /** A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote. */
-  proposal?: { chosenOptionId: string | null; needsChoice: boolean; options: ProposalOption[] }
+  /**
+   * A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote.
+   * `sets` groups them: a set they pick one of, or an additive set they add any of. `options` is every option, flat.
+   */
+  proposal?: { chosenOptionId: string | null; chosenOptionIds?: string[]; needsChoice: boolean; options: ProposalOption[]; sets?: ProposalSet[]; lowest?: { total: string } }
   /** The pages around the options (tenant-backend invoicing/quoteDocument.ts): cover, About Us, sections, terms to initial, cosigner. */
   document?: ProposalDocument
   project?: { name: string; number?: string } | null
@@ -53,6 +56,9 @@ export interface ProposalOption {
   photos?: string[]; recommended?: boolean; chosen?: boolean; price: string
   /** Files for this option (a manufacturer's brochure). */
   attachments?: Array<{ name: string; url: string }>
+  /** What taking this option adds to the price, tax in — what an add-on shows. */
+  addPrice?: string
+  setIndex?: number; setName?: string; setKind?: 'one' | 'any'
   /** The deposit asked on approval if this option is chosen ('0.00' when the quote asks none). */
   deposit?: string
   /** What this option's own discount takes off ('0.00' when none). */
@@ -61,60 +67,80 @@ export interface ProposalOption {
   /** Add-ons that belong to this option alone: offered once it is chosen, ticked one by one. */
   upgrades?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; selected?: boolean }>
 }
+export interface ProposalSet { index: number; name: string; kind: 'one' | 'any'; options: ProposalOption[]; chosenOptionIds: string[]; needsChoice: boolean }
 
-/** The options of a quote, side by side: photos, brand, warranty, what is in each, the whole job's price — and the choice. */
-function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string) => void; onUpgrade: (lineItemId: string, selected: boolean) => void }) {
-  const options = proposal.options
+/** The sets as answered; a quote answered before sets existed (options only) is one pick-one set. */
+const setsOf = (proposal: NonNullable<PortalQuoteData['proposal']>): ProposalSet[] => {
+  if (proposal.sets && proposal.sets.length) return proposal.sets
+  const options = proposal.options || []
+  return [{ index: 0, name: 'Options', kind: 'one', options, chosenOptionIds: options.filter((o) => o.chosen).map((o) => o.id), needsChoice: !options.some((o) => o.chosen) }]
+}
+
+/**
+ * The options of a quote, set by set, side by side: photos, brand, warranty, what is in each, the whole job's price (an
+ * add-on: what it adds) — and the choice: one of a set, or any number of an additive set.
+ */
+function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string, chosen: boolean) => void; onUpgrade: (lineItemId: string, selected: boolean) => void }) {
+  const sets = setsOf(proposal)
+  const many = sets.length > 1
   return (
-    <div className="p-6 border-b dark:border-slate-700" data-testid="quote-options">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{canRespond ? 'Choose your option' : 'Your option'}</h2>
-      {canRespond && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Each price is for the whole job. Pick the one you want, then sign.</p>}
-      <div className={`grid gap-4 ${options.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-        {options.map((op) => {
-          const shown = canRespond || op.chosen
-          if (!shown) return null
-          return (
-            <div key={op.id} data-testid="quote-option" aria-current={op.chosen ? 'true' : undefined}
-              className={`relative flex flex-col rounded-xl border p-4 ${op.chosen ? 'border-green-600 ring-2 ring-green-200 dark:ring-green-900/50' : 'border-gray-200 dark:border-slate-700'} bg-white dark:bg-slate-900`}>
-              {op.recommended && <span className="absolute -top-3 left-4 rounded-full bg-orange-600 px-3 py-0.5 text-xs font-semibold text-white">Recommended</span>}
-              {op.photos && op.photos.length > 0 && (
-                <div className="mb-3">
-                  <img src={op.photos[0]} alt={`${op.name}`} loading="lazy" className="h-40 w-full rounded-lg object-cover bg-gray-100 dark:bg-slate-800" />
-                  {op.photos.length > 1 && <div className="mt-1 flex gap-1">{op.photos.slice(1, 4).map((src, i) => <img key={i} src={src} alt={`${op.name}, photo ${i + 2}`} loading="lazy" className="h-12 w-1/3 rounded object-cover bg-gray-100 dark:bg-slate-800" />)}</div>}
+    <div className="p-6 border-b dark:border-slate-700 space-y-6" data-testid="quote-options">
+      {sets.map((s) => {
+        const additive = s.kind === 'any'
+        const options = s.options.filter((op) => canRespond || op.chosen)
+        if (!options.length) return null
+        return (
+          <div key={s.index} data-testid="quote-option-set" data-kind={s.kind}>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{many || additive ? s.name : canRespond ? 'Choose your option' : 'Your option'}</h2>
+            {canRespond && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{additive ? 'Add any of these you want — or none. Each price is what it adds.' : many ? 'Pick one. Each price is for the whole job with this option and what you have chosen elsewhere.' : 'Each price is for the whole job. Pick the one you want, then sign.'}</p>}
+            {!canRespond && additive && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">The add-ons you took.</p>}
+            <div className={`grid gap-4 ${options.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+              {options.map((op) => (
+                <div key={op.id} data-testid="quote-option" aria-current={op.chosen ? 'true' : undefined}
+                  className={`relative flex flex-col rounded-xl border p-4 ${op.chosen ? 'border-green-600 ring-2 ring-green-200 dark:ring-green-900/50' : 'border-gray-200 dark:border-slate-700'} bg-white dark:bg-slate-900`}>
+                  {op.recommended && <span className="absolute -top-3 left-4 rounded-full bg-orange-600 px-3 py-0.5 text-xs font-semibold text-white">Recommended</span>}
+                  {op.photos && op.photos.length > 0 && (
+                    <div className="mb-3">
+                      <img src={op.photos[0]} alt={`${op.name}`} loading="lazy" className="h-40 w-full rounded-lg object-cover bg-gray-100 dark:bg-slate-800" />
+                      {op.photos.length > 1 && <div className="mt-1 flex gap-1">{op.photos.slice(1, 4).map((src, i) => <img key={i} src={src} alt={`${op.name}, photo ${i + 2}`} loading="lazy" className="h-12 w-1/3 rounded object-cover bg-gray-100 dark:bg-slate-800" />)}</div>}
+                    </div>
+                  )}
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{op.name}</h3>
+                  {op.brand && <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{op.brand}</p>}
+                  {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
+                  {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
+                  <AttachmentLinks items={op.attachments} title="Brochures and files" />
+                  {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
+                  {Number(op.discount || 0) > 0 && <p className="mt-2 text-sm font-medium text-green-800 dark:text-green-300" data-testid="option-discount">Includes a {moneyShort(op.discount)} discount</p>}
+                  {/* The customer chooses the option first; its upgrades are offered after that, and are ticked one by one. */}
+                  {op.upgrades && op.upgrades.length > 0 && (
+                    <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60" data-testid="option-upgrades">
+                      <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Upgrades for {op.name}</p>
+                      {op.chosen && canRespond
+                        ? <ul className="mt-1 space-y-1">{op.upgrades.map((u, i) => <li key={u.id || i}><label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="checkbox" className="mt-1" checked={!!u.selected} disabled={busy || !u.id} onChange={(e) => u.id && onUpgrade(u.id, e.target.checked)} aria-label={`Add ${u.description}`} /><span className="flex-1">{u.description}</span><span>{moneyShort(u.total)}</span></label></li>)}</ul>
+                        : op.chosen
+                          ? <ul className="mt-1 text-sm text-gray-800 dark:text-slate-200">{op.upgrades.filter((u) => u.selected).map((u, i) => <li key={u.id || i} className="flex justify-between"><span>{u.description}</span><span>{moneyShort(u.total)}</span></li>)}</ul>
+                          : <>
+                            <ul className="mt-1 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.upgrades.map((u, i) => <li key={u.id || i}>{u.description} ({moneyShort(u.total)})</li>)}</ul>
+                            <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Choose this option first; you pick its upgrades after.</p>
+                          </>}
+                    </div>
+                  )}
+                  <div className="mt-auto pt-4">
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{additive ? `+ ${moneyShort(op.addPrice ?? op.price)}` : moneyShort(op.price)}</p>
+                    {!additive && Number(op.deposit || 0) > 0 && <p className="text-sm text-gray-600 dark:text-slate-400">Deposit on approval: {moneyShort(op.deposit)}</p>}
+                    {canRespond
+                      ? <button type="button" disabled={busy} onClick={() => onChoose(op.id, additive ? !op.chosen : true)} aria-pressed={!!op.chosen} className={op.chosen ? `${btnSuccess} mt-2 w-full justify-center` : `${btnSecondary} mt-2 w-full justify-center`}>
+                          {op.chosen ? <><CheckCircle className="w-4 h-4" /> {additive ? 'Added — tap to remove' : 'Your choice'}</> : additive ? 'Add this' : 'Choose this option'}
+                        </button>
+                      : <p className="mt-1 text-sm font-medium text-green-800 dark:text-green-300">{additive ? 'You added this' : 'You chose this option'}</p>}
+                  </div>
                 </div>
-              )}
-              <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{op.name}</h3>
-              {op.brand && <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{op.brand}</p>}
-              {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
-              {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
-              <AttachmentLinks items={op.attachments} title="Brochures and files" />
-              {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
-              {Number(op.discount || 0) > 0 && <p className="mt-2 text-sm font-medium text-green-800 dark:text-green-300" data-testid="option-discount">Includes a {moneyShort(op.discount)} discount</p>}
-              {/* The customer chooses the option first; its upgrades are offered after that, and are ticked one by one. */}
-              {op.upgrades && op.upgrades.length > 0 && (
-                <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60" data-testid="option-upgrades">
-                  <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Upgrades for {op.name}</p>
-                  {op.chosen && canRespond
-                    ? <ul className="mt-1 space-y-1">{op.upgrades.map((u, i) => <li key={u.id || i}><label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="checkbox" className="mt-1" checked={!!u.selected} disabled={busy || !u.id} onChange={(e) => u.id && onUpgrade(u.id, e.target.checked)} aria-label={`Add ${u.description}`} /><span className="flex-1">{u.description}</span><span>{moneyShort(u.total)}</span></label></li>)}</ul>
-                    : op.chosen
-                      ? <ul className="mt-1 text-sm text-gray-800 dark:text-slate-200">{op.upgrades.filter((u) => u.selected).map((u, i) => <li key={u.id || i} className="flex justify-between"><span>{u.description}</span><span>{moneyShort(u.total)}</span></li>)}</ul>
-                      : <>
-                        <ul className="mt-1 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.upgrades.map((u, i) => <li key={u.id || i}>{u.description} ({moneyShort(u.total)})</li>)}</ul>
-                        <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Choose this option first; you pick its upgrades after.</p>
-                      </>}
-                </div>
-              )}
-              <div className="mt-auto pt-4">
-                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{moneyShort(op.price)}</p>
-                {Number(op.deposit || 0) > 0 && <p className="text-sm text-gray-600 dark:text-slate-400">Deposit on approval: {moneyShort(op.deposit)}</p>}
-                {canRespond
-                  ? <button type="button" disabled={busy} onClick={() => onChoose(op.id)} aria-pressed={!!op.chosen} className={op.chosen ? `${btnSuccess} mt-2 w-full justify-center` : `${btnSecondary} mt-2 w-full justify-center`}>{op.chosen ? <><CheckCircle className="w-4 h-4" /> Your choice</> : 'Choose this option'}</button>
-                  : <p className="mt-1 text-sm font-medium text-green-800 dark:text-green-300">You chose this option</p>}
-              </div>
+              ))}
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -201,10 +227,10 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
     try { const res = await portalFetch(`/quotes/${quoteId}/options`, { method: 'POST', body: JSON.stringify({ lineItemId, selected }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
     catch (e) { setError('Could not change that line: ' + (e as Error).message) } finally { setBusy(false) }
   }
-  // Choose one of the quote's options before signing: the server answers the quote with its total for that option.
-  const chooseOption = async (optionId: string) => {
+  // Pick one of a set's options (or add / remove an add-on) before signing: the server answers the quote with its total for every pick.
+  const chooseOption = async (optionId: string, chosen = true) => {
     setBusy(true); setError('')
-    try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ optionId }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
+    try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ optionId, chosen }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
     catch (e) { setError('Could not choose that option: ' + (e as Error).message) } finally { setBusy(false) }
   }
   // Tick or untick an upgrade of the option already chosen: the server answers the quote with its new total.

@@ -11,7 +11,7 @@ import {
 } from '@twomiah/tenant-backend'
 import {
   company, user, contact, job, project, quote, invoice, invoiceLineItem, payment, timeEntry, teamMember, location, emailLog,
-  smsConversation, smsMessage, smsTemplate, reviewRequest, campaign, serviceAgreement, agreementVisit, agreementPlan,
+  smsConversation, smsMessage, smsTemplate, reviewRequest, campaign, serviceAgreement, agreementVisit, agreementPlan, agreementEvent,
   inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder,
   purchaseOrderItem, qbIntegration, vehicle, vehicleMaintenance, fuelLog, warrantyTemplate, projectWarranty, warrantyClaim,
   activity, jobAssignment, equipment, equipmentCategory, equipmentMaintenance, pricebookCategory, pricebookItem,
@@ -69,6 +69,10 @@ export interface CrmServiceDeps {
   /** Tests only: a fake Stripe client (TestSeams.stripe); otherwise one is made from STRIPE_SECRET_KEY. */
   stripe?: any
 }
+
+/** The moments of a job a module can act on. */
+export type JobMomentKind = 'created' | 'dispatched' | 'started' | 'paused' | 'resumed' | 'completed'
+export type JobMoment = (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => Promise<unknown> | unknown
 
 export function createCrmServices(deps: CrmServiceDeps) {
   const { db, email, audit, logger, isFeatureEnabled, settings } = deps
@@ -148,6 +152,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
       },
     },
   } as any)
+  const smsReplies: Array<(m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>> = []
   const sms = createSmsService({
     db, tables: { smsConversation, smsMessage, smsTemplate, contact, company, job, user, teamMember }, usage,
     // A customer's own text: texting the business first is consent to be texted back; STOP withdraws it (site/smsConsent.ts).
@@ -155,6 +160,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
       ? recordConsent(db, companyId, { phone, source: 'texted_first' }).then(() => {})
       // STOP also ends a relative's arrival texts, by our own record (a home care relative has no saved contact to carry an "opted out" flag).
       : withdrawConsent(db, companyId, phone).then(() => stopFamilyTexts(db, companyId, phone)).then(() => {}),
+    // A text back that the business answers itself — a visit confirmed by "Y" (field/jobConfirm.ts registers through useSmsReply).
+    onReply: async (m: { companyId: string; contactId: string | null; body: string }) => {
+      for (const h of smsReplies) { const answer = await h(m); if (answer) return answer }
+      return null
+    },
     // Picture messages: files in the private store, handed to the carrier by short-lived signed links (comms/smsMedia.ts).
     media: smsMediaLinks,
   } as any)
@@ -186,7 +196,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const recurring = createRecurringService({ db, tables: { invoice, invoiceLineItem }, emailService } as any)
   const agreements = createAgreementsService({
     db,
-    tables: { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company },
+    tables: { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user },
     stripe: { listSavedPaymentMethods: stripeService.listSavedPaymentMethods, chargeInvoiceOffSession: stripeService.chargeInvoiceOffSession },
     audit,
     sendRenewalNotice: (to: string, data: Record<string, unknown>) => email.send(to, 'agreementRenewalNotice', data),
@@ -228,16 +238,38 @@ export function createCrmServices(deps: CrmServiceDeps) {
    * recurring service agreement.
    */
   const textArrival = !!settings.jobs?.textArrival
-  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook } = {
-    ...(textArrival ? {
-      onDispatch: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_my_way').catch(() => {}) },
-    } : {}),
-    // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
-    onStart: async ({ job: j, companyId }) => {
-      if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
-      if (textArrival) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
+  // What a module does at a job's moments (made, on the way, started, done), registered when the module mounts — the way
+  // invoicePaidSteps are. Run by every door a status is reached by (the job routes and bulk updates). One failing step never
+  // stops the others, or the job.
+  const jobMomentSteps: JobMoment[] = []
+  const afterJobMoment = async (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => {
+    for (const step of jobMomentSteps) {
+      try { await step(kind, ctx) } catch (err) { logger.warn?.('[jobs] a job-moment step failed', { kind, error: (err as Error)?.message }) }
+    }
+  }
+  // "On my way" and "on site" are told to the customer as they happen. A move the tech tapped with no signal and that reaches the
+  // server long after (JobHook ctx.tappedAt) is recorded with its real time but not texted: "I'm on my way" an hour late is wrong.
+  const STALE_AFTER_MS = 30 * 60_000
+  const stillCurrent = (tappedAt: Date | null | undefined) => !tappedAt || Date.now() - tappedAt.getTime() <= STALE_AFTER_MS
+  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook } = {
+    onCreate: async (ctx) => { await afterJobMoment('created', ctx) },
+    // Paused / resumed (ServiceTitan's Pause): nothing is texted; the clock takes a break where timekeeping is automatic.
+    onPause: async (ctx) => { await afterJobMoment('paused', ctx) },
+    onResume: async (ctx) => { await afterJobMoment('resumed', ctx) },
+    onDispatch: async (ctx) => {
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
+      await afterJobMoment('dispatched', ctx)
     },
-    onComplete: async ({ job: done, companyId }) => {
+    // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
+    onStart: async (ctx) => {
+      const { job: j, companyId } = ctx
+      await afterJobMoment('started', ctx)
+      if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
+    },
+    onComplete: async (ctx) => {
+      const { job: done, companyId } = ctx
+      await afterJobMoment('completed', ctx)
       if (textArrival) sms.sendJobUpdate(companyId, done.id, 'completed').catch(() => {})
       // A route billed per visit gets its draft invoice as the crew finishes the visit (data/routeBilling.ts); a failure here
       // never holds up completing the job.
@@ -284,9 +316,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, quoteFollowUp, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, onJobMoment: (step: JobMoment) => { jobMomentSteps.push(step) }, invoiceReminders, quoteFollowUp, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
     /** The private-events passes (reminders, card charges), put here when the events module mounts so a test can run one. */
     eventJobs: {} as Record<string, (...args: any[]) => Promise<number>>,
+    /** A module that answers a customer's text itself (a visit confirmed by "Y"): returns the reply, or null to leave it to the inbox. */
+    useSmsReply(h: (m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>) { smsReplies.push(h) },
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
