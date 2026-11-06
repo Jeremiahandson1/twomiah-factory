@@ -18,6 +18,7 @@ import { landscapingSetting } from '../../db/schema/index.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSnowStormRoutes } from './snowStorm.ts'
 import { createVisitReportRoutes } from './visitReports.ts'
+import { createVisitFeedbackRoutes } from './visitFeedback.ts'
 import { createSiteRoutes } from './sites.ts'
 import { topUpRouteVisits } from '../../data/routeVisits.ts'
 
@@ -60,6 +61,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     { path: '/api/snow', access: 'user', feature: 'snow_billing', router: createSnowBillingRoutes(d) },
     // The visit-done message: the crew's note and after-photos, and what the customer was sent. NOT READY (hidden feature).
     { path: '/api/visit-reports', access: 'user', feature: 'visit_reports', router: createVisitReportRoutes(d) },
+    // Row 31: the customer's rating from the message's link — PUBLIC (the signed link is the key); visit_survey is read per link.
+    { path: '/api/visit-feedback', access: 'public', router: createVisitFeedbackRoutes(d) },
     // The crew's day on the phone and the office's side of it (parity rows 11–15): each route asks its own not-ready switch too.
     { path: '/api/crew-day', access: 'user', feature: 'recurring_routes', router: createCrewDayRoutes(d) },
     // Drawing on a visit's photos from the phone (landscaping parity row 9; roofing's photo_markup, not ready). Roofing mounts the same
