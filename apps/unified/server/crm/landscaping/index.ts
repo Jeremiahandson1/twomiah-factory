@@ -9,6 +9,7 @@ import type { CrmDeps } from '../deps.ts'
 import { createRecurringRouteRoutes } from './recurringRoutes.ts'
 import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createRainDayRoutes } from './rainDay.ts'
+import { createRouteTemplateRoutes } from './routeTemplates.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
 import { photoMarkupMounts } from '../roof/photoMarkup/index.ts'
@@ -53,6 +54,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     { path: '/api/recurring-routes/billing', access: 'user', feature: 'recurring_routes', router: createRouteBillingRoutes(d) },
     // Rain day: push a day's jobs forward and text the customers. Before the board's router for the same reason.
     { path: '/api/recurring-routes/rain-day', access: 'user', feature: 'recurring_routes', router: createRainDayRoutes(d) },
+    // Row 28: copy a route, and route templates (route_copy, read per request). Before the board's router for the same reason.
+    { path: '/api/recurring-routes/templates', access: 'user', feature: 'recurring_routes', router: createRouteTemplateRoutes(d) },
     { path: '/api/recurring-routes', access: 'user', feature: 'recurring_routes', router: createRecurringRouteRoutes(d) },
     { path: '/api/area-pricing', access: 'user', feature: 'area_pricing', router: createAreaPricingRoutes(d) },
     { path: '/api/measure-print', access: 'user', feature: MEASURE_PRINT_FEATURE, router: createMeasurePrintRoutes(d) },
