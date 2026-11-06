@@ -276,7 +276,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
-      ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}),
+      ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}), repeatPatterns: (companyId: string) => features.isFeatureEnabled(companyId, 'job_repeat_patterns'),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate, onPause: s.jobHooks.onPause, onResume: s.jobHooks.onResume,
       // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
       // Only for a business that has switched Tech Availability on.

@@ -27,18 +27,26 @@ const label = (s: string) => s.replace(/_/g, ' ')
  * How a new job repeats (JobsConfig.repeat). "none" is a single job, as before. The choices are the ones the server
  * takes — weekly × 1–4 or monthly — and an end: a number of visits, or a last day.
  */
-type RepeatChoice = 'none' | 'w1' | 'w2' | 'w3' | 'w4' | 'm1'
+type RepeatChoice = 'none' | 'w1' | 'w2' | 'w3' | 'w4' | 'm1' | 'days' | 'nth' | 'y1'
 const REPEAT_CHOICES: Array<{ value: RepeatChoice; label: string }> = [
   { value: 'none', label: 'Does not repeat' }, { value: 'w1', label: 'Every week' }, { value: 'w2', label: 'Every 2 weeks' },
   { value: 'w3', label: 'Every 3 weeks' }, { value: 'w4', label: 'Every 4 weeks' }, { value: 'm1', label: 'Every month' },
 ]
-interface RepeatForm { choice: RepeatChoice; ends: 'count' | 'until'; count: string; until: string; weekdays: number[] }
-const NO_REPEAT: RepeatForm = { choice: 'none', ends: 'count', count: '12', until: '', weekdays: [] }
+/**
+ * More patterns (job_repeat_patterns, not ready — landscaping parity row 18): every N days with weekdays and days to skip, the Nth
+ * weekday of the month, every year. A series then runs up to a year of visits.
+ */
+const PATTERN_CHOICES: Array<{ value: RepeatChoice; label: string }> = [{ value: 'days', label: 'Every few days…' }, { value: 'nth', label: 'A weekday of the month…' }, { value: 'y1', label: 'Every year' }]
+const NTH_WORDS: Array<{ n: number; label: string }> = [{ n: 1, label: '1st' }, { n: 2, label: '2nd' }, { n: 3, label: '3rd' }, { n: 4, label: '4th' }, { n: -1, label: 'Last' }]
+interface RepeatForm { choice: RepeatChoice; ends: 'count' | 'until'; count: string; until: string; weekdays: number[]; everyDays: string; skipWeekdays: number[]; excludeDates: string; nthPositions: number[]; nthWeekday: number }
+const NO_REPEAT: RepeatForm = { choice: 'none', ends: 'count', count: '12', until: '', weekdays: [], everyDays: '3', skipWeekdays: [], excludeDates: '', nthPositions: [1], nthWeekday: 5 }
 /** Sunday-first, as the server counts them; shown Monday-first below. */
 const WEEKDAY_BUTTONS: Array<{ n: number; label: string }> = [{ n: 1, label: 'Mon' }, { n: 2, label: 'Tue' }, { n: 3, label: 'Wed' }, { n: 4, label: 'Thu' }, { n: 5, label: 'Fri' }, { n: 6, label: 'Sat' }, { n: 0, label: 'Sun' }]
 const repeatBody = (r: RepeatForm, withDays = false) => r.choice === 'none' ? undefined : {
-  frequency: r.choice === 'm1' ? 'monthly' : 'weekly', interval: r.choice === 'm1' ? 1 : Number(r.choice.slice(1)),
-  ...(withDays && r.choice !== 'm1' && r.weekdays.length ? { weekdays: r.weekdays } : {}),
+  ...(r.choice === 'days' ? { frequency: 'daily', interval: Number(r.everyDays) || 1, ...(r.skipWeekdays.length ? { skipWeekdays: r.skipWeekdays } : {}), ...(r.excludeDates.trim() ? { excludeDates: r.excludeDates.split(/[\s,]+/).filter(Boolean) } : {}) }
+    : r.choice === 'nth' ? { frequency: 'monthly_nth', interval: 1, nthPositions: r.nthPositions, nthWeekday: r.nthWeekday }
+    : r.choice === 'y1' ? { frequency: 'yearly', interval: 1 }
+    : { frequency: r.choice === 'm1' ? 'monthly' : 'weekly', interval: r.choice === 'm1' ? 1 : Number(r.choice.slice(1)), ...(withDays && r.choice !== 'm1' && r.weekdays.length ? { weekdays: r.weekdays } : {}) }),
   ...(r.ends === 'count' ? { count: r.count === '' ? undefined : Number(r.count) } : { until: r.until || undefined }),
 }
 
@@ -431,6 +439,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
                 <Field label="Repeat">
                   <select aria-label="Repeat" value={repeat.choice} onChange={(e) => setRepeat((r) => ({ ...r, choice: e.target.value as RepeatChoice }))} className={inputCls}>
                     {REPEAT_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    {cfg.hasFeature('job_repeat_patterns') && PATTERN_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </Field>
                 {repeat.choice !== 'none' && (
@@ -442,12 +451,30 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
                       </select>
                     </Field>
                     {repeat.ends === 'count'
-                      ? <Field label="Visits"><input aria-label="Visits" type="number" min={2} max={52} value={repeat.count} onChange={(e) => setRepeat((r) => ({ ...r, count: e.target.value }))} className={inputCls} /></Field>
+                      ? <Field label="Visits"><input aria-label="Visits" type="number" min={2} max={cfg.hasFeature('job_repeat_patterns') ? 366 : 52} value={repeat.count} onChange={(e) => setRepeat((r) => ({ ...r, count: e.target.value }))} className={inputCls} /></Field>
                       : <Field label="Last day"><input aria-label="Last day" type="date" min={form.scheduledDate || undefined} value={repeat.until} onChange={(e) => setRepeat((r) => ({ ...r, until: e.target.value }))} className={inputCls} /></Field>}
                   </>
                 )}
               </div>
-              {cfg.repeatWeekdays && repeat.choice !== 'none' && repeat.choice !== 'm1' && (
+              {repeat.choice === 'days' && (
+                <div className="mt-3 grid gap-3 md:grid-cols-3" data-testid="job-repeat-every-days">
+                  <Field label="Every how many days"><input aria-label="Every how many days" type="number" min={1} max={90} value={repeat.everyDays} onChange={(e) => setRepeat((r) => ({ ...r, everyDays: e.target.value }))} className={inputCls} /></Field>
+                  <fieldset className="md:col-span-2"><legend className="text-xs font-medium text-gray-700 dark:text-slate-300">Never on</legend>
+                    <div className="mt-1 flex flex-wrap gap-2">{WEEKDAY_BUTTONS.map((d) => { const on = repeat.skipWeekdays.includes(d.n); return <button key={d.n} type="button" aria-pressed={on} onClick={() => setRepeat((r) => ({ ...r, skipWeekdays: on ? r.skipWeekdays.filter((x) => x !== d.n) : [...r.skipWeekdays, d.n] }))} className={`rounded-md border px-3 py-1 text-sm ${on ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-slate-700 dark:text-orange-200' : 'border-gray-300 dark:border-slate-600'}`}>{d.label}</button> })}</div>
+                  </fieldset>
+                  <Field label="Days to skip (YYYY-MM-DD, separated by commas)"><input aria-label="Days to skip" value={repeat.excludeDates} placeholder="2026-12-25, 2027-01-01" onChange={(e) => setRepeat((r) => ({ ...r, excludeDates: e.target.value }))} className={inputCls} /></Field>
+                </div>
+              )}
+              {repeat.choice === 'nth' && (
+                <div className="mt-3 flex flex-wrap items-end gap-3" data-testid="job-repeat-nth">
+                  <fieldset><legend className="text-xs font-medium text-gray-700 dark:text-slate-300">Which</legend>
+                    <div className="mt-1 flex flex-wrap gap-2">{NTH_WORDS.map((w) => { const on = repeat.nthPositions.includes(w.n); return <button key={w.n} type="button" aria-pressed={on} onClick={() => setRepeat((r) => ({ ...r, nthPositions: on ? r.nthPositions.filter((x) => x !== w.n) : [...r.nthPositions, w.n] }))} className={`rounded-md border px-3 py-1 text-sm ${on ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-slate-700 dark:text-orange-200' : 'border-gray-300 dark:border-slate-600'}`}>{w.label}</button> })}</div>
+                  </fieldset>
+                  <Field label="Day"><select aria-label="Weekday of the month" value={repeat.nthWeekday} onChange={(e) => setRepeat((r) => ({ ...r, nthWeekday: Number(e.target.value) }))} className={inputCls}>{WEEKDAY_BUTTONS.map((d) => <option key={d.n} value={d.n}>{d.label}</option>)}</select></Field>
+                  <p className="text-xs text-gray-600 dark:text-slate-300">of every month</p>
+                </div>
+              )}
+              {cfg.repeatWeekdays && repeat.choice !== 'none' && repeat.choice !== 'm1' && !['days', 'nth', 'y1'].includes(repeat.choice) && (
                 <fieldset className="mt-3" data-testid="job-repeat-days">
                   <legend className="text-xs font-medium text-gray-700 dark:text-slate-300">On these days (leave empty to repeat on the first visit's day)</legend>
                   <div className="mt-1 flex flex-wrap gap-2">
@@ -464,7 +491,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
               {repeat.choice !== 'none' && (
                 <p className="mt-2 text-xs text-gray-600 dark:text-slate-300">
                   {form.scheduledDate
-                    ? `Starts ${dateOnly(form.scheduledDate)}. Every visit goes on the Schedule now (up to 52), each its own ${cfg.labels.singular.toLowerCase()}; stop the series from any visit's page.`
+                    ? `Starts ${dateOnly(form.scheduledDate)}. Every visit goes on the Schedule now (up to ${cfg.hasFeature('job_repeat_patterns') ? 'a year' : '52'}), each its own ${cfg.labels.singular.toLowerCase()}; stop the series from any visit's page.`
                     : 'Pick the scheduled date above — it is the first visit.'}
                 </p>
               )}
