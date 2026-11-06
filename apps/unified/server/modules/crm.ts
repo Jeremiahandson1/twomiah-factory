@@ -290,12 +290,13 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
     sendCosignEmail: (to: string, data: Record<string, unknown>) => s.emailService.send(to, 'quoteCosign', data),
-    storage: s.storage,
+    storage: s.storage, photoStore: deps.store,
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
       // A picture on a quote line, kept only for a business with quote_line_images on (crm/billing/quoteLineImages.ts).
       lineImagesEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_line_images'),
+      textLinesEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_text_lines'),
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),
@@ -589,7 +590,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       sendEmail: (to: string, template: string, data: Record<string, unknown>) => s.emailService.send(to, template, data),
       loadInvoicePdf, loadQuotePdf,
       selections: createSelectionsService(own),
-      fileService: s.storage,
+      fileService: s.storage, photoStore: deps.store,
       // Field service, basic: the visits still to come, each one confirmed with a button (crm/field/jobConfirm.ts; the Job Reminders feature).
       // (Only field service and basic list it in their portal menu — verticals' clientNav — and it answers only with Job Reminders on.)
       upcomingVisits: (() => {

@@ -20,7 +20,7 @@ import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
 import { includedLines, notIncludedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, proposalsLive, isPhotoAddress, optionBasis, UPGRADE, hasOptionDiscounts, lowestPrice, offersOptions, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_PROPOSAL_SETS, MAX_OPTION_PHOTOS, MAX_OPTION_UPGRADES, SET_KINDS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
-import { hasDocumentTables, documentSchema, attachmentsSchema, loadDocument, saveDocument, loadMarks, documentForOffice, storeProposalFile, attachedPdfBytes, cosignerRequired, cosignStatus, pdfExtras } from './quoteDocument'
+import { hasDocumentTables, documentSchema, attachmentsSchema, loadDocument, saveDocument, loadMarks, documentForOffice, storeProposalFile, attachedPdfBytes, cosignerRequired, cosignStatus, pdfExtras, withLinePictures } from './quoteDocument'
 import { applyMarkups, sectionSummary } from './quoteSections'
 
 
@@ -81,6 +81,8 @@ export interface QuoteOptions {
   proposalsEnabled?: (companyId: string) => Promise<boolean> | boolean
   /** May this business put a picture on a quote line? Asked when the lines are saved; absent, no line keeps one. */
   lineImagesEnabled?: (companyId: string) => Promise<boolean> | boolean
+  /** Text lines (a heading or a note with no price) — feature quote_text_lines. Kept only where line kinds are (hasLineCost). */
+  textLinesEnabled?: (companyId: string) => Promise<boolean> | boolean
   /**
    * The zone this business keeps its calendar in, for deciding what "today" is when an expiry is
    * defaulted. Render runs UTC, so from 19:00 Central a quote raised in the evening expired a day late
@@ -130,6 +132,8 @@ export interface QuoteDeps {
   sendCosignEmail?: (to: string, data: Record<string, unknown>) => Promise<unknown>
   /** The file store, for the pictures and PDFs attached to a proposal. */
   storage?: any
+  /** The business's photo library (where quote_line_images uploads go), read for each line's picture on the PDF; else `storage`. */
+  photoStore?: { getObject?: (key: string) => Promise<{ body: Uint8Array | Buffer } | null> }
   /**
    * The template's audit service — `{ log, ACTIONS, ENTITIES }`, the same shape the invoices module
    * takes. Optional, so a template that has not been rewired keeps working rather than failing to
@@ -181,7 +185,8 @@ const lineItemSchema = z.object({
    * had nowhere to live, so even a correctly-typed line could only have reported the price back as
    * the cost. The pricebook already records cost per item, and the picker fills this from it.
    */
-  type: z.enum(['labor', 'material', 'part', 'service', 'other']).optional(),
+  // 'text': a line of words only — a heading or a note, no quantity or price (Jobber "Add text"; feature quote_text_lines).
+  type: z.enum(['labor', 'material', 'part', 'service', 'other', 'text']).optional(),
   unitCost: z.number().min(0, 'Cost cannot be negative').optional()
     .transform((v) => (v === undefined ? undefined : Math.round((v + Number.EPSILON) * 100) / 100)),
   pricebookItemId: z.string().optional().transform(v => (v === '' ? undefined : v)),
@@ -214,7 +219,11 @@ const EDITABLE = OPEN_QUOTE_STATUSES
 const SETTABLE = ['draft', 'sent']
 
 const isOpt = (i: { optional?: boolean }) => !!i.optional
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false, hasImage = false) => items.map((item, i) => ({
+/** A text line (a heading or a note): words only — one of nothing at no price, never optional, no cost, markup or picture. */
+const asTextLine = <T extends Record<string, any>>(item: T): T => (item?.type === 'text'
+  ? { ...item, quantity: 1, unitPrice: 0, unitCost: undefined, markupPct: undefined, optional: false, selected: true, allowance: false, imageUrl: undefined, pricebookItemId: undefined }
+  : item)
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false, hasImage = false) => items.map(asTextLine).map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -324,6 +333,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const hasSections = !!t.quoteLineItem?.section
   // Pictures on lines: where the table has the column AND the business has the feature on.
   const imagesOn = async (cid: string) => !!t.quoteLineItem?.imageUrl && !!o.lineImagesEnabled && !!(await o.lineImagesEnabled(cid))
+  const textOn = async (cid: string) => !!o.hasLineCost && !!o.textLinesEnabled && !!(await o.textLinesEnabled(cid))
+  /** A text line where the business has none switched on is refused in words, never saved as a $0 priced line. */
+  const textRefused = async (cid: string, lines: any[] | undefined) =>
+    Array.isArray(lines) && lines.some((l) => l?.type === 'text') && !(await textOn(cid)) ? 'Text lines are not switched on for this business.' : null
+  /** What a job or an invoice is made of: the quote's lines without its text lines (headings and notes on the quote only). */
+  const workLines = (rows: any[]) => rows.filter((li) => li?.type !== 'text')
   // Good/Better/Best options the customer chooses from (quoteOptions.ts). Needs the optional-lines columns it rides on.
   const hasProposal = hasOptional && hasProposalTables(t)
   const proposalAllowed = async (cid: string) => hasProposal && (await proposalsLive(t as any, o.proposalsEnabled, cid))
@@ -498,6 +513,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const currentUser = c.get('user') as any
     const cid = currentUser.companyId
     const data = quoteSchema.parse(await c.req.json()) as any
+    // A text line is words only, whatever price was sent with it: one of nothing at no price, before any total is worked out.
+    if (Array.isArray(data.lineItems)) data.lineItems = data.lineItems.map(asTextLine)
     if (hasSections) {
       const priced = applyMarkups<any>(data.lineItems)
       if ('error' in priced) return c.json({ error: priced.error }, 400)
@@ -549,6 +566,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (currentUser.userId && 'createdById' in t.quote) values.createdById = currentUser.userId
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
     const withImages = await imagesOn(cid)
+    const noText = await textRefused(cid, data.lineItems)
+    if (noText) return c.json({ error: noText, fields: { lineItems: noText } }, 400)
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
@@ -566,6 +585,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const cid = currentUser.companyId
     const id = c.req.param('id')
     const data = partialOf(quoteSchema).parse(await c.req.json()) as any
+    // A text line is words only, whatever price was sent with it: one of nothing at no price, before any total is worked out.
+    if (Array.isArray(data.lineItems)) data.lineItems = data.lineItems.map(asTextLine)
     const existing = await findOwn(cid, id)
     if (!existing) return c.json({ error: 'Quote not found' }, 404)
     // A seat that is not shown a line's cost sends its lines back without one, and the lines are replaced
@@ -648,6 +669,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if ('error' in deposit) return c.json({ error: deposit.error }, 400)
     Object.assign(update, deposit)
     const withImages = await imagesOn(cid)
+    const noText = await textRefused(cid, data.lineItems)
+    if (noText) return c.json({ error: noText, fields: { lineItems: noText } }, 400)
     const result = await db.transaction(async (tx: any) => {
       const [updated] = await tx.update(t.quote).set(update).where(eq(t.quote.id, id)).returning()
       let items: any[]
@@ -782,7 +805,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           (!contactRow.portalTokenExp || new Date(contactRow.portalTokenExp).getTime() > Date.now()))
         approveOnline = !!token || portalLive
         // The customer's copy: no pricebook item codes (itemCodes.ts).
-        let lines = await customerLines(db, cid, billable(await lineRows(found.id)))
+        let lines = await customerLines(db, cid, workLines(billable(await lineRows(found.id))))
         let emailTotal = found.total, emailSubtotal = found.subtotal, emailTax = found.taxAmount
         // A quote whose customer has yet to choose is offered by its options: each at its whole price, the total "from" the lowest.
         const offered = (await proposalAllowed(cid)) ? await proposalView(db, t as any, found) : null
@@ -1147,7 +1170,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (already) return c.json({ error: `This quote was already converted to invoice ${already.number}.`, invoiceId: already.id }, 400)
       // The invoice is the customer's document: its lines are written without pricebook item codes (itemCodes.ts).
       // Only the included lines: an optional line nobody ticked is not billed (quoteOptions.ts).
-      const items = await customerLines(db, cid, billable(await lineRows(id)))
+      const items = await customerLines(db, cid, workLines(billable(await lineRows(id))))
       const settings = await companySettings(cid)
       // Who it bills: the quote's customer, else its project's (contacts/customer.ts) — read before the transaction opens.
       const customerId = await customerOfQuote(cid, found)
@@ -1199,7 +1222,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (existingJob) return c.json({ error: 'Quote already converted to a job', jobId: existingJob.id }, 400)
       // A quote written for a job (quote.job_id, roofing) is that job's proposal: it is not made into a second job.
       if (extra.has('jobId') && found.jobId) return c.json({ error: 'This quote is already on a job.', jobId: found.jobId }, 400)
-      const items = await customerLines(db, cid, billable(await lineRows(id)))
+      const items = await customerLines(db, cid, workLines(billable(await lineRows(id))))
       const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × ${money(Number(li.unitPrice))})`).join('\n')
       // Service address: the quote's site when the vertical has sites, else the contact's address.
       let address = '', city = '', state = '', zip = ''
@@ -1266,11 +1289,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const [ct, lineItems, [co]] = await Promise.all([
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
-      lineRows(id).then((rows: any[]) => customerLines(db, cid, billable(rows))),
+      // Each line's picture read from the photo store, so the PDF prints it beside the line (quoteDocument.ts withLinePictures).
+      lineRows(id).then(async (rows: any[]) => withLinePictures(deps.photoStore ?? deps.storage, await customerLines(db, cid, billable(rows)))),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
     // The optional lines left unticked, printed apart and labelled "Not included" (they are not in the total).
-    const notIncluded = hasOptional ? await customerLines(db, cid, notIncludedLines<any>(await lineRows(id))) : []
+    const notIncluded = hasOptional ? await withLinePictures(deps.photoStore ?? deps.storage, await customerLines(db, cid, notIncludedLines<any>(await lineRows(id)))) : []
     // Same strip for the PDF payload. The renderer does not print a token today, but handing it
     // one is how it ends up in a file somebody emails.
     // A quote whose customer has yet to choose prints the lines every option shares and each option at its whole price.

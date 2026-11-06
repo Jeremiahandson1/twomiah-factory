@@ -83,6 +83,18 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     doc.moveDown(0.5)
 
     const drawLine = (item: any) => {
+      // A text line (quote_text_lines): a heading or a note in words only, across the page — no quantity, price or total.
+      if (item.type === 'text') {
+        if (doc.y > 700) doc.addPage()
+        doc.moveDown(0.2).font('Helvetica-Bold').text(String(item.description || ''), colDesc, doc.y, { width: 468 }).font('Helvetica')
+        doc.moveDown(0.2)
+        return
+      }
+      // The line's picture (quote_line_images), when it could be read, on its own row above the line's words.
+      if (Buffer.isBuffer(item.picture)) {
+        if (doc.y > 640) doc.addPage()
+        try { doc.image(item.picture, colDesc, doc.y + 2, { fit: [96, 72] }); doc.y += 78 } catch { /* an unreadable picture leaves the line */ }
+      }
       const qty = Number(item.quantity ?? 1)
       const price = Number(item.unitPrice ?? item.price ?? 0)
       const lineTotal = Number(item.total ?? qty * price)
