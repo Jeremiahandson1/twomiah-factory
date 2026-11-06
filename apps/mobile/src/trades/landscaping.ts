@@ -5,9 +5,14 @@
  * dated job timed from the route's start, so start time IS the stop order). It calls the desktop's own routes:
  *   GET  /api/jobs/today               a crew seat reads only its own jobs (jobs:read)
  *   POST /api/jobs/:id/start|complete  jobs:update — the same buttons as the Schedule; finishing a visit tells the customer where the
- *                                      business turned the visit-done message on
+ *                                      business turned the visit-done message on. Both work with no signal (parity row 8): kept on
+ *                                      the phone under `job:<id>` (the shared job flow's key) with the moment they were TAPPED
+ *                                      (`tappedAt`, which the server keeps — jobs.ts), sent once when signal returns
+ *                                      (Idempotency-Key, server/http/savedOnce.ts), and shown as waiting until then.
  *   PUT  /api/visit-reports/job/:id    the crew's note for the customer (jobs:update, feature visit_reports)
- *   POST /api/visit-reports/job/:id/photos  an after-photo (screen app/(details)/visit-photo.tsx)
+ *   POST /api/visit-reports/job/:id/photos  an after-photo (screen app/(details)/visit-photo.tsx), where job photos are off
+ *   POST /api/jobs/:id/photos/file|saved     before- and after-photos through the offline queue, drawn on with photo_markup
+ *                                            (screen app/(details)/visit-photos.tsx; parity row 9)
  * Log snow visit is the same person's stops in a storm that is going (GET /api/snow/storms/mine/stops):
  *   POST /api/snow/storms/stops/:id/start|log   jobs:update, own stops only; logging twice never bills a push twice.
  *   POST /api/snow/storms/stops/:id/skip         the office's call (jobs:dispatch)
@@ -19,6 +24,8 @@ const maps = (address?: string | null) => (address ? `https://www.google.com/map
 const OPEN_JOB = ['scheduled', 'pending', 'confirmed', 'dispatched']
 const jobTone = (s: string): Row['tone'] => (s === 'completed' ? 'success' : s === 'in_progress' ? 'info' : s === 'cancelled' ? 'danger' : 'neutral')
 const stopTone = (s: string): Row['tone'] => (s === 'done' ? 'success' : s === 'working' ? 'info' : s === 'skipped' ? 'danger' : 'neutral')
+/** The moment of a tap, for a move kept on the phone: the server records it, not the time the save arrives (jobs.ts tappedAt). */
+export const tapped = (at: Date = new Date()) => ({ tappedAt: at.toISOString() })
 const num = (v: string | undefined) => (v == null || String(v).trim() === '' ? undefined : Number(v))
 
 export const visitRow = (j: any): Row & { id: string } => ({
@@ -33,6 +40,7 @@ export const stopRow = (s: any): Row & { id: string } => ({
 export const LANDSCAPING: ScreenSpec[] = [
   {
     id: 'landscaping-route', title: "Today's route", any: ['jobs:read'], feature: 'recurring_routes',
+    waitingKey: (d) => `job:${d.id}`,
     list: { path: '/api/jobs/today' }, pick: (b) => (Array.isArray(b) ? b : Array.isArray(b?.data) ? b.data : []), rows: visitRow,
     empty: { title: 'No visits today', body: 'The visits on your route for today show here, in the order to do them.' },
     detail: {
@@ -46,14 +54,19 @@ export const LANDSCAPING: ScreenSpec[] = [
           { label: 'Customer', get: (d) => d.contact?.name }, { label: 'Address', get: (d) => d.address }, { label: 'Start', get: (d) => hhmm(d.scheduledTime) },
           { label: 'Time allowed', get: (d) => (d.estimatedHours ? `${d.estimatedHours} hours` : undefined) }, { label: 'Notes', get: (d) => d.description },
         ] },
-        { feature: 'visit_reports', links: (d) => (d.status === 'completed' || d.status === 'in_progress' ? [{ label: 'Add an after photo', url: '', icon: 'camera', route: `/(details)/visit-photo?jobId=${d.id}` }] : []) },
+        // Before and after photos, kept on the phone with no signal and drawn on (parity row 9) — where the business has job photos.
+        { feature: 'photo_capture', links: (d) => (d.status === 'cancelled' ? [] : [{ label: 'Photos — before and after', url: '', icon: 'camera', route: `/(details)/visit-photos?jobId=${d.id}` }]) },
+        // Without job photos: the after-photo for the visit-done message, as before.
+        { feature: 'visit_reports', unlessFeature: 'photo_capture', links: (d) => (d.status === 'completed' || d.status === 'in_progress' ? [{ label: 'Add an after photo', url: '', icon: 'camera', route: `/(details)/visit-photo?jobId=${d.id}` }] : []) },
       ],
       actions: [
         { id: 'start', label: 'Start this stop', icon: 'play', any: ['jobs:update'], when: (d) => OPEN_JOB.includes(d.status),
-          request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/start` }), done: 'Started' },
+          offline: (d) => ({ key: `job:${d.id}`, label: `${d.contact?.name || d.number || 'Visit'} · started` }),
+          request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/start`, body: tapped() }), done: 'Started' },
         { id: 'done', label: 'Finish this stop', icon: 'checkmark-circle', any: ['jobs:update'], when: (d) => d.status === 'in_progress' || OPEN_JOB.includes(d.status),
           confirm: { title: 'Finish this stop?', body: () => 'This marks the visit done and records your time. If your office sends visit messages, the customer is told.', button: 'Finish' },
-          request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/complete` }), done: 'Stop finished' },
+          offline: (d) => ({ key: `job:${d.id}`, label: `${d.contact?.name || d.number || 'Visit'} · finished` }),
+          request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/complete`, body: tapped() }), done: 'Stop finished' },
         { id: 'note', label: 'Note for the customer', icon: 'chatbox-ellipses', any: ['jobs:update'], feature: 'visit_reports',
           inputs: [{ id: 'note', label: 'What did you do? (the customer reads this)', kind: 'multiline', required: true }],
           offline: (d) => ({ key: `visit:${d.id}`, label: `${d.number || 'Visit'} · note for the customer` }),
@@ -63,6 +76,7 @@ export const LANDSCAPING: ScreenSpec[] = [
   },
   {
     id: 'landscaping-snow', title: 'Log snow visit', any: ['jobs:read'], feature: 'snow_billing',
+    waitingKey: (d) => `storm-stop:${d.id}`,
     list: { path: '/api/snow/storms/mine/stops' }, pick: (b) => (Array.isArray(b) ? b : Array.isArray(b?.data) ? b.data : []), rows: stopRow,
     empty: { title: 'No snow stops for you', body: 'When your office starts a storm and sends your route, your stops show here.' },
     detail: {

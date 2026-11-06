@@ -99,7 +99,8 @@ beforeAll(async () => {
 describe('drawing on a photo', () => {
   test('is a roofing feature that is not ready: registered for crm-roof, hidden; switched off, the door is shut', async () => {
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'photo_markup')!
-    expect([f.templates, f.hidden]).toEqual([['crm-roof'], true])
+    // Landscaping draws on its visit photos too (landscaping parity row 9).
+    expect([f.templates, f.hidden]).toEqual([['crm-roof', 'crm-landscaping'], true])
     expect(getAdvertisableFeaturesForTemplate('crm-roof').map((x: any) => x.id)).not.toContain('photo_markup')
     await setFeatures(ON.filter((x) => x !== 'photo_markup'))
     const off = await markJson('owner', photos.damage.id, [CIRCLE])

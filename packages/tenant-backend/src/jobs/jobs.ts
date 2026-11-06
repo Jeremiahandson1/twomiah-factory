@@ -799,6 +799,11 @@ export function createJobRoutes(deps: JobDeps) {
   if (t.jobPhoto && o.storage) {
     const storage = o.storage
     const keyFromUrl = (url: string) => (url || '').startsWith(mediaPrefix) ? url.slice(mediaPrefix.length) : null
+    /**
+     * Before or after the work (Yardbook before/after photos; landscaping parity row 9): the photo's kind, where the table keeps one
+     * (job_photo.photo_type). Anything else is an ordinary photo, as before.
+     */
+    const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && (v === 'before' || v === 'after') ? { photoType: v } : {})
 
     app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
@@ -819,7 +824,7 @@ export function createJobRoutes(deps: JobDeps) {
       const key = `photos/${currentUser.companyId}/${id}/${crypto.randomUUID().replace(/-/g, '')}.${PHOTO_EXT[type]}`
       await storage.put(key, buffer, type)
       const caption = (form!.get('caption') as string) || null
-      const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption }).returning()
+      const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption, ...photoKind(form!.get('kind')) }).returning()
       return c.json(photo, 201)
     })
 
@@ -849,14 +854,14 @@ export function createJobRoutes(deps: JobDeps) {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
-      const body = await c.req.json().catch(() => null) as { photos?: unknown; caption?: unknown; notes?: unknown } | null
+      const body = await c.req.json().catch(() => null) as { photos?: unknown; caption?: unknown; notes?: unknown; kind?: unknown } | null
       const own = `${mediaPrefix}photos/${currentUser.companyId}/${id}/`
       const urls = Array.isArray(body?.photos) ? body!.photos.filter((u): u is string => typeof u === 'string') : []
       if (urls.some((u) => !u.startsWith(own) || u.includes('..'))) return c.json({ error: 'A photo could not be read — take it again.', code: 'bad_photo' }, 400)
       const caption = [typeof body?.caption === 'string' ? body.caption : '', typeof body?.notes === 'string' ? body.notes : ''].map((x) => x.trim()).filter(Boolean).join('\n') || null
       const have = new Set((await db.select({ url: t.jobPhoto.url }).from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId)))).map((r: any) => r.url))
       const fresh = [...new Set(urls)].filter((u) => !have.has(u))
-      const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption }))).returning() : []
+      const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption, ...photoKind(body?.kind) }))).returning() : []
       return c.json({ saved: made.length, photos: made }, made.length ? 201 : 200)
     })
 

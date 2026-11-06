@@ -19,7 +19,7 @@ import { job, jobPhoto } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
-import { getReport, saveReport, sendVisitReport, recentReports, visitSendDeps, AFTER, MAX_NOTE } from '../../data/visitReports.ts'
+import { getReport, saveReport, sendVisitReport, recentReports, visitSendDeps, AFTER, BEFORE, MAX_NOTE } from '../../data/visitReports.ts'
 
 const MEDIA_PREFIX = '/media/'
 const MAX_UPLOAD = 25 * 1024 * 1024
@@ -60,7 +60,7 @@ export function createVisitReportRoutes(d: CrmDeps) {
     return one(c, {
       jobId: w.job.id, status: report?.status ?? 'draft', note: report?.note ?? null, skip: report?.skip ?? false, channel: report?.channel ?? null,
       sendAt: report?.sendAt ?? null, sentAt: report?.sentAt ?? null, error: report?.error ?? null,
-      photos: photos.map((p: any) => ({ id: p.id, url: p.url, caption: p.caption, after: p.photoType === AFTER })),
+      photos: photos.map((p: any) => ({ id: p.id, url: p.url, caption: p.caption, after: p.photoType === AFTER, kind: p.photoType === BEFORE ? 'before' : p.photoType === AFTER ? 'after' : null })),
     })
   })
 
@@ -114,10 +114,12 @@ export function createVisitReportRoutes(d: CrmDeps) {
     const w = await workable(c, c.req.param('jobId'))
     if ('error' in w) return w.error
     const b: any = await c.req.json().catch(() => ({}))
-    const [photo] = await db.update(jobPhoto).set({ photoType: b?.after === false ? 'general' : AFTER })
+    // `kind` 'before' | 'after' (the phone's before/after photos); else the older switch: after, or not.
+    const photoType = b?.kind === BEFORE || b?.kind === AFTER ? b.kind : b?.after === false ? 'general' : AFTER
+    const [photo] = await db.update(jobPhoto).set({ photoType })
       .where(and(eq(jobPhoto.id, c.req.param('photoId')), eq(jobPhoto.jobId, w.job.id), eq(jobPhoto.companyId, u.companyId))).returning()
     if (!photo) return fail(c, 404, 'Photo not found')
-    return one(c, { id: photo.id, after: photo.photoType === AFTER })
+    return one(c, { id: photo.id, after: photo.photoType === AFTER, kind: photo.photoType === BEFORE ? 'before' : photo.photoType === AFTER ? 'after' : null })
   })
 
   app.post('/job/:jobId/send', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
