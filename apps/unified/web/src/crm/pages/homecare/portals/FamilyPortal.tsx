@@ -774,11 +774,25 @@ export interface FamilyPortalProps {
   onPaused?: () => void
 }
 
+/** Link the app manifest and register the notices' service worker, once per page. Quietly does nothing where the browser or agency can't. */
+function installFamilyApp() {
+  if (typeof document === 'undefined' || document.querySelector('link[rel="manifest"][data-family]')) return
+  // For an agency without care_family_comms both files answer 404: the link does nothing and the registration fails quietly.
+  const link = document.createElement('link')
+  link.rel = 'manifest'; link.href = '/api/family-app/manifest.webmanifest'; link.setAttribute('data-family', '1')
+  document.head.appendChild(link)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/api/family-app/sw.js', { scope: '/family' }).catch(() => { /* notices stay off */ })
+}
+
 export default function FamilyPortal({ user, token, onLogout, onPaused }: FamilyPortalProps) {
   const portal = useMemo(() => createPortalClient(token, { expired: onLogout, paused: () => onPaused?.() }), [token, onLogout, onPaused])
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [client, setClient] = useState<FamilyClient | null>(null)
   const [member, setMember] = useState<FamilyMember>(user)
+
+  // Row 7: the portal as an app a relative can put on their home screen, and the service worker its app notices need (served by
+  // /api/family-app for an agency with care_family_comms; without it the files answer 404 and nothing changes).
+  useEffect(() => { installFamilyApp() }, [])
 
   const refreshMember = useCallback(() => {
     portal.get<FamilyMember>('/api/family-portal/portal/me')

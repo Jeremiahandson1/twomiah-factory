@@ -13,6 +13,7 @@ import { createClientPortalRoutes, type ClientPortal } from './clientPortal.ts'
 import { createPortalVisitRoutes } from './portalVisits.ts'
 import { createFamilyPortalRoutes } from './familyPortal.ts'
 import { createFamilyCommsRoutes } from './familyComms.ts'
+import { createFamilyAppRoutes } from './familyApp.ts'
 import { createMessageRoutes } from './messages.ts'
 import { createCommunicationRoutes, createCommunicationLogRoutes } from './communication.ts'
 import { createNotificationRoutes, createNotificationSettingsRoutes, createPushRoutes } from './notifications.ts'
@@ -31,6 +32,8 @@ export function portalsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     // The family portal: its sign-in and its pages are public (its own tokens); the office's paths sign in per route.
     { path: '/api/family-portal', access: 'public', router: createFamilyPortalRoutes(core, d, clientPortalOf(core, d)) },
     { path: '/api/family-comms', access: 'user', feature: 'care_family_comms', router: createFamilyCommsRoutes(core, d) },
+    // Row 7 (/api/family-app): the family portal as an installable app (its service worker, manifest and icon), for an agency with care_family_comms.
+    { path: '/api/family-app', access: 'public', feature: 'care_family_comms', router: createFamilyAppRoutes(d) },
     { path: '/api/messages', access: 'user', router: createMessageRoutes(core, d) },
     { path: '/api/communication', access: 'user', router: createCommunicationRoutes(core, d) },
     { path: '/api/communication-log', access: 'user', router: createCommunicationLogRoutes(core, d) },

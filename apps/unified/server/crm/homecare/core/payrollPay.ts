@@ -104,6 +104,12 @@ export interface PayrollLine {
   /** care_pickup_rewards: the open-shift pickup bonuses of worked visits in the range, already inside grossPay (zero without the feature). */
   bonusPay?: number
   bonusShifts?: number
+  /**
+   * Row 18: the overtime owed on the pickup bonuses (29 CFR 778.209): a bonus earned in a workweek raises that week's regular rate by
+   * bonus ÷ hours worked, so each overtime hour is owed half of that again and each double-time hour all of it. Already inside
+   * overtimePay and grossPay; shown here so the office can see where it came from.
+   */
+  bonusOvertimePay?: number
   baseRate: number
   otRate: number
   regularPay: number
@@ -142,6 +148,23 @@ export function breakPremiumsForDay(visits: Pick<PayableVisit, 'minutes' | 'meal
   }
   const rest = visits.some((v) => v.restBreakMissed) ? 1 : 0
   return { meal, rest }
+}
+
+/**
+ * Row 18: the extra overtime premium a week's bonuses add (29 CFR 778.209). For each week holding a bonus: the bonus ÷ the week's
+ * hours raises the regular rate; each overtime hour is owed half the raise, each double-time hour the whole raise. Cents. Pure.
+ */
+export function bonusOvertimeCents(weeks: { weekStart: string; hours: number; overtimeHours: number; doubleTimeHours?: number }[], bonuses: { date: string; cents: number }[]): number {
+  let extra = 0
+  for (const w of weeks) {
+    if (!(w.hours > 0) || !(w.overtimeHours > 0 || (w.doubleTimeHours ?? 0) > 0)) continue
+    const end = new Date(Date.parse(`${w.weekStart}T00:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10)
+    const bonusC = bonuses.filter((x) => x.date >= w.weekStart && x.date < end).reduce((t, x) => t + x.cents, 0)
+    if (!bonusC) continue
+    const raise = bonusC / w.hours
+    extra += Math.round(raise * 0.5 * w.overtimeHours + raise * (w.doubleTimeHours ?? 0))
+  }
+  return extra
 }
 
 export function createPayrollPay(d: CrmDeps) {
@@ -316,22 +339,27 @@ export function createPayrollPay(d: CrmDeps) {
   /**
    * An open shift's pickup bonus is paid through the pay run (care_pickup_rewards): once the visit it was posted for has been worked
    * (a payable review of that caregiver, that client, that day), the bonus is added to that caregiver's line in the pay period holding
-   * the shift's date — separately shown (bonusPay) and inside grossPay, so Calculate, the approval and every export carry it. It is a flat
-   * amount: it never changes the hours or the overtime split.
+   * the shift's date — separately shown (bonusPay) and inside grossPay, so Calculate, the approval and every export carry it. It never
+   * changes the hours or the overtime split, but it is part of the regular rate (29 CFR 778.209, row 18): in a week with overtime the
+   * bonus ÷ that week's hours is added to the rate the overtime premium is figured on (½ per overtime hour, 1× per double-time hour).
    */
   async function withPickupBonuses(companyId: string, startDate: string, endDate: string, caregiverId: string | null, lines: PayrollLine[]): Promise<PayrollLine[]> {
     if (!lines.length || !(await d.features.isFeatureEnabled(companyId, 'care_pickup_rewards'))) return lines
     const pickups = (await pickupsInRange(d.db, companyId, startDate, endDate, caregiverId, PAYABLE_REVIEW_STATUSES)).filter((p) => p.reviewId && p.bonusCents > 0)
     if (!pickups.length) return lines
-    const byCaregiver = new Map<string, { cents: number; shifts: number }>()
+    const byCaregiver = new Map<string, { cents: number; shifts: number; dates: { date: string; cents: number }[] }>()
     for (const p of pickups) {
-      const cur = byCaregiver.get(p.caregiverId) ?? { cents: 0, shifts: 0 }
-      byCaregiver.set(p.caregiverId, { cents: cur.cents + Number(p.bonusCents), shifts: cur.shifts + 1 })
+      const cur = byCaregiver.get(p.caregiverId) ?? { cents: 0, shifts: 0, dates: [] }
+      byCaregiver.set(p.caregiverId, { cents: cur.cents + Number(p.bonusCents), shifts: cur.shifts + 1, dates: [...cur.dates, { date: p.shiftDate, cents: Number(p.bonusCents) }] })
     }
     return lines.map((l) => {
       const b = byCaregiver.get(l.caregiverId)
       if (!b) return l
-      return { ...l, bonusPay: b.cents / 100, bonusShifts: b.shifts, grossPay: (cents(l.grossPay) + b.cents) / 100 }
+      const otExtraC = bonusOvertimeCents(l.weeks, b.dates)
+      return {
+        ...l, bonusPay: b.cents / 100, bonusShifts: b.shifts, bonusOvertimePay: otExtraC / 100,
+        overtimePay: (cents(l.overtimePay) + otExtraC) / 100, grossPay: (cents(l.grossPay) + b.cents + otExtraC) / 100,
+      }
     })
   }
 

@@ -447,3 +447,10 @@ export function numberAnswerProblem(q: VisitQuestion, raw: string): string | nul
   if (o.max != null && n > o.max) return `The answer cannot be above ${o.max}.`
   return null
 }
+
+/** Row 18: the points an extra shift earns, from GET /api/care-rewards/me (0 when the agency has no points, or has not started them). */
+export function pickupPoints(me: any): number {
+  const r = me?.rules
+  const n = Number(r?.pointsPerExtraShift)
+  return r?.enabled && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+}
