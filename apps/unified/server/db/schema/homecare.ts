@@ -182,6 +182,9 @@ export const referralSources = pgTable('referral_sources', {
   // Billing port (0015): this payer's insurer-portal export, e.g. My Choice Wisconsin's MIDAS —
   // { name, evvCode, evvLabel, otherCode, otherLabel }. NULL = no portal export for this payer.
   claimPortal: json('claim_portal'),
+  // Parity row 23 (care_quickbooks): this payer as a QuickBooks customer, for the invoices billed to it.
+  qbCustomerId: text('qb_customer_id'),
+  qbHash: text('qb_hash'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -274,6 +277,17 @@ export const clients = pgTable('clients', {
   insuranceCardFront: text('insurance_card_front'),
   insuranceCardBack: text('insurance_card_back'),
   insuranceCardUploadedAt: timestamp('insurance_card_uploaded_at'),
+  // Parity row 23 (care_billing_contacts): who pays this client's invoices — 'client' (self-pay), 'family' (one of the
+  // client's family members, billingFamilyMemberId) or 'other' (a name typed here). NULL: not set, and invoices go where
+  // they always went (the portal email, else the client's). billingEmails: up to five more addresses that get each
+  // invoice, reminder and payment notice (data/homecareBillingContacts.ts).
+  billingContactKind: text('billing_contact_kind'),
+  billingFamilyMemberId: text('billing_family_member_id'),
+  billingContactName: text('billing_contact_name'),
+  billingEmails: json('billing_emails').$type<string[]>().default([]).notNull(),
+  // Parity row 23 (care_quickbooks): this client as a QuickBooks customer (crm/homecare/billing/books.ts).
+  qbCustomerId: text('qb_customer_id'),
+  qbHash: text('qb_hash'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -771,6 +785,11 @@ export const invoices = pgTable('invoices', {
   splitGroupId: text('split_group_id'),
   // Whether this invoice's hours count in hour totals: a split's visits are on every part, and counted on one.
   countsHours: boolean('counts_hours').default(true).notNull(),
+  // Parity row 23 (care_quickbooks, crm/homecare/billing/books.ts): the invoice in QuickBooks, and a fingerprint of what
+  // was sent (customer, dates, lines, write-downs) — it is sent again only when that changes, not on every note.
+  qbInvoiceId: text('qb_invoice_id'),
+  qbHash: text('qb_hash'),
+  qbSyncedAt: timestamp('qb_synced_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -961,6 +980,8 @@ export const invoicePayments = pgTable('invoice_payments', {
   paymentDate: date('payment_date'),
   notes: text('notes'),
   createdById: text('created_by_id').references(() => user.id),
+  // Parity row 23 (care_quickbooks): the payment in QuickBooks.
+  qbPaymentId: text('qb_payment_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -968,6 +989,30 @@ export const invoicePayments = pgTable('invoice_payments', {
   index('invoice_payments_invoice_id_idx').on(t.invoiceId),
   index('invoice_payments_payment_date_idx').on(t.paymentDate),
 ])
+
+/**
+ * Parity row 23 (care_quickbooks): an invoice or payment that was in QuickBooks and has since been deleted here (the row is
+ * gone, so its QuickBooks id is kept here until the next sync deletes it there too — crm/homecare/billing/books.ts).
+ */
+export const careQbRemoval = pgTable('care_qb_removal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  // 'invoice' | 'payment'
+  kind: text('kind').notNull(),
+  qbId: text('qb_id').notNull(),
+  label: text('label'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('care_qb_removal_company_idx').on(t.companyId),
+])
+
+/** Parity row 23 (care_quickbooks): the QuickBooks accounts and items home care's invoices use, found or made once per company. */
+export const careBooks = pgTable('care_books', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }).unique(),
+  refs: json('refs').$type<Record<string, string>>().default({}).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
 
 export const remittanceBatches = pgTable('remittance_batches', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

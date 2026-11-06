@@ -211,6 +211,7 @@ export async function splitParts(q: Q, companyId: string, splitGroupId: string):
  * period, billed_through steps back to before it, so "Create Due Invoices" bills that period again.
  */
 export async function deleteVisitInvoice(tx: Q, companyId: string, inv: { id: string; clientId: string; s: string; e: string }): Promise<void> {
+  await keepQuickBooksRemoval(tx, companyId, { invoiceId: inv.id })
   await tx.execute(sql`DELETE FROM invoice_payments WHERE invoice_id = ${inv.id} AND company_id = ${companyId}`)
   await tx.execute(sql`DELETE FROM invoice_adjustments WHERE invoice_id = ${inv.id} AND company_id = ${companyId}`)
   await tx.execute(sql`DELETE FROM invoice_line_items WHERE invoice_id = ${inv.id} AND company_id = ${companyId}`)
@@ -219,6 +220,30 @@ export async function deleteVisitInvoice(tx: Q, companyId: string, inv: { id: st
   await tx.execute(sql`
     UPDATE clients SET billed_through = ${inv.s}::date - 1
      WHERE id = ${inv.clientId} AND company_id = ${companyId} AND billed_through = ${inv.e}::date`)
+}
+
+/**
+ * Parity row 23 (care_quickbooks): before an invoice or a payment is deleted here (inside the caller's transaction), keep
+ * what QuickBooks has of it in care_qb_removal, so the next QuickBooks sync deletes it there too
+ * (crm/homecare/billing/books.ts). Nothing is kept for what was never sent.
+ */
+export async function keepQuickBooksRemoval(tx: Q, companyId: string, what: { invoiceId?: string; paymentId?: string }): Promise<void> {
+  if (what.paymentId) {
+    await tx.execute(sql`
+      INSERT INTO care_qb_removal (id, company_id, kind, qb_id, label)
+      SELECT gen_random_uuid()::text, company_id, 'payment', qb_payment_id, 'payment of ' || to_char(amount, 'FM999999990.00')
+        FROM invoice_payments WHERE id = ${what.paymentId} AND company_id = ${companyId} AND qb_payment_id IS NOT NULL`)
+  }
+  if (what.invoiceId) {
+    await tx.execute(sql`
+      INSERT INTO care_qb_removal (id, company_id, kind, qb_id, label)
+      SELECT gen_random_uuid()::text, company_id, 'payment', qb_payment_id, 'payment of ' || to_char(amount, 'FM999999990.00')
+        FROM invoice_payments WHERE invoice_id = ${what.invoiceId} AND company_id = ${companyId} AND qb_payment_id IS NOT NULL`)
+    await tx.execute(sql`
+      INSERT INTO care_qb_removal (id, company_id, kind, qb_id, label)
+      SELECT gen_random_uuid()::text, company_id, 'invoice', qb_invoice_id, 'invoice ' || COALESCE(seq_number::text, invoice_number)
+        FROM invoices WHERE id = ${what.invoiceId} AND company_id = ${companyId} AND qb_invoice_id IS NOT NULL`)
+  }
 }
 
 /** What a line-item edit needs to know about the invoice (null when there is none). */

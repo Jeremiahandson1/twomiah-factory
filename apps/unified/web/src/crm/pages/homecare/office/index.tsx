@@ -49,6 +49,7 @@ const PayRules = page(() => import('./PayRules'))
 const Autopay = page(() => import('./Autopay'))
 const LtcBilling = page(() => import('./LtcBilling'))
 const SplitBilling = page(() => import('./SplitBilling'))
+const BillingContacts = page(() => import('./BillingContacts'))
 const Home = page(() => import('./OfficeHome'))
 
 /**
@@ -70,6 +71,7 @@ const Home = page(() => import('./OfficeHome'))
  *   autopay             care-billing:read     billing/autopayRoutes.ts: reading asks :read; saving a card, removing it and "Try now" ask :update (the page shows those only to whoever holds it)
  *   ltc-billing         care-billing:read     billing/ltcRoutes.ts: reading and the claim packet ask :read; saving a policy asks :update (the page shows the form's Save only to whoever holds it)
  *   split-billing       care-billing:read     billing/splitRoutes.ts: reading asks :read; saving a client's split asks :update (the page shows Save only to whoever holds it)
+ *   billing-contacts    care-billing:read     billing/billingContactRoutes.ts: reading asks :read; saving one client's contact or many at once asks :update (the page shows the checkboxes and Save only to whoever holds it)
  *   data-import         care-clients:create   office/csvImport.ts: each kind asks its own area's :create (clients care-clients, caregivers care-hr,
  *                                             recurring shifts care-schedule, authorizations / payers / billing history care-billing, pay rates /
  *                                             expenses care-payroll, certifications / training / leave / reviews care-hr) and the page offers only
@@ -110,6 +112,7 @@ const PERMISSION: Record<string, string> = {
   '/crm/autopay': 'care-billing:read',
   '/crm/ltc-billing': 'care-billing:read',
   '/crm/split-billing': 'care-billing:read',
+  '/crm/billing-contacts': 'care-billing:read',
   '/crm/communication-log': 'care-portal:update',
   '/crm/sms': 'care-portal:update',
   '/crm/alerts': 'care-compliance:read',
@@ -143,6 +146,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-office-autopay" path="autopay" element={<Autopay />} />,
   <Route key="hc-office-ltc-billing" path="ltc-billing" element={<LtcBilling />} />,
   <Route key="hc-office-split-billing" path="split-billing" element={<SplitBilling />} />,
+  <Route key="hc-office-billing-contacts" path="billing-contacts" element={<BillingContacts />} />,
   <Route key="hc-office-communication-log" path="communication-log" element={<CommunicationLog />} />,
   <Route key="hc-office-sms" path="sms" element={<SMSManagement />} />,
   <Route key="hc-office-alerts" path="alerts" element={<AlertsManagement />} />,
@@ -176,6 +180,7 @@ export const nav: NavItem[] = [
   { to: '/crm/autopay', icon: CreditCard, label: 'Automatic payments', permission: PERMISSION['/crm/autopay'], features: ['care_autopay'] },
   { to: '/crm/ltc-billing', icon: FileText, label: 'Long-term care insurance', permission: PERMISSION['/crm/ltc-billing'], features: ['care_ltc_billing'] },
   { to: '/crm/split-billing', icon: FileText, label: 'Split billing', permission: PERMISSION['/crm/split-billing'], features: ['care_split_billing'] },
+  { to: '/crm/billing-contacts', icon: CreditCard, label: 'Billing contacts', permission: PERMISSION['/crm/billing-contacts'], features: ['care_billing_contacts'] },
   { to: '/crm/communication-log', icon: ClipboardList, label: 'Communication Log', permission: PERMISSION['/crm/communication-log'] },
   { to: '/crm/sms', icon: Smartphone, label: 'SMS', permission: PERMISSION['/crm/sms'], features: ['two_way_texting'] },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', permission: PERMISSION['/crm/alerts'] },

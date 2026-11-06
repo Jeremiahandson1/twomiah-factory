@@ -26,11 +26,12 @@ import {
 import {
   visitInvoicePage, visitInvoiceTotals, billingScheduleRows, clientsWithBillableActivity, pickableScheduledVisits, billedVisitLines,
   invoicePeriodsOverlapping, homemakingMinutes, visitInvoiceDetail, visitInvoiceLines, invoicePeriodOf, deleteVisitInvoice,
-  invoiceForLineEdit, splitParts, lockInvoicePaymentState, invoiceLinesInOrder, releaseVisitInvoice, appendInvoiceNote, invoiceForEmail,
+  invoiceForLineEdit, splitParts, lockInvoicePaymentState, invoiceLinesInOrder, releaseVisitInvoice, appendInvoiceNote, invoiceForEmail, keepQuickBooksRemoval,
   invoiceEmailLines, invoicePaymentRows, lockInvoiceRow, applyInvoiceWriteDown, invoiceAdjustmentRows, payerRateRows,
   missingPayerRates, retirePayerRate, updatePayerRate, invoiceCsvRows, evvExportRows, billingSummaryFigures,
 } from '../../../data/homecareBillingRoutes.ts'
 import { advanceBilledThrough, lockInvoiceMoney } from '../../../data/homecareBilling.ts'
+import { BILLING_CONTACTS_FEATURE, recipientsOf } from '../../../data/homecareBillingContacts.ts'
 import { BillingRefusal, noRateRefusal, applyRate, clampLineItemDescription, reformatTimesIn, to12h, round2, fmtTime12, lineQuantity } from '../core/invoiceEngine.ts'
 import { ymdIn, addDays } from '../core/agencyTime.ts'
 import { parseClaimPortal, WISCONSIN_PRESETS } from '../core/portalClaimDays.ts'
@@ -78,6 +79,34 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     return token ? documentLinkPath(token) : null
   }
   const remove = requirePermission('care-billing:delete')
+
+  /**
+   * Who an invoice's email (or reminder) goes to: an address the office typed; a payer's billing email for a payer's share
+   * of split visits (0051); the client's billing contact — up to five addresses (parity row 23, care_billing_contacts); else,
+   * as always, the portal email or the client's own. `greet` is the name the email opens with.
+   */
+  async function recipientsFor(companyId: string, invoice: any, typed: unknown): Promise<{ to: string[]; greet: string } | { problem: string }> {
+    const clientName = `${invoice.firstName} ${invoice.lastName}`.trim()
+    const typedTo = String(typed ?? '').trim()
+    if (typedTo) return { to: [typedTo], greet: clientName }
+    if (invoice.splitGroupId && invoice.billTo === 'payer') {
+      return invoice.payerEmail ? { to: [invoice.payerEmail], greet: clientName } : { problem: `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` }
+    }
+    const on = !!(await Promise.resolve(d.features.isFeatureEnabled(companyId, BILLING_CONTACTS_FEATURE)).catch(() => false))
+    const billing = await recipientsOf(db, companyId, invoice.clientId, on)
+    if (billing) return { to: billing.emails, greet: billing.kind === 'client' ? clientName : billing.name || clientName }
+    return invoice.clientEmail ? { to: [invoice.clientEmail], greet: clientName } : { problem: 'No email address found for this client. Please provide an email.' }
+  }
+
+  /** Send to each address in turn: the addresses it went to, and each one it did not with the reason. */
+  async function sendEach(to: string[], send: (addr: string) => Promise<unknown>): Promise<{ sent: string[]; failed: Array<{ to: string; error: string }> }> {
+    const sent: string[] = []
+    const failed: Array<{ to: string; error: string }> = []
+    for (const addr of to) {
+      try { await send(addr); sent.push(addr) } catch (e: any) { failed.push({ to: addr, error: String(e?.message || 'not sent') }) }
+    }
+    return { sent, failed }
+  }
 
   async function companyName(companyId: string): Promise<string | null> {
     const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -604,33 +633,29 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const invoice = await invoiceForEmail(db, companyId, id)
     if (!invoice) return fail(c, 404, 'Invoice not found')
     const b = await body(c)
-    // A payer's share of split visits goes to the payer's billing contact (0051); every other invoice to the client, as always.
-    const toPayer = !!invoice.splitGroupId && invoice.billTo === 'payer'
-    const to = b.email || (toPayer ? invoice.payerEmail : invoice.clientEmail)
-    if (!to) return fail(c, 400, toPayer ? `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` : 'No email address found for this client. Please provide an email.')
+    const dest = await recipientsFor(companyId, invoice, b.email)
+    if ('problem' in dest) return fail(c, 400, dest.problem)
     if (!core.email.isConfigured) return fail(c, 503, 'Email service not configured on server.')
     const amountDue = num(invoice.total) - num(invoice.amountPaid) - num(invoice.amountAdjusted)
     const lines = await invoiceEmailLines(db, companyId, id)
     const lineItemsHtml = lines.map((li) =>
       `<tr><td>${li.serviceDate ? fmtUsDate(li.serviceDate) : ''}</td><td>${esc(reformatTimesIn(li.description))}</td><td>${esc(lineQuantity(li).quantityLabel)} × ${esc(lineQuantity(li).rateLabel)}</td><td>$${num(li.amount).toFixed(2)}</td></tr>`).join('')
-    try {
-      await core.email.sendInvoiceEmail(to, {
-        companyName: (await companyName(companyId)) || process.env.COMPANY_NAME || 'Our agency',
-        contactName: `${invoice.firstName} ${invoice.lastName}`,
-        invoiceNumber: invoice.seqNumber ?? invoice.invoiceNumber,
-        total: num(invoice.total).toFixed(2),
-        amountDue: amountDue.toFixed(2),
-        dueDate: fmtUsDate(invoice.dueText),
-        lineItems: lineItemsHtml,
-        documentPath: await documentPathFor(id),
-      })
-    } catch (e: any) {
-      return fail(c, 502, `Email send failed: ${e.message}`)
+    const data = {
+      companyName: (await companyName(companyId)) || process.env.COMPANY_NAME || 'Our agency',
+      contactName: dest.greet,
+      invoiceNumber: invoice.seqNumber ?? invoice.invoiceNumber,
+      total: num(invoice.total).toFixed(2),
+      amountDue: amountDue.toFixed(2),
+      dueDate: fmtUsDate(invoice.dueText),
+      lineItems: lineItemsHtml,
+      documentPath: await documentPathFor(id),
     }
+    const { sent, failed } = await sendEach(dest.to, (addr) => core.email.sendInvoiceEmail(addr, data))
+    if (!sent.length) return fail(c, 502, `Email send failed: ${failed[0]?.error}`)
     const tz = await core.time.timezone(companyId)
-    await appendInvoiceNote(db, companyId, id, `\nEmailed to ${to} on ${ymdIn(new Date(), tz)}`, 'stamp')
+    await appendInvoiceNote(db, companyId, id, `\nEmailed to ${sent.join(', ')} on ${ymdIn(new Date(), tz)}`, 'stamp')
     await core.autopay.onIssued(companyId, id)
-    return one(c, { success: true, sentTo: to })
+    return one(c, { success: true, sentTo: sent.join(', '), sentToAll: sent, notSent: failed })
   })
 
   // POST /invoices/:id/send-reminder — "due soon" / "N days past due". Refused on a paid invoice.
@@ -641,10 +666,8 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     if (!invoice) return fail(c, 404, 'Invoice not found')
     if (invoice.paymentStatus === 'paid') return fail(c, 400, 'This invoice is already paid — no reminder needed.')
     const b = await body(c)
-    // A payer's share of split visits goes to the payer's billing contact (0051); every other invoice to the client, as always.
-    const toPayer = !!invoice.splitGroupId && invoice.billTo === 'payer'
-    const to = b.email || (toPayer ? invoice.payerEmail : invoice.clientEmail)
-    if (!to) return fail(c, 400, toPayer ? `No billing email is saved for ${invoice.payerName || 'this payer'}. Add one on the payer, or enter an email.` : 'No email address found for this client. Please provide an email.')
+    const dest = await recipientsFor(companyId, invoice, b.email)
+    if ('problem' in dest) return fail(c, 400, dest.problem)
     if (!core.email.isConfigured) return fail(c, 503, 'Email service not configured on server.')
     const amountDue = num(invoice.total) - num(invoice.amountPaid) - num(invoice.amountAdjusted)
     if (amountDue <= 0) return fail(c, 400, 'No balance due on this invoice.')
@@ -653,22 +676,20 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const daysOverdue = invoice.dueText
       ? Math.floor((new Date(today + 'T12:00:00Z').getTime() - new Date(invoice.dueText + 'T12:00:00Z').getTime()) / 86400000)
       : 0
-    try {
-      await core.email.sendInvoiceReminder(to, {
-        companyName: (await companyName(companyId)) || process.env.COMPANY_NAME || 'Our agency',
-        contactName: `${invoice.firstName} ${invoice.lastName}`,
-        invoiceNumber: invoice.seqNumber ?? invoice.invoiceNumber,
-        amountDue: amountDue.toFixed(2),
-        dueDate: fmtUsDate(invoice.dueText),
-        daysOverdue,
-        documentPath: await documentPathFor(id),
-      })
-    } catch (e: any) {
-      return fail(c, 502, `Email send failed: ${e.message}`)
+    const data = {
+      companyName: (await companyName(companyId)) || process.env.COMPANY_NAME || 'Our agency',
+      contactName: dest.greet,
+      invoiceNumber: invoice.seqNumber ?? invoice.invoiceNumber,
+      amountDue: amountDue.toFixed(2),
+      dueDate: fmtUsDate(invoice.dueText),
+      daysOverdue,
+      documentPath: await documentPathFor(id),
     }
+    const { sent, failed } = await sendEach(dest.to, (addr) => core.email.sendInvoiceReminder(addr, data))
+    if (!sent.length) return fail(c, 502, `Email send failed: ${failed[0]?.error}`)
     const label = daysOverdue > 0 ? `${daysOverdue}d overdue` : 'pre-due'
-    await appendInvoiceNote(db, companyId, id, `\nReminder sent to ${to} on ${today} (${label})`, 'stamp')
-    return one(c, { success: true, sentTo: to, daysOverdue })
+    await appendInvoiceNote(db, companyId, id, `\nReminder sent to ${sent.join(', ')} on ${today} (${label})`, 'stamp')
+    return one(c, { success: true, sentTo: sent.join(', '), sentToAll: sent, notSent: failed, daysOverdue })
   })
 
   // ═════════════════════════════════════════ PAYMENTS & ADJUSTMENTS ═════════════════════════════════
@@ -710,6 +731,8 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     if (!p) return fail(c, 404, 'Payment not found')
     await db.transaction(async (tx: any) => {
       await lockInvoiceRow(tx, companyId, p.invoiceId)
+      // Already in QuickBooks (parity row 23): deleted there on the next sync.
+      await keepQuickBooksRemoval(tx, companyId, { paymentId: id })
       await tx.delete(invoicePayments).where(and(eq(invoicePayments.id, id), eq(invoicePayments.companyId, companyId)))
       await engine.rollUpPayments(companyId, p.invoiceId, null, tx)
     })
