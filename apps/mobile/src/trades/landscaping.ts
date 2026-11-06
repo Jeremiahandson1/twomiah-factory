@@ -4,6 +4,8 @@
  * Today's route is the signed-in person's visits for today, in the order of the route's stops (the Route Board makes each stop a
  * dated job timed from the route's start, so start time IS the stop order). It calls the desktop's own routes:
  *   GET  /api/jobs/today               a crew seat reads only its own jobs (jobs:read)
+ *   /api/crew-day/…                    the day's map and Finish Day recap, Couldn't do it, materials used, crew clocks (rows 11–15;
+ *                                      app/(details)/route-day.tsx, visit-materials.tsx, visit-crew.tsx; server crm/landscaping/crewDay.ts)
  *   POST /api/jobs/:id/dispatch        "On my way" with the minutes away (`etaMinutes`, parity row 10) — the customer's text says them
  *   POST /api/jobs/:id/start|complete  jobs:update — the same buttons as the Schedule; finishing a visit tells the customer where the
  *                                      business turned the visit-done message on. Both work with no signal (parity row 8): kept on
@@ -20,6 +22,7 @@
  * Money is the server's: a seat without invoices:read gets no figures, and these screens draw only what arrives.
  */
 import { type ScreenSpec, type Row, words, hhmm, join } from './kit'
+import { SKIP_REASONS, REBOOK, NO_REBOOK, skipRequest } from './crewDay'
 
 const maps = (address?: string | null) => (address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : '')
 const OPEN_JOB = ['scheduled', 'pending', 'confirmed', 'dispatched']
@@ -53,13 +56,19 @@ export const LANDSCAPING: ScreenSpec[] = [
       path: () => null, title: (d) => d.contact?.name || d.title || 'Visit', subtitle: (d) => join(hhmm(d.scheduledTime), d.title), badge: (d) => words(d.status === 'in_progress' ? 'in progress' : d.status),
       sections: [
         { links: (d) => [
-          ...(d.address ? [{ label: `Directions to ${d.address}`, url: maps(d.address), icon: 'navigate' }] : []),
+          // In the crew's chosen maps app — Google Maps, Apple Maps or Waze, remembered on the phone (parity row 11; ./directions.ts).
+          ...(d.address ? [{ label: `Directions to ${d.address}`, url: maps(d.address), icon: 'navigate', directions: d.address }] : []),
           ...(d.contact?.phone ? [{ label: `Call ${d.contact.name || 'the customer'}`, url: `tel:${d.contact.phone}`, icon: 'call' }] : []),
         ] },
         { fields: [
           { label: 'Customer', get: (d) => d.contact?.name }, { label: 'Address', get: (d) => d.address }, { label: 'Start', get: (d) => hhmm(d.scheduledTime) },
           { label: 'Time allowed', get: (d) => (d.estimatedHours ? `${d.estimatedHours} hours` : undefined) }, { label: 'Notes', get: (d) => d.description },
         ] },
+        // The visit's checklists (the business's required forms: Finish is refused until they are done — server checklistRoutes.ts), the
+        // materials used (row 13) and each crew member's clock (row 15), each where the business has it switched on.
+        { feature: 'job_checklists', links: (d) => (d.status === 'cancelled' ? [] : [{ label: 'Checklists', url: '', icon: 'checkbox', route: `/(details)/job/checklist?id=${d.id}` }]) },
+        { feature: 'visit_materials', links: (d) => (d.status === 'cancelled' ? [] : [{ label: 'Materials used', url: '', icon: 'cube', route: `/(details)/visit-materials?jobId=${d.id}` }]) },
+        { feature: 'crew_timers', links: (d) => (d.status === 'cancelled' ? [] : [{ label: 'Crew clocks', url: '', icon: 'timer', route: `/(details)/visit-crew?jobId=${d.id}` }]) },
         // Before and after photos, kept on the phone with no signal and drawn on (parity row 9) — where the business has job photos.
         { feature: 'photo_capture', links: (d) => (d.status === 'cancelled' ? [] : [{ label: 'Photos — before and after', url: '', icon: 'camera', route: `/(details)/visit-photos?jobId=${d.id}` }]) },
         // Without job photos: the after-photo for the visit-done message, as before.
@@ -81,6 +90,16 @@ export const LANDSCAPING: ScreenSpec[] = [
           confirm: { title: 'Finish this stop?', body: () => 'This marks the visit done and records your time. If your office sends visit messages, the customer is told.', button: 'Finish' },
           offline: (d) => ({ key: `job:${d.id}`, label: `${d.contact?.name || d.number || 'Visit'} · finished` }),
           request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/complete`, body: tapped() }), done: 'Stop finished' },
+        // "Couldn't do it" (parity row 12; LMN crew lead): a reason from the list and whether to rebook. The visit goes on hold and the office
+        // rebooks or closes it on the Route Board. Kept on the phone with no signal under the visit's key.
+        { id: 'skip', label: "Couldn't do it", icon: 'close-circle', any: ['jobs:update'], feature: 'visit_skip', when: (d) => OPEN_JOB.includes(d.status) || d.status === 'in_progress',
+          inputs: [
+            { id: 'reason', label: 'Why not?', kind: 'choice', choices: SKIP_REASONS.map((r) => r.label), required: true },
+            { id: 'rebook', label: 'Does it need rebooking?', kind: 'choice', choices: [REBOOK, NO_REBOOK], initial: () => REBOOK },
+            { id: 'note', label: 'Note for the office (optional)', kind: 'multiline' },
+          ],
+          offline: (d) => ({ key: `job:${d.id}`, label: `${d.contact?.name || d.number || 'Visit'} · couldn't do it` }),
+          request: (d, v) => skipRequest(d.id, v) ?? { method: 'POST', path: `/api/crew-day/visits/${d.id}/skip`, body: {} }, done: 'Marked as not done — the office will rebook it' },
         { id: 'note', label: 'Note for the customer', icon: 'chatbox-ellipses', any: ['jobs:update'], feature: 'visit_reports',
           inputs: [{ id: 'note', label: 'What did you do? (the customer reads this)', kind: 'multiline', required: true }],
           offline: (d) => ({ key: `visit:${d.id}`, label: `${d.number || 'Visit'} · note for the customer` }),
@@ -96,7 +115,7 @@ export const LANDSCAPING: ScreenSpec[] = [
     detail: {
       path: () => null, title: (d) => d.siteName || 'Snow stop', subtitle: (d) => join(d.stormName, d.address), badge: (d) => words(d.status === 'working' ? 'in progress' : d.status),
       sections: [
-        { links: (d) => (d.address ? [{ label: `Directions to ${d.address}`, url: maps(join(d.address, d.city)), icon: 'navigate' }] : []) },
+        { links: (d) => (d.address ? [{ label: `Directions to ${d.address}`, url: maps(join(d.address, d.city)), icon: 'navigate', directions: join(d.address, d.city) }] : []) },
         { fields: [
           { label: 'Site', get: (d) => d.siteName }, { label: 'Address', get: (d) => join(d.address, d.city) }, { label: 'Storm', get: (d) => d.stormName },
           { label: 'Plow at', get: (d) => (d.triggerDepthInches ? `${d.triggerDepthInches} inches` : undefined) }, { label: 'Billed', get: (d) => (d.billingMode ? words(d.billingMode) : undefined) },

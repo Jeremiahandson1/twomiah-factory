@@ -2,6 +2,7 @@
 // templates/crm-landscaping/backend/db/schema.ts.
 import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
+import { isNull } from 'drizzle-orm'
 import { company, user } from './core.ts'
 import { contact, invoice, invoiceLineItem, job } from './crm.ts'
 import { site } from './trades.ts'
@@ -250,4 +251,65 @@ export const landscapingSetting = pgTable('landscaping_setting', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('landscaping_setting_company_id_idx').on(t.companyId),
+])
+
+// "Couldn't do it" on a visit (landscaping parity row 12; LMN crew lead): the crew skipped it with a reason from a list and said
+// whether it needs rebooking. The visit is put on hold; the office sees the open ones on the Route Board and rebooks them to a day
+// or closes them (data/crewDay.ts). One open skip per visit: a second report from the phone (its queue sends twice) is the same.
+export const visitSkip = pgTable('visit_skip', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  reason: text('reason').notNull(), // weather, locked_gate, dog, customer_asked, no_access, equipment, ran_out_of_time, other
+  note: text('note'),
+  rebook: boolean('rebook').default(true).notNull(),
+  skippedAt: timestamp('skipped_at').defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedById: text('resolved_by_id').references(() => user.id, { onDelete: 'set null' }),
+  resolution: text('resolution'), // rebooked, not_rebooked
+  rebookedTo: text('rebooked_to'), // YYYY-MM-DD
+}, (t) => [
+  index('visit_skip_company_id_idx').on(t.companyId),
+  index('visit_skip_job_id_idx').on(t.jobId),
+  uniqueIndex('visit_skip_open_idx').on(t.jobId).where(isNull(t.resolvedAt)),
+])
+
+// Materials the crew used on a visit (landscaping parity row 13; LMN, Aspire): what, how much, and — from the price book where
+// it came from there — what it cost us. Counted in the job's material cost (data/jobCosting.ts). `entryKey` is the phone's
+// save id, so a save sent twice by the queue is one line.
+export const visitMaterial = pgTable('visit_material', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  pricebookItemId: text('pricebook_item_id'),
+  name: text('name').notNull(),
+  quantity: decimal('quantity', { precision: 10, scale: 2 }).notNull(),
+  unit: text('unit'),
+  unitCostCents: integer('unit_cost_cents'),
+  entryKey: text('entry_key'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_material_company_id_idx').on(t.companyId),
+  index('visit_material_job_id_idx').on(t.jobId),
+  uniqueIndex('visit_material_entry_key_idx').on(t.companyId, t.entryKey),
+])
+
+// Each crew member's own clock on a visit (landscaping parity row 15; LMN Crew): the crew lead starts and stops each person on the
+// visit — a login or a roster member — from the phone, at the moment tapped. Their hours make the visit's actual man-hours, read
+// against its budget for the Crew Score (data/crewDay.ts).
+export const visitCrewTime = pgTable('visit_crew_time', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+  memberId: text('member_id'),
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_crew_time_company_id_idx').on(t.companyId),
+  index('visit_crew_time_job_id_idx').on(t.jobId),
 ])

@@ -9,6 +9,7 @@ import {
 } from '../../db/schema/index.ts'
 import { notFound } from '../../http/errors.ts'
 import * as q from '../../data/jobCosting.ts'
+import { visitMaterialCostByJob } from '../../data/crewDay.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createRoofJobCosts, type RoofJobCost } from '../roof/jobCosts.ts'
 import { createWorksheetApproval } from '../roof/worksheetApproval.ts'
@@ -116,6 +117,8 @@ export function createJobCostingService(d: CrmDeps) {
         c.laborHours = num(r.hours); c.laborCost = num(r.cost); c.unratedLaborHours = num(r.unratedHours)
       }
       for (const r of materials) { const c = out.get(r.jobId as string); if (c) c.materialCost = num(r.cost) }
+      // The materials the crew recorded on a visit from the phone (landscaping parity row 13; data/crewDay.ts), beside the stock used.
+      for (const r of await visitMaterialCostByJob(db, companyId, ids)) { const c = out.get(r.jobId as string); if (c) c.materialCost += num(r.cost) }
       for (const r of expenses) {
         const c = out.get(r.jobId as string); if (!c) continue
         c.expenseCost = num(r.total); c.subcontractorCost = num(r.subcontractor)

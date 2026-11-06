@@ -43,6 +43,10 @@ export function LandscapingDay({ tab }: { tab?: boolean }) {
                     return <ListRow key={r.key} title={r.title} subtitle={r.subtitle} badge={r.badge} badgeTone={r.tone} divider={i < waiting.length - 1} onPress={() => open(snow.id, r.id)} /> })}</Group>
                 </View>
               ) : null}
+              {/* The day on a map, numbered, and the Finish Day recap (parity rows 11 and 14; crew_day_map, not ready). */}
+              {showRoute && hasFeature('crew_day_map') ? (
+                <Group><ListRow title="Map of my day and Finish Day" subtitle="Your stops on a map, in order, and how the day went" icon="map" divider={false} onPress={() => router.push('/(details)/route-day' as any)} /></Group>
+              ) : null}
               {visits.rows.length ? (
                 <View style={{ gap: space[2] }}>
                   <SectionHeader title="Today's visits, in order" />
