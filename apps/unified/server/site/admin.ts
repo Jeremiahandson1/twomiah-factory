@@ -66,7 +66,7 @@ export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'service/detail', 's
  * whole library's (tests/site-section-fields.test.ts holds every view that reads `site`/`live` to an entry here).
  */
 export const ADDON_SECTIONS: Record<string, { facts?: 'bar' | Array<'bar' | 'menu'>; websiteForms?: 'bar' }> = {
-  'tonight/board': { facts: 'bar' }, 'taps/wall': { facts: 'bar' }, 'menu/sections': { facts: ['bar', 'menu'] }, 'hours/table': { facts: 'bar' },
+  'tonight/board': { facts: 'bar' }, 'taps/wall': { facts: 'bar' }, 'menu/sections': { facts: ['bar', 'menu'] }, 'menu/bento': { facts: 'bar' }, 'hours/table': { facts: 'bar' },
   'events/list': { facts: 'bar' }, 'speakeasy/door': { facts: 'bar' },
   'timeline/eras': { facts: 'bar' }, 'timeline/era': { facts: 'bar' }, 'timeline/book': { facts: 'bar' },
   'regulars/signup': { facts: 'bar', websiteForms: 'bar' }, 'parties/inquiry-form': { websiteForms: 'bar' },

@@ -5,7 +5,7 @@
 // then renders it through renderSections and fills the design's stylesheet in. Nothing here is a second renderer: a
 // change to a section, a design or the page frame shows in the preview because it is the same code.
 import { businessHoursLines, businessHoursOf } from '@twomiah/tenant-backend'
-import { loadVertical, SITE_DESIGNS, SITE_DESIGN_SPECS, type SiteDesign } from '../core/vertical.ts'
+import { frameOptionsOf, loadVertical, SITE_DESIGNS, SITE_DESIGN_SPECS, type SiteDesign } from '../core/vertical.ts'
 import { renderSections, assetVersion } from './render.ts'
 import { siteStylesheet } from './routes.ts'
 import { tradeOf } from './menu.ts'
@@ -80,7 +80,7 @@ export async function previewContext(i: SitePreviewInput): Promise<SiteContext> 
   const spec = SITE_DESIGN_SPECS[design]
   return {
     companyId: 'preview', slug: 'preview', design, words: vertical.site.words,
-    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: spec.frame === 'book', fonts: fontsUrl(cleanStyle(i.style), spec), schemes: !!spec.schemes, ctaHref: vertical.site.ctaHref || '/contact' },
+    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: spec.frame === 'book', fonts: fontsUrl(cleanStyle(i.style), spec), schemes: !!spec.schemes, ctaHref: vertical.site.ctaHref || '/contact', ...frameOptionsOf(spec) },
     style: cleanStyle(i.style),
     colours: siteColours({ primaryColor: i.company.primaryColor, secondaryColor: i.company.secondaryColor }, i.settings.accentColor, i.palette),
     services: [], trade: tradeOf(i.sections), features: i.features, settings: previewSettings(i),
