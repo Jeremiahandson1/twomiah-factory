@@ -606,6 +606,25 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
  * status is a step inside one ("Claim filed", "Adjuster met" under Inspected), for every job type or only some (`jobTypes`, empty =
  * all). `checklist`: [{ id, text }]. A job's status and what it ticked live on the job (job.roof_status_id, roof_status_checks).
  */
+/**
+ * A message thread on a job, between the homeowner (their portal's project page) and the office (roofing parity row 22; AccuLynx portal
+ * posts; feature portal_posts_packets, not ready). `fromHomeowner` says who wrote it; `readAt` is when the other side read it.
+ */
+export const roofJobPost = pgTable('roof_job_post', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  fromHomeowner: boolean('from_homeowner').default(false).notNull(),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  body: text('body').notNull(),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_job_post_job_id_idx').on(t.jobId),
+  index('roof_job_post_company_id_idx').on(t.companyId),
+])
+
 export const roofJobStatus = pgTable('roof_job_status', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

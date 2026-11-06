@@ -11,9 +11,12 @@
 //
 // What a homeowner is told of a file is named, not "everything but": a photo's caption, kind and day; a document's name, kind,
 // type and day; a report's title. Never a place on the map, who uploaded it, internal notes or the stored path.
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm'
 import type { PortalJobFiles } from '@twomiah/tenant-backend'
-import { document, inspectionReport, job, jobPhoto } from '../../../db/schema/index.ts'
+import { document, inspectionReport, job, jobPhoto, roofJobPost, company } from '../../../db/schema/index.ts'
+
+/** Roofing parity row 22 (not ready): the job thread, company documents and packets. */
+export const POSTS_FEATURE = 'portal_posts_packets'
 import type { CrmDeps } from '../../deps.ts'
 import { buildReportView } from '../inspection/view.ts'
 import { reportFileName, reportPdf } from '../inspection/pdf.ts'
@@ -35,6 +38,7 @@ export function roofPortalJobFiles(d: CrmDeps): PortalJobFiles {
       .where(and(eq(job.companyId, contact.companyId), eq(job.contactId, contact.id))).orderBy(desc(job.createdAt), asc(job.id))
   }
   const reportsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, 'inspection_reports')
+  const postsOn = (companyId: string) => (companyId ? d.features.isFeatureEnabled(companyId, POSTS_FEATURE).catch(() => false) : Promise.resolve(false))
 
   return {
     async list(contact) {
@@ -59,7 +63,34 @@ export function roofPortalJobFiles(d: CrmDeps): PortalJobFiles {
       ]
       // Job by job in the order the customer's jobs were made, each job's reports, documents, then photos.
       const order = new Map(ids.map((id, i) => [id, i]))
-      return out.sort((a, b) => (order.get(a.jobId)! - order.get(b.jobId)!))
+      out.sort((a, b) => (order.get(a.jobId)! - order.get(b.jobId)!))
+      // Row 22: the company's documents for every homeowner, then a line per job so each job's thread has a place even before a file.
+      if (await postsOn(contact.companyId)) {
+        const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, contact.companyId)).limit(1)
+        const shared = await db.select().from(document).where(and(eq(document.companyId, contact.companyId), eq(document.sharedWithAllCustomers, true))).orderBy(desc(document.createdAt), asc(document.id))
+        const companyItems = shared.map((x: any) => ({ kind: 'document', id: x.id, jobId: 'company', jobNumber: '', jobTitle: `From ${co?.name || 'us'}`, jobAddress: null, name: x.name, type: x.type, mimeType: x.mimeType || null, createdAt: iso(x.createdAt) }))
+        const placeholders = jobs.map((j) => ({ kind: 'job', id: j.id, ...head(j.id), name: '' }))
+        return [...out, ...placeholders, ...companyItems]
+      }
+      return out
+    },
+
+    posts: {
+      async list(contact, jobId) {
+        if (!(await postsOn(contact?.companyId))) return null
+        const mine = (await jobsOf(contact)).some((j: any) => j.id === jobId)
+        if (!mine) return null
+        const rows = await db.select().from(roofJobPost).where(and(eq(roofJobPost.jobId, jobId), eq(roofJobPost.companyId, contact.companyId))).orderBy(asc(roofJobPost.createdAt), asc(roofJobPost.id))
+        // Opening the thread reads the office's messages.
+        await db.update(roofJobPost).set({ readAt: new Date() }).where(and(eq(roofJobPost.jobId, jobId), eq(roofJobPost.fromHomeowner, false), isNull(roofJobPost.readAt)))
+        return rows.map((r: any) => ({ id: r.id, fromYou: !!r.fromHomeowner, body: r.body, at: iso(r.createdAt) }))
+      },
+      async add(contact, jobId, body) {
+        if (!(await postsOn(contact?.companyId))) return null
+        if (!(await jobsOf(contact)).some((j: any) => j.id === jobId)) return null
+        const [r] = await db.insert(roofJobPost).values({ companyId: contact.companyId, jobId, contactId: contact.id, fromHomeowner: true, body } as any).returning()
+        return { id: r.id, fromYou: true, body: r.body, at: iso(r.createdAt) }
+      },
     },
 
     async file(contact, kind, id) {
@@ -78,7 +109,9 @@ export function roofPortalJobFiles(d: CrmDeps): PortalJobFiles {
       }
 
       if (kind === 'document') {
-        const [x] = await db.select().from(document).where(mine(document)).limit(1)
+        let [x] = await db.select().from(document).where(mine(document)).limit(1)
+        // Row 22: a company document every homeowner sees (warranty terms, a brochure).
+        if (!x && (await postsOn(contact.companyId))) [x] = await db.select().from(document).where(and(eq(document.id, id), eq(document.companyId, contact.companyId), eq(document.sharedWithAllCustomers, true))).limit(1)
         // The company's own folder of the store, as the office's file door requires; never another company's key.
         if (!x || !x.path || String(x.path).includes('..') || !String(x.path).startsWith(`${contact.companyId}/`)) return null
         const obj = await storage.getObject(String(x.path)).catch(() => null)

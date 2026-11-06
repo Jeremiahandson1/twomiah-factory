@@ -107,6 +107,14 @@ export interface PortalJobFiles {
   list: (contact: any) => Promise<any[]>
   /** One shared item's bytes, or null when it is not shared with this customer (read as "not found"). */
   file: (contact: any, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
+  /**
+   * Roofing parity row 22: a message thread on each of the customer's own jobs (null = not offered, a 404). Optional: no thread
+   * without it.
+   */
+  posts?: {
+    list: (contact: any, jobId: string) => Promise<any[] | null>
+    add: (contact: any, jobId: string, body: string) => Promise<any | null>
+  }
 }
 export interface PortalDeps {
   db: any
@@ -1727,6 +1735,22 @@ export function createPortalRoutes(deps: PortalDeps) {
     app.get('/p/:token/job-files', portalAuth, gate('jobFiles'), async (c) => {
       c.header('Cache-Control', 'private, no-store')
       return c.json({ data: await jobFiles.list(P(c).contact) })
+    })
+    // The job's thread (roofing parity row 22), where the vertical offers one.
+    app.get('/p/:token/job-files/:jobId/posts', portalAuth, gate('jobFiles'), async (c) => {
+      const rows = jobFiles.posts ? await jobFiles.posts.list(P(c).contact, c.req.param('jobId')) : null
+      if (!rows) return c.json({ error: 'Not found' }, 404)
+      c.header('Cache-Control', 'private, no-store')
+      return c.json({ data: rows })
+    })
+    app.post('/p/:token/job-files/:jobId/posts', portalAuth, gate('jobFiles'), async (c) => {
+      const body = await c.req.json().catch(() => ({}))
+      const text = typeof body?.body === 'string' ? body.body.trim() : ''
+      if (!text) return c.json({ error: 'Write your message first.' }, 400)
+      if (text.length > 4000) return c.json({ error: 'Keep the message under 4,000 characters.' }, 400)
+      const row = jobFiles.posts ? await jobFiles.posts.add(P(c).contact, c.req.param('jobId'), text) : null
+      if (!row) return c.json({ error: 'Not found' }, 404)
+      return c.json(row, 201)
     })
     app.get('/p/:token/job-files/:kind/:id/file', portalAuth, gate('jobFiles'), async (c) => {
       const file = await jobFiles.file(P(c).contact, c.req.param('kind'), c.req.param('id'))

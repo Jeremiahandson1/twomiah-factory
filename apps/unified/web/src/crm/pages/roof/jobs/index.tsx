@@ -21,6 +21,7 @@ const JobDetailPage = page(() => import('./JobDetailPage'))
 const ReportsPage = page(() => import('./ReportsPage'))
 const PipelineSettingsPage = page(() => import('./PipelineSettingsPage'))
 const PipelineStatusesPage = page(() => import('./PipelineStatusesPage'))
+const CompanyDocumentsPage = page(() => import('./CompanyDocumentsPage'))
 const PermitsPage = page(() => import('./PermitsPage'))
 const CardPaymentsPage = page(() => import('../CardPaymentsPage'))
 
@@ -38,6 +39,8 @@ export const routes: ReactElement[] = [
   <Route key="roof-pipeline-settings" path="settings/pipeline" element={<PipelineSettingsPage />} />,
   // Not ready (pipeline_statuses, row 20): statuses and checklists under the milestones. Reached from Settings (verticals/roof.tsx).
   <Route key="roof-pipeline-statuses" path="settings/pipeline-statuses" element={<PipelineStatusesPage />} />,
+  // Not ready (portal_posts_packets, row 22): company documents every homeowner's portal shows.
+  <Route key="roof-company-documents" path="settings/company-documents" element={<CompanyDocumentsPage />} />,
 ]
 
 /** Menu items, each gated by the feature and permission its page's API asks. */

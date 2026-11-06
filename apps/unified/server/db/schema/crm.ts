@@ -860,6 +860,8 @@ export const document = pgTable('document', {
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  // Roofing parity row 22 (portal_posts_packets): a company document (warranty terms, a brochure) every homeowner's portal shows.
+  sharedWithAllCustomers: boolean('shared_with_all_customers').default(false).notNull(),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
   // From the near-copy CRMs (see each column): document's columns they added.

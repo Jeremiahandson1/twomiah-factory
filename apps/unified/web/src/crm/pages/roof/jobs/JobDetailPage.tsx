@@ -39,6 +39,7 @@ import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobCommissionPeople from './JobCommissionPeople'
 import JobStatusPanel from './JobStatusPanel'
+import JobPostsPanel from './JobPostsPanel'
 import JobBooks from './JobBooks'
 import JobPermits from './JobPermits'
 import InspectionReports from './InspectionReports'
@@ -736,6 +737,8 @@ export default function JobDetailPage() {
 
             {/* What the homeowner's portal shows of this job — behind its own switch (not ready); off for each file until chosen. */}
             {hasFeature('portal_job_files') && job.contact && <ShareWithHomeowner jobId={job.id} homeowner={job.contact.name || null} refreshKey={photos.length} />}
+            {/* Row 22 (portal_posts_packets, not ready): the job's thread with the homeowner. */}
+            {job.contact && <JobPostsPanel jobId={job.id} homeowner={job.contact.name || null} />}
 
             {/* Notes */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">

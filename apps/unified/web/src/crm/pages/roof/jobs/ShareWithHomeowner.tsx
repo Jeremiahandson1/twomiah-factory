@@ -24,6 +24,19 @@ export default function ShareWithHomeowner({ jobId, homeowner, refreshKey }: { j
   const mayClose = useMayWrite('company:update')
   const [ho, setHo] = useState<{ homeowner: { name: string; portalOn: boolean; lastVisit: string | null } | null; sees: Array<{ kind: string; id: string; name: string }>; closeOnCollected: boolean } | null>(null)
   const [preview, setPreview] = useState(false)
+  // Row 22 (portal_posts_packets): share several files in one go, and tell the homeowner once.
+  const packetOn = useAuth().hasFeature('portal_posts_packets')
+  const [packet, setPacket] = useState<Record<string, boolean> | null>(null)
+  const sendPacket = async (notify: boolean) => {
+    const items = Object.entries(packet || {}).filter(([, v]) => v).map(([k]) => { const [kind, id] = k.split(':'); return { kind, id } })
+    if (!items.length) { toast.error('Tick the files to share.'); return }
+    setBusy('packet')
+    try {
+      const r: any = await api.put('/api/job-files/packet', { jobId, items })
+      if (notify && toolsOn) await api.post('/api/job-files/notify', { jobId }).catch(() => toast.error('Shared, but the homeowner could not be told.'))
+      toast.success(`${r?.shared ?? items.length} file${(r?.shared ?? items.length) === 1 ? '' : 's'} shared`); setPacket(null); await load(); void loadHo()
+    } catch (e) { toast.error(errorText(e, 'Could not share them')) } finally { setBusy(null) }
+  }
   const loadHo = useCallback(async () => {
     if (!toolsOn) return
     try { setHo(await api.get(`/api/job-files/homeowner?jobId=${jobId}`) as any) } catch { setHo(null) }
@@ -88,6 +101,25 @@ export default function ShareWithHomeowner({ jobId, homeowner, refreshKey }: { j
             </div>
           )}
           {mayClose && <label className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300"><input type="checkbox" checked={ho.closeOnCollected} onChange={(e) => setClose(e.target.checked)} /> Close a homeowner’s portal once their last job is Collected (every job)</label>}
+        </div>
+      )}
+      {packetOn && mayShare && total > shown && (
+        <div className="mb-4 text-sm">
+          {!packet ? <button type="button" className="btn-secondary" onClick={() => setPacket({})}>Share several at once</button> : (
+            <div className="rounded-lg border border-gray-200 p-3 dark:border-slate-700" data-testid="share-packet">
+              <p className="font-medium mb-2">Tick what to share now</p>
+              <ul className="space-y-1 max-h-48 overflow-y-auto">
+                {([...files.reports.map((r) => ['reports', r.id, r.title, r.shared]), ...files.documents.map((x) => ['documents', x.id, x.name, x.shared]), ...files.photos.map((p) => ['photos', p.id, p.caption || 'Photo', p.shared])] as Array<[string, string, string, boolean]>).filter(([, , , sh]) => !sh).map(([k, id, label]) => (
+                  <li key={`${k}:${id}`}><label className="flex items-center gap-2"><input type="checkbox" checked={!!packet[`${k}:${id}`]} onChange={(e) => setPacket({ ...packet, [`${k}:${id}`]: e.target.checked })} />{label}</label></li>
+                ))}
+              </ul>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" className="btn-primary" disabled={busy === 'packet'} onClick={() => sendPacket(false)}>Share</button>
+                {toolsOn && ho?.homeowner?.portalOn && <button type="button" className="btn-primary" disabled={busy === 'packet'} onClick={() => sendPacket(true)}>Share and tell the homeowner</button>}
+                <button type="button" className="btn-secondary" onClick={() => setPacket(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {total === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">This job has no photos, documents or inspection reports yet. File documents under this job from Documents.</p>}
