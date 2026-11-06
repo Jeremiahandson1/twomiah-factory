@@ -31,3 +31,6 @@ export const timeEntryNeedsApproval = sql`needs_approval = true`
 export const userHasResetToken = sql`reset_token IS NOT NULL`
 /** invoices.seq_number: the friendly, never-reused "Invoice #42", from its own sequence. */
 export const invoiceSeqNext = sql`nextval('invoice_seq_number_seq')`
+
+/** company_budget: one active budget per company per year (landscaping parity row 27; data/companyBudget.ts activateBudget). */
+export const budgetIsActive = sql`status = 'active'`

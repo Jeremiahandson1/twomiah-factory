@@ -2,7 +2,8 @@
 // templates/crm-landscaping/backend/db/schema.ts.
 import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
-import { isNull, sql } from 'drizzle-orm'
+import { isNull } from 'drizzle-orm'
+import { budgetIsActive } from '../../data/indexWhere.ts'
 import { company, user } from './core.ts'
 import { contact, invoice, invoiceLineItem, job } from './crm.ts'
 import { site } from './trades.ts'
@@ -437,5 +438,5 @@ export const companyBudget = pgTable('company_budget', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('company_budget_company_id_idx').on(t.companyId),
-  uniqueIndex('company_budget_active_year_idx').on(t.companyId, t.year).where(sql`status = 'active'`),
+  uniqueIndex('company_budget_active_year_idx').on(t.companyId, t.year).where(budgetIsActive),
 ])
