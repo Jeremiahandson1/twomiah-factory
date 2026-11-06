@@ -519,6 +519,13 @@
       "when": 1793989003418,
       "tag": "0073_landscaping_route_seasons",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1793991073559,
+      "tag": "0074_job_series_patterns",
+      "breakpoints": true
     }
   ]
 }

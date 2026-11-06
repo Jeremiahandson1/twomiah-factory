@@ -25,7 +25,7 @@ import { checkFilter } from '../listFilter'
 import { JOB_TILES, jobsTodayCondition } from '../reporting/tileConditions'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
-import { seriesDays, describeSeriesDays, cleanWeekdays, MAX_SERIES, type SeriesFrequency } from '../time/series'
+import { seriesDays, describeSeriesDays, cleanWeekdays, MAX_SERIES, MAX_SERIES_PATTERNS, SERIES_SPAN_DAYS, type SeriesFrequency } from '../time/series'
 import { zipField } from '../address'
 import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
 import { onJob, ownJobScope } from './onJob'
@@ -87,6 +87,12 @@ export interface JobOptions {
    * [1, 4]) — needs job_series.weekdays. Off → `weekdays` is refused in words, and a repeat is one weekday as before.
    */
   repeatWeekdays?: boolean
+  /**
+   * More repeat patterns (landscaping parity row 18): every N days with excluded days, the Nth weekday of the month, yearly — and a
+   * series of up to a year of visits (a twice-weekly year is 104) instead of 52. Needs the job_series pattern columns. Asked per
+   * business (a not-ready switch); absent → off, and those patterns are refused in words.
+   */
+  repeatPatterns?: (companyId: string) => Promise<boolean> | boolean
   /**
    * A new job's type when none is given, on a job table with a job_type column. The templates each left it to their own
    * database default ('service' in basic and bar, 'repair' in field service and landscaping); one shared database
@@ -311,26 +317,34 @@ export function createJobRoutes(deps: JobDeps) {
    * the job's day (the first visit), and an end — a number of visits or a last day — because a series with no end would
    * fill the calendar for good. Refusals are sentences about the boxes on the form.
    */
-  const readRepeat = (raw: any, firstDate?: string): { spec: { frequency: SeriesFrequency; intervalCount: number; firstDate: string; occurrencesCount?: number | null; untilDate?: string | null; weekdays?: number[] } } | { error: string } => {
+  type RepeatSpec = { frequency: SeriesFrequency; intervalCount: number; firstDate: string; occurrencesCount?: number | null; untilDate?: string | null; weekdays?: number[]; skipWeekdays?: number[]; excludeDates?: string[]; nthPositions?: number[]; nthWeekday?: number }
+  const PATTERNS = ['daily', 'monthly_nth', 'yearly']
+  const patternColumns = !!(t.jobSeries && t.jobSeries.nthWeekday)
+  const readRepeat = (raw: any, firstDate?: string, patterns = false): { spec: RepeatSpec } | { error: string } => {
     const frequency = raw?.frequency
-    if (frequency !== 'weekly' && frequency !== 'monthly') return { error: 'Choose how often it repeats: every week, every few weeks, or every month.' }
+    const known = frequency === 'weekly' || frequency === 'monthly' || (patterns && PATTERNS.includes(frequency))
+    if (!known) return { error: patterns ? 'Choose how often it repeats: every few days, every week, every month, a weekday of the month, or every year.' : 'Choose how often it repeats: every week, every few weeks, or every month.' }
     const day = typeof firstDate === 'string' ? firstDate.slice(0, 10) : ''
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: `Give the ${jobWord} a scheduled date — the first visit — before making it repeat.` }
     const interval = raw?.interval === undefined || raw?.interval === null || raw?.interval === '' ? 1 : Number(raw.interval)
-    if (!Number.isInteger(interval) || interval < 1 || interval > 12) return { error: 'Repeat every 1 to 12 weeks or months.' }
+    const most = frequency === 'daily' ? 90 : frequency === 'yearly' ? 5 : 12
+    if (!Number.isInteger(interval) || interval < 1 || interval > most) return { error: frequency === 'daily' ? 'Repeat every 1 to 90 days.' : frequency === 'yearly' ? 'Repeat every 1 to 5 years.' : 'Repeat every 1 to 12 weeks or months.' }
     const hasCount = raw?.count !== undefined && raw?.count !== null && raw?.count !== ''
     const hasUntil = typeof raw?.until === 'string' && raw.until.trim() !== ''
     if (!hasCount && !hasUntil) return { error: 'Say when the repeats end: after a number of visits, or on a date.' }
     let occurrencesCount: number | null = null, untilDate: string | null = null
     if (hasCount) {
       const n = Number(raw.count)
-      if (!Number.isInteger(n) || n < 2 || n > MAX_SERIES) return { error: `A repeating ${jobWord} has 2 to ${MAX_SERIES} visits.` }
+      const cap = patterns ? MAX_SERIES_PATTERNS : MAX_SERIES
+      if (!Number.isInteger(n) || n < 2 || n > cap) return { error: `A repeating ${jobWord} has 2 to ${cap} visits.` }
       occurrencesCount = n
     }
     if (hasUntil) {
       const u = String(raw.until).trim()
       if (!validDate(u) || !/^\d{4}-\d{2}-\d{2}$/.test(u)) return { error: 'The last day of the repeats is not a real date.' }
       if (u <= day) return { error: 'The repeats must end after the first visit.' }
+      // With more patterns a series runs up to a year: a longer one is made a year at a time, not all at once.
+      if (patterns && Date.parse(u) - Date.parse(day) > SERIES_SPAN_DAYS * 86_400_000) return { error: 'A repeat runs at most a year from its first visit. End it within the year.' }
       untilDate = u
     }
     let weekdays: number[] | undefined
@@ -341,7 +355,24 @@ export function createJobRoutes(deps: JobDeps) {
       if (!Array.isArray(raw.weekdays) || picked.length !== new Set(raw.weekdays.map(Number)).size) return { error: 'Pick the days from Sunday to Saturday.' }
       if (picked.length) weekdays = picked
     }
-    return { spec: { frequency, intervalCount: interval, firstDate: day, occurrencesCount, untilDate, ...(weekdays ? { weekdays } : {}) } }
+    // Row 18's patterns: their own boxes, read and refused in words.
+    const extra: Partial<RepeatSpec> = {}
+    if (frequency === 'daily') {
+      const skip = raw?.skipWeekdays == null ? [] : cleanWeekdays(raw.skipWeekdays)
+      if (skip.length >= 7) return { error: 'Leave at least one day of the week it can fall on.' }
+      const off = Array.isArray(raw?.excludeDates) ? [...new Set(raw.excludeDates.map(String))] : []
+      if (off.length > 100 || off.some((d: any) => !/^\d{4}-\d{2}-\d{2}$/.test(d) || !validDate(d))) return { error: 'The days to skip must be real dates (100 at most).' }
+      if (skip.length) extra.skipWeekdays = skip
+      if (off.length) extra.excludeDates = (off as string[]).sort()
+    }
+    if (frequency === 'monthly_nth') {
+      const pos = Array.isArray(raw?.nthPositions) ? [...new Set(raw.nthPositions.map(Number))] : []
+      if (!pos.length || pos.some((p: any) => !(p === -1 || (Number.isInteger(p) && p >= 1 && p <= 4)))) return { error: 'Pick which ones: the 1st, 2nd, 3rd, 4th or last.' }
+      const wd = Number(raw?.nthWeekday)
+      if (!Number.isInteger(wd) || wd < 0 || wd > 6) return { error: 'Pick the day of the week.' }
+      extra.nthPositions = (pos as number[]).sort((a, b) => (a === -1 ? 9 : a) - (b === -1 ? 9 : b)); extra.nthWeekday = wd
+    }
+    return { spec: { frequency, intervalCount: interval, firstDate: day, occurrencesCount, untilDate, ...(weekdays ? { weekdays } : {}), ...extra } }
   }
   /** A branch must be one of this company's — an id from anywhere else is refused, not stored. */
   const branchRefusal = async (companyId: string, locationId: unknown) => {
@@ -918,7 +949,8 @@ export function createJobRoutes(deps: JobDeps) {
     const body: any = await c.req.json()
     const data: any = jobSchema.parse(body)
     // A repeat is read beside the job (the job schema knows nothing of it) and refused in words before anything is made.
-    const repeat = seriesOn && body?.repeat ? readRepeat(body.repeat, data.scheduledDate) : null
+    const patterns = !!(seriesOn && body?.repeat && patternColumns && o.repeatPatterns && (await o.repeatPatterns(currentUser.companyId)))
+    const repeat = seriesOn && body?.repeat ? readRepeat(body.repeat, data.scheduledDate, patterns) : null
     if (repeat && 'error' in repeat) return c.json({ error: repeat.error, fields: { repeat: repeat.error } }, 400)
     const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
     if (badBranch) return c.json({ error: badBranch }, 400)
@@ -987,11 +1019,15 @@ export function createJobRoutes(deps: JobDeps) {
          * under the same lock and the same overlap check as a single job, each numbered like any other. A day the
          * assignee is already booked is listed back, not made; if none can be made, nothing is.
          */
-        const days = seriesDays({ ...repeat.spec, max: MAX_SERIES })
+        const days = seriesDays({ ...repeat.spec, max: patterns ? MAX_SERIES_PATTERNS : MAX_SERIES })
         ;[seriesRow] = await tx.insert(t.jobSeries).values({
           companyId: currentUser.companyId, frequency: repeat.spec.frequency, intervalCount: repeat.spec.intervalCount,
           firstDate: repeat.spec.firstDate, occurrencesCount: repeat.spec.occurrencesCount ?? null, untilDate: repeat.spec.untilDate ?? null,
           ...(repeat.spec.weekdays ? { weekdays: repeat.spec.weekdays.join(',') } : {}),
+          ...(patternColumns ? {
+            skipWeekdays: repeat.spec.skipWeekdays?.join(',') ?? null, excludeDates: repeat.spec.excludeDates?.join(',') ?? null,
+            nthPositions: repeat.spec.nthPositions?.join(',') ?? null, nthWeekday: repeat.spec.nthWeekday ?? null,
+          } : {}),
           createdById: currentUser.userId,
         }).returning()
         let first: any = null
@@ -1273,6 +1309,88 @@ export function createJobRoutes(deps: JobDeps) {
         .where(and(eq(t.jobSeries.id, visit.seriesId), eq(t.jobSeries.companyId, currentUser.companyId)))
       for (const r of cancelled) emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: r.id, status: 'cancelled' })
       return c.json({ cancelled: cancelled.length, series: await seriesOf(visit, currentUser.companyId) })
+    })
+  }
+
+  if (seriesOn) {
+    /**
+     * EDIT THIS AND FUTURE VISITS (landscaping parity row 19; Jobber "this visit" / "this and future visits"). Editing one visit
+     * is the ordinary PUT /:id. This changes the visit and every later one of its series still to do, together: the time, who
+     * does it, the price, the notes — and, for a weekly series, its days of the week (the visits still to do that no longer
+     * fall on a chosen day are cancelled, the new days are made, up to the series' end). Visits started, done or cancelled are
+     * never touched. The same switch as the repeat patterns (JobOptions.repeatPatterns).
+     *   PUT /:id/series { scheduledTime?, assignedToId?, estimatedValue?, description?, notes?, weekdays? }
+     */
+    app.put('/:id/series', requirePermission('jobs:update'), async (c) => {
+      const currentUser = (c as any).get('user')
+      if (!o.repeatPatterns || !(await o.repeatPatterns(currentUser.companyId))) return c.json({ error: 'This module is not enabled for your account.', code: 'FEATURE_NOT_ENABLED' }, 403)
+      const visit = await findOwned(c.req.param('id'), currentUser.companyId)
+      if (!visit) return c.json({ error: 'Job not found' }, 404)
+      if (!visit.seriesId) return c.json({ error: `This ${jobWord} does not repeat.` }, 400)
+      const b = await c.req.json().catch(() => ({})) as any
+      const set: Record<string, any> = {}
+      if (b.scheduledTime !== undefined) {
+        if (b.scheduledTime !== null && b.scheduledTime !== '' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(b.scheduledTime))) return c.json({ error: 'Give the time as hours and minutes, like 08:30.', fields: { scheduledTime: 'Invalid' } }, 400)
+        set.scheduledTime = b.scheduledTime || null
+      }
+      if (b.assignedToId !== undefined) {
+        if (!(await mayDispatch(c))) return c.json({ error: 'Choosing who does the work is for a seat that dispatches.' }, 403)
+        if (b.assignedToId) {
+          const [who] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, String(b.assignedToId)), eq(t.user.companyId, currentUser.companyId))).limit(1)
+          if (!who) return c.json({ error: 'Choose someone on your team.', fields: { assignedToId: 'Not on the team' } }, 400)
+        }
+        set.assignedToId = b.assignedToId || null
+      }
+      if (b.estimatedValue !== undefined && t.job.estimatedValue) {
+        if (!(await maySetJobMoney(c))) return c.json({ error: 'Changing the price is for an owner or manager.', fields: { estimatedValue: 'Not allowed' } }, 403)
+        const v = b.estimatedValue === null || b.estimatedValue === '' ? null : Number(b.estimatedValue)
+        if (v !== null && (!Number.isFinite(v) || v < 0 || v > 10_000_000)) return c.json({ error: 'The price must be a positive amount.', fields: { estimatedValue: 'Invalid' } }, 400)
+        set.estimatedValue = v === null ? null : String(Math.round(v * 100) / 100)
+      }
+      if (b.description !== undefined) set.description = b.description === null ? null : String(b.description).slice(0, 5000)
+      if (b.notes !== undefined && 'notes' in t.job) set.notes = b.notes === null ? null : String(b.notes).slice(0, 5000)
+      const newDays = b.weekdays !== undefined ? cleanWeekdays(b.weekdays) : null
+      if (newDays !== null && (!Array.isArray(b.weekdays) || !newDays.length)) return c.json({ error: 'Pick at least one day of the week.', fields: { weekdays: 'Required' } }, 400)
+      if (!Object.keys(set).length && newDays === null) return c.json({ error: 'Nothing to change.' }, 400)
+      const from = visit.scheduledDate ? new Date(visit.scheduledDate) : null
+      if (!from) return c.json({ error: `This visit has no day, so there are no later visits to change.` }, 400)
+      const out = await db.transaction(async (tx: any) => {
+        await jobLock(tx, currentUser.companyId)
+        const [series] = await tx.select().from(t.jobSeries).where(and(eq(t.jobSeries.id, visit.seriesId), eq(t.jobSeries.companyId, currentUser.companyId))).limit(1)
+        if (!series) return { error: 'The series of this visit is gone.' }
+        if (newDays !== null && series.frequency !== 'weekly') return { error: 'Days of the week go with a weekly repeat.' }
+        const open = and(eq(t.job.companyId, currentUser.companyId), eq(t.job.seriesId, series.id), notInArray(t.job.status, SERIES_DONE), sql`${t.job.scheduledDate} >= ${from}`)
+        let changed = 0, cancelled = 0, made = 0
+        if (Object.keys(set).length) changed = (await tx.update(t.job).set({ ...set, updatedAt: new Date() }).where(open).returning({ id: t.job.id })).length
+        if (newDays !== null) {
+          // From this visit's day to the series' end (its last day, or as many visits as it had left), on the new days.
+          const all: any[] = await tx.select({ id: t.job.id, scheduledDate: t.job.scheduledDate, status: t.job.status, seriesIndex: t.job.seriesIndex }).from(t.job).where(and(eq(t.job.companyId, currentUser.companyId), eq(t.job.seriesId, series.id)))
+          const startDay = from.toISOString().slice(0, 10)
+          const lastDay = all.map((v) => new Date(v.scheduledDate).toISOString().slice(0, 10)).sort().pop() || startDay
+          const until = series.untilDate || lastDay
+          const want = new Set(seriesDays({ frequency: 'weekly', intervalCount: series.intervalCount, firstDate: startDay, untilDate: until, weekdays: newDays, max: MAX_SERIES_PATTERNS }).map((d) => d.date))
+          const openRows = all.filter((v) => !SERIES_DONE.includes(String(v.status)) && new Date(v.scheduledDate).getTime() >= from.getTime())
+          const have = new Set(openRows.map((v) => new Date(v.scheduledDate).toISOString().slice(0, 10)))
+          const drop = openRows.filter((v) => !want.has(new Date(v.scheduledDate).toISOString().slice(0, 10))).map((v) => v.id)
+          if (drop.length) cancelled = (await tx.update(t.job).set({ status: 'cancelled', updatedAt: new Date() }).where(and(eq(t.job.companyId, currentUser.companyId), inArray(t.job.id, drop))).returning({ id: t.job.id })).length
+          // The new days are made as copies of this visit (with what was just changed), numbered like any other job.
+          const [base] = await tx.select().from(t.job).where(eq(t.job.id, visit.id)).limit(1)
+          let index = Math.max(0, ...all.map((v) => Number(v.seriesIndex) || 0))
+          for (const day of [...want].sort()) {
+            if (have.has(day)) continue
+            const { id: _id, number: _n, createdAt: _c, updatedAt: _u, startedAt: _s, completedAt: _d, pausedAt: _p, ...copy } = base as any
+            const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
+            await tx.insert(t.job).values({ ...copy, number, status: 'scheduled', scheduledDate: new Date(`${day}T00:00:00.000Z`), seriesIndex: ++index, createdById: currentUser.userId })
+            made++
+          }
+          await tx.update(t.jobSeries).set({ weekdays: newDays.join(','), updatedAt: new Date() }).where(eq(t.jobSeries.id, series.id))
+        }
+        return { changed, cancelled, made }
+      })
+      if ('error' in out) return c.json({ error: out.error }, 400)
+      emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, { id: visit.id, series: visit.seriesId })
+      const [after] = await db.select().from(t.job).where(eq(t.job.id, visit.id)).limit(1)
+      return c.json({ ...out, series: await seriesOf(after || visit, currentUser.companyId) })
     })
   }
 

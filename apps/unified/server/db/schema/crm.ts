@@ -189,6 +189,12 @@ export const jobSeries = pgTable('job_series', {
   untilDate: text('until_date'),
   /** A weekly series on chosen days of the week: '1,4' = Monday and Thursday (0 = Sunday). NULL: the first visit's own weekday. */
   weekdays: text('weekdays'),
+  // Landscaping parity row 18's patterns (packages/tenant-backend time/series.ts), each a comma list or a number: 'daily' skips these
+  // weekdays and these days; 'monthly_nth' falls on these places (1–4, -1 = last) of this weekday.
+  skipWeekdays: text('skip_weekdays'),
+  excludeDates: text('exclude_dates'),
+  nthPositions: text('nth_positions'),
+  nthWeekday: integer('nth_weekday'),
   /** 'active' | 'stopped' */
   status: text('status').default('active').notNull(),
   stoppedAt: timestamp('stopped_at'),

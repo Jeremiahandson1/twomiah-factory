@@ -27,6 +27,9 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Change this visit and every later one of its series (job_repeat_patterns, not ready — landscaping parity row 19; Jobber).
+  const [seriesEdit, setSeriesEdit] = useState<null | { scheduledTime: string; estimatedValue: string; description: string; weekdays: number[] }>(null)
+  const [savingSeries, setSavingSeries] = useState(false)
   const [photos, setPhotos] = useState<JobPhoto[]>([])
   const [fullscreen, setFullscreen] = useState<JobPhoto | null>(null)
   /** The permission POST /api/jobs/:id/invoice asks for. (T41) */
@@ -185,7 +188,41 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
                   <p className="text-gray-900 dark:text-slate-100">{job.series.summary}{job.series.index ? ` — visit ${job.series.index} of ${job.series.total}` : ''}</p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">{job.series.status === 'stopped' ? 'Stopped — no more visits will be added.' : `${job.series.upcoming} later visit${job.series.upcoming === 1 ? '' : 's'} on the Schedule`}</p>
                 </div>
-                {mayUpdate && job.series.status !== 'stopped' && job.series.upcoming > 0 && <Button variant="secondary" onClick={stopSeries} disabled={stopping}>{stopping ? 'Stopping…' : 'Stop the series'}</Button>}
+                <div className="flex flex-wrap gap-2">
+                  {mayUpdate && job.series.status !== 'stopped' && cfg.hasFeature('job_repeat_patterns') && <Button variant="secondary" onClick={() => setSeriesEdit({ scheduledTime: job.scheduledTime || '', estimatedValue: job.estimatedValue != null ? String(job.estimatedValue) : '', description: job.description || '', weekdays: [] })}>Change this and future visits</Button>}
+                  {mayUpdate && job.series.status !== 'stopped' && job.series.upcoming > 0 && <Button variant="secondary" onClick={stopSeries} disabled={stopping}>{stopping ? 'Stopping…' : 'Stop the series'}</Button>}
+                </div>
+              </div>
+            )}
+            {seriesEdit && job.series && (
+              <div className="mt-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-slate-700" data-testid="job-series-edit">
+                <p className="font-medium">Change this visit and the {job.series.upcoming} after it</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Visits already started, done or cancelled stay as they are. To change only this visit, use Edit.</p>
+                <div className="mt-2 grid gap-2 md:grid-cols-3">
+                  <label className="text-xs">Time<input type="time" className="input" value={seriesEdit.scheduledTime} onChange={(e) => setSeriesEdit((x) => x && ({ ...x, scheduledTime: e.target.value }))} /></label>
+                  {job.estimatedValue !== undefined && <label className="text-xs">Price per visit<input type="number" min={0} step="0.01" className="input" value={seriesEdit.estimatedValue} onChange={(e) => setSeriesEdit((x) => x && ({ ...x, estimatedValue: e.target.value }))} /></label>}
+                  <label className="text-xs md:col-span-3">Description<textarea className="input" rows={2} value={seriesEdit.description} onChange={(e) => setSeriesEdit((x) => x && ({ ...x, description: e.target.value }))} /></label>
+                </div>
+                {/^Every( \d+)? weeks?/.test(job.series.summary || '') && (
+                  <fieldset className="mt-2"><legend className="text-xs">New days of the week (leave all off to keep them)</legend>
+                    <div className="mt-1 flex flex-wrap gap-2">{[1, 2, 3, 4, 5, 6, 0].map((n) => { const on = seriesEdit.weekdays.includes(n); return <button key={n} type="button" aria-pressed={on} className={`rounded-md border px-3 py-1 ${on ? 'border-orange-500 bg-orange-50 dark:bg-slate-700' : 'border-gray-300 dark:border-slate-600'}`} onClick={() => setSeriesEdit((x) => x && ({ ...x, weekdays: on ? x.weekdays.filter((d) => d !== n) : [...x.weekdays, n] }))}>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][n]}</button> })}</div>
+                  </fieldset>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <Button onClick={async () => {
+                    if (!seriesEdit) return
+                    setSavingSeries(true)
+                    try {
+                      const body: any = { scheduledTime: seriesEdit.scheduledTime || null, description: seriesEdit.description }
+                      if (job.estimatedValue !== undefined) body.estimatedValue = seriesEdit.estimatedValue === '' ? null : Number(seriesEdit.estimatedValue)
+                      if (seriesEdit.weekdays.length) body.weekdays = seriesEdit.weekdays
+                      const r: any = await api.put(`/api/jobs/${id}/series`, body)
+                      toast.success(`Changed ${r?.changed ?? 0} visit${r?.changed === 1 ? '' : 's'}${r?.made ? `, ${r.made} new` : ''}${r?.cancelled ? `, ${r.cancelled} cancelled` : ''}`)
+                      setSeriesEdit(null); load()
+                    } catch (err) { toast.error(errMsg(err, 'Could not change the visits')) } finally { setSavingSeries(false) }
+                  }} disabled={savingSeries}>{savingSeries ? 'Saving…' : 'Change them'}</Button>
+                  <Button variant="secondary" onClick={() => setSeriesEdit(null)}>Cancel</Button>
+                </div>
               </div>
             )}
             {job.description && <div className="mt-4 pt-4 border-t dark:border-slate-800"><p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Description</p><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{job.description}</p></div>}
