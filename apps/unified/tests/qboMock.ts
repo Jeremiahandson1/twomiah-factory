@@ -10,6 +10,10 @@
 //   GET  /v3/company/{realm}/query?query=select * from Account where Name = 'x'  → { QueryResponse: { Account: [...] } }
 //   POST /v3/company/{realm}/account | item | salesreceipt | refundreceipt | deposit → { Account | Item | SalesReceipt | … }
 //   (a deposit links receipts one time each and its lines must add up; Undeposited Funds and one bank account exist)
+// and, for home care's invoices (server/crm/homecare/billing/books.ts):
+//   POST /v3/company/{realm}/invoice?operation=delete | payment?operation=delete  { Id, SyncToken } → { Invoice|Payment: { status: 'Deleted' } }
+//   (an invoice line that names an item must be a known item, and its quantity times unit price must be its amount; an
+//   invoice's balance is its total less the payments applied to it, after an update too; deleting a payment gives it back)
 // and its refusals: a ValidationFault (400) with Fault.Error[{ Message, Detail, code }] — a duplicate display name is
 // 6240, a stale SyncToken 5010, an unknown reference 2500 — and a 401 AUTHENTICATION fault with lowercase keys, as
 // Intuit sends it for an expired or revoked token. Any other address is refused: no test reaches the internet.
@@ -25,6 +29,8 @@ export function createQboMock() {
   const refundReceipts = new Map<string, Rec>()
   const deposits = new Map<string, Rec>()
   const calls: Array<{ method: string; path: string; body: any }> = []
+  /** What payments have applied to each invoice (invoice id → amount), so an update keeps the balance right. */
+  const applied = new Map<string, number>()
   let nextId = 100
   /** Money the roofer's bookkeeper entered against a customer: bills, cheques and card spend (what a Purchase or Bill carries). */
   const spend: Array<{ customerId: string; amount: number; account: string; kind: 'COGS' | 'Expenses' }> = []
@@ -156,12 +162,21 @@ export function createQboMock() {
     if (!ref || !customers.has(String(ref))) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Something you're trying to use has been made inactive. Customer Id ${ref ?? '(none)'}`)
     if (!Array.isArray(inv.Line) || !inv.Line.length) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: You must fill out at least one split line.')
     for (const l of inv.Line) if (l.DetailType !== 'SalesItemLineDetail' || typeof l.Amount !== 'number') return validation('2010', 'Request has invalid or unsupported property', 'Property Name:Line.Amount')
+    for (const l of inv.Line) {
+      const d = l.SalesItemLineDetail
+      if (!d?.ItemRef) continue
+      if (!items.has(String(d.ItemRef.value))) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Item ${d.ItemRef.value}`)
+      if (Math.abs(money(d.Qty * d.UnitPrice) - l.Amount) > 0.005) return validation('6070', 'Amount is not equal to UnitPrice * Qty', `Amount is not equal to UnitPrice * Qty. Supplied value:${l.Amount}`)
+    }
     const total = Math.round(inv.Line.reduce((s: number, l: any) => s + l.Amount, 0) * 100) / 100
+    if (total < 0) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: Transaction total cannot be negative.')
     if (inv.Id) {
       const cur = invoices.get(String(inv.Id))
       if (!cur) return notFound('Invoice', inv.Id)
       if (String(inv.SyncToken) !== cur.SyncToken) return validation('5010', 'Stale Object Error', 'Stale Object Error : You and another user were working on the same thing.')
-      const next = { ...cur, ...inv, Id: cur.Id, SyncToken: String(Number(cur.SyncToken) + 1), TotalAmt: total }
+      const paid = applied.get(cur.Id) ?? 0
+      if (total + 0.005 < paid) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: The invoice total is less than the payments applied to it.')
+      const next = { ...cur, ...inv, Id: cur.Id, SyncToken: String(Number(cur.SyncToken) + 1), TotalAmt: total, Balance: money(total - paid) }
       invoices.set(cur.Id, next)
       return reply(200, { Invoice: next, time: time() })
     }
@@ -180,10 +195,28 @@ export function createQboMock() {
       if (String(inv.CustomerRef.value) !== String(p.CustomerRef.value)) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: The transaction you linked to belongs to another customer.')
       if (l.Amount > inv.Balance + 0.005) return validation('6000', 'A business validation error has occurred while processing your request', 'Business Validation Error: The payment amount exceeds the open balance.')
       inv.Balance = Math.round((inv.Balance - l.Amount) * 100) / 100
+      applied.set(inv.Id, money((applied.get(inv.Id) ?? 0) + l.Amount))
     }
     const made = { ...p, Id: id(), SyncToken: '0' }
     payments.set(made.Id, made)
     return reply(200, { Payment: made, time: time() })
+  }
+
+  /** POST /invoice|payment?operation=delete { Id, SyncToken }: gone; a payment's amounts go back on its invoices. */
+  function remove(entity: 'invoice' | 'payment', b: any) {
+    const store = entity === 'invoice' ? invoices : payments
+    const cur = store.get(String(b?.Id))
+    if (!cur) return notFound(entity, String(b?.Id))
+    if (String(b.SyncToken) !== cur.SyncToken) return validation('5010', 'Stale Object Error', 'Stale Object Error : You and another user were working on the same thing.')
+    if (entity === 'payment') {
+      for (const l of cur.Line || []) for (const t of l.LinkedTxn || []) {
+        const inv = invoices.get(String(t.TxnId))
+        if (inv) { inv.Balance = money(inv.Balance + l.Amount); applied.set(inv.Id, money((applied.get(inv.Id) ?? 0) - l.Amount)) }
+      }
+    }
+    store.delete(cur.Id)
+    const name = entity === 'invoice' ? 'Invoice' : 'Payment'
+    return reply(200, { [name]: { Id: cur.Id, status: 'Deleted', domain: 'QBO' }, time: time() })
   }
 
   const fetchMock = async (input: any, init: any = {}): Promise<Response> => {
@@ -208,6 +241,7 @@ export function createQboMock() {
     if (method === 'POST' && entity === 'refundreceipt') return receipt('RefundReceipt', body?.RefundReceipt)
     if (method === 'POST' && entity === 'deposit') return deposit(body?.Deposit)
     if (method === 'GET' && entity === 'reports' && oid === 'ProfitAndLoss') return profitAndLoss(url.searchParams)
+    if (method === 'POST' && url.searchParams.get('operation') === 'delete' && (entity === 'invoice' || entity === 'payment')) return remove(entity, body)
     const store = entity === 'customer' ? customers : entity === 'invoice' ? invoices : entity === 'payment' ? payments : null
     if (!store) return reply(400, { Fault: { Error: [{ Message: 'Unsupported Operation', Detail: entity, code: '500' }], type: 'ValidationFault' } })
     if (method === 'GET') {

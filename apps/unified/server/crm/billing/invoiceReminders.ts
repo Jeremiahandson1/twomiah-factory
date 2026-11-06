@@ -24,6 +24,7 @@ import {
 } from '@twomiah/tenant-backend'
 import { company, contact, invoice, invoiceLineItem, invoices, clients, reminderLog } from '../../db/schema/index.ts'
 import { appendInvoiceNote } from '../../data/homecareBillingRoutes.ts'
+import { BILLING_CONTACTS_FEATURE, recipientsOf } from '../../data/homecareBillingContacts.ts'
 import type { Logger } from '../../core/logger.ts'
 
 /** The hour of the company's day from which reminders go out. */
@@ -197,10 +198,12 @@ export function createInvoiceReminders(deps: ReminderDeps) {
 
   /** Home care's Billing invoices: the same steps, through its own reminder email and its invoice note. */
   async function careInvoices(co: { id: string; name: string }, tz: string, cfg: InvoiceReminderSettings, now: Date, out: PassResult) {
+    // Parity row 23: with billing contacts on, a client's reminder goes to every address of its billing contact.
+    const contactsOn = !!(await Promise.resolve(deps.isFeatureEnabled(co.id, BILLING_CONTACTS_FEATURE)).catch(() => false))
     const rows = await db.select({
       id: invoices.id, invoiceNumber: invoices.invoiceNumber, seqNumber: invoices.seqNumber, total: invoices.total, amountPaid: invoices.amountPaid,
       amountAdjusted: invoices.amountAdjusted, due: invoices.paymentDueDate, firstName: clients.firstName, lastName: clients.lastName,
-      portalEmail: clients.portalEmail, email: clients.email,
+      portalEmail: clients.portalEmail, email: clients.email, clientId: invoices.clientId,
     })
       .from(invoices).innerJoin(clients, eq(clients.id, invoices.clientId))
       .where(and(eq(invoices.companyId, co.id), isNotNull(invoices.sentAt), ne(invoices.paymentStatus, 'paid'), isNotNull(invoices.paymentDueDate)))
@@ -212,20 +215,28 @@ export function createInvoiceReminders(deps: ReminderDeps) {
       if (!step) continue
       const logId = await claim(co.id, 'care_invoice_reminder', r.id, `${step.name}:${due}`)
       if (!logId) continue
-      // The address the invoice email itself goes to (data/homecareBillingRoutes.ts invoiceForEmail): the portal's, else the client's.
-      const to = String(r.portalEmail || r.email || '').trim()
-      if (!to) { await settle(logId, 'skipped', 'The client has no email address.'); out.skipped++; continue }
+      // Where the invoice email itself goes (billing/invoices.ts recipientsFor): the client's billing contact — up to five
+      // addresses — else the portal's, else the client's.
+      const clientName = `${r.firstName} ${r.lastName}`.trim()
+      const billing = await recipientsOf(db, co.id, r.clientId, contactsOn)
+      const toList = billing ? billing.emails : [String(r.portalEmail || r.email || '').trim()].filter(Boolean)
+      if (!toList.length) { await settle(logId, 'skipped', 'The client has no email address.'); out.skipped++; continue }
       const token = await documentLinkToken(db, invoices, r.id)
-      try {
-        await email.send(to, 'homecareInvoiceReminder', {
-          companyName: co.name, contactName: `${r.firstName} ${r.lastName}`.trim(), invoiceNumber: r.seqNumber ?? r.invoiceNumber,
-          amountDue: owed.toFixed(2), dueDate: dayWords(due), daysOverdue: step.daysOverdue, documentPath: token ? documentLinkPath(token) : null,
-        })
-        await settle(logId, 'sent', step.daysOverdue > 0 ? `${step.daysOverdue} days overdue` : 'Due soon', to)
-        await appendInvoiceNote(db, co.id, r.id, `\nAutomatic reminder sent to ${to} on ${storeDateString(now, tz)} (${step.daysOverdue > 0 ? `${step.daysOverdue}d overdue` : 'pre-due'})`, 'keep')
+      const data = {
+        companyName: co.name, contactName: billing && billing.kind !== 'client' ? billing.name || clientName : clientName, invoiceNumber: r.seqNumber ?? r.invoiceNumber,
+        amountDue: owed.toFixed(2), dueDate: dayWords(due), daysOverdue: step.daysOverdue, documentPath: token ? documentLinkPath(token) : null,
+      }
+      const sent: string[] = []
+      let lastError = ''
+      for (const to of toList) {
+        try { await email.send(to, 'homecareInvoiceReminder', data); sent.push(to) } catch (e: any) { lastError = String(e?.message || 'The email could not be sent.') }
+      }
+      if (sent.length) {
+        await settle(logId, 'sent', step.daysOverdue > 0 ? `${step.daysOverdue} days overdue` : 'Due soon', sent.join(', '))
+        await appendInvoiceNote(db, co.id, r.id, `\nAutomatic reminder sent to ${sent.join(', ')} on ${storeDateString(now, tz)} (${step.daysOverdue > 0 ? `${step.daysOverdue}d overdue` : 'pre-due'})`, 'keep')
         out.sent++
-      } catch (e: any) {
-        await settle(logId, 'failed', String(e?.message || 'The email could not be sent.').slice(0, 500), to)
+      } else {
+        await settle(logId, 'failed', lastError.slice(0, 500), toList.join(', '))
         out.failed++
       }
     }

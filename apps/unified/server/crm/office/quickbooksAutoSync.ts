@@ -12,7 +12,8 @@
 //   · every run, automatic or pressed, is a qb_sync_run row: when, what went across, what failed — the card's sync log.
 //   · a lost connection (signed out of Intuit, a refused token) stops the run and says so; it is not five hundred failures.
 //   · a vertical with books of its own adds a pass after payments (addPass): the online store's paid orders, refunds and
-//     Stripe payouts (crm/store/books.ts). It uses the same failure record, backoff and run row.
+//     Stripe payouts (crm/store/books.ts); home care's visit invoices and their payments (crm/homecare/billing/books.ts).
+//     It uses the same failure record, backoff and run row.
 import { and, eq, isNull, isNotNull, notInArray, or, gt, desc, asc, notLike } from 'drizzle-orm'
 import { contact, invoice, invoiceLineItem, payment, qbIntegration, qbSyncRun, qbSyncFailure } from '../../db/schema/index.ts'
 import type { QuickBooksService } from '@twomiah/tenant-backend'
@@ -68,7 +69,7 @@ export interface SweepHelpers {
   /** The connection is gone (not one record's refusal): a pass lets this one go on to stop the run. */
   connectionLost(err: unknown): boolean
 }
-export type SweepPass = (companyId: string, h: SweepHelpers) => Promise<{ orders?: number; refunds?: number; payouts?: number; failed?: number }>
+export type SweepPass = (companyId: string, h: SweepHelpers) => Promise<{ customers?: number; invoices?: number; payments?: number; orders?: number; refunds?: number; payouts?: number; failed?: number }>
 
 export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
   const { db, quickbooks: qb, logger } = deps
@@ -170,6 +171,7 @@ export function createQuickBooksAutoSync(deps: AutoSyncDeps) {
           failed: (entity, id, label, err) => failed(companyId, entity, id, label, err, now),
           cleared: (entity, id) => cleared(companyId, entity, id),
         })
+        counts.customers += done.customers ?? 0; counts.invoices += done.invoices ?? 0; counts.payments += done.payments ?? 0
         counts.orders += done.orders ?? 0; counts.refunds += done.refunds ?? 0; counts.payouts += done.payouts ?? 0; counts.failed += done.failed ?? 0
       }
     } catch (e) {
