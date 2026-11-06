@@ -1,8 +1,8 @@
 // Moved from templates/crm-landscaping/frontend/src/pages/landscaping/AreaPricingPage.tsx.
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Calculator, Loader2, Ruler } from 'lucide-react'
+import { Plus, Trash2, Calculator, Loader2, Ruler, Printer, Download } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, useConfirm, useMayWrite } from '../../../shared'
+import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
 import MeasureMap from './MeasureMap'
 import AddToQuote from './AddToQuote'
@@ -46,8 +46,51 @@ const MEASURE_ORDER: AreaField[] = ['lawnSqft', 'bedSqft', 'hardscapeSqft', 'dri
 const serverMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
+/**
+ * Print the property's measurements (feature measure_print): the server draws its saved shapes over the satellite picture as a
+ * PDF. Print opens it in a new tab (the browser's own print button is there); Download saves the file. What is printed is what was
+ * last saved — unsaved corners on the map are not in it.
+ */
+function PrintMeasurements({ siteId }: { siteId: string }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState<'' | 'print' | 'download'>('')
+  const go = async (how: 'print' | 'download') => {
+    // The new tab is opened inside the click so the browser does not block it; the PDF is put in it when it arrives.
+    const tab = how === 'print' ? window.open('', '_blank') : null
+    setBusy(how)
+    try {
+      const res: Response = await api.raw(`/api/measure-print/sites/${siteId}/pdf`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error || 'The measurements could not be printed.')
+      }
+      const url = URL.createObjectURL(await res.blob())
+      if (tab) tab.location.href = url
+      else {
+        const a = document.createElement('a')
+        a.href = url; a.download = 'measurements.pdf'; a.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      tab?.close()
+      toast.error((e as Error).message)
+    } finally { setBusy('') }
+  }
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      <button type="button" className="btn-secondary inline-flex items-center gap-1" disabled={!!busy} onClick={() => go('print')}>
+        {busy === 'print' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />} Print measurements
+      </button>
+      <button type="button" className="btn-secondary inline-flex items-center gap-1" disabled={!!busy} onClick={() => go('download')}>
+        {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download PDF
+      </button>
+    </div>
+  )
+}
+
 export default function AreaPricingPage() {
   const toast = useToast()
+  const printOn = useAuth().hasFeature('measure_print')
   const confirm = useConfirm()
   // Each control asks its route: a rate is quotes:create / quotes:delete, a property's measurements contacts:update. (T63)
   const mayAddRate = useMayWrite('quotes:create')
@@ -173,7 +216,8 @@ export default function AreaPricingPage() {
           <label htmlFor="area-map-site" className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Property</label>
           <SitePicker id="area-map-site" value={mapSite} sites={sites} onAdded={reloadSites} onChange={setMapSite} allowAdd={false} />
         </div>
-        {mapSite ? <MeasureMap key={mapSite} siteId={mapSite} onSaved={() => {}} /> : <p className="text-sm text-gray-500 dark:text-slate-400">Pick a property to draw its lawn, beds, hardscape or lot. The areas are saved on the property and priced from the rate card.</p>}
+        {mapSite && printOn && <PrintMeasurements siteId={mapSite} />}
+        {mapSite ? <MeasureMap key={mapSite} siteId={mapSite} onSaved={() => {}} /> :  <p className="text-sm text-gray-500 dark:text-slate-400">Pick a property to draw its lawn, beds, hardscape or lot. The areas are saved on the property and priced from the rate card.</p>}
       </section>
 
       {/* Quote calculator */}
