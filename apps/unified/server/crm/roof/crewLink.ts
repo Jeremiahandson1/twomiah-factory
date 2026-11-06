@@ -68,10 +68,12 @@ export function createCrewLinkRoutes(d: CrmDeps) {
     const [co] = await db.select({ name: company.name, phone: company.phone, logo: company.logo }).from(company).where(eq(company.id, row.companyId)).limit(1)
     const open = !['completed', 'cancelled'].includes(row.status)
     return {
-      title: row.title, scope: row.scope, address: row.address, startDate: row.startDate, recipientName: row.recipientName,
+      title: row.title, scope: row.language === 'es' && row.scopeEs ? row.scopeEs : row.scope, address: row.address, startDate: row.startDate, recipientName: row.recipientName,
+      // Row 27: the page's language, and what the office lets the sub see.
+      language: row.language === 'es' ? 'es' : 'en',
       status: row.status, company: { name: co?.name ?? null, phone: co?.phone ?? null, logo: co?.logo ?? null },
-      materials: (row.materialLines as any[]).map((m) => ({ description: m.description, qty: m.qty, unit: m.unit })),
-      photos: shape(row.photoIds), completionPhotos: shape(row.completionPhotoIds),
+      materials: row.showMaterials === false ? [] : (row.materialLines as any[]).map((m) => ({ description: m.description, qty: m.qty, unit: m.unit })),
+      photos: row.showPhotos === false ? [] : shape(row.photoIds), completionPhotos: shape(row.completionPhotoIds),
       respondedByName: row.respondedByName, rejectReason: row.rejectReason, completedAt: row.completedAt, completionNote: row.completionNote,
       expiresAt: row.tokenExpiresAt,
       // What the crew may do from here (the screen offers exactly these).

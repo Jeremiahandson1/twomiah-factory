@@ -9,12 +9,15 @@ import { errorText, useConfirm, useMayWrite, usePermissions, useToast, useAuth }
 import { money } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
+import { WorkOrderOptions, type SendOptions } from './WorkOrderOptions'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Line { description: string; qty: number | string; unit: string }
 interface WorkOrder {
   id: string; title: string; status: string; scope?: string | null; address?: string | null; startDate?: string | null
   recipientName: string; recipientPhone: string; crewId?: string | null; materialLines: Line[]; photoIds: string[]
+  /** Row 27 (work_order_send_options). */
+  requiresApproval?: boolean | null; recipientEmail?: string | null; ccEmails?: string[]; language?: string; scopeEs?: string | null; linkDays?: number | null; showMaterials?: boolean; showPhotos?: boolean
   respondedByName?: string | null; rejectReason?: string | null; completedAt?: string | null; completionNote?: string | null
   /** The crew's lump-sum price for the job — only for a seat that reads what the shop pays (margin:read). */
   price?: number | null
@@ -38,6 +41,19 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
   const [orders, setOrders] = useState<WorkOrder[]>([])
   const [editing, setEditing] = useState<WorkOrder | 'new' | null>(null)
   const [busy, setBusy] = useState('')
+  // Row 27 (work_order_send_options, not ready): email + CC, Spanish, approval, the sub's view and its length.
+  const sendOpts = useAuth().hasFeature('work_order_send_options')
+  const [optionsFor, setOptionsFor] = useState<string | null>(null)
+  const sendBy = async (id: string, channel: 'text' | 'email' | 'both') => {
+    setBusy(id + 'send')
+    try {
+      const r: any = await api.post(`/api/work-orders/${id}/send`, { channel })
+      const parts = [r?.texted ? 'texted' : '', r?.emailed ? `emailed (${r.emailed})` : ''].filter(Boolean)
+      if (parts.length) toast.success(`Sent — ${parts.join(' and ')}`)
+      else toast.error(r?.notice || 'It could not be sent. Copy the link and send it yourself.')
+      await load()
+    } catch (err) { toast.error(errorText(err, 'Could not send the work order')) } finally { setBusy('') }
+  }
 
   const load = useCallback(async () => {
     try { setOrders(listOf<WorkOrder>(await api.get('/api/work-orders', { jobId }))) } catch { setOrders([]) }
@@ -92,8 +108,10 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
                   {o.linkUrl && <button type="button" onClick={() => copy(o.linkUrl!)} className="inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:underline dark:text-slate-300"><Copy className="w-3 h-3" /> Copy link</button>}
                   {o.status !== 'accepted' && <button type="button" onClick={() => setEditing(o)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Edit</button>}
                   <button type="button" disabled={!!busy} onClick={() => act(o.id, 'cancel')} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline disabled:opacity-50 dark:text-red-300"><X className="w-3 h-3" /> Cancel</button>
+                  {sendOpts && <button type="button" onClick={() => setOptionsFor(optionsFor === o.id ? null : o.id)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Send options</button>}
                 </div>
               )}
+              {sendOpts && optionsFor === o.id && <WorkOrderOptions orderId={o.id} value={o as SendOptions} onSaved={load} onSend={(ch) => sendBy(o.id, ch)} />}
               {mayDelete && ['draft', 'cancelled'].includes(o.status) && (
                 <button type="button" onClick={() => remove(o)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:underline dark:text-slate-400"><Trash2 className="w-3 h-3" /> Remove</button>
               )}

@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Briefcase, HardHat, Phone, Plus, Users, X } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
+import { errorText, useConfirm, useMayWrite, useToast, useAuth } from '../../../../shared'
 import { listOf } from './http'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -36,6 +36,8 @@ interface Crew {
   foremanPhone: string | null
   size: number | null
   isSubcontractor: boolean
+  /** Row 27 (work_order_send_options): asked to accept each work order. */
+  requiresApproval?: boolean
   /** Dollars a square; not sent to a seat without margin:read. */
   payPerSquare?: string | number | null
   activeJobs?: CrewJob[]
@@ -53,6 +55,13 @@ interface CrewForm { name: string; foremanName: string; foremanPhone: string; cr
 const EMPTY_FORM: CrewForm = { name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, payPerSquare: '' }
 
 export default function CrewsPage() {
+  // Row 27 (work_order_send_options, not ready; Roofr): whether a crew is asked to accept its work orders.
+  const sendOpts = useAuth().hasFeature('work_order_send_options')
+  const mayDispatchCrews = useMayWrite('jobs:dispatch')
+  const setApproval = async (crewId: string, on: boolean) => {
+    try { await api.put(`/api/work-orders/crew-approval/${crewId}`, { requiresApproval: on }); setCrews((list) => list.map((c) => (c.id === crewId ? { ...c, requiresApproval: on } : c))) }
+    catch (e) { toast.error(errorText(e, 'Could not change it')) }
+  }
   // crews:* is manager and above. A crew member reads the roster — who is on which crew is the
   // point of the screen — and does not build, rename or disband one. (T42)
   const mayAddCrew = useMayWrite('crews:create')
@@ -200,6 +209,11 @@ export default function CrewsPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{crew.name}</h3>
+                      {sendOpts && mayDispatchCrews && (
+                        <label className="ml-auto flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300" title="Off: a work order sent to this crew is accepted when sent">
+                          <input type="checkbox" checked={crew.requiresApproval !== false} onChange={(e) => setApproval(crew.id, e.target.checked)} /> Asks to accept work orders
+                        </label>
+                      )}
                       {crew.isSubcontractor && (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40">Subcontractor</span>
                       )}

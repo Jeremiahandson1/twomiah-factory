@@ -48,6 +48,9 @@ export const MAX_PHOTOS_SHARED = 12
 export const appOrigin = () => String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
 
 /** When a link sent now stops answering: 30 days on, and never less than a week past the start. */
+/** Row 27 (not ready): email + CC, Spanish, approval per crew and per order, the sub's view and its length. */
+export const SEND_OPTIONS = 'work_order_send_options'
+
 export function linkExpiry(now: Date, startDate?: Date | null): Date {
   const base = new Date(now.getTime() + LINK_DAYS * DAY)
   const afterStart = startDate ? new Date(startDate.getTime() + AFTER_START_DAYS * DAY) : base
@@ -203,6 +206,19 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     catch (err: any) { return fail(c, 502, `CompanyCam did not answer: ${String(err?.message || 'try again shortly')}`) }
   })
 
+  // ---- Row 27 (work_order_send_options, not ready; Roofr + AccuLynx) ----
+  const sendOptionsOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, SEND_OPTIONS).catch(() => false)
+  // A crew's standing answer: asked to accept each order, or not.
+  app.put('/crew-approval/:crewId', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await sendOptionsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (typeof b?.requiresApproval !== 'boolean') return fail(c, 400, 'Say whether the crew is asked to accept.')
+    const [row] = await db.update(crew).set({ requiresApproval: b.requiresApproval, updatedAt: new Date() } as any).where(and(eq(crew.id, c.req.param('crewId')), eq(crew.companyId, me.companyId))).returning({ id: crew.id })
+    if (!row) return fail(c, 404, 'Crew not found')
+    return one(c, { id: row.id, requiresApproval: b.requiresApproval })
+  })
+
   app.get('/:id', requirePermission('jobs:read'), async (c) => {
     const row = await readable(c)
     if (!row) return fail(c, 404, 'Work order not found')
@@ -286,6 +302,30 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     return one(c, view(updated, true, await maySeePrice(c)))
   })
 
+  // An order's send options (row 27): approval (null = the crew's), email + CC, Spanish, the link's days, what the sub may see.
+  app.put('/:id/options', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await sendOptionsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const row = await readable(c)
+    if (!row) return fail(c, 404, 'Work order not found')
+    const b: any = await c.req.json().catch(() => ({}))
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    const email = (v: unknown) => typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
+    if (b.requiresApproval !== undefined) { if (b.requiresApproval !== null && typeof b.requiresApproval !== 'boolean') return fail(c, 400, 'Approval is on, off, or the crew’s.'); set.requiresApproval = b.requiresApproval }
+    if (b.recipientEmail !== undefined) { if (b.recipientEmail && !email(b.recipientEmail)) return fail(c, 400, 'That email does not look right.', 'validation_failed', { recipientEmail: 'Check it' }); set.recipientEmail = b.recipientEmail ? String(b.recipientEmail).trim() : null }
+    if (b.ccEmails !== undefined) {
+      const list = Array.isArray(b.ccEmails) ? b.ccEmails.map((x: any) => String(x).trim()).filter(Boolean) : []
+      if (list.length > 10 || list.some((x: string) => !email(x))) return fail(c, 400, 'CC up to 10 email addresses.', 'validation_failed', { ccEmails: 'Check them' })
+      set.ccEmails = list
+    }
+    if (b.language !== undefined) { if (!['en', 'es'].includes(b.language)) return fail(c, 400, 'The crew page is in English or Spanish.'); set.language = b.language }
+    if (b.scopeEs !== undefined) set.scopeEs = b.scopeEs ? String(b.scopeEs).slice(0, 5000) : null
+    if (b.linkDays !== undefined) { if (b.linkDays !== null && !(Number.isInteger(b.linkDays) && b.linkDays >= 1 && b.linkDays <= 90)) return fail(c, 400, 'The link lasts 1 to 90 days.'); set.linkDays = b.linkDays }
+    for (const k of ['showMaterials', 'showPhotos'] as const) if (b[k] !== undefined) set[k] = b[k] === true
+    const [updated] = await db.update(workOrder).set(set as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId))).returning()
+    return one(c, view(updated, true, await maySeePrice(c)))
+  })
+
   app.post('/:id/send', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     const me = c.get('user')
     const row = await readable(c)
@@ -293,15 +333,25 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     if (['completed', 'cancelled'].includes(row.status)) return fail(c, 409, `A ${row.status} work order cannot be sent.`, 'wrong_status')
     const origin = appOrigin()
     if (!origin) return fail(c, 503, 'The app’s web address is not set up, so a link cannot be made.', 'no_origin')
-    const body = (await c.req.json().catch(() => null)) as { newLink?: boolean } | null
+    const body = (await c.req.json().catch(() => null)) as { newLink?: boolean; channel?: 'text' | 'email' | 'both' } | null
     const now = new Date()
+    // Row 27: approval off for this order (or its crew) — accepted on send; the link's own days; by email and CC as well as text.
+    const opts = await sendOptionsOn(c)
+    let needsApproval = true
+    if (opts) {
+      const [cr] = row.crewId ? await db.select({ requiresApproval: crew.requiresApproval }).from(crew).where(eq(crew.id, row.crewId)).limit(1) : []
+      needsApproval = row.requiresApproval ?? cr?.requiresApproval ?? true
+    }
+    const channel = opts && body?.channel ? body.channel : 'text'
     // The link is made the first time and keeps working on a resend; a new one only when asked for or when it has run out.
     const expired = !!(row.tokenExpiresAt && new Date(row.tokenExpiresAt) < now)
     const token = !row.publicToken || expired || body?.newLink ? newDocumentToken() : row.publicToken
-    const status = row.status === 'accepted' ? 'accepted' : 'sent'
+    const status = row.status === 'accepted' || !needsApproval ? 'accepted' : 'sent'
+    const expires = opts && row.linkDays ? new Date(now.getTime() + Number(row.linkDays) * DAY) : linkExpiry(now, row.startDate)
     const [sent] = await db.update(workOrder).set({
-      publicToken: token, tokenExpiresAt: linkExpiry(now, row.startDate), status, sentAt: now, updatedAt: now,
+      publicToken: token, tokenExpiresAt: expires, status, sentAt: now, updatedAt: now,
       ...(row.status === 'rejected' ? { respondedAt: null, respondedByName: null, rejectReason: null } : {}),
+      ...(!needsApproval && row.status !== 'accepted' ? { respondedAt: now, respondedByName: 'No approval needed' } : {}),
     } as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'accepted', 'rejected']))).returning()
     if (!sent) return fail(c, 409, 'It changed while you were sending. Open it again.', 'wrong_status')
 
@@ -309,8 +359,26 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     const [co] = await db.select({ name: company.name, enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, me.companyId)).limit(1)
     const features = (co?.enabledFeatures as string[] | null) || []
     const date = sent.startDate ? ` Start ${new Date(sent.startDate).toLocaleDateString('en-US', { timeZone: await companyTimeZone(db, me.companyId) })}.` : ''
-    const message = `${co?.name || 'Your contractor'}: work order "${sent.title}" at ${sent.address || 'the job'}.${date} See the details and accept or decline: ${link}`
-    let texted = false, reason = ''
+    const es = opts && sent.language === 'es'
+    const message = es
+      ? `${co?.name || 'Su contratista'}: orden de trabajo "${sent.title}" en ${sent.address || 'el trabajo'}.${date} Vea los detalles${needsApproval ? ' y acepte o rechace' : ''}: ${link}`
+      : `${co?.name || 'Your contractor'}: work order "${sent.title}" at ${sent.address || 'the job'}.${date} See the details${needsApproval ? ' and accept or decline' : ''}: ${link}`
+    let texted = false, reason = '', emailed = 0
+    // Row 27: by email (to the crew's address) and CC, where asked.
+    if (opts && (channel === 'email' || channel === 'both')) {
+      const to = [sent.recipientEmail, ...((sent.ccEmails as string[]) || [])].filter(Boolean) as string[]
+      if (!to.length) reason = 'There is no email address on the order. Add one, or send it by text.'
+      for (const addr of to) {
+        try {
+          await (d.services as any).emailService.sendRaw({ to: addr, subject: `${es ? 'Orden de trabajo' : 'Work order'}: ${sent.title}`, html: `<p>${message.replace(link, '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] as string))}</p><p><a href="${link}">${es ? 'Abrir la orden de trabajo' : 'Open the work order'}</a></p>` })
+          emailed++
+        } catch { reason = 'An email could not be sent.' }
+      }
+    }
+    if (opts && channel === 'email') {
+      await addNote(me.companyId, sent.jobId, me.userId, `Work order "${sent.title}" emailed to ${emailed} address${emailed === 1 ? '' : 'es'}.`)
+      return one(c, { ...view(sent, true, await maySeePrice(c)), texted: false, emailed, ...(reason ? { notice: reason } : {}) })
+    }
     if (!features.includes('two_way_texting') && !features.includes('all')) {
       reason = 'Texting is not switched on for this account, so nothing was sent. Copy the link and send it yourself.'
     } else {
@@ -324,7 +392,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     await addNote(me.companyId, sent.jobId, me.userId, texted
       ? `Work order "${sent.title}" texted to ${sent.recipientName}.`
       : `Work order "${sent.title}" made ready for ${sent.recipientName} (not texted).`)
-    return one(c, { ...view(sent, true, await maySeePrice(c)), texted, ...(reason ? { notice: reason } : {}) })
+    return one(c, { ...view(sent, true, await maySeePrice(c)), texted, ...(emailed ? { emailed } : {}), ...(reason ? { notice: reason } : {}) })
   })
 
   app.post('/:id/cancel', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {

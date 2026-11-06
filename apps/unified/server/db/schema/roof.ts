@@ -20,6 +20,8 @@ export const crew = pgTable('crew', {
   // What the crew is paid per square (100 sq ft) of roof: the job's crew cost is this times the job's squares (job costing,
   // server/crm/roof/jobCosts.ts). Null: not set, so the crew's cost on a job is not known — never read as free.
   payPerSquare: decimal('pay_per_square', { precision: 10, scale: 2 }),
+  // Roofing parity row 27 (work_order_send_options): whether this crew is asked to accept a work order (off: it is accepted on send).
+  requiresApproval: boolean('requires_approval').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -577,6 +579,16 @@ export const workOrder = pgTable('work_order', {
   materialLines: json('material_lines').default([]).notNull(),
   photoIds: json('photo_ids').default([]).notNull(),
   // draft → sent → accepted | rejected → completed; cancelled by the office from any stage short of completed.
+  // Row 27 (work_order_send_options, not ready; Roofr + AccuLynx): approval for this order (null: the crew's), email and CC, the
+  // crew page in Spanish with the office's Spanish scope, how long the link lasts, and what the sub may see.
+  requiresApproval: boolean('requires_approval'),
+  recipientEmail: text('recipient_email'),
+  ccEmails: json('cc_emails').default([]).notNull(),
+  language: text('language').default('en').notNull(),
+  scopeEs: text('scope_es'),
+  linkDays: integer('link_days'),
+  showMaterials: boolean('show_materials').default(true).notNull(),
+  showPhotos: boolean('show_photos').default(true).notNull(),
   status: text('status').default('draft').notNull(),
   publicToken: text('public_token'),
   tokenExpiresAt: timestamp('token_expires_at'),

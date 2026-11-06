@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: work order send options (roofing parity row 27; apps/unified server/crm/roof/workOrders.ts).
+  { id: 'work_order_send_options', name: 'Work order sending options', description: 'Send a work order by email with CC as well as text, show the crew page in Spanish with your Spanish scope, ask for approval per crew or per order, and set how long the sub sees it and whether they see the materials and photos', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it (CompanyCam needs the business's account): work order tools (roofing parity row 26).
   { id: 'work_order_tools', name: 'Work orders from the proposal, and scope templates', description: 'Fill a work order’s scope and materials from the signed proposal (no prices), save scopes as templates, and bring in CompanyCam photos once your account is connected', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY, and swaths need a hail-data provider account first: storm data tools (roofing parity row 25; apps/unified server/data/hailSwaths.ts).
