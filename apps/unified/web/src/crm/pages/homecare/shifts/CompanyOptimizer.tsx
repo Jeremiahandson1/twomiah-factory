@@ -42,6 +42,9 @@ type Tab = 'skills' | 'restrictions' | 'optimizer'
 type MsgType = 'success' | 'error' | 'warning' | ''
 
 
+// Row 14: the needs a client can mark as must-haves (server core/matchTraits.ts MUST_HAVE_FACTORS).
+const MUST_HAVE: [string, string][] = [['skills', 'Skills'], ['certifications', 'Certifications'], ['gender', 'Caregiver gender'], ['language', 'Language'], ['home', 'About the home']]
+
 const CompanyOptimizer = () => {
   // Skills, restrictions and the optimizer are all care-schedule:update (scheduling/matching.ts) — lib/useMay.ts.
   const may = useMay('care-schedule')
@@ -58,8 +61,8 @@ const CompanyOptimizer = () => {
   const [cgCaps, setCgCaps] = useState<string[]>([])
   const [cgCapsLoading, setCgCapsLoading] = useState(false)
 
-  const [cgTraits, setCgTraits] = useState({ gender: '', languages: '' })
-  const [clientPrefs, setClientPrefs] = useState({ requiredSkills: [] as string[], caregiverGender: '', language: '' })
+  const [cgTraits, setCgTraits] = useState({ gender: '', languages: '', maxTravelMiles: '', avoid: '' })
+  const [clientPrefs, setClientPrefs] = useState({ requiredSkills: [] as string[], caregiverGender: '', language: '', requiredCertifications: '', homeAttributes: '', mustHave: [] as string[] })
   const [restrictionsClient, setRestrictionsClient] = useState('')
   const [restrictions, setRestrictions] = useState<Restriction[]>([])
   const [newRestriction, setNewRestriction] = useState({ caregiverId: '', reason: '' })
@@ -93,22 +96,22 @@ const CompanyOptimizer = () => {
   }, [selectedCg])
 
   useEffect(() => {
-    if (!matchPrefs || !selectedCg) { setCgTraits({ gender: '', languages: '' }); return }
+    if (!matchPrefs || !selectedCg) { setCgTraits({ gender: '', languages: '', maxTravelMiles: '', avoid: '' }); return }
     api.get(`/api/matching/caregiver/${encodeURIComponent(selectedCg)}/traits`)
-      .then((r) => { const t = r as { gender?: string | null; languages?: string[] }; setCgTraits({ gender: t.gender || '', languages: (t.languages || []).join(', ') }) })
+      .then((r) => { const t = r as { gender?: string | null; languages?: string[]; maxTravelMiles?: number | null; avoid?: string[] }; setCgTraits({ gender: t.gender || '', languages: (t.languages || []).join(', '), maxTravelMiles: t.maxTravelMiles ? String(t.maxTravelMiles) : '', avoid: (t.avoid || []).join(', ') }) })
       .catch(console.error)
   }, [selectedCg, matchPrefs])
 
   useEffect(() => {
-    if (!matchPrefs || !restrictionsClient) { setClientPrefs({ requiredSkills: [], caregiverGender: '', language: '' }); return }
+    if (!matchPrefs || !restrictionsClient) { setClientPrefs({ requiredSkills: [], caregiverGender: '', language: '', requiredCertifications: '', homeAttributes: '', mustHave: [] }); return }
     api.get(`/api/matching/client/${encodeURIComponent(restrictionsClient)}/match-prefs`)
-      .then((r) => { const p = r as { requiredSkills?: string[]; caregiverGender?: string | null; language?: string | null }; setClientPrefs({ requiredSkills: p.requiredSkills || [], caregiverGender: p.caregiverGender || '', language: p.language || '' }) })
+      .then((r) => { const p = r as { requiredSkills?: string[]; caregiverGender?: string | null; language?: string | null; requiredCertifications?: string[]; homeAttributes?: string[]; mustHave?: string[] }; setClientPrefs({ requiredSkills: p.requiredSkills || [], caregiverGender: p.caregiverGender || '', language: p.language || '', requiredCertifications: (p.requiredCertifications || []).join(', '), homeAttributes: (p.homeAttributes || []).join(', '), mustHave: p.mustHave || [] }) })
       .catch(console.error)
   }, [restrictionsClient, matchPrefs])
 
   const saveCgTraits = async () => {
     try {
-      await api.put(`/api/matching/caregiver/${encodeURIComponent(selectedCg)}/traits`, { gender: cgTraits.gender, languages: cgTraits.languages })
+      await api.put(`/api/matching/caregiver/${encodeURIComponent(selectedCg)}/traits`, { gender: cgTraits.gender, languages: cgTraits.languages, maxTravelMiles: cgTraits.maxTravelMiles.trim() === '' ? null : Number(cgTraits.maxTravelMiles), avoid: cgTraits.avoid })
       showMsg('Saved')
     } catch (e) { showMsg(errorMessage(e), 'error') }
   }
@@ -267,7 +270,7 @@ const CompanyOptimizer = () => {
       )}
       {matchPrefs && selectedCg && (
         <div style={s.card}>
-          <div style={s.cardTitle}>Gender and languages</div>
+          <div style={s.cardTitle}>Gender, languages and preferences</div>
           <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
             Used when suggesting caregivers for a client who prefers a gender or a language. Leave blank if you would rather not record it.
           </div>
@@ -279,6 +282,14 @@ const CompanyOptimizer = () => {
             </div>
             <div style={s.col(2)}><label style={s.label} htmlFor="cg-langs">Languages spoken (comma separated)</label>
               <input id="cg-langs" style={s.input} value={cgTraits.languages} disabled={!may.update} onChange={(e) => setCgTraits((p) => ({ ...p, languages: e.target.value }))} placeholder="English, Spanish" />
+            </div>
+          </div>
+          <div style={s.row}>
+            <div style={s.col(1)}><label style={s.label} htmlFor="cg-travel">Will travel up to (miles)</label>
+              <input id="cg-travel" type="number" min={1} max={500} style={s.input} value={cgTraits.maxTravelMiles} disabled={!may.update} onChange={(e) => setCgTraits((p) => ({ ...p, maxTravelMiles: e.target.value }))} placeholder="No limit" />
+            </div>
+            <div style={s.col(2)}><label style={s.label} htmlFor="cg-avoid">Would rather not work with (comma separated)</label>
+              <input id="cg-avoid" style={s.input} value={cgTraits.avoid} disabled={!may.update} onChange={(e) => setCgTraits((p) => ({ ...p, avoid: e.target.value }))} placeholder="Pets, Smoking" />
             </div>
           </div>
           {may.update && <button style={s.btn(SOLID.green)} onClick={saveCgTraits}>💾 Save</button>}
@@ -320,7 +331,7 @@ const CompanyOptimizer = () => {
           <div style={s.card}>
             <div style={s.cardTitle}>What this client needs</div>
             <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
-              Suggested caregivers are marked down when they lack a needed skill or do not match a preference — they are never hidden.
+              Suggested caregivers are marked down when they lack a needed skill or do not match a preference. Tick a need as a must-have and a caregiver who misses it is not suggested, not auto-filled and not offered this client&apos;s open shifts.
             </div>
             <div style={{ marginBottom: '0.65rem' }}>
               <div style={s.label}>Skills needed</div>
@@ -347,6 +358,26 @@ const CompanyOptimizer = () => {
               </div>
               <div style={s.col(1)}><label style={s.label} htmlFor="cl-lang">Preferred language</label>
                 <input id="cl-lang" style={s.input} value={clientPrefs.language} disabled={!may.update} onChange={(e) => setClientPrefs((p) => ({ ...p, language: e.target.value }))} placeholder="English" />
+              </div>
+            </div>
+            <div style={s.row}>
+              <div style={s.col(1)}><label style={s.label} htmlFor="cl-certs">Certifications needed (comma separated)</label>
+                <input id="cl-certs" style={s.input} value={clientPrefs.requiredCertifications} disabled={!may.update} onChange={(e) => setClientPrefs((p) => ({ ...p, requiredCertifications: e.target.value }))} placeholder="CNA, CPR" />
+              </div>
+              <div style={s.col(1)}><label style={s.label} htmlFor="cl-home">About the home (comma separated)</label>
+                <input id="cl-home" style={s.input} value={clientPrefs.homeAttributes} disabled={!may.update} onChange={(e) => setClientPrefs((p) => ({ ...p, homeAttributes: e.target.value }))} placeholder="Pets, Smoking" />
+              </div>
+            </div>
+            <div style={{ marginBottom: '0.65rem' }}>
+              <div style={s.label}>Must-haves</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                {MUST_HAVE.map(([key, label]) => (
+                  <label key={key} style={{ fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <input type="checkbox" checked={clientPrefs.mustHave.includes(key)} disabled={!may.update}
+                      onChange={(e) => setClientPrefs((p) => ({ ...p, mustHave: e.target.checked ? [...p.mustHave, key] : p.mustHave.filter((x) => x !== key) }))} />
+                    {label}
+                  </label>
+                ))}
               </div>
             </div>
             {may.update && <button style={s.btn(SOLID.green)} onClick={saveClientPrefs}>💾 Save</button>}

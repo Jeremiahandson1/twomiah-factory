@@ -478,6 +478,7 @@ export async function caregiverHoursSplit(q: Q, companyId: string, caregiverId: 
 export async function clientForSuggestions(q: Q, companyId: string, clientId: string): Promise<any | null> {
   return camelFirst(await q.execute(sql`SELECT c.id, c.first_name, c.last_name, c.care_type_id, c.latitude, c.longitude,
       c.preferred_caregivers, c.do_not_use_caregivers, c.required_skills, c.preferred_caregiver_gender, c.preferred_language,
+      c.required_certifications, c.home_attributes, c.match_must_have,
       ct.name AS care_type_name
     FROM clients c LEFT JOIN care_types ct ON c.care_type_id = ct.id AND ct.company_id = ${companyId}
     WHERE c.id = ${clientId} AND c.company_id = ${companyId}`)) ?? null
@@ -489,7 +490,10 @@ const DAY_COLS = new Set(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'
 export async function caregiversForSuggestions(q: Q, companyId: string, dayCol: string | null, date: string | null): Promise<any[]> {
   if (dayCol && !DAY_COLS.has(dayCol)) throw new Error(`bad day: ${dayCol}`)
   return camelRows(await q.execute(sql`SELECT u.id, u.first_name, u.last_name, u.phone, u.default_pay_rate, u.latitude, u.longitude,
-      cp.capabilities, cp.gender, cp.languages,
+      cp.capabilities, cp.gender, cp.languages, cp.max_travel_miles, cp.avoid_attributes, cp.department, to_char(u.hire_date, 'YYYY-MM-DD') AS hire_date,
+      (SELECT string_agg(DISTINCT cr.certification_type, ', ') FROM certification_records cr
+        WHERE cr.company_id = ${companyId} AND cr.caregiver_id = u.id AND cr.status = 'active'
+          AND (cr.expiry_date IS NULL OR cr.expiry_date >= COALESCE(${date}::date, CURRENT_DATE))) AS valid_certifications,
       ca.status AS availability_status, ca.max_hours_per_week,
       ${dayCol ? sql.raw(`ca.${dayCol}_available`) : sql`NULL::boolean`} AS day_available,
       ${dayCol ? sql.raw(`to_char(ca.${dayCol}_start_time, 'HH24:MI')`) : sql`NULL::text`} AS day_start_time,
