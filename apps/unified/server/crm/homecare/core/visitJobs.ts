@@ -21,6 +21,8 @@ export function createVisitJobs(d: CrmDeps, deps: {
   reportSchedules?: { scanReportSchedules: () => Promise<number> }
   /** Caregiver surveys and the daily retention-risk snapshot (row 13): optional, as above. */
   caregiverSurveys?: { scanCaregiverSurveys: () => Promise<number> }
+  /** Supervisory visit reminders (row 24): optional, as above. */
+  supervisory?: { scanReminders: () => Promise<number> }
 }) {
   let started = false
   const timers: ReturnType<typeof setTimeout>[] = []
@@ -59,6 +61,8 @@ export function createVisitJobs(d: CrmDeps, deps: {
     if (deps.reportSchedules) every('report-schedules', 240_000, () => deps.reportSchedules!.scanReportSchedules())
     // Caregiver surveys: each point is asked once (the request's key), and the day's risk snapshot is written with it.
     if (deps.caregiverSurveys) every('caregiver-surveys', 270_000, () => deps.caregiverSurveys!.scanCaregiverSurveys())
+    // Supervisory visits: the supervisor is reminded once in the 24 hours before a planned visit (the row is claimed first).
+    if (deps.supervisory) every('supervisory-reminders', 120_000, () => deps.supervisory!.scanReminders())
     d.logger.info('[visit-jobs] shift reminders + overtime alerts + credential reminders every 5 min')
   }
 

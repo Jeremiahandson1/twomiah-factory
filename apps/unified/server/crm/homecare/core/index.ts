@@ -148,14 +148,14 @@ function buildHomecareCore(d: CrmDeps) {
   const familyTexts = createFamilyTexts(d, { time, notify, profile, comms: familyComms })
   const alertRules = createAlertRules(d, { wordingProblem })
   const requiredTasks = createRequiredTasks(d, { time })
-  const supervisory = createSupervisory(d, { time })
+  const supervisory = createSupervisory(d, { time, notify })
   // Caregiver satisfaction surveys and the retention risk (row 13), then reports (row 12): the builder (its retention tile reads
   // the surveys), the dashboards and the scheduled report emails.
   const risk = createRetentionRisk(d, { time })
   const caregiverSurveys = createCaregiverSurveys(d, { time, notify, risk })
   const reportBuilder = createReportBuilder(d, { time, margin, retention: caregiverSurveys })
   const reportSchedules = createReportSchedules(d, { time, margin, reportBuilder })
-  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay, reportSchedules, caregiverSurveys })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay, reportSchedules, caregiverSurveys, supervisory })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {

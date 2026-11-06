@@ -30,9 +30,12 @@ export default function MoreHomecareScreen() {
   const [points, setPoints] = useState<number | null>(null)
   // care_caregiver_surveys: the survey page answers only for an agency that has it, so "How is it going?" shows only then (with a badge).
   const [surveys, setSurveys] = useState<number | null>(null)
+  // care_supervisory_visits: the list answers only for an agency that has it; the entry shows when it does (with a badge for the visits planned).
+  const [supervisory, setSupervisory] = useState<number | null>(null)
   useFocusEffect(useCallback(() => {
     careGet<any>('/api/care-rewards/me').then((r) => setPoints(r.ok && r.data && typeof r.data.balance === 'number' ? r.data.balance : null))
     careGet<any>('/api/caregiver-surveys/me').then((r) => setSurveys(r.ok && r.data && Array.isArray(r.data.pending) ? r.data.pending.length : null))
+    careGet<any>('/api/supervisory-visits/mine').then((r) => setSupervisory(r.ok && r.data && Array.isArray(r.data.visits) ? r.data.visits.length : null))
   }, []))
 
   const email = (company as any)?.email as string | undefined
@@ -56,6 +59,7 @@ export default function MoreHomecareScreen() {
       title: 'Care',
       items: [
         { icon: 'people-outline', label: 'My clients', desc: 'Addresses, directions, care plans', to: '/(care)/clients' },
+        ...(supervisory ? [{ icon: 'clipboard-outline', label: 'Supervisory visits', desc: `${supervisory} planned for you`, to: '/(care)/supervisory', badge: supervisory }] : []),
         { icon: 'warning-outline', label: 'Report an incident', desc: 'Falls, injuries, medication problems, anything unsafe', to: '/(care)/incident' },
         { icon: 'create-outline', label: 'Documents to sign', desc: 'Policies and forms from your agency', to: '/(care)/documents', badge: care.unsignedDocs.length },
         { icon: 'car-outline', label: 'Mileage', desc: 'Log miles driven for work', to: '/(care)/mileage' },

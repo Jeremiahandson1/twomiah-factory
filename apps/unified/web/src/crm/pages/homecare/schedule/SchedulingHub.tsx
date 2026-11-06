@@ -49,6 +49,8 @@ function getWeekStart(date: Date | string): Date {
 /** A prospect is a `lead` row (GET /api/prospects): its name is homeownerName; open while not converted / dismissed. */
 interface Lead { id: string; homeownerName: string | null; phone?: string | null; email?: string | null; status: string }
 /** GET /api/prospect-appointments?month&year: { id, leadId, scheduledDate, scheduledTime, notes, status, homeownerName }. */
+// A planned supervisory visit (row 24, care_supervisory_visits): GET /api/supervisory-visits/calendar.
+interface SupervisoryPlan { id: string; visitDate: string; plannedTime: string | null; visitType: string; clientFirstName: string; clientLastName: string; supervisorName: string }
 interface ProspectAppt { id: string; leadId: string | null; scheduledDate: string; scheduledTime: string | null; notes: string | null; status: string; homeownerName: string | null }
 /** One occurrence of the week view (server/data/homecareScheduling.ts weekOccurrences, plus isRecurring). */
 interface WeekOcc { id: string; caregiverId: string; clientId: string; startTime: string; endTime: string; isRecurring: boolean }
@@ -221,6 +223,7 @@ const SchedulingHub = () => {
   // ── Prospects ──
   const [prospects, setProspects] = useState<Lead[]>([])
   const [prospectAppts, setProspectAppts] = useState<ProspectAppt[]>([])
+  const [supPlans, setSupPlans] = useState<SupervisoryPlan[]>([])
   const [showProspectForm, setShowProspectForm] = useState(false)
   const [prospectForm, setProspectForm] = useState({ firstName: '', lastName: '', phone: '', notes: '' })
   const [showProspectApptForm, setShowProspectApptForm] = useState(false)
@@ -382,6 +385,12 @@ const SchedulingHub = () => {
       setCalSchedules(rows<ScheduleRow>(schedData))
       setProspects(rows<Lead>(prospData))
       setProspectAppts(rows<ProspectAppt>(apptData))
+      // Planned supervisory visits for the month, for an office seat of an agency that has them.
+      if (hasFeature('care_supervisory_visits') && mayClients.update) {
+        const y = calCurrentDate.getFullYear(), m = calCurrentDate.getMonth()
+        const from = toLocalYMD(new Date(y, m, 1)), to = toLocalYMD(new Date(y, m + 1, 0))
+        setSupPlans(rows<SupervisoryPlan>(await api.get('/api/supervisory-visits/calendar', { from, to }).catch(() => null)))
+      } else setSupPlans([])
     } catch (e) { console.error(e) }
   }
   const loadProspects = async () => { try { setProspects(rows<Lead>(await api.get('/api/prospects'))) } catch (e) { console.error(e) } }
@@ -782,6 +791,11 @@ const SchedulingHub = () => {
     return filtered.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
   }
 
+  const getSupPlansForDay = (day: number) => {
+    const dateStr = toLocalYMD(new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth(), day))
+    return supPlans.filter((v) => v.visitDate === dateStr)
+  }
+
   const getProspectApptsForDay = (day: number) => {
     const dateStr = toLocalYMD(new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth(), day))
     return prospectAppts.filter((a) => a.scheduledDate && a.scheduledDate.slice(0, 10) === dateStr)
@@ -1172,6 +1186,7 @@ const SchedulingHub = () => {
                       )
                     })}
                     {dayProspectAppts.map((pa, idx) => <div key={`pa${idx}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: orange.bg, borderLeft: `2px solid ${FILL.orange}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: orange.ink }}>{isMobile ? '🟠' : `🟠 ${pa.homeownerName || 'Prospect'}`}</div>)}
+                    {getSupPlansForDay(day).map((v) => <div key={`sv${v.id}`} title={`Supervisory visit: ${v.clientFirstName} ${v.clientLastName} · ${v.supervisorName}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: violet.bg, borderLeft: `2px solid ${FILL.violet}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: violet.ink }}>{isMobile ? '🩺' : `🩺 ${v.plannedTime ?? ''} ${v.clientFirstName} ${v.clientLastName}`}</div>)}
                     {(dayScheds.length + dayProspectAppts.length) > (isMobile ? 1 : 3) && <div style={{ fontSize: '0.6rem', color: C.muted, textAlign: 'center' }}>+{(dayScheds.length + dayProspectAppts.length) - (isMobile ? 1 : 3)} more</div>}
                   </div>
                 )
@@ -2181,7 +2196,7 @@ const SchedulingHub = () => {
               <button onClick={() => setCalSelectedDay(null)} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: C.muted }}>×</button>
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: '1rem' }}>
-              {calDaySchedules.length === 0 && getProspectApptsForDay(calSelectedDay).length === 0 ? (
+              {calDaySchedules.length === 0 && getProspectApptsForDay(calSelectedDay).length === 0 && getSupPlansForDay(calSelectedDay).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: C.muted }}>📅 No appointments this day</div>
               ) : (
                 <>
@@ -2192,6 +2207,16 @@ const SchedulingHub = () => {
                         <div style={{ fontWeight: 600 }}>{getClientName(sc.clientId)}</div>
                         <div style={{ fontSize: '0.82rem', color: C.inkSoft }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: cgColor(sc.caregiverId), marginRight: '0.4rem' }} />{getCaregiverName(sc.caregiverId)}</div>
                         {sc.dayOfWeek !== null && <span style={pill(sc.frequency === 'biweekly' ? 'orange' : 'blue')}>{sc.frequency === 'biweekly' ? 'Bi-Weekly' : 'Recurring'}</span>}
+                      </div>
+                    </div>
+                  ))}
+                  {getSupPlansForDay(calSelectedDay).map((v) => (
+                    <div key={`sv${v.id}`} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', background: violet.bg, borderRadius: '8px', borderLeft: `4px solid ${FILL.violet}`, marginBottom: '0.5rem' }}>
+                      <div style={{ minWidth: '70px', textAlign: 'center' }}><div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{v.plannedTime ?? ''}</div></div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: violet.ink }}>🩺 {v.clientFirstName} {v.clientLastName}</div>
+                        <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>{v.supervisorName} · {v.visitType === 'phone' ? 'by phone' : 'in the home'}</div>
+                        <span style={{ ...pill('violet'), border: `1px solid ${violet.line}` }}>Supervisory visit</span>
                       </div>
                     </div>
                   ))}

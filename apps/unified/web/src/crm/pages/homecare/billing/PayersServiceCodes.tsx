@@ -42,7 +42,7 @@ interface Payer {
 interface ServiceCode {
   id: string; code: string; description: string | null; ratePerUnit: string | number | null; unitType: string | null
   // Stored since migration 0011 (the template's server never kept them).
-  revenueCode?: string | null; requiresAuth?: boolean | null; notes?: string | null
+  revenueCode?: string | null; requiresAuth?: boolean | null; notes?: string | null; supervisoryIntervalDays?: number | null
 }
 interface SandataPreset { label: string; sandataPayerId: string; sandataPayerProgram: string }
 
@@ -53,7 +53,7 @@ const EMPTY_PAYER = {
   sandataEvvRequired: false, sandataPayerId: '', sandataPayerProgram: '',
 }
 type PayerForm = typeof EMPTY_PAYER
-const EMPTY_CODE = { code: '', description: '', ratePerUnit: '', unitType: 'hour', revenueCode: '', requiresAuth: false, notes: '' }
+const EMPTY_CODE = { code: '', description: '', ratePerUnit: '', unitType: 'hour', revenueCode: '', requiresAuth: false, notes: '', supervisoryIntervalDays: '' }
 type CodeForm = typeof EMPTY_CODE
 
 // Grounds dark enough for white text (≥ 4.5:1) in either theme.
@@ -67,6 +67,8 @@ const PayersServiceCodes = () => {
   // Each control for whoever the server lets use it (care-billing create / update — lib/useMay.ts).
   const may = useMay('care-billing')
   const ltcOn = useAuth().hasFeature('care_ltc_billing')
+  // Row 24: a service code's own supervisory visit cycle, for an agency with supervisory visits.
+  const supervisoryOn = useAuth().hasFeature('care_supervisory_visits')
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<'payers' | 'service-codes'>('payers')
   const [payers, setPayers] = useState<Payer[]>([])
@@ -129,7 +131,8 @@ const PayersServiceCodes = () => {
   const saveServiceCode = async (e: FormEvent) => {
     e.preventDefault()
     try {
-      const payload = { ...codeForm, ratePerUnit: codeForm.ratePerUnit ? parseFloat(codeForm.ratePerUnit) : null }
+      const { supervisoryIntervalDays: svDays, ...rest } = codeForm
+      const payload = { ...rest, ratePerUnit: codeForm.ratePerUnit ? parseFloat(codeForm.ratePerUnit) : null, ...(supervisoryOn ? { supervisoryIntervalDays: svDays.trim() === '' ? null : Number(svDays) } : {}) }
       if (editingCode) await api.put(`/api/service-codes/${editingCode.id}`, payload)
       else await api.post('/api/service-codes', payload)
       toast.success(editingCode ? 'Service code updated' : 'Service code created')
@@ -166,7 +169,7 @@ const PayersServiceCodes = () => {
       code: code.code || '', description: code.description || '',
       ratePerUnit: code.ratePerUnit?.toString() || '', unitType: code.unitType || 'hour',
       revenueCode: code.revenueCode || '', requiresAuth: code.requiresAuth ?? false,
-      notes: code.notes || '',
+      notes: code.notes || '', supervisoryIntervalDays: code.supervisoryIntervalDays ? String(code.supervisoryIntervalDays) : '',
     })
     setShowCodeModal(true)
   }
@@ -429,6 +432,13 @@ const PayersServiceCodes = () => {
                     Requires Authorization
                   </label>
                 </div>
+                {supervisoryOn && (
+                  <div className="form-group">
+                    <label>Days between supervisory visits</label>
+                    <input type="number" min={1} max={365} step={1} value={codeForm.supervisoryIntervalDays} placeholder="Blank = the agency's rule" onChange={(e) => setCodeForm({ ...codeForm, supervisoryIntervalDays: e.target.value })} />
+                    <small>A client authorised for this code is due a supervisory visit this often (the shortest if they have several codes; their own days still come first).</small>
+                  </div>
+                )}
                 <div className="form-group">
                   <label>Notes</label>
                   <textarea value={codeForm.notes} onChange={(e) => setCodeForm({ ...codeForm, notes: e.target.value })} rows={3} />
