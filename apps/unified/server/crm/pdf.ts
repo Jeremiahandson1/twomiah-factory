@@ -114,6 +114,30 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     doc.moveDown()
   }
 
+  // The optional lines the customer has not ticked (Jobber prints them, unticked): listed apart with their prices, each marked
+  // "Not included", and kept out of every total below. What is not in the price matters as much as what is (owner, 10/31).
+  const notIncluded: any[] = title === 'QUOTE' && Array.isArray(data.notIncluded) ? data.notIncluded : []
+  if (notIncluded.length) {
+    doc.fontSize(11).font('Helvetica-Bold').text('Optional — not included', 72, doc.y, { width: 468 })
+    doc.font('Helvetica').fontSize(9).fillColor('#555').text('These are offered but not in the total. Ask us to add any of them.', 72, doc.y, { width: 468 }).fillColor('black')
+    doc.moveDown(0.3).fontSize(10)
+    for (const item of notIncluded) {
+      const qty = Number(item.quantity ?? 1)
+      const price = Number(item.unitPrice ?? item.price ?? 0)
+      const lineTotal = Number(item.total ?? qty * price)
+      const rowY = doc.y
+      doc.fillColor('#555').text(String(item.description || item.name || ''), 72, rowY, { width: 210 })
+      const rowEnd = doc.y
+      doc.text(String(qty), 300, rowY, { width: 60, align: 'right' })
+      doc.text(money(price), 372, rowY, { width: 78, align: 'right' })
+      doc.font('Helvetica-Oblique').text('Not included', 456, rowY, { width: 84, align: 'right' }).font('Helvetica').fillColor('black')
+      doc.y = Math.max(rowY + 14, rowEnd)
+      // Its price for the whole line, under the description, so the customer sees what adding it would cost.
+      if (qty !== 1) doc.fontSize(8).fillColor('#777').text(`${money(lineTotal)} for this line`, 72, doc.y - 2, { width: 210 }).fontSize(10).fillColor('black')
+    }
+    doc.moveDown()
+  }
+
   // A quote still offering its options (Good / Better / Best, tenant-backend invoicing/quoteOptions.ts): the lines above are
   // in every option; each SET follows — pick one of it, or add any of it — with each option's lines and what the quote
   // comes to with it (an add-on: what it adds). While a pick-one set is unpicked the total is "from" the least it can be.

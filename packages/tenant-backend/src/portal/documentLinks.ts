@@ -32,3 +32,39 @@ export async function documentLinkToken(db: any, table: any, id: string): Promis
   await db.update(table).set({ publicToken: newDocumentToken() }).where(and(eq(table.id, id), isNull(table.publicToken)))
   return read()
 }
+
+// ---- Preview as the client (Jobber "Preview as client") ----
+//
+// The office opens the customer's own page for a quote — the same page /d/<token> shows, options, ticks, deposit, the sign
+// button — without sending it and without minting the customer's link. The preview link is a note naming the quote and its
+// end, signed (HMAC-SHA256 with the server's JWT_SECRET), that lasts 30 minutes; the door it opens (/v/<token>, portal.ts) has no write routes at all, so nothing in a preview can
+// sign, tick, choose or decline, and opening it never marks the quote viewed. Feature `quote_preview` (hidden, not ready).
+export const QUOTE_PREVIEW_FEATURE = 'quote_preview'
+const PREVIEW_PURPOSE = 'quote_preview'
+export const PREVIEW_MINUTES = 30
+
+const b64 = (v: string | Buffer) => Buffer.from(v).toString('base64url')
+const previewSig = (body: string) => crypto.createHmac('sha256', `${process.env.JWT_SECRET || ''}:${PREVIEW_PURPOSE}`).update(body).digest('base64url')
+
+/** A preview link's token for one quote of one business: what it opens and until when, signed with the server's secret. */
+export function quotePreviewToken(companyId: string, quoteId: string, now = Date.now()): string {
+  const body = b64(JSON.stringify({ c: companyId, q: quoteId, e: Math.floor(now / 1000) + PREVIEW_MINUTES * 60 }))
+  return `${body}.${previewSig(body)}`
+}
+
+/** The quote a preview token names, or null when it is not one (tampered, expired, or another kind of token). */
+export function readQuotePreviewToken(token: unknown, now = Date.now()): { companyId: string; quoteId: string } | null {
+  if (typeof token !== 'string' || !process.env.JWT_SECRET) return null
+  const [body, sig, extra] = token.split('.')
+  if (!body || !sig || extra !== undefined) return null
+  const want = Buffer.from(previewSig(body)), got = Buffer.from(sig)
+  if (want.length !== got.length || !crypto.timingSafeEqual(want, got)) return null
+  try {
+    const v = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
+    if (typeof v?.c !== 'string' || typeof v?.q !== 'string' || typeof v?.e !== 'number' || v.e * 1000 < now) return null
+    return { companyId: v.c, quoteId: v.q }
+  } catch { return null }
+}
+
+/** The path the office opens (the app's address in front). */
+export const quotePreviewPath = (token: string) => `/v/${token}`

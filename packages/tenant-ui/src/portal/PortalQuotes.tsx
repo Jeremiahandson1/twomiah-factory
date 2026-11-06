@@ -194,10 +194,12 @@ function QuoteCard({ quote, token, highlight }: { quote: PortalQuoteData; token?
 export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {}) {
   const { quoteId: routeId } = useParams<{ quoteId: string }>()
   const quoteId = givenId || routeId
-  const { token, fetch: portalFetch, contact, url, link, company } = usePortal()
+  const { token, fetch: portalFetch, contact, url, link, company, preview } = usePortal()
   const [quote, setQuote] = useState<PortalQuoteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  // The office's preview (/v/<token>): every control shows as the customer sees it, and none of them works.
+  const locked = busy || !!preview
   const [error, setError] = useState('')
   const [showSign, setShowSign] = useState(false)
   const [showDecline, setShowDecline] = useState(false)
@@ -283,13 +285,13 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
         {document?.aboutUs && <div className="p-6 border-b dark:border-slate-700" data-testid="proposal-about"><h3 className="font-semibold text-gray-900 dark:text-slate-100">About {business}</h3><p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{document.aboutUs}</p></div>}
         <ProposalSections document={document} placement="top" />
         <ProposalSections document={document} placement="before_options" />
-        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} onUpgrade={chooseUpgrade} />}
+        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={locked} onChoose={chooseOption} onUpgrade={chooseUpgrade} />}
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           {proposal && quote.lineItems && quote.lineItems.length > 0 && <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">{canRespond ? 'Included with every option' : 'Included'}</h3>}
           <table className="w-full">
             <thead><tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400 dark:border-slate-700"><th className="pb-2">Description</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-right">Total</th></tr></thead>
             <tbody><SectionedRows lines={quote.lineItems || []} colSpan={4} pad="py-2" row={(item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 whitespace-pre-line dark:text-slate-100">{item.imageUrl && <img src={item.imageUrl} alt="" className="mb-1 h-20 w-20 rounded object-cover" data-testid="line-picture" />}{item.allowance && <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Allowance</span>}{item.optional && canRespond && item.id
-              ? <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!item.selected} disabled={busy} onChange={(e) => choose(item.id!, e.target.checked)} aria-label={`Add ${item.description}`} /><span>{item.description} <span className="text-xs text-gray-600 dark:text-slate-400">(optional)</span></span></label>
+              ? <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!item.selected} disabled={locked} onChange={(e) => choose(item.id!, e.target.checked)} aria-label={`Add ${item.description}`} /><span>{item.description} <span className="text-xs text-gray-600 dark:text-slate-400">(optional)</span></span></label>
               : <>{item.description}{item.optional && <span className="text-xs text-gray-600 dark:text-slate-400">{` (optional${item.selected ? ', included' : ', not included'})`}</span>}</>}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>} /></tbody>
           </table>
         </div>
@@ -336,8 +338,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
             <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{mustChoose ? 'Choose one of the options above, then sign to approve.' : clauses.length ? 'Please review this quote, initial each term and provide your signature to approve.' : document?.cosigner ? `Please review this quote and sign to approve. ${document.cosigner.name} signs after you.` : 'Please review this quote and provide your signature to approve.'}</p>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => { if (missingInitials) { setError(`Initial ${clauses.length === 1 ? 'the term' : `each of the ${clauses.length} terms`} above before you sign.`); setInitialErrors(Object.fromEntries(clauses.filter((cl) => !(initials[cl.id] || '').trim()).map((cl) => [cl.id, 'Initial this term.']))); return } setError(''); setShowSign(true) }} disabled={busy || mustChoose} title={mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
-              <button onClick={() => setShowDecline(true)} disabled={busy} className={btnSecondary}><XCircle className="w-4 h-4" /> Decline</button>
+              <button onClick={() => { if (missingInitials) { setError(`Initial ${clauses.length === 1 ? 'the term' : `each of the ${clauses.length} terms`} above before you sign.`); setInitialErrors(Object.fromEntries(clauses.filter((cl) => !(initials[cl.id] || '').trim()).map((cl) => [cl.id, 'Initial this term.']))); return } setError(''); setShowSign(true) }} disabled={locked || mustChoose} title={mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
+              <button onClick={() => setShowDecline(true)} disabled={locked} className={btnSecondary}><XCircle className="w-4 h-4" /> Decline</button>
             </div>
           </div>
         )}
@@ -369,8 +371,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           <label className={labelCls} htmlFor="decline-reason">Reason (optional)</label>
           <textarea id="decline-reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputCls} placeholder="Let us know what didn't work" />
           <div className="flex justify-end gap-2 mt-6">
-            <button onClick={() => setShowDecline(false)} disabled={busy} className={btnSecondary}>Cancel</button>
-            <button onClick={decline} disabled={busy} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">{busy ? 'Declining…' : 'Decline Quote'}</button>
+            <button onClick={() => setShowDecline(false)} disabled={locked} className={btnSecondary}>Cancel</button>
+            <button onClick={decline} disabled={locked} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">{busy ? 'Declining…' : 'Decline Quote'}</button>
           </div>
         </PortalModal>
       )}
