@@ -744,6 +744,66 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, p, 201)
   })
 
+  // Row 16 (care_offline_saves): a photo saved on the phone with no signal goes through the phone's queue as a FILE
+  // (apps/mobile src/offline/localPhotos.ts): just before the save is sent each picture is uploaded here under a name made
+  // from the save's id — a retry replaces it, never adds one — and then /photos/saved records when they were taken.
+  const photoGate = async (c: any) => {
+    const { user: u, companyId, me } = who(c)
+    if (!(await core.offlineSaves.enabled(companyId))) return { refusal: fail(c, 404, 'Not found', 'not_found') }
+    const te = await entryOwner(companyId, c.req.param('id'))
+    if (!te) return { refusal: fail(c, 404, 'Time entry not found', 'not_found') }
+    if (isCaregiver(d, u) && me !== te.caregiverId) return { refusal: fail(c, 403, 'Only the assigned caregiver or an admin can upload visit photos') }
+    const refused = await core.access.careWriteRefusal(c, te.clientId)
+    if (refused) return { refusal: refused }
+    return { companyId, te }
+  }
+  const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'image/jpeg', 'image/png': 'image/png', 'image/webp': 'image/webp', 'image/heic': 'image/heic' }
+
+  app.post('/:id/photos/file', requirePermission('evv:create'), async (c) => {
+    const g = await photoGate(c)
+    if ('refusal' in g) return g.refusal
+    const form = await c.req.formData().catch(() => null)
+    const file = form?.get('photo') as File | null
+    if (!file || typeof file === 'string') return fail(c, 400, 'No photo was sent.', 'no_photo')
+    const type = PHOTO_TYPES[String(file.type || '').toLowerCase()] || (String(file.name || '').match(/\.png$/i) ? 'image/png' : 'image/jpeg')
+    const bytes = Buffer.from(await file.arrayBuffer())
+    if (!bytes.length) return fail(c, 400, 'That photo is empty. Take it again.', 'bad_photo')
+    const dataUri = `data:${type};base64,${bytes.toString('base64')}`
+    if (dataUri.length > MAX_PHOTO_CHARS) return fail(c, 400, 'Photo too large — keep under ~5MB raw', 'too_large')
+    const asked = String(form!.get('name') || '')
+    const name = /^[A-Za-z0-9_-]{8,80}$/.test(asked) ? asked : crypto.randomUUID().replace(/-/g, '')
+    const id = c.req.param('id')!
+    const values = { companyId: g.companyId, timeEntryId: id, caregiverId: g.te.caregiverId, clientId: g.te.clientId, category: 'visit', imageBase64: dataUri, imageSize: bytes.length, uploadName: name }
+    await db.insert(visitPhotos).values(values as any)
+      .onConflictDoUpdate({ target: [visitPhotos.companyId, visitPhotos.timeEntryId, visitPhotos.uploadName], set: { imageBase64: dataUri, imageSize: bytes.length, uploadedAt: new Date() } as any })
+    return one(c, { url: `visit-photo:${name}` }, 201)
+  })
+
+  app.post('/:id/photos/saved', requirePermission('evv:create'), async (c) => {
+    const g = await photoGate(c)
+    if ('refusal' in g) return g.refusal
+    const b = await c.req.json().catch(() => ({})) as any
+    const urls: string[] = Array.isArray(b?.photos) ? b.photos.filter((u: unknown): u is string => typeof u === 'string') : []
+    const names = urls.map((u) => (u.startsWith('visit-photo:') ? u.slice('visit-photo:'.length) : ''))
+    if (names.some((n) => !/^[A-Za-z0-9_-]{8,80}$/.test(n))) return fail(c, 400, 'A photo could not be read — take it again.', 'bad_photo')
+    let taken: Date | null = null
+    if (b?.takenAt !== undefined) {
+      const t = core.offlineSaves.savedTime(b.takenAt)
+      if ('problem' in t) return fail(c, 400, t.problem, 'bad_saved_time')
+      taken = t.at
+    }
+    const caption = typeof b?.caption === 'string' && b.caption.trim() ? b.caption.trim().slice(0, 200) : null
+    const set: Record<string, unknown> = {}
+    if (taken) set.takenAt = taken
+    if (caption) set.caption = caption
+    const rows = names.length
+      ? (Object.keys(set).length
+        ? await db.update(visitPhotos).set(set as any).where(and(eq(visitPhotos.companyId, g.companyId), eq(visitPhotos.timeEntryId, c.req.param('id')!), inArray(visitPhotos.uploadName, names))).returning({ id: visitPhotos.id })
+        : await db.select({ id: visitPhotos.id }).from(visitPhotos).where(and(eq(visitPhotos.companyId, g.companyId), eq(visitPhotos.timeEntryId, c.req.param('id')!), inArray(visitPhotos.uploadName, names))))
+      : []
+    return one(c, { saved: rows.length, left: typeof b?.notes === 'string' ? b.notes : null })
+  })
+
   app.get('/:id/photos', requirePermission('evv:read'), async (c) => {
     const { user: u, companyId, me } = who(c)
     const te = await entryOwner(companyId, c.req.param('id'))

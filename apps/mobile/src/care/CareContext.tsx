@@ -33,6 +33,9 @@ import { isFieldRole } from '../auth/roles'
 import { useVertical } from '../vertical/VerticalContext'
 import { useToast } from '../components/ToastProvider'
 import { careGet, careGetRetry, carePost, punchSender, asList } from './careApi'
+import { createVisitHold, type HeldRequest } from './visitHold'
+import { OfflineQueue } from '../offline/OfflineQueue'
+import { getSaved } from '../offline/readThrough'
 import { createPunchQueue, isUnreachable, newLocalId, isOfflineId, OFFLINE_PREFIX, type KV } from './offlinePunches'
 import { expandVisits, type ScheduleRow, type Visit } from './schedule'
 import { needsSandata, sandataAfterPunch, type SandataClient, type SandataContext } from './sandata'
@@ -43,6 +46,13 @@ import {
 import { formatClock, ymdOf } from './time'
 
 export const punchQueue = createPunchQueue(AsyncStorage as unknown as KV)
+/** Saves made on a visit whose clock-in is still on the phone, handed to the offline queue once it has gone through (row 16). */
+export const visitHold = createVisitHold(AsyncStorage as unknown as KV)
+/** The reads a visit needs, kept on the phone for no signal (row 16): the client's tasks, medicines and last vitals. */
+export const visitReads = (clientId: string) => [
+  `/api/care-tasks/client/${clientId}`, `/api/medications/due/${clientId}`, `/api/medications/vitals/latest/${clientId}`,
+]
+const DOWNLOADED_KEY = (u: string) => `twomiah_care_downloaded_v1_${u}`
 
 /** GET /api/clients (a caregiver's own clients) — apps/unified/server/crm/homecare/clients/clients.ts. */
 export interface CareClient {
@@ -144,6 +154,15 @@ interface CareValue {
   addPhoto: (uri: string, dataUri: string) => void
   retryPhoto: (localId: string) => void
   removePhoto: (localId: string) => void
+  /** Row 16 (care_offline_saves): the agency saves a whole visit with no signal. */
+  offlineSaves: boolean
+  /** Saves held for a visit whose clock-in is still on the phone. */
+  heldSaves: number
+  /** Save for a visit: held when the visit has only a phone-made id, else sent now or kept in the offline queue. */
+  saveForVisit: (visitId: string, req: HeldRequest) => Promise<{ ok: boolean; queued?: boolean; held?: boolean; data?: any; error?: string }>
+  /** When today's visit details were last kept on the phone for no signal (ISO), and the call that does it again. */
+  downloadedAt: string | null
+  downloadForOffline: () => Promise<boolean>
 }
 
 const CareCtx = createContext<CareValue | null>(null)
@@ -157,7 +176,7 @@ const MAX_PHOTO_CHARS = 7_000_000 // the server's limit (~5 MB once decoded)
 const sleep = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms))
 
 export function CareProvider({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, company } = useAuth()
   const { vertical } = useVertical()
   // ToastProvider hands out a new object every render; a stable wrapper keeps the effects below
   // (NetInfo listener, flush and breadcrumb intervals) from restarting on every toast.
@@ -172,6 +191,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }), [])
   const userId: string | null = (user as any)?.id || (user as any)?.userId || null
   const enabled = isAuthenticated && vertical === 'homecare' && !!userId
+  const offlineSaves = ((company as any)?.enabledFeatures || []).includes('care_offline_saves')
   // The field seat: the server stores a caregiver as 'field' (and older rows 'caregiver' / 'user').
   const isCaregiver = isFieldRole(user?.role)
 
@@ -326,13 +346,56 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { if (enabled) reload({ silent: true }) }, [enabled, reload])
 
+  // ── saves held for a visit whose clock-in is still on the phone (row 16) ──────────────────
+  const [heldSaves, setHeldSaves] = useState(0)
+  const releaseHeld = useCallback(async () => {
+    if (!userId) return
+    const n = await visitHold.release(userId, punchQueue.syncedIdOf, async (req) => { await OfflineQueue.enqueue(req as any) })
+    if (n) void OfflineQueue.syncNow()
+    setHeldSaves(await visitHold.count(userId))
+  }, [userId])
+  useEffect(() => { if (userId) visitHold.count(userId).then(setHeldSaves).catch(() => {}) }, [userId])
+
+  const saveForVisit = useCallback(async (visitId: string, req: HeldRequest) => {
+    if (!userId) return { ok: false, error: 'Sign in again.' }
+    if (isOfflineId(visitId)) {
+      try { await visitHold.hold(userId, visitId, req) } catch { return { ok: false, error: 'This phone could not keep that. Try again.' } }
+      setHeldSaves(await visitHold.count(userId))
+      return { ok: true, held: true, queued: true }
+    }
+    const r = await OfflineQueue.submit({ method: req.method, path: req.path, body: req.body, recordKey: req.recordKey, label: req.label } as any)
+    if (r.queued) return { ok: true, queued: true }
+    const ok = r.status >= 200 && r.status < 300
+    return { ok, data: r.data, ...(ok ? {} : { error: (r.data as any)?.error || 'That could not be saved.' }) }
+  }, [userId])
+
+  // ── today's visit details kept on the phone for no signal (row 16) ─────────────────────────
+  const [downloadedAt, setDownloadedAt] = useState<string | null>(null)
+  useEffect(() => { if (userId) AsyncStorage.getItem(DOWNLOADED_KEY(userId)).then(setDownloadedAt).catch(() => {}) }, [userId])
+  const downloadClients = useRef<string[]>([])
+  const downloadForOffline = useCallback(async () => {
+    if (!userId) return false
+    const ids = downloadClients.current
+    const results = await Promise.all(ids.flatMap((id) => visitReads(id).map((path) => getSaved(path))))
+    const ok = results.length > 0 && results.every((x) => x.ok && !x.fromCache)
+    if (ok || !ids.length) {
+      const at = new Date().toISOString()
+      setDownloadedAt(at)
+      AsyncStorage.setItem(DOWNLOADED_KEY(userId), at).catch(() => {})
+    }
+    return ok || !ids.length
+  }, [userId])
+
   // ── send saved punches ──────────────────────────────────────────────────────
   const flushNow = useCallback(async () => {
     if (!enabled || !userId) return
-    if (!(await punchQueue.count(userId))) { setPendingPunches(0); return }
+    if (!(await punchQueue.count(userId))) { setPendingPunches(0); await releaseHeld(); return }
     const r = await punchQueue.flush({ userId, send: punchSender })
+    await releaseHeld()
     setPendingPunches(await punchQueue.count(userId))
     if (r.sent) toast.success(`Saved ${r.sent === 1 ? 'punch' : `${r.sent} punches`} sent to the office.`)
+    // A saved clock-in the office refused never gets a real id: what was held for that visit cannot be sent (row 16).
+    for (const x of r.rejected) if (x.punch.kind === 'in') await visitHold.drop(userId, `${OFFLINE_PREFIX}${x.punch.localId}`)
     if (r.rejected.length) {
       Alert.alert(
         'A saved punch was not recorded',
@@ -340,7 +403,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       )
     }
     if (r.sent || r.rejected.length) reload({ silent: true })
-  }, [enabled, userId, toast, reload])
+  }, [enabled, userId, toast, reload, releaseHeld])
 
   useEffect(() => {
     if (!enabled) return
@@ -538,6 +601,24 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }, [toast])
 
   const addPhoto = useCallback((uri: string, dataUri: string) => {
+    // Row 16 (care_offline_saves): the picture stays a FILE on the phone and goes through the offline queue (uploaded just before
+    // the save is sent, under a name made from the save's id), so it is kept with no signal — and held on a visit whose clock-in
+    // is still on the phone. The taken time is the phone's.
+    if (offlineSaves) {
+      const a = activeRef.current
+      if (!a) { toast.error('Clock in first — photos belong to a visit.'); return }
+      const p: VisitPhoto = { localId: newLocalId(), uri, dataUri: '', status: 'sending' }
+      setPhotos((list) => [...list, p])
+      const id = a.id
+      void saveForVisit(id, {
+        method: 'POST', path: `/api/time-entries/${id}/photos/saved`, recordKey: `visit:${id}`, label: 'Visit photo',
+        body: { $photos: { uploadTo: `/api/time-entries/${id}/photos/file`, uris: [uri] }, takenAt: new Date().toISOString() },
+      }).then((r) => {
+        setPhotos((list) => list.map((x) => (x.localId === p.localId ? { ...x, status: r.ok ? (r.queued ? 'waiting' : 'sent') : 'failed' } : x)))
+        if (!r.ok) toast.error(r.error || 'Photo was not accepted.')
+      })
+      return
+    }
     if (!dataUri.startsWith('data:image')) { toast.error('That photo could not be read.'); return }
     if (dataUri.length > MAX_PHOTO_CHARS) { toast.error('That photo is too large to send. Try again a little further back.'); return }
     const a = activeRef.current
@@ -545,7 +626,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     const p: VisitPhoto = { localId: newLocalId(), uri, dataUri, status: isOfflineId(a.id) ? 'waiting' : 'sending' }
     setPhotos((list) => [...list, p])
     if (!isOfflineId(a.id)) sendPhoto(a.id, p)
-  }, [toast, sendPhoto])
+  }, [toast, sendPhoto, offlineSaves, saveForVisit])
 
   const retryPhoto = useCallback((localId: string) => {
     const a = activeRef.current
@@ -565,6 +646,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     if (visitNote) AsyncStorage.setItem(NOTE_KEY(active.id), visitNote).catch(() => {})
     AsyncStorage.removeItem(NOTE_KEY(prev.id)).catch(() => {})
     for (const p of photos) if (p.status === 'waiting' && p.dataUri) sendPhoto(active.id, p)
+    void releaseHeld()
   }, [active?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── clock out ───────────────────────────────────────────────────────────────
@@ -637,6 +719,15 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     return expandVisits(schedules, today, 14, names)
   }, [schedules, clients, today])
   const todayVisits = useMemo(() => visits.filter((v) => v.date === today), [visits, today])
+  // The clients of today's visits (and the open one's): what "ready for no signal" keeps on the phone. Done by itself once the
+  // schedule has loaded and the last copy is over an hour old (AlayaCare: the day's data is downloaded and expires).
+  useEffect(() => {
+    const ids = [...new Set([...todayVisits.map((v: any) => v.clientId), active?.clientId].filter(Boolean) as string[])]
+    downloadClients.current = ids
+    if (!enabled || !ids.length || loading) return
+    const stale = !downloadedAt || Date.now() - new Date(downloadedAt).getTime() > 3600_000
+    if (stale) void downloadForOffline()
+  }, [todayVisits, active?.clientId, enabled, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const me = userId
   const value: CareValue = {
@@ -658,6 +749,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     reload, refreshCounts, warmFix, checkClockIn, clockIn, clockOut,
     visitNote, setVisitNote,
     photos, addPhoto, retryPhoto, removePhoto,
+    offlineSaves, heldSaves, saveForVisit, downloadedAt, downloadForOffline,
   }
 
   return <CareCtx.Provider value={value}>{children}</CareCtx.Provider>

@@ -3093,7 +3093,11 @@ export const visitPhotos = pgTable('visit_photos', {
   imageSize: integer('image_size'),
   takenAt: timestamp('taken_at').defaultNow().notNull(),
   uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+  // Row 16 (care_offline_saves): a photo taken with no signal is uploaded from the phone's queue under a name made from the
+  // save's id, so a retry after a lost reply replaces this row instead of adding a second photo.
+  uploadName: text('upload_name'),
 }, (t) => [
+  uniqueIndex('visit_photos_upload_name_idx').on(t.companyId, t.timeEntryId, t.uploadName),
   index('visit_photos_company_id_idx').on(t.companyId),
   index('visit_photos_time_entry_id_idx').on(t.timeEntryId),
   index('visit_photos_client_id_idx').on(t.clientId),
