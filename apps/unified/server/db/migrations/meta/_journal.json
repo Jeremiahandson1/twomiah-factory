@@ -575,6 +575,13 @@
       "when": 1794000857910,
       "tag": "0081_roof_pipeline_boards",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794001375417,
+      "tag": "0082_roof_job_statuses",
+      "breakpoints": true
     }
   ]
 }

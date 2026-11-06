@@ -74,6 +74,7 @@ export const SETTINGS_EXTRA = isRoofing
     { to: '/crm/settings/estimator', label: 'Instant Estimator Widget', icon: Calculator, permission: 'company:update', feature: 'instant_estimator' },
     // Not ready (pipeline_boards): rename the pipeline stages and name the Retail and Insurance boards' stages.
     { to: '/crm/settings/pipeline', label: 'Pipeline stages', icon: LayoutDashboard, permission: 'company:update', feature: 'pipeline_boards' },
+    { to: '/crm/settings/pipeline-statuses', label: 'Statuses and checklists', icon: LayoutDashboard, permission: 'company:update', feature: 'pipeline_statuses' },
   ]
   : []
 /** The roofer's home at /crm/dashboard (crm/screens.tsx HOMES). */

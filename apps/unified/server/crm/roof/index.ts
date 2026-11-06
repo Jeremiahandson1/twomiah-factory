@@ -68,7 +68,7 @@ export function roofMounts(d: CrmDeps): Mount[] {
     // Row 18: the card surcharge setting and the payouts view (card_surcharge / payments_overview, read per request).
     { path: '/api/card-payments', access: 'user', router: createCardPaymentRoutes(d) },
     // The stage names (pipeline_boards) and, row 19, the company's own boards (pipeline_custom_boards): each route asks its own switch.
-    { path: '/api/roof-pipeline', access: 'user', feature: ['pipeline_boards', 'pipeline_custom_boards'], router: createPipelineRoutes(d) },
+    { path: '/api/roof-pipeline', access: 'user', feature: ['pipeline_boards', 'pipeline_custom_boards', 'pipeline_statuses'], router: createPipelineRoutes(d) },
     ...inspectionMounts(d),
     ...photoMarkupMounts(d),
     ...portalFilesMounts(d),

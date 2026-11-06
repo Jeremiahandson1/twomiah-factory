@@ -265,6 +265,10 @@ export const job = pgTable('job', {
   qbCustomerName: text('qb_customer_name'),
   assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
   assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
+  // Roofing parity row 20 (pipeline_statuses): the company status the job is at inside its milestone, and the checklist items ticked
+  // there ({ [itemId]: { at, by } }). A status of another milestone is read as none (the job moved on).
+  roofStatusId: text('roof_status_id'),
+  roofStatusChecks: json('roof_status_checks'),
   // How the job's revenue is shared when several people are on it: null/'equal' = equal shares, 'hours' = by the billable hours each
   // logged on the job, 'percent' = the office's own split (`percents`, keyed "u:<user id>" / "m:<member id>", totalling 100).
   // Written only by /api/team-revenue/jobs/:id/split, which checks it against the crew; read by the team revenue reports.

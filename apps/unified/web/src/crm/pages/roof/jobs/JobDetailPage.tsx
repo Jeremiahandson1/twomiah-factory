@@ -38,6 +38,7 @@ import { formatStatus, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobCommissionPeople from './JobCommissionPeople'
+import JobStatusPanel from './JobStatusPanel'
 import JobBooks from './JobBooks'
 import JobPermits from './JobPermits'
 import InspectionReports from './InspectionReports'
@@ -866,6 +867,9 @@ export default function JobDetailPage() {
                 </div>}
               </div>
             </div>
+
+            {/* Row 20 (pipeline_statuses, not ready): the company's status inside the milestone, and its checklist. */}
+            <JobStatusPanel jobId={job.id} jobStatus={job.status} jobType={job.jobType} />
 
             {/* The other people whose commission this job carries (roof/jobPeople.ts) — a seat that reads the pay structure */}
             {hasFeature('commission_tracking') && can('commissions:read') && <JobCommissionPeople jobId={job.id} users={users} />}

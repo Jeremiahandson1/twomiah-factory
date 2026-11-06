@@ -600,6 +600,26 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
  * assignee, the sales rep, the location, the subcontractor (each a list; empty = any). Seen by everyone, just its owner, or chosen
  * roles. Display only: a job's stage, texts and rules never read a board. server/crm/roof/pipeline.ts boardMatches.
  */
+/**
+ * A company's own statuses under a fixed milestone, each with its checklist (roofing parity row 20; AccuLynx Workflow Manager;
+ * feature pipeline_statuses, not ready). The eleven milestones stay the keys the texts, reviews and "paid → Collected" hang on; a
+ * status is a step inside one ("Claim filed", "Adjuster met" under Inspected), for every job type or only some (`jobTypes`, empty =
+ * all). `checklist`: [{ id, text }]. A job's status and what it ticked live on the job (job.roof_status_id, roof_status_checks).
+ */
+export const roofJobStatus = pgTable('roof_job_status', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  milestone: text('milestone').notNull(),
+  name: text('name').notNull(),
+  jobTypes: json('job_types').default([]).notNull(),
+  checklist: json('checklist').default([]).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_job_status_company_id_idx').on(t.companyId),
+])
+
 export const roofPipelineBoard = pgTable('roof_pipeline_board', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
