@@ -53,7 +53,8 @@ export function createBillingContactRoutes(_core: HomecareCore, d: CrmDeps) {
     await saveBillingContact(db, companyId, clientId, checked.value)
     d.audit.log({ req: c, action: d.audit.ACTIONS.UPDATE, entity: 'client-billing-contact', entityId: clientId, userId, companyId,
       metadata: { kind: checked.value.kind, emails: checked.value.emails.length } })
-    return one(c, await billingContactOfClient(db, companyId, clientId))
+    const saved = await billingContactOfClient(db, companyId, clientId)
+    return saved ? one(c, saved) : fail(c, 404, 'Client not found', 'not_found')
   })
 
   app.post('/bulk', update, async (c) => {
