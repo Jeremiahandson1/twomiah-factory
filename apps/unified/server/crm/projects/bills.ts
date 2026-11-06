@@ -33,6 +33,8 @@ const billSchema = z.object({
   amount: z.number().positive(),
   fileUrl: z.string().optional(),
   notes: z.string().optional(),
+  /** The project budget line this bill files under (cost_by_code). */
+  costCode: z.string().trim().max(60).optional().nullable(),
 })
 
 export function createBillRoutes(d: CrmDeps) {
@@ -226,6 +228,7 @@ export function createBillRoutes(d: CrmDeps) {
       amount: data.amount.toFixed(2),
       fileUrl: data.fileUrl || null,
       notes: data.notes || null,
+      costCode: data.costCode || null,
     }).returning()
 
     // …and the commitment is relieved: a PO becomes `billed` the moment bills against it reach its total (T32 M3).
@@ -280,6 +283,7 @@ export function createBillRoutes(d: CrmDeps) {
     }
     if (data.fileUrl !== undefined) update.fileUrl = data.fileUrl || null
     if (data.notes !== undefined) update.notes = data.notes || null
+    if (data.costCode !== undefined) update.costCode = data.costCode || null
 
     const [updated] = await db.update(vendorBill).set(update).where(eq(vendorBill.id, id)).returning()
     return one(c, updated)

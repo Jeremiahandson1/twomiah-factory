@@ -7,6 +7,7 @@ import { Plus, Edit, Trash2, Check, Play, Square, Clock, Download } from 'lucide
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money, downloadFile } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
+import { CostCodeField } from '../reporting/CostCodeField'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
 import { isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -14,12 +15,17 @@ import { whenTime } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
 import { vocabulary, capital } from '../labels/vocabulary'
 
-interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null; timeSetByPhone?: boolean; breakMinutes?: number | null; breakStartedAt?: string | null; clockInLat?: number | null; clockInLng?: number | null; clockOutLat?: number | null; clockOutLng?: number | null; clockSource?: string | null; timeOffId?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 
 /** "clock-in sent 3 h 0 min late; clock-out sent 30 min late" — for the flag's tooltip. */
 const lateFor = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`)
 const sentLateTitle = (row: { clockInLateMinutes?: number | null; clockOutLateMinutes?: number | null }) =>
   [row.clockInLateMinutes ? `Clock-in sent ${lateFor(row.clockInLateMinutes)} after it was tapped` : '', row.clockOutLateMinutes ? `Clock-out sent ${lateFor(row.clockOutLateMinutes)} after it was tapped` : ''].filter(Boolean).join('; ')
+/** Where the phone was at the clock taps: a link to the map, or null when no place was kept. */
+const mapLink = (lat?: number | null, lng?: number | null) => (typeof lat === 'number' && typeof lng === 'number' ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}` : null)
+/** How the clock was reached, in words (the stored word is never shown). */
+const SOURCE: Record<string, string> = { kiosk: 'Time clock kiosk', job: 'Started by the job', geofence: 'Arrived at the job site' }
+interface OvertimeRow { userId: string; name: string; todayHours: number; weekHours: number; overDaily: boolean; overWeekly: boolean; nearDaily: boolean; nearWeekly: boolean; onTheClock: boolean }
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
 // TOMORROW all evening, and it is also the ceiling the date box is given. (Contractor T29 L1)
 const today = () => todayKey() // the company's day, not the browser's
@@ -34,7 +40,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const showJobs = auth.hasFeature(config?.jobsFeature || 'jobs')
   const showProjects = auth.hasFeature(config?.projectsFeature || 'projects')
   const manager = isManagerRole(auth.user?.role)
-  const empty = () => ({ date: today(), mode: 'hours' as 'hours' | 'span', hours: '', startTime: '09:00', endTime: '17:00', breakMinutes: '0', description: '', billable: true, projectId: '', jobId: '' })
+  const empty = () => ({ date: today(), mode: 'hours' as 'hours' | 'span', hours: '', startTime: '09:00', endTime: '17:00', breakMinutes: '0', description: '', billable: true, projectId: '', jobId: '', costCode: '' })
   const [data, setData] = useState<Entry[]>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [jobs, setJobs] = useState<Array<{ id: string; title: string; number?: string }>>([])
@@ -111,11 +117,18 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   useEffect(() => { if (!active) return; const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [active])
 
   const clockIn = async () => { setClockBusy(true); try { await api.post('/api/time/clock-in', {}); toast.success('Clocked in'); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock in')) } finally { setClockBusy(false) } }
+  const breakTap = async (which: 'start' | 'end') => { setClockBusy(true); try { await api.post(`/api/time/break/${which}`, {}); toast.success(which === 'start' ? 'Break started' : 'Break ended'); await load() } catch (e) { toast.error(errMsg(e, which === 'start' ? 'Could not start the break' : 'Could not end the break')) } finally { setClockBusy(false) } }
+  // Who is at or past a limit, for the office (Settings › Time Clock sets the limits). Silent where the business has none.
+  const [overtime, setOvertime] = useState<OvertimeRow[]>([])
+  useEffect(() => {
+    if (!manager) return
+    api.get('/api/time-clock/overtime').then((r: any) => setOvertime((r?.people || []).filter((p: OvertimeRow) => p.overDaily || p.overWeekly || p.nearDaily || p.nearWeekly))).catch(() => setOvertime([]))
+  }, [api, manager])
   const clockOut = async () => { setClockBusy(true); try { const r = await api.post('/api/time/clock-out', {}); toast.success(r?.discarded ? (r.message || 'That clock-in was too short to record') : `Clocked out — ${Number(r?.hours || 0).toFixed(2)} h`); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock out')) } finally { setClockBusy(false) } }
 
   const handleSave = async () => {
     setFormError('')
-    const payload: any = { date: form.date, description: form.description.trim() || null, billable: form.billable, projectId: form.projectId || null, jobId: form.jobId || null }
+    const payload: any = { date: form.date, description: form.description.trim() || null, billable: form.billable, projectId: form.projectId || null, jobId: form.jobId || null, ...(auth.hasFeature('cost_by_code') ? { costCode: form.costCode.trim() || null } : {}) }
     if (form.mode === 'hours') {
       const h = Number(form.hours)
       if (!form.hours || !(h > 0)) { setFormError('Hours must be greater than 0'); return }
@@ -140,7 +153,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   }
   const approve = async (row: Entry) => { try { await api.post(`/api/time/${row.id}/approve`); toast.success('Approved'); load() } catch (e) { toast.error(errMsg(e, 'Failed to approve')) } }
   const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true) }
-  const openEdit = (item: Entry) => { setEditing(item); setForm({ ...empty(), date: String(item.date || '').slice(0, 10) || today(), hours: String(item.hours ?? ''), description: item.description || '', billable: !!item.billable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true) }
+  const openEdit = (item: Entry) => { setEditing(item); setForm({ ...empty(), date: String(item.date || '').slice(0, 10) || today(), hours: String(item.hours ?? ''), description: item.description || '', billable: !!item.billable, projectId: item.projectId || '', jobId: item.jobId || '', costCode: (item as any).costCode || '' }); setFormError(''); setModalOpen(true) }
   // The top of the tree may approve their own time — the server's carve-out, mirrored here. (RR6 N2)
   const ownApprovalOk = ['owner', 'admin'].includes(String(auth.user?.role || ''))
   const canEdit = (row: Entry) => mayCorrect && (manager || (row.userId === auth.user?.id && !row.approved))
@@ -154,10 +167,21 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
       <>
         {row.clockIn && !row.clockOut ? <span className="text-amber-700 dark:text-amber-300">running</span> : Number(v || 0).toFixed(2)}
         {/* The phone tapped this when it had no signal and sent it later: the time is the tap's, so the person approving should know. */}
-        {(row.clockInLateMinutes || row.clockOutLateMinutes) ? <span data-testid="time-sent-late" className="mt-0.5 block text-xs text-amber-700 dark:text-amber-300" title={sentLateTitle(row)}>Time set by phone, sent late</span> : null}
+        {(row.clockInLateMinutes || row.clockOutLateMinutes) ? <span data-testid="time-sent-late" className="mt-0.5 block text-xs text-amber-700 dark:text-amber-300" title={sentLateTitle(row)}>Time set by phone, sent late</span>
+          : row.timeSetByPhone ? <span data-testid="time-set-by-phone" className="mt-0.5 block text-xs text-amber-700 dark:text-amber-300" title="The phone said when this was tapped, and the time here is that moment, not when it reached the office">Time set by the phone</span> : null}
+        {row.breakMinutes ? <span data-testid="time-break" className="mt-0.5 block text-xs text-gray-600 dark:text-slate-400">{row.breakMinutes} min unpaid break</span> : null}
+        {(mapLink(row.clockInLat, row.clockInLng) || mapLink(row.clockOutLat, row.clockOutLng)) ? (
+          <span className="mt-0.5 block text-xs text-gray-600 dark:text-slate-400">
+            {mapLink(row.clockInLat, row.clockInLng) && <a className="text-blue-700 underline dark:text-blue-300" href={mapLink(row.clockInLat, row.clockInLng)!} target="_blank" rel="noreferrer">Clock-in place</a>}
+            {mapLink(row.clockInLat, row.clockInLng) && mapLink(row.clockOutLat, row.clockOutLng) ? ' · ' : ''}
+            {mapLink(row.clockOutLat, row.clockOutLng) && <a className="text-blue-700 underline dark:text-blue-300" href={mapLink(row.clockOutLat, row.clockOutLng)!} target="_blank" rel="noreferrer">Clock-out place</a>}
+          </span>
+        ) : null}
+        {row.clockSource && SOURCE[row.clockSource] ? <span className="mt-0.5 block text-xs text-gray-600 dark:text-slate-400">{SOURCE[row.clockSource]}</span> : null}
       </>
     ) },
-    { key: 'description', label: 'Description', render: (v: any) => v || '-' },
+    // An entry made from time off (the unified app's Hours & Time Off, time_entry.time_off_id) says so to the approver.
+    { key: 'description', label: 'Description', render: (v: any, row: Entry) => <>{row.timeOffId ? <span data-testid="time-off-tag" className="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-slate-800 dark:text-slate-300">Time off</span> : null}{v || '-'}</> },
     ...(config?.billable === false ? [] : [{ key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) }]),
     { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><Check className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
   ]
@@ -172,6 +196,10 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
           <>
             <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {whenTime(active.clockIn as string, { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>
             <span className="font-mono text-lg font-semibold text-gray-900 dark:text-slate-100">{fmtElapsed(now - new Date(active.clockIn as string).getTime())}</span>
+            {active.breakStartedAt && <span data-testid="time-on-break" className="text-sm text-amber-700 dark:text-amber-300">On a break since {whenTime(active.breakStartedAt, { hour: '2-digit', minute: '2-digit' })}</span>}
+            {mayLog && (active.breakStartedAt
+              ? <Button variant="secondary" onClick={() => breakTap('end')} disabled={clockBusy}>End break</Button>
+              : <Button variant="secondary" onClick={() => breakTap('start')} disabled={clockBusy}>Start break</Button>)}
             {mayLog && <Button variant="danger" onClick={clockOut} disabled={clockBusy}><Square className="w-4 h-4 mr-2 inline" />Clock Out</Button>}
           </>
         ) : (
@@ -181,6 +209,16 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
           </>
         )}
       </div>
+      {overtime.length > 0 && (
+        <div data-testid="time-overtime" role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+          <p className="font-semibold">Overtime</p>
+          <ul className="mt-1 grid gap-0.5">
+            {overtime.map((p) => (
+              <li key={p.userId}>{p.name}: {p.overDaily ? `over the daily limit (${p.todayHours.toFixed(2)} h today)` : p.nearDaily ? `close to the daily limit (${p.todayHours.toFixed(2)} h today)` : ''}{(p.overDaily || p.nearDaily) && (p.overWeekly || p.nearWeekly) ? '; ' : ''}{p.overWeekly ? `over the weekly limit (${p.weekHours.toFixed(2)} h this week)` : p.nearWeekly ? `close to the weekly limit (${p.weekHours.toFixed(2)} h this week)` : ''}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <DataTable<Entry> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No time entries yet."
         actions={[
           { label: 'Edit', icon: Edit, onClick: openEdit, show: canEdit },
@@ -299,6 +337,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
             </div>
           )}
           {showJobs && <Field label={jobLabel}><select value={form.jobId} onChange={set('jobId')} className={inputCls}><option value="">None</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.number ? `${j.number} - ` : ''}{j.title}</option>)}</select></Field>}
+          {auth.hasFeature('cost_by_code') && <CostCodeField api={api as any} projectId={form.projectId} value={form.costCode} onChange={(v) => setForm((f) => ({ ...f, costCode: v }))} />}
           {showProjects && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           <Field label="Description"><textarea value={form.description} onChange={set('description')} rows={2} className={inputCls} /></Field>
           {config?.billable !== false && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded" /> Billable</label>}

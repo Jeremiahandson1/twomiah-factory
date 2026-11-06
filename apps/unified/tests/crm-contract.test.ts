@@ -86,6 +86,9 @@ beforeAll(async () => {
 const OPEN = new RegExp([
   '^/api/auth/(login|forgot-password|reset-password|refresh|verify|accept-invite|mfa)',
   '^/api/book(/|$)', '^/api/leads$', '^/api/public/', '^/api/portal/p/', '^/api/vendor-portal/v/', '^/api/pricebook-present',
+  // A venue's website enquiry form (rooms that look free, no prices; its embed script) and a salon's gift-card balance page
+  // (a card's own code, throttled, noindex): public by design (11/05 integration).
+  '^/api/event-form/', '^/api/gift-balance(/|$)',
   '/marketing/(track|unsubscribe)/', '/reviews/track/', '/(webhook|webhooks|callback)(/|$)', '/stripe/factory-event',
 ].join('|'))
 // A declared refusal: an integration that isn't set up (503), or a service upstream that failed (502: the Factory, here

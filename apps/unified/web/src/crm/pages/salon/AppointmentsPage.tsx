@@ -9,13 +9,17 @@ import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
-import { useConfirm, useMayWrite, useAuth } from '../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
+import { useConfirm, useMayWrite, useAuth, usePermissions } from '../../../shared'
 import { whenTime, companyDayKey, companyMoment, companyWall, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { addDays, dateWords } from '../../../booking/days'
-import { isDayComplete, weekOf, weekHeading, viewBounds, byDay } from './bookWeek'
+import { isDayComplete, weekHeading, byDay } from './bookWeek'
 import { fetchBookScope, WHOLE_BOOK, type BookScope } from './bookScope'
 import { ChargeFeeModal, useMayChargeFees, mayHaveFee } from './CardOnFile'
 import BookGrid, { type GridColumn, type GridBlock } from './BookGrid'
+import BookMonth from './BookMonth'
+import { spanDays, shiftSpan, spanBounds, spanHeading, asSlot, SLOT_CHOICES, DEFAULT_SLOT_MIN, type BookSpan } from './bookViews'
+import { addMinutesToWall } from './blockRepeatForm'
 
 /**
  * The book — a day, or a week, over /api/appointments?from=&to= (the window's bounds on the company's clock, as ISO).
@@ -123,11 +127,17 @@ export default function AppointmentsPage() {
   const [day, setDay] = useState<string>(todayStr());
   const { hasFeature } = useAuth();
   const gridOn = hasFeature('book_grid');
-  const [view, setView] = useState<'day' | 'week' | 'grid'>('day');
+  const [view, setView] = useState<'day' | 'three' | 'week' | 'month' | 'grid'>('day');
+  // The grid with a stylist picked shows her days: a week, or three.
+  const [gridSpan, setGridSpan] = useState<'week' | 'three'>('week');
+  // The slot the grid is drawn and dragged in, kept for this login on the server (/api/book-blocks/preferences).
+  const [slotMin, setSlotMin] = useState<number>(DEFAULT_SLOT_MIN);
   // One chair's book, or everyone's (''): the stylists come from the appointments on screen, roster-only ones included.
   const [stylistFilter, setStylistFilter] = useState<string>('');
   // The grid shows one stylist's week when a stylist is picked, else the day with a column per stylist.
-  const weekish = view === 'week' || (view === 'grid' && !!stylistFilter);
+  const span: BookSpan = view === 'grid' ? (stylistFilter ? gridSpan : 'day') : view;
+  // Columns (or cards) are days: three days or a week.
+  const weekish = span === 'week' || span === 'three';
   const [blocks, setBlocks] = useState<GridBlock[]>([]);
   const [blockFor, setBlockFor] = useState<null | { block?: GridBlock; stylistId?: string; date?: string; start?: string }>(null);
   const [newAt, setNewAt] = useState<null | { stylistId?: string; date?: string; time?: string }>(null);
@@ -143,9 +153,14 @@ export default function AppointmentsPage() {
   // The heading for the day whose rows are actually on screen — held while a new date is being typed.
   const [shownHeading, setShownHeading] = useState<string>(() => dayHeading(todayStr(), todayStr()) ?? "Today's chairs");
   useEffect(() => {
-    const h = weekish ? weekHeading(day) : dayHeading(day, todayStr());
+    const h = span === 'week' ? weekHeading(day) : span === 'day' ? dayHeading(day, todayStr()) : spanHeading(span, day);
     if (h) setShownHeading(h);
-  }, [day, weekish]);
+  }, [day, span]);
+  useEffect(() => { if (gridOn) api.get('/api/book-blocks/preferences').then((r) => setSlotMin(asSlot(r?.slotMin))).catch(() => {}); }, [gridOn]);
+  const chooseSlot = (v: string) => {
+    const n = asSlot(v); setSlotMin(n);
+    api.put('/api/book-blocks/preferences', { slotMin: n }).catch((e) => toast.error((e as Error).message || 'Could not remember the time slot'));
+  };
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
@@ -155,6 +170,17 @@ export default function AppointmentsPage() {
   useEffect(() => { fetchBookScope().then(setScope); }, []);
 
   // Closing a visit creates the sale (backend); offer to take payment right away. (SALON-H4)
+  // After completing the patch-test appointment: how did the test go? (the test is already on the chart as pending)
+  const [patchAsk, setPatchAsk] = useState<{ contactId: string; testId: string; name: string; invoiceId?: string } | null>(null);
+  const answerPatch = async (result: 'passed' | 'failed' | null) => {
+    const ask = patchAsk; if (!ask) return;
+    setPatchAsk(null);
+    if (result) {
+      try { await api.put(`/api/clients/${ask.contactId}/patch-tests/${ask.testId}`, { status: result }); toast.success(`Patch test recorded: ${result}`); }
+      catch (err) { toast.error((err as Error).message || 'The patch test result was not saved'); }
+    }
+    offerCheckout(ask.invoiceId);
+  };
   const offerCheckout = async (invoiceId?: string | null) => {
     if (invoiceId && await confirm('Sale created for this visit. Take payment now?', { title: 'Take payment?', confirmText: 'Open the sale', danger: false })) navigate(`/crm/invoices/${invoiceId}`);
   };
@@ -165,7 +191,7 @@ export default function AppointmentsPage() {
     if (!isDayComplete(day)) return;
     setLoading(true);
     try {
-      const { from, to } = viewBounds(weekish ? 'week' : 'day', day);
+      const { from, to } = spanBounds(span, day);
       const res = await api.get(`/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const rows: Appointment[] = res.data || [];
       rows.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
@@ -179,7 +205,7 @@ export default function AppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [day, weekish, view, gridOn]);
+  }, [day, span, view, gridOn]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -197,23 +223,37 @@ export default function AppointmentsPage() {
   };
 
   // Cancel / no-show / complete so a chair can be freed and no-shows tracked. (CC-25)
+  // Whether marking a no-show charges the fee on its own (the salon's opt-in), so the confirmation can say so.
+  const [autoNoShowFee, setAutoNoShowFee] = useState(false);
+  useEffect(() => { if (hasFeature('card_on_file')) api.get('/api/card-on-file/policy').then((p) => setAutoNoShowFee(!!p?.autoChargeNoShow)).catch(() => setAutoNoShowFee(false)); }, [hasFeature]);
   const setStatus = async (a: Appointment, status: string) => {
     if (status === 'cancelled' && !(await confirm(`Cancel ${a.clientName || 'this'} appointment? You can reopen it afterwards.`, { title: 'Cancel appointment', confirmText: 'Cancel it' }))) return;
-    if (status === 'no_show' && !(await confirm(`Mark ${a.clientName || 'this client'} as a no-show? You can reopen it afterwards.`, { title: 'Mark a no-show', confirmText: 'Mark no-show' }))) return;
+    if (status === 'no_show' && !(await confirm(`Mark ${a.clientName || 'this client'} as a no-show? ${autoNoShowFee ? 'Their card on file will be charged the no-show fee now. ' : ''}You can reopen it afterwards.`, { title: 'Mark a no-show', confirmText: autoNoShowFee ? 'Mark no-show and charge' : 'Mark no-show' }))) return;
     try {
       const res = await api.put(`/api/appointments/${a.id}`, { status });
       load();
-      if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
+      // The salon's patch-test appointment: a test was recorded for it; ask how it went before anything else.
+      if (status === 'completed' && res?.patchTest?.status === 'pending' && a.contactId) setPatchAsk({ contactId: a.contactId, testId: res.patchTest.id as string, name: a.clientName || 'the client', invoiceId: res?.invoiceId as string | undefined });
+      else if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
+      // The salon's automatic no-show fee (Settings › Card on file): say what happened to the card.
+      const fee = res?.autoFee as { charged: boolean; status: string; amount?: number; message: string | null } | undefined;
+      if (fee) {
+        if (fee.charged) toast.success(`No-show fee of ${money(fee.amount ?? 0)} charged to the card on file`);
+        else toast.error(`No-show marked, but no fee was charged: ${fee.message || 'the card was not charged'}`);
+      }
     } catch (err) {
       toast.error((err as Error).message || 'Failed to update the appointment');
     }
   };
 
+  // The team's order is the salon's own (Settings › The Book › Team order): /api/team/assignable already sends it in that order, so the
+  // people it names come first, in its order; anyone else with a booking on screen follows by name.
+  const teamRank = (id: string) => { const i = staff.findIndex((u) => u.id === id); return i < 0 ? staff.length : i; };
   // The picker: who holds a chair (the same list the booking form offers), and anyone else with a booking on screen.
   const stylists = Array.from(new Map([
     ...staff.map((u) => [u.id, staffName(u)] as [string, string]),
     ...appts.filter((a) => a.stylistId).map((a) => [a.stylistId as string, stylistName(a) || 'Stylist'] as [string, string]),
-  ]).entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  ]).entries()).sort((a, b) => teamRank(a[0]) - teamRank(b[0]) || a[1].localeCompare(b[1]));
   const shown = stylistFilter ? appts.filter((a) => a.stylistId === stylistFilter) : appts;
 
   const booked = shown.filter((a) => !CLOSED.has(a.status || 'scheduled')).length;
@@ -269,10 +309,11 @@ export default function AppointmentsPage() {
   const clientLink = (a: Appointment) => a.contactId
     ? <Link to={`/crm/clients/${a.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{a.clientName || 'Client'}</Link>
     : <>{a.clientName || 'Walk-in'}</>;
-  const days = weekOf(isDayComplete(day) ? day : todayStr());
+  const days = spanDays(span === 'three' ? 'three' : 'week', isDayComplete(day) ? day : todayStr());
   const week = byDay(shown, days);
   const today = todayStr();
-  const heading = weekish ? (weekHeading(day) ?? shownHeading) : (dayHeading(day, today) ?? shownHeading);
+  const heading = span === 'week' ? (weekHeading(day) ?? shownHeading) : span === 'day' ? (dayHeading(day, today) ?? shownHeading) : (spanHeading(span, day) ?? shownHeading);
+  const spanName = span === 'three' ? '3 days' : span === 'month' ? 'month' : span;
 
   // The grid's columns: a day is a column per stylist (and one for unassigned bookings, if any); a stylist's week is a column per day.
   const gridCols: GridColumn[] = weekish
@@ -283,15 +324,24 @@ export default function AppointmentsPage() {
       ];
 
   // Moving a card on the grid is the Reschedule button's PUT; a clash is refused by the server in words, and a blocked time asks first.
+  const mayOverrideClash = useMayOverrideClash();
+  const [clashAsk, setClashAsk] = useState<null | { id: string; payload: Record<string, unknown>; message: string }>(null);
   const putMove = async (a: { id: string }, payload: Record<string, unknown>) => {
     try {
       await api.put(`/api/appointments/${a.id}`, payload);
     } catch (err) {
       const code = (err as { data?: { code?: string } }).data?.code;
+      if (mayOverrideClash && isStylistClash(code, (err as Error).message)) { setClashAsk({ id: a.id, payload, message: (err as Error).message }); load(); return; }
       if (code === 'BOOK_BLOCKED' && await confirm(`${(err as Error).message}`, { title: 'Blocked time', confirmText: 'Book it anyway', danger: false })) {
         try { await api.put(`/api/appointments/${a.id}`, { ...payload, overrideBlock: true }); } catch (e2) { toast.error((e2 as Error).message || 'Could not move it'); }
       } else if (code !== 'BOOK_BLOCKED') toast.error((err as Error).message || 'Could not move it');
     }
+    load();
+  };
+  const bookOverClash = async (reason: string) => {
+    const ask = clashAsk; setClashAsk(null);
+    if (!ask) return;
+    try { await api.put(`/api/appointments/${ask.id}`, { ...ask.payload, overrideConflict: true, conflictReason: reason }); toast.success('Moved, over the clash'); } catch (e2) { toast.error((e2 as Error).message || 'Could not move it'); }
     load();
   };
   const moveOnGrid = (a: { id: string }, to: { start: Date; end: Date; stylistId?: string; itemised: boolean }) =>
@@ -319,24 +369,39 @@ export default function AppointmentsPage() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Show the book by">
-          {([...(['day', 'week'] as const), ...(gridOn ? (['grid'] as const) : [])]).map((v) => (
+          {([...(gridOn ? (['day', 'three', 'week', 'month', 'grid'] as const) : (['day', 'week'] as const))]).map((v) => (
             <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium ${view === v ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-              {v === 'day' ? 'Day' : v === 'week' ? 'Week' : 'Grid'}
+              {v === 'day' ? 'Day' : v === 'three' ? '3 days' : v === 'week' ? 'Week' : v === 'month' ? 'Month' : 'Grid'}
             </button>
           ))}
         </div>
-        {(weekish || view === 'grid') && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? -7 : -1))} aria-label={weekish ? 'Previous week' : 'Previous day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
+        {(span !== 'day' || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(shiftSpan(span, day, -1))} aria-label={`Previous ${spanName}`} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronLeft className="w-4 h-4" /></button>
         )}
         <div className="relative">
           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={weekish ? 'A day in the week to show' : 'Day to show'} className="pl-10 pr-4 py-2 border rounded-lg" />
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={span === 'day' ? 'Day to show' : `A day in the ${spanName} to show`} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
-        {(weekish || view === 'grid') && (
-          <button type="button" onClick={() => isDayComplete(day) && setDay(addDays(day, weekish ? 7 : 1))} aria-label={weekish ? 'Next week' : 'Next day'} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
+        {(span !== 'day' || view === 'grid') && (
+          <button type="button" onClick={() => isDayComplete(day) && setDay(shiftSpan(span, day, 1))} aria-label={`Next ${spanName}`} className="p-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"><ChevronRight className="w-4 h-4" /></button>
         )}
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
+        {view === 'grid' && (
+          <label className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200">Time slots
+            <select value={slotMin} onChange={(e) => chooseSlot(e.target.value)} aria-label="Time slot length" className="px-2 py-2 border rounded-lg text-sm">
+              {SLOT_CHOICES.map((m) => <option key={m} value={m}>{m} min</option>)}
+            </select>
+          </label>
+        )}
+        {view === 'grid' && stylistFilter && (
+          <label className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200">Days
+            <select value={gridSpan} onChange={(e) => setGridSpan(e.target.value === 'three' ? 'three' : 'week')} aria-label="Days shown" className="px-2 py-2 border rounded-lg text-sm">
+              <option value="week">Week</option>
+              <option value="three">3 days</option>
+            </select>
+          </label>
+        )}
         {scope.ownOnly ? (
           <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200"><User className="w-4 h-4" /> Your appointments</span>
         ) : (
@@ -356,15 +421,17 @@ export default function AppointmentsPage() {
         </div>
       ) : view === 'grid' ? (
         <BookGrid
-          cols={gridCols} appts={shown} blocks={blocks} weekMode={weekish} today={today}
+          cols={gridCols} appts={shown} blocks={blocks} weekMode={weekish} today={today} slotMin={slotMin}
           mayMove={mayMove} mayBook={mayBook}
           onPick={(a) => setPicked(a as Appointment)}
           onMove={moveOnGrid} onResize={resizeOnGrid}
           onEmptySlot={(col, startMin) => setNewAt({ stylistId: col.stylistId, date: weekish ? col.day : day, time: `${String(Math.floor(startMin / 60)).padStart(2, '0')}:${String(startMin % 60).padStart(2, '0')}` })}
-          onBlock={(b) => setBlockFor({ block: b })}
+          onBlock={(b) => { if (b.kind && b.kind !== 'block') navigate('/crm/time-off'); else setBlockFor({ block: b }); }}
         />
-      ) : view === 'week' ? (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+      ) : view === 'month' ? (
+        <BookMonth day={isDayComplete(day) ? day : todayStr()} appts={shown} today={today} onOpenDay={(d) => { setDay(d); setView('day'); }} onPick={(a) => setPicked(a as Appointment)} />
+      ) : view === 'week' || view === 'three' ? (
+        <div className={`grid grid-cols-1 gap-2 ${view === 'three' ? 'md:grid-cols-3' : 'md:grid-cols-7'}`}>
           {days.map((d) => (
             <section key={d} aria-label={dateWords(d, { weekday: 'long', month: 'long', day: 'numeric' })} className="bg-white rounded-xl border min-w-0 dark:bg-slate-900">
               {/* A day's heading opens that day in the day view, where the whole row of each booking is. */}
@@ -463,6 +530,21 @@ export default function AppointmentsPage() {
           onClose={() => { setShowForm(false); setNewAt(null); }}
         />
       )}
+      {patchAsk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <div className="fixed inset-0 bg-black/50" />
+          <div role="dialog" aria-modal="true" aria-label="Patch test result" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 dark:bg-slate-900">
+            <h2 className="text-lg font-bold">How did the patch test go?</h2>
+            <p className="text-sm text-gray-700 dark:text-slate-200">{patchAsk.name}&rsquo;s patch test is on their chart as pending. Record the result now, or leave it pending and set it from their chart later.</p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button type="button" onClick={() => answerPatch('passed')} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">Passed</button>
+              <button type="button" onClick={() => answerPatch('failed')} className="flex-1 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40">Failed</button>
+              <button type="button" onClick={() => answerPatch(null)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Decide later</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {clashAsk && <ClashReasonModal message={clashAsk.message} onConfirm={bookOverClash} onClose={() => setClashAsk(null)} />}
       {blockFor && (
         <BlockTimeModal
           block={blockFor.block} defaultDay={blockFor.date || day} defaultStylistId={blockFor.stylistId}
@@ -658,10 +740,15 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
 
   const [needsReason, setNeedsReason] = useState<string>('');
   const [overrideReason, setOverrideReason] = useState<string>('');
+  // A stylist clash a manager may book over, with a reason (server clashOverride).
+  const mayOverrideClash = useMayOverrideClash();
+  const [clashMessage, setClashMessage] = useState<string>('');
+  const [clashReason, setClashReason] = useState<string>('');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactId) { toast.error('A client is required'); return; }
     if (needsReason && overrideReason.trim().length < 3) { toast.error('Say why you are booking it anyway'); return; }
+    if (clashMessage && clashReason.trim().length < 3) { toast.error('Say why you are booking over the clash'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -683,10 +770,12 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
       if (form.notes) payload.notes = form.notes;
       // The salon's patch-test rule: a service that needs a passing test is booked only with a reason, kept on the appointment.
       if (overrideReason.trim()) payload.patchTestOverrideReason = overrideReason.trim();
+      if (clashMessage) { payload.overrideConflict = true; payload.conflictReason = clashReason.trim(); }
       await api.post('/api/appointments', payload);
       onSave();
     } catch (err) {
       const data = (err as { data?: { code?: string } }).data;
+      if (mayOverrideClash && isStylistClash(data?.code, (err as Error).message)) { setClashMessage((err as Error).message); return; }
       if (data?.code === 'PATCH_TEST_NEEDED') { setNeedsReason((err as Error).message || 'This service needs a patch test first.'); return; }
       toast.error((err as Error).message || 'Failed to create appointment');
     } finally {
@@ -782,6 +871,14 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            {clashMessage && (
+              <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                <p className="text-sm text-amber-900 dark:text-amber-100">{clashMessage}. You can book it anyway, with a reason that is kept on the appointment.</p>
+                <label className="mt-2 block text-sm font-medium text-gray-800 dark:text-slate-100">Book over the clash because
+                  <input value={clashReason} onChange={(e) => setClashReason(e.target.value)} maxLength={200} className="mt-1 w-full px-3 py-2 border rounded-lg" placeholder="e.g. Two short services, same client" />
+                </label>
+              </div>
+            )}
             {needsReason && (
               <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950/40">
                 <p className="text-sm text-amber-900 dark:text-amber-100">{needsReason}</p>
@@ -804,6 +901,38 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
 }
 
 
+/* ---------------- Book over a clash ---------------- */
+
+// A manager may book a stylist over another booking on purpose, with a reason that is kept on the appointment (server clashOverride).
+function useMayOverrideClash(): boolean {
+  const { can, known } = usePermissions();
+  return known && can('schedule:read-all') && can('schedule:update');
+}
+const isStylistClash = (code?: string, message?: string) => code === 'APPOINTMENT_CONFLICT' && /stylist is already booked|same stylist at the same time/i.test(message || '');
+
+function ClashReasonModal({ message, onConfirm, onClose }: { message: string; onConfirm: (reason: string) => void; onClose: () => void }) {
+  const [reason, setReason] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <form onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 3) onConfirm(reason.trim()); }} role="dialog" aria-modal="true" aria-label="Book over a clash"
+          className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4 dark:bg-slate-900">
+          <h2 className="text-lg font-bold">Book it anyway?</h2>
+          <p className="text-sm text-gray-700 dark:text-slate-200">{message}. A stylist is not double-booked by accident, so this needs a reason — it is kept on the appointment.</p>
+          <label className="block text-sm font-medium text-gray-800 dark:text-slate-100">Book it anyway because
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} autoFocus className="mt-1 w-full px-3 py-2 border rounded-lg" placeholder="e.g. Two short services, same client" />
+          </label>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+            <button type="submit" disabled={reason.trim().length < 3} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">Book it anyway</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Blocked time ---------------- */
 
 // Lunch, training, a day off: a stylist's chair (or everyone's) closed to bookings (server crm/salon/bookBlocks.ts, feature book_grid).
@@ -821,7 +950,23 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
   const [end, setEnd] = useState(endParts.time);
   const [reason, setReason] = useState(block?.reason || '');
   const [repeat, setRepeat] = useState('0');
+  // The owner's preset kinds of blocked time (Settings › The Book): picking one fills in its usual length.
+  const [types, setTypes] = useState<Array<{ id: string; name: string; color: string; defaultMin: number; paid: boolean }>>([]);
+  const [typeId, setTypeId] = useState<string>(block?.typeId || '');
+  // Repeat rule: none, every N days, or every N weeks on chosen weekdays; it ends on a date or after a number of times.
+  const [every, setEvery] = useState<'none' | 'day' | 'week'>('none');
+  const [interval, setIntervalText] = useState('1');
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [endKind, setEndKind] = useState<'count' | 'until'>('count');
+  const [count, setCount] = useState('4');
+  const [until, setUntil] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => { api.get('/api/book-blocks/types').then((r: any) => setTypes(((r?.data ?? r) || []) as any[])).catch(() => setTypes([])); }, []);
+  const pickType = (id: string) => {
+    setTypeId(id);
+    const ty = types.find((x) => x.id === id);
+    if (ty && !block) { const e = addMinutesToWall(startDate, start, ty.defaultMin); setEndDate(e.date); setEnd(e.time); }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -833,7 +978,14 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
       };
       if (block) await api.put(`/api/book-blocks/${block.id}`, payload);
       else {
-        if (Number(repeat) > 0) payload.repeatWeeks = Number(repeat);
+        if (typeId) payload.typeId = typeId;
+        if (every !== 'none') {
+          payload.repeat = {
+            every, interval: Number(interval) || 1,
+            ...(every === 'week' && weekdays.length ? { weekdays } : {}),
+            ...(endKind === 'count' ? { count: Number(count) } : { until }),
+          };
+        }
         const made = await api.post('/api/book-blocks', payload);
         if (made?.appointmentsInside > 0) toast.warning?.(`${made.appointmentsInside} appointment${made.appointmentsInside === 1 ? ' is' : 's are'} already booked in that time — they stay until you move them.`);
       }
@@ -842,10 +994,12 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
       toast.error((err as Error).message || 'Could not save the blocked time');
     } finally { setSaving(false); }
   };
-  const remove = async () => {
-    if (!block || !(await confirm('Remove this blocked time? The hours open up for booking again.', { title: 'Remove blocked time', confirmText: 'Remove it' }))) return;
-    try { await api.delete(`/api/book-blocks/${block.id}`); onSave(); } catch (err) { toast.error((err as Error).message || 'Could not remove it'); }
+  const remove = async (following = false) => {
+    const words = following ? 'Remove this blocked time and every later one in its repeat? Those hours open up for booking again.' : 'Remove this blocked time? The hours open up for booking again.';
+    if (!block || !(await confirm(words, { title: 'Remove blocked time', confirmText: 'Remove it' }))) return;
+    try { await api.delete(`/api/book-blocks/${block.id}${following ? '?scope=following' : ''}`); onSave(); } catch (err) { toast.error((err as Error).message || 'Could not remove it'); }
   };
+  const DOW = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']] as const;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -869,19 +1023,57 @@ function BlockTimeModal({ block, defaultDay, defaultStylistId, stylists, ownOnly
             <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (day)<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
             <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Until (time)<input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg" /></label>
           </div>
+          {!block && types.length > 0 && (
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Kind of blocked time
+              <select value={typeId} onChange={(e) => pickType(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg">
+                <option value="">Other (write a reason)</option>
+                {types.map((x) => <option key={x.id} value={x.id}>{x.name} — {x.defaultMin} min, {x.paid ? 'paid' : 'unpaid'}</option>)}
+              </select>
+            </label>
+          )}
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Reason (only your team sees it)
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Lunch, training, day off" className="mt-1 w-full px-3 py-2 border rounded-lg" maxLength={200} />
           </label>
           {!block && (
-            <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Repeat every week for
-              <select value={repeat} onChange={(e) => setRepeat(e.target.value)} className="mt-1 w-full px-3 py-2 border rounded-lg">
-                <option value="0">Just this once</option>
-                {[1, 2, 3, 4, 8, 12, 26].map((n) => <option key={n} value={n}>{n} more week{n === 1 ? '' : 's'}</option>)}
+            <fieldset className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-slate-700">
+              <legend className="px-1 text-sm font-medium text-gray-700 dark:text-slate-200">Repeat</legend>
+              <select aria-label="Repeat" value={every} onChange={(e) => setEvery(e.target.value as 'none' | 'day' | 'week')} className="w-full px-3 py-2 border rounded-lg">
+                <option value="none">Just this once</option>
+                <option value="day">Every day</option>
+                <option value="week">Every week</option>
               </select>
-            </label>
+              {every !== 'none' && (
+                <>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">Every
+                    <input type="number" min={1} max={52} value={interval} onChange={(e) => setIntervalText(e.target.value)} className="w-16 px-2 py-1 border rounded-lg" aria-label="Repeat interval" />
+                    {every === 'day' ? 'day(s)' : 'week(s)'}
+                  </label>
+                  {every === 'week' && (
+                    <div role="group" aria-label="On these days" className="flex flex-wrap gap-2">
+                      {DOW.map(([n, label]) => (
+                        <label key={n} className="flex items-center gap-1 text-sm text-gray-700 dark:text-slate-200">
+                          <input type="checkbox" checked={weekdays.includes(n)} onChange={(e) => setWeekdays(e.target.checked ? [...weekdays, n] : weekdays.filter((d) => d !== n))} />{label}
+                        </label>
+                      ))}
+                      <p className="w-full text-xs text-gray-500 dark:text-slate-400">None ticked: the same weekday as the first block.</p>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+                    <select aria-label="Ends" value={endKind} onChange={(e) => setEndKind(e.target.value as 'count' | 'until')} className="px-2 py-1 border rounded-lg">
+                      <option value="count">Ends after</option>
+                      <option value="until">Ends on</option>
+                    </select>
+                    {endKind === 'count'
+                      ? <><input type="number" min={1} max={120} value={count} onChange={(e) => setCount(e.target.value)} className="w-20 px-2 py-1 border rounded-lg" aria-label="Number of times" /> times in all</>
+                      : <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className="px-2 py-1 border rounded-lg" aria-label="Last day" />}
+                  </div>
+                </>
+              )}
+            </fieldset>
           )}
           <div className="flex gap-3 pt-2">
-            {block && <button type="button" onClick={remove} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove</button>}
+            {block && <button type="button" onClick={() => remove(false)} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove</button>}
+            {block?.seriesId && <button type="button" onClick={() => remove(true)} className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 dark:text-red-400">Remove this and later</button>}
             <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
           </div>

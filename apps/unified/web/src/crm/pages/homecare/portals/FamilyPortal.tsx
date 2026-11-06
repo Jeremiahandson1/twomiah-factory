@@ -16,6 +16,7 @@
 //   GET  /api/family-portal/portal/vitals      a list of { id, recordedAt, systolicBp, diastolicBp, pulse, respirations,
 //                                              oxygenSaturation, temperatureF, bloodGlucose, weightLbs, painScale, notes,
 //                                              caregiverFirst, caregiverLast }
+//   GET  /api/family-portal/portal/upcoming-tasks, /task-log, /documents (+ /documents/:id/download)   care_family_content: the Daily care and Documents tabs
 //   GET  /api/family-portal/portal/messages    a list of { id, direction ('inbound' = the family's), subject, message, createdAt }
 //   POST /api/family-portal/portal/messages    { subject, message }
 // Each list arrives as { data, pagination }; the template's server sent bare arrays and snake_case vitals keys.
@@ -26,8 +27,10 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type For
 import { formatAgencyDateTime, setAgencyTimezone, agencyToday } from '../lib/agencyClock'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { serviceLabel } from '../lib/serviceTypes'
+import { saveBlob } from '../lib/http'
 import { createPortalClient, listRows, PortalContext, SESSION_EXPIRED, usePortal } from './portalHttp'
 import CaregiverBackgroundChecks from './CaregiverBackgroundChecks'
+import PaymentMethodPanel from './PaymentMethodPanel'
 import './portals.css'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -40,6 +43,16 @@ export interface FamilyMember {
   canViewSchedule?: boolean | null
   canViewCarePlan?: boolean | null
   canViewMedications?: boolean | null
+  canViewVitals?: boolean | null
+  canViewDocuments?: boolean | null
+  /** row 22: this relative may save, replace or remove the card or bank account that pays the invoices */
+  canManagePayments?: boolean | null
+  /** care_autopay is on: the agency takes a saved card or bank account, so the Payments tab exists */
+  payments?: boolean | null
+  /** care_family_content is on for this agency: the Daily care and Documents tabs exist, and vitals have their own switch */
+  careContent?: boolean | null
+  /** care_family_comms is on: the Requests tab exists */
+  careComms?: boolean | null
   canMessage?: boolean | null
 }
 
@@ -244,7 +257,7 @@ function CarePlanView() {
 // ── Medications ───────────────────────────────────────────────
 interface Med { id: string; name: string; dosage: string | null; frequency: string | null; route: string | null; prescribedBy: string | null; instructions: string | null; isPrn: boolean | null; notes: string | null }
 
-function MedicationsView() {
+function MedicationsView({ medicineList }: { medicineList?: boolean }) {
   const portal = usePortal()
   const [meds, setMeds] = useState<Med[]>([])
   const [loading, setLoading] = useState(true)
@@ -261,7 +274,7 @@ function MedicationsView() {
 
   return (
     <div>
-      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Active Medications</h3>
+      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>{medicineList ? 'Medicine list' : 'Active Medications'}</h3>
       {meds.map((m) => (
         <div key={m.id} style={CARD}>
           <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>
@@ -454,15 +467,246 @@ function MessagesView({ canMessage }: { canMessage: boolean }) {
   )
 }
 
+// ── Daily care (care_family_content): the tasks planned for each upcoming visit, the log of past visits, meals ──────────────────
+interface PlannedTask { taskId: string; taskName: string; allottedMinutes: number | null; weekly: boolean }
+interface UpcomingVisit { id: string; date: string; startTime: string | null; endTime: string | null; caregiverFirst: string | null; caregiverLast: string | null; tasks: PlannedTask[] }
+interface LoggedTask { taskId: string; taskName: string; state: string; stateLabel: string }
+interface LoggedMeal { id: string; mealLabel: string; description: string | null; amountLabel: string }
+interface PastVisit { timeEntryId: string; visitDate: string; startTime: string; endTime: string | null; caregiverName: string; tasks: LoggedTask[]; meals: LoggedMeal[] }
+
+function DailyCareView() {
+  const portal = usePortal()
+  const [upcoming, setUpcoming] = useState<UpcomingVisit[]>([])
+  const [past, setPast] = useState<PastVisit[]>([])
+  const [loading, setLoading] = useState(true)
+  const [part, setPart] = useState<'upcoming' | 'past'>('upcoming')
+
+  useEffect(() => {
+    Promise.all([
+      portal.get('/api/family-portal/portal/upcoming-tasks').then((r) => { if (r) setUpcoming(listRows<UpcomingVisit>(r)) }).catch(() => {}),
+      portal.get('/api/family-portal/portal/task-log').then((r) => { if (r) setPast(listRows<PastVisit>(r)) }).catch(() => {}),
+    ]).finally(() => setLoading(false))
+  }, [portal])
+
+  if (loading) return <div style={MUTED}>Loading daily care...</div>
+  const tabBtn = (k: 'upcoming' | 'past', label: string) => (
+    <button key={k} onClick={() => setPart(k)} style={{ ...BADGE(part === k ? 'green' : 'blue'), border: 'none', cursor: 'pointer', padding: '6px 14px', fontSize: '0.85rem', opacity: part === k ? 1 : 0.7 }}>{label}</button>
+  )
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        {tabBtn('upcoming', 'Coming visits')}{tabBtn('past', 'Past visits')}
+      </div>
+      {part === 'upcoming' ? (
+        upcoming.length === 0 ? <div style={{ ...CARD, ...MUTED }}>No upcoming visits scheduled.</div> : upcoming.map((v) => (
+          <div key={v.id} style={{ ...CARD, borderLeft: '4px solid #3498db' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              <strong>{fmtDay(v.date, { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
+              <span style={SOFT}>{String(v.startTime || '').slice(0, 5)} - {String(v.endTime || '').slice(0, 5)}</span>
+            </div>
+            {v.tasks.length === 0
+              ? <div style={SOFT}>No tasks are planned for this visit.</div>
+              : <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem' }}>{v.tasks.map((t) => (
+                <li key={t.taskId}>{t.taskName}{t.weekly && <span style={SOFT}> (once this week)</span>}{t.allottedMinutes ? <span style={SOFT}> — about {t.allottedMinutes} min</span> : null}</li>
+              ))}</ul>}
+          </div>
+        ))
+      ) : past.length === 0 ? <div style={{ ...CARD, ...MUTED }}>No visits in the last 30 days.</div> : past.map((v) => (
+        <div key={v.timeEntryId} style={{ ...CARD, borderLeft: '4px solid #27ae60' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+            <strong>{fmtDay(v.visitDate, { weekday: 'long', month: 'short', day: 'numeric' })}</strong>
+            <span style={SOFT}>{v.caregiverName}</span>
+          </div>
+          {v.tasks.length === 0 && <div style={SOFT}>No tasks were planned for this visit.</div>}
+          {v.tasks.map((t) => (
+            <div key={t.taskId} style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '0.9rem', padding: '2px 0' }}>
+              <span>{t.taskName}</span><span style={BADGE(t.state === 'done' || t.state === 'done_earlier' ? 'green' : t.state === 'not_recorded' ? 'yellow' : 'blue')}>{t.stateLabel}</span>
+            </div>
+          ))}
+          {v.meals.length > 0 && (
+            <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--hc-line)' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '4px' }}>Meals</div>
+              {v.meals.map((m) => <div key={m.id} style={{ fontSize: '0.88rem' }}>{m.mealLabel}: {m.description} — <span style={SOFT}>{m.amountLabel}</span></div>)}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Documents (care_family_content): what the office shared ──────────────────────────────────────────────────────────────────
+interface SharedDoc { id: string; name: string; documentType: string | null; description: string | null; fileName: string | null; createdAt: string }
+
+function DocumentsView() {
+  const portal = usePortal()
+  const [docs, setDocs] = useState<SharedDoc[]>([])
+  const [loading, setLoading] = useState(true)
+  const [problem, setProblem] = useState('')
+
+  useEffect(() => {
+    portal.get('/api/family-portal/portal/documents')
+      .then((r) => { if (r) setDocs(listRows<SharedDoc>(r)) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [portal])
+
+  const open = async (d: SharedDoc) => {
+    setProblem('')
+    try { saveBlob(await portal.blob(`/api/family-portal/portal/documents/${d.id}/download`), d.fileName || d.name) }
+    catch (e) { setProblem((e as Error).message || 'That document could not be opened.') }
+  }
+
+  if (loading) return <div style={MUTED}>Loading documents...</div>
+  if (docs.length === 0) return <div style={{ ...CARD, ...MUTED }}>The care team has not shared any documents yet.</div>
+  return (
+    <div>
+      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Documents</h3>
+      {problem && <div style={{ ...CARD, color: 'var(--hc-danger-ink)' }}>{problem}</div>}
+      {docs.map((d) => (
+        <div key={d.id} style={{ ...CARD, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>{d.name}</div>
+            <div style={SOFT}>{[d.documentType ? codeLabel(d.documentType) : '', fmtDay(d.createdAt)].filter(Boolean).join(' · ')}</div>
+            {d.description && <div style={SOFT}>{d.description}</div>}
+          </div>
+          <button onClick={() => open(d)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--hc-line)', background: 'var(--hc-surface)', color: 'var(--hc-ink)', cursor: 'pointer' }}>Open</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Requests to the office (care_family_comms): change a visit, change the service, ask for a new visit ───────────────────────
+interface MyRequest { id: string; kind: string; kindLabel: string; visitDate: string | null; details: string; status: string; statusLabel: string; handledNote: string | null; createdAt: string }
+const REQUEST_CHOICES: Array<[string, string]> = [['visit_change', 'Change a visit'], ['service_change', 'Change the service'], ['new_visit', 'Ask for a new visit']]
+
+// Row 22 (care_autopay): the card or bank account that pays the invoices, saved or replaced on Stripe's own page.
+function PaymentsView() {
+  const saved = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('saved') === '1'
+  return (
+    <div>
+      <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Payments</h3>
+      {saved && <div style={{ ...CARD, color: 'var(--hc-success-ink)' }}>Thank you — it was saved. Each invoice is paid from it as it is sent.</div>}
+      <PaymentMethodPanel base="/api/family-portal/portal" />
+    </div>
+  )
+}
+
+function RequestsView() {
+  const portal = usePortal()
+  const [list, setList] = useState<MyRequest[]>([])
+  const [kind, setKind] = useState('visit_change')
+  const [visitDate, setVisitDate] = useState('')
+  const [details, setDetails] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+  const [sent, setSent] = useState(false)
+  const load = useCallback(() => {
+    portal.get('/api/family-portal/portal/requests').then((r) => { if (r) setList(listRows<MyRequest>(r)) }).catch(() => {})
+  }, [portal])
+  useEffect(() => { load() }, [load])
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setProblem(''); setSent(false); setBusy(true)
+    try {
+      await portal.send('POST', '/api/family-portal/portal/requests', { kind, visitDate: visitDate || undefined, details })
+      setDetails(''); setVisitDate(''); setSent(true); load()
+    } catch (err) { setProblem((err as Error).message || 'That could not be sent. Please try again.') } finally { setBusy(false) }
+  }
+  const field: CSSProperties = { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--hc-line)', background: 'var(--hc-surface)', color: 'var(--hc-ink)', boxSizing: 'border-box' }
+  return (
+    <div>
+      <form onSubmit={submit} style={CARD}>
+        <h3 style={{ margin: '0 0 12px', fontSize: '1.05rem' }}>Ask the office</h3>
+        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '4px' }} htmlFor="req-kind">What would you like?</label>
+        <select id="req-kind" value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...field, marginBottom: '10px' }}>
+          {REQUEST_CHOICES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
+        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '4px' }} htmlFor="req-date">Which day is it about? (optional)</label>
+        <input id="req-date" type="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} style={{ ...field, marginBottom: '10px' }} />
+        <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '4px' }} htmlFor="req-details">Tell us what you need</label>
+        <textarea id="req-details" rows={4} value={details} onChange={(e) => setDetails(e.target.value)} maxLength={2000} style={{ ...field, marginBottom: '10px' }} />
+        {problem && <div style={{ color: 'var(--hc-danger-ink)', marginBottom: '8px' }}>{problem}</div>}
+        {sent && <div style={{ color: 'var(--hc-success-ink)', marginBottom: '8px' }}>Sent. The office has been told and will get back to you.</div>}
+        <button type="submit" disabled={busy} style={{ padding: '8px 18px', borderRadius: '6px', border: 'none', background: 'var(--hcp-forest)', color: '#fff', cursor: 'pointer' }}>{busy ? 'Sending...' : 'Send to the office'}</button>
+      </form>
+      {list.length > 0 && <h3 style={{ margin: '0 0 12px', fontSize: '1.05rem' }}>Your requests</h3>}
+      {list.map((r) => (
+        <div key={r.id} style={{ ...CARD, borderLeft: `4px solid ${r.status === 'open' ? '#e67e22' : r.status === 'done' ? '#27ae60' : '#95a5a6'}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+            <strong>{r.kindLabel}{r.visitDate ? ` — ${fmtDay(r.visitDate)}` : ''}</strong>
+            <span style={BADGE(r.status === 'done' ? 'green' : r.status === 'open' ? 'yellow' : 'blue')}>{r.statusLabel}</span>
+          </div>
+          <div style={{ ...SOFT, whiteSpace: 'pre-wrap', margin: '6px 0' }}>{r.details}</div>
+          {r.handledNote && <div style={{ fontSize: '0.88rem' }}>From the office: {r.handledNote}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Notices (care_family_comms, row 7 extras): an app notice on this phone or browser when a caregiver arrives and leaves ──────────────
+interface NoticeSettings { textOptIn: boolean; emailOptIn: boolean; pushDevices: number; vapidPublicKey: string | null }
+
+function NoticesView() {
+  const portal = usePortal()
+  const [s, setS] = useState<NoticeSettings | null>(null)
+  const [note, setNote] = useState('')
+  const [problem, setProblem] = useState('')
+  const load = useCallback(() => { portal.get<NoticeSettings>('/api/family-portal/portal/notices').then((r) => { if (r) setS(r) }).catch(() => {}) }, [portal])
+  useEffect(() => { load() }, [load])
+  const fail = (err: unknown) => { const m = (err as Error).message; setProblem(m === SESSION_EXPIRED ? 'Your session has ended — please sign in again.' : (m || 'That did not save.')) }
+  const pushSupported = typeof navigator !== 'undefined' && 'serviceWorker' in navigator && typeof window !== 'undefined' && 'PushManager' in window
+  const turnOn = async () => {
+    setProblem(''); setNote('')
+    try {
+      if (!s?.vapidPublicKey) { setProblem('App notices are not set up for this agency yet. Ask the office.'); return }
+      if ((await Notification.requestPermission()) !== 'granted') { setProblem('Your browser did not allow notices. You can allow them in its settings.'); return }
+      const reg = await navigator.serviceWorker.ready
+      const pad = '='.repeat((4 - (s.vapidPublicKey.length % 4)) % 4)
+      const raw = atob((s.vapidPublicKey + pad).replace(/-/g, '+').replace(/_/g, '/'))
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(raw, (ch) => ch.charCodeAt(0)) })
+      await portal.send('POST', '/api/family-portal/portal/push-subscription', { subscription: sub.toJSON() })
+      setNote('This device will get a notice when a caregiver arrives and leaves.'); load()
+    } catch (err) { fail(err) }
+  }
+  const turnOff = async () => {
+    setProblem(''); setNote('')
+    try { await portal.send('POST', '/api/family-portal/portal/push-subscription/off'); setNote('App notices are off on your devices.'); load() } catch (err) { fail(err) }
+  }
+  if (!s) return <div style={MUTED}>Loading...</div>
+  const btn: CSSProperties = { padding: '8px 18px', borderRadius: '6px', border: 'none', background: 'var(--hcp-forest)', color: '#fff', cursor: 'pointer' }
+  return (
+    <div>
+      <div style={CARD}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '1.05rem' }}>When a caregiver arrives and leaves</h3>
+        <div style={SOFT}>Texts: {s.textOptIn ? 'on' : 'off'} · Emails: {s.emailOptIn ? 'on' : 'off'} — the office records these with your yes. Ask them to change either.</div>
+      </div>
+      <div style={CARD}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '1.05rem' }}>On this phone or browser</h3>
+        <div style={SOFT}>{s.pushDevices > 0 ? `Notices are on for ${s.pushDevices} device${s.pushDevices === 1 ? '' : 's'}.` : 'Notices are off.'} They are held back in the agency's quiet hours, like texts.</div>
+        {problem && <div role="alert" style={{ color: 'var(--hc-danger-ink)', margin: '8px 0' }}>{problem}</div>}
+        {note && <div role="status" style={{ color: 'var(--hc-success-ink)', margin: '8px 0' }}>{note}</div>}
+        <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {pushSupported ? <button type="button" onClick={turnOn} style={btn}>Turn on for this device</button> : <span style={SOFT}>This browser cannot receive app notices.</span>}
+          {s.pushDevices > 0 && <button type="button" onClick={turnOff} style={{ ...btn, background: 'var(--hc-subtle)', color: 'var(--hc-ink)' }}>Turn off</button>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Overview ──────────────────────────────────────────────────
-type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'medications' | 'vitals' | 'messages'
-interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean }
+type TabKey = 'overview' | 'schedule' | 'caregivers' | 'care-plan' | 'daily-care' | 'medications' | 'vitals' | 'documents' | 'payments' | 'requests' | 'notices' | 'messages'
+interface Permissions { canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; careContent: boolean; careComms: boolean; canMessage: boolean }
 
 function OverviewView({ client, userName, permissions, setActiveTab }: { client: FamilyClient | null; userName: string; permissions: Permissions; setActiveTab: (k: TabKey) => void }) {
   const quickLinks: Array<{ key: TabKey; label: string; icon: string; color: string }> = []
   if (permissions.canViewSchedule) quickLinks.push({ key: 'schedule', label: 'View Schedule', icon: '📅', color: '#3498db' })
   if (permissions.canViewCarePlan) quickLinks.push({ key: 'care-plan', label: 'View Care Plan', icon: '📋', color: '#e67e22' })
-  if (permissions.canViewMedications) quickLinks.push({ key: 'medications', label: 'View Medications', icon: '💊', color: '#9b59b6' })
+  if (permissions.canViewMedications) quickLinks.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'View Medications', icon: '💊', color: '#9b59b6' })
   if (permissions.canMessage) quickLinks.push({ key: 'messages', label: 'Send Message', icon: '💬', color: '#27ae60' })
 
   const first = client?.firstName
@@ -559,6 +803,13 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
     canViewSchedule: !!member?.canViewSchedule,
     canViewCarePlan: !!member?.canViewCarePlan,
     canViewMedications: !!member?.canViewMedications,
+    // With care_family_content on, vitals and documents have their own switches; off, vitals follow medicines and there is no Documents tab.
+    careContent: !!member?.careContent,
+    careComms: !!member?.careComms,
+    canViewVitals: member?.careContent ? !!member?.canViewVitals : !!member?.canViewMedications,
+    canViewDocuments: !!member?.careContent && !!member?.canViewDocuments,
+    // Row 22: the Payments tab needs the agency's autopay (care_autopay) and this relative's own switch.
+    canManagePayments: !!member?.payments && !!member?.canManagePayments,
     canMessage: !!member?.canMessage,
   }
 
@@ -566,8 +817,15 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
   if (permissions.canViewSchedule) tabs.push({ key: 'schedule', label: 'Schedule', icon: '📅' })
   if (permissions.canViewSchedule) tabs.push({ key: 'caregivers', label: 'Caregivers', icon: '👤' })
   if (permissions.canViewCarePlan) tabs.push({ key: 'care-plan', label: 'Care Plan', icon: '📋' })
-  if (permissions.canViewMedications) tabs.push({ key: 'medications', label: 'Medications', icon: '💊' })
-  if (permissions.canViewMedications) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
+  if (permissions.careContent && permissions.canViewCarePlan && permissions.canViewSchedule) tabs.push({ key: 'daily-care', label: 'Daily care', icon: '✅' })
+  if (permissions.canViewMedications) tabs.push({ key: 'medications', label: permissions.careContent ? 'Medicine list' : 'Medications', icon: '💊' })
+  // The server's rule (familyPortal.ts /portal/vitals): with care_family_content on vitals have their own switch; off, they ride on
+  // the medicines switch as before. The tab follows the same rule, so it is there exactly when the list would answer.
+  if (permissions.careContent ? permissions.canViewVitals : permissions.canViewMedications) tabs.push({ key: 'vitals', label: 'Vitals', icon: '❤️' })
+  if (permissions.canViewDocuments) tabs.push({ key: 'documents', label: 'Documents', icon: '📁' })
+  if (permissions.canManagePayments) tabs.push({ key: 'payments', label: 'Payments', icon: '💳' })
+  if (permissions.canMessage && permissions.careComms) tabs.push({ key: 'requests', label: 'Requests', icon: '✉️' })
+  if (permissions.careComms) tabs.push({ key: 'notices', label: 'Notices', icon: '🔔' })
   if (permissions.canMessage) tabs.push({ key: 'messages', label: 'Messages', icon: '💬' })
   const tabKeys = tabs.map((t) => t.key).join()
 
@@ -584,8 +842,13 @@ export default function FamilyPortal({ user, token, onLogout, onPaused }: Family
       case 'schedule': return permissions.canViewSchedule ? <ScheduleView /> : null
       case 'caregivers': return permissions.canViewSchedule ? <CaregiversView agencyState={agencyState} /> : null
       case 'care-plan': return permissions.canViewCarePlan ? <CarePlanView /> : null
-      case 'medications': return permissions.canViewMedications ? <MedicationsView /> : null
-      case 'vitals': return permissions.canViewMedications ? <VitalsView /> : null
+      case 'daily-care': return permissions.careContent && permissions.canViewCarePlan && permissions.canViewSchedule ? <DailyCareView /> : null
+      case 'medications': return permissions.canViewMedications ? <MedicationsView medicineList={permissions.careContent} /> : null
+      case 'vitals': return permissions.canViewVitals ? <VitalsView /> : null
+      case 'documents': return permissions.canViewDocuments ? <DocumentsView /> : null
+      case 'payments': return permissions.canManagePayments ? <PaymentsView /> : null
+      case 'requests': return permissions.canMessage && permissions.careComms ? <RequestsView /> : null
+      case 'notices': return permissions.careComms ? <NoticesView /> : null
       case 'messages': return permissions.canMessage ? <MessagesView canMessage /> : null
       default: return <OverviewView client={client} userName={userName} permissions={permissions} setActiveTab={setActiveTab} />
     }

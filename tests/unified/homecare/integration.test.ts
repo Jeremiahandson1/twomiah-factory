@@ -237,7 +237,7 @@ const famClient = await mkClient('Fam')
   const vit = await famB('GET', '/api/family-portal/portal/vitals')
   check("…a relative with it sees care's vitals, with who took them", vit.status === 200 && vit.json.length === 1 && vit.json[0].pulse === 72 && vit.json[0].caregiver_first === 'cgone', vit.json)
   check('the family portal screen has the Vitals tab, on the medications switch', /\/api\/family-portal\/portal\/vitals/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx')) /* unified: the family portal is portals/FamilyPortal.tsx */
-    && /canViewMedications\) tabs\.push\(\{ key: 'vitals'/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx')) /* unified: the family portal is portals/FamilyPortal.tsx */)
+    && /careContent \? permissions\.canViewVitals : permissions\.canViewMedications\) tabs\.push\(\{ key: 'vitals'/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx')) /* unified: the family portal is portals/FamilyPortal.tsx; with care_family_content on vitals have their own switch (home care parity 11/05), off they stay on the medications switch: the Vitals tab follows that rule */)
 }
 
 // ══ 5. a draft invoice never reaches the client portal ═══════════════════════════════════════════

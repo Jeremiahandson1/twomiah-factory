@@ -130,7 +130,9 @@ export const barTipPayout = pgTable('bar_tip_payout', {
   name: text('name').notNull(),
   role: text('role').notNull(),
   hoursX100: integer('hours_x100').default(0).notNull(),      // hours worked, in hundredths
-  tipsCents: integer('tips_cents').default(0).notNull(),      // tips on the checks they closed
+  tipsCents: integer('tips_cents').default(0).notNull(),      // tips on the checks they closed, plus the two below
+  declaredCents: integer('declared_cents').default(0).notNull(), // of tipsCents: cash tips they declared (bar_declared_tip)
+  importedCents: integer('imported_cents').default(0).notNull(), // of tipsCents: tips from another register (bar_tip_import)
   salesCents: integer('sales_cents').default(0).notNull(),    // food and drink on those checks, before tax
   keptCents: integer('kept_cents').default(0).notNull(),
   tipOutPaidCents: integer('tip_out_paid_cents').default(0).notNull(),
@@ -282,6 +284,13 @@ export const barMenuItem = pgTable('bar_menu_item', {
   eightySixUntilOpen: boolean('eighty_six_until_open').default(false).notNull(),
   /** When it was last put out, so the next opening after that time puts it back. */
   eightySixedAt: timestamp('eighty_sixed_at'),
+  /**
+   * A count that counts down (parity row 13, Toast): "12 left" - each sale takes one, it 86es itself at zero, and the count
+   * comes back to stock_count_reset at the next opening (null: no automatic refresh) or when staff set it. null = not counted.
+   */
+  stockCount: integer('stock_count'),
+  stockCountReset: integer('stock_count_reset'),
+  stockCountedAt: timestamp('stock_counted_at'),
   isActive: boolean('is_active').default(true).notNull(),
   /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
   variations: json('variations').default([]).notNull(),
@@ -314,6 +323,8 @@ export const barMenuSection = pgTable('bar_menu_section', {
   availableFrom: text('available_from'),
   availableTo: text('available_to'),
   availableDays: json('available_days').default([]).notNull(),
+  /** Any number of windows beside the first (parity row 12, Toast): [{ from, to, days }] - breakfast, lunch, happy hour, late night, each with its own days. */
+  availableWindows: json('available_windows').$type<Array<{ from: string; to: string; days: number[] }>>().default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -348,6 +359,34 @@ export const barPurchaseOrderLine = pgTable('bar_purchase_order_line', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_purchase_order_line_order_idx').on(t.orderId),
+])
+
+// A supplier invoice read from a photo or PDF (restaurant-bar parity #7, bar_invoice_scan). The lines are the READING and the
+// person's corrections to it; nothing here touches a count or a cost until a person confirms, and confirming makes the one
+// received purchase order (order_id) that does. status: review | confirmed | discarded.
+export const barInvoiceScan = pgTable('bar_invoice_scan', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('review').notNull(),
+  vendorId: text('vendor_id').references(() => barVendor.id, { onDelete: 'set null' }),
+  supplierName: text('supplier_name'),            // as printed on the invoice
+  invoiceNumber: text('invoice_number'),
+  invoiceDate: text('invoice_date'),              // YYYY-MM-DD as printed (not a moment)
+  totalCents: integer('total_cents'),             // the invoice's own total, as read
+  lines: json('lines').default([]).notNull(),     // review lines: what was printed, the match to a stock item, quantity and price per pack
+  notes: text('notes'),                           // what the reader said it could not make out
+  fileKey: text('file_key'),
+  fileType: text('file_type'),
+  fileName: text('file_name'),
+  reader: text('reader'),
+  orderId: text('order_id').references(() => barPurchaseOrder.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name'),
+  confirmedByName: text('confirmed_by_name'),
+  confirmedAt: timestamp('confirmed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_invoice_scan_company_idx').on(t.companyId, t.createdAt),
 ])
 
 // What goes into one of a menu item, per size (null = every size). qty is in the stock item's unit.
@@ -445,7 +484,7 @@ export const barTerminalCharge = pgTable('bar_terminal_charge', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   checkId: text('check_id').references(() => barCheck.id, { onDelete: 'set null' }),
   orderId: text('order_id'),                            // a kiosk order paid before it becomes a check
-  readerId: text('reader_id').notNull(),                // bar_reader.id
+  readerId: text('reader_id'),                          // bar_reader.id; null for a hold taken by Tap to Pay on the phone (parity row 14)
   stripeAccount: text('stripe_account'),
   paymentIntentId: text('payment_intent_id').notNull(),
   amountCents: integer('amount_cents').notNull(),       // toward the check; a tip the reader asks for is on top
@@ -582,6 +621,9 @@ export const barStockItem = pgTable('bar_stock_item', {
   packCostCents: integer('pack_cost_cents'),              // last price paid (set when an order is received)
   vendorId: text('vendor_id').references(() => barVendor.id, { onDelete: 'set null' }),
   parPacks: decimal('par_packs', { precision: 10, scale: 2 }),   // keep at least this many packs
+  /** Weighing a bottle on a scale (parity row 15, Backbar): the empty bottle's weight and a full one's, in grams; null = not weighed. */
+  bottleTareGrams: integer('bottle_tare_grams'),
+  bottleFullGrams: integer('bottle_full_grams'),
   isActive: boolean('is_active').default(true).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -659,6 +701,9 @@ export const barShiftRequest = pgTable('bar_shift_request', {
   kind: text('kind').notNull(),                  // give | swap
   shiftId: text('shift_id').notNull().references(() => barScheduleShift.id, { onDelete: 'cascade' }),
   withShiftId: text('with_shift_id').references(() => barScheduleShift.id, { onDelete: 'cascade' }),  // swap: the shift offered back
+  /** The shift as it was when asked (who, day, times): a republished schedule that changed it cancels the request (barStaffRequests.ts). */
+  shiftStamp: text('shift_stamp'),
+  withStamp: text('with_stamp'),
   fromUserId: text('from_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   toUserId: text('to_user_id').references(() => user.id, { onDelete: 'cascade' }),   // give: whoever claimed it; swap: who it is offered to
   status: text('status').default('open').notNull(), // open | offered | pending | approved | denied | declined | cancelled
@@ -670,6 +715,99 @@ export const barShiftRequest = pgTable('bar_shift_request', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_shift_request_company_idx').on(t.companyId, t.status),
+])
+
+// One-day availability beside the weekly pattern (restaurant-bar parity #10, crm/bar/barStaffRequests.ts): for that calendar day
+// the entry REPLACES the weekly windows. mode: off = cannot work, free = any time, between = only start..end. A person's
+// entry waits ('pending') for a manager like the weekly one; a manager's own is approved at once.
+export const barAvailabilityDate = pgTable('bar_availability_date', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),                    // local date YYYY-MM-DD, the company's clock
+  mode: text('mode').notNull(),                  // off | free | between
+  startTime: text('start_time'),                 // HH:MM, between only
+  endTime: text('end_time'),                     // HH:MM, between only
+  note: text('note'),
+  status: text('status').default('pending').notNull(), // approved | pending
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  decidedByName: text('decided_by_name'),
+  decidedAt: timestamp('decided_at'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_availability_date_key').on(t.companyId, t.userId, t.day, t.status),
+  index('bar_availability_date_day_idx').on(t.companyId, t.day),
+])
+
+// Cash tips a person declares at clock-out (restaurant-bar parity #16, crm/bar/barTips.ts): the day's total, in cents, kept
+// per person per business day. A manager corrects it (the first figure is kept). It joins the tip pool and the payroll export;
+// cash tips rung on OUR register are already on the checks and are not declared again.
+export const barDeclaredTip = pgTable('bar_declared_tip', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  businessDay: text('business_day').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  originalCents: integer('original_cents').notNull(),       // what the person first declared
+  declaredVia: text('declared_via').default('web').notNull(), // phone | tablet | web | manager
+  note: text('note'),
+  correctedByName: text('corrected_by_name'),
+  correctedAt: timestamp('corrected_at'),
+  declaredAt: timestamp('declared_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_declared_tip_day_user_key').on(t.companyId, t.businessDay, t.userId),
+])
+
+// A register that is not ours, connected for its tips (restaurant-bar parity #17, crm/bar/barTipSources.ts): Toast or Square,
+// the venue's own account. credentials_enc is AES-256-GCM (core/crypto.ts) and never leaves the server.
+export const barTipSource = pgTable('bar_tip_source', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').notNull(),          // toast | square
+  label: text('label'),                          // what the owner calls it ("Main street Toast")
+  externalAccountId: text('external_account_id'), // Toast: the restaurant GUID; Square: the merchant id
+  locationId: text('location_id'),               // Square: the location whose payments are read
+  credentialsEnc: text('credentials_enc').notNull(),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  status: text('status').default('connected').notNull(), // connected | needs_attention
+  lastError: text('last_error'),
+  lastImportAt: timestamp('last_import_at'),
+  connectedByName: text('connected_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_tip_source_provider_key').on(t.companyId, t.provider),
+])
+
+// One payment's tip as the other register reported it. Unique per payment, so importing the same day twice changes nothing.
+export const barTipImport = pgTable('bar_tip_import', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourceId: text('source_id').notNull().references(() => barTipSource.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  externalId: text('external_id').notNull(),     // the payment's id at the provider
+  businessDay: text('business_day').notNull(),   // the company's clock
+  externalStaffId: text('external_staff_id'),    // who took the payment at the provider (null = nobody named)
+  tipCents: integer('tip_cents').notNull(),
+  paidAt: timestamp('paid_at').notNull(),
+  importedAt: timestamp('imported_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_tip_import_payment_key').on(t.companyId, t.provider, t.externalId),
+  index('bar_tip_import_day_idx').on(t.companyId, t.businessDay),
+])
+
+// Which of our people a provider's staff member is (matched by email, or set by hand).
+export const barTipStaffMap = pgTable('bar_tip_staff_map', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourceId: text('source_id').notNull().references(() => barTipSource.id, { onDelete: 'cascade' }),
+  externalStaffId: text('external_staff_id').notNull(),
+  externalName: text('external_name'),
+  externalEmail: text('external_email'),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  matchedBy: text('matched_by'),                 // email | manual
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_tip_staff_map_key').on(t.sourceId, t.externalStaffId),
 ])
 
 // STOCK AND COSTING (services/barStock.ts, the pure arithmetic in barCosting.ts). Stock is bought by the pack (a

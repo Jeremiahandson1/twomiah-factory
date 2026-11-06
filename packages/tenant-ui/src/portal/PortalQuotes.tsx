@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { FileText, CheckCircle, XCircle, Clock, Download, PenTool } from 'lucide-react'
 import { usePortal } from './PortalContext'
-import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
+import { SignatureModal, SignatureDisplay, InitialsBox, type SignatureData } from './SignaturePad'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
 import { codeLabel } from '../labels/codes'
 import { SectionedRows } from '../invoicing/sections'
@@ -15,61 +15,132 @@ export interface PortalQuoteData {
   id: string; number: string; name?: string | null; status: string; total: string | number; subtotal?: string | number
   taxAmount?: string | number; taxRate?: string | number; discount?: string | number; terms?: string | null
   expiryDate?: string | null; approvedAt?: string | null; signature?: string | null; signedBy?: string | null; approvedBy?: string | null
-  lineItems?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; optional?: boolean; selected?: boolean; section?: string | null; allowance?: boolean }>
+  lineItems?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; optional?: boolean; selected?: boolean; section?: string | null; allowance?: boolean; imageUrl?: string | null }>
   /** The deposit asked on approval, and — once approved — its invoice (tenant-backend portal.ts customerQuote). */
   depositAmount?: string
   deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
-  /** A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote. */
-  proposal?: { chosenOptionId: string | null; needsChoice: boolean; options: ProposalOption[] }
+  /**
+   * A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote.
+   * `sets` groups them: a set they pick one of, or an additive set they add any of. `options` is every option, flat.
+   */
+  proposal?: { chosenOptionId: string | null; chosenOptionIds?: string[]; needsChoice: boolean; options: ProposalOption[]; sets?: ProposalSet[]; lowest?: { total: string } }
+  /** The pages around the options (tenant-backend invoicing/quoteDocument.ts): cover, About Us, sections, terms to initial, cosigner. */
+  document?: ProposalDocument
   project?: { name: string; number?: string } | null
   [key: string]: unknown
+}
+
+export interface ProposalDocument {
+  coverTitle?: string | null; coverSubtitle?: string | null; coverPhoto?: string | null; aboutUs?: string | null
+  sections?: Array<{ id: string; title: string; body: string; placement: 'top' | 'before_options' | 'after_options' | 'before_terms' }>
+  termsClauses?: Array<{ id: string; text: string; initials: string | null }>
+  attachments?: Array<{ name: string; url: string }>
+  cosigner?: { name: string; role: string | null; status: 'waiting_for_customer' | 'waiting' | 'signed' | null } | null
+}
+
+/** A block of the roofer's own words placed in line (a section), shown as the proposal's pages. */
+export function ProposalSections({ document: doc, placement }: { document?: ProposalDocument; placement: 'top' | 'before_options' | 'after_options' | 'before_terms' }) {
+  const list = (doc?.sections || []).filter((x) => x.placement === placement)
+  if (!list.length) return null
+  return <>{list.map((sec) => <div key={sec.id} className="p-6 border-b dark:border-slate-700" data-testid="proposal-section"><h3 className="font-semibold text-gray-900 dark:text-slate-100">{sec.title}</h3><p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{sec.body}</p></div>)}</>
+}
+
+/** Files attached to the proposal or to one option: a link each, opened in a new tab. */
+export function AttachmentLinks({ items, title }: { items?: Array<{ name: string; url: string }>; title: string }) {
+  if (!items || !items.length) return null
+  return <div className="mt-2" data-testid="attachments"><p className="text-xs font-medium text-gray-700 dark:text-slate-300">{title}</p><ul className="text-sm">{items.map((a) => <li key={a.url}><a href={a.url} target="_blank" rel="noreferrer" className="text-orange-700 underline dark:text-orange-200">{a.name}</a></li>)}</ul></div>
 }
 
 export interface ProposalOption {
   id: string; name: string; tier?: string | null; brand?: string | null; warranty?: string | null; description?: string | null
   photos?: string[]; recommended?: boolean; chosen?: boolean; price: string
+  /** Files for this option (a manufacturer's brochure). */
+  attachments?: Array<{ name: string; url: string }>
+  /** What taking this option adds to the price, tax in — what an add-on shows. */
+  addPrice?: string
+  setIndex?: number; setName?: string; setKind?: 'one' | 'any'
   /** The deposit asked on approval if this option is chosen ('0.00' when the quote asks none). */
   deposit?: string
+  /** What this option's own discount takes off ('0.00' when none). */
+  discount?: string
   lines?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number }>
+  /** Add-ons that belong to this option alone: offered once it is chosen, ticked one by one. */
+  upgrades?: Array<{ id?: string; description: string; quantity: string | number; unitPrice: string | number; total: string | number; selected?: boolean }>
+}
+export interface ProposalSet { index: number; name: string; kind: 'one' | 'any'; options: ProposalOption[]; chosenOptionIds: string[]; needsChoice: boolean }
+
+/** The sets as answered; a quote answered before sets existed (options only) is one pick-one set. */
+const setsOf = (proposal: NonNullable<PortalQuoteData['proposal']>): ProposalSet[] => {
+  if (proposal.sets && proposal.sets.length) return proposal.sets
+  const options = proposal.options || []
+  return [{ index: 0, name: 'Options', kind: 'one', options, chosenOptionIds: options.filter((o) => o.chosen).map((o) => o.id), needsChoice: !options.some((o) => o.chosen) }]
 }
 
-/** The options of a quote, side by side: photos, brand, warranty, what is in each, the whole job's price — and the choice. */
-function ProposalOptions({ proposal, canRespond, busy, onChoose }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string) => void }) {
-  const options = proposal.options
+/**
+ * The options of a quote, set by set, side by side: photos, brand, warranty, what is in each, the whole job's price (an
+ * add-on: what it adds) — and the choice: one of a set, or any number of an additive set.
+ */
+function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string, chosen: boolean) => void; onUpgrade: (lineItemId: string, selected: boolean) => void }) {
+  const sets = setsOf(proposal)
+  const many = sets.length > 1
   return (
-    <div className="p-6 border-b dark:border-slate-700" data-testid="quote-options">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{canRespond ? 'Choose your option' : 'Your option'}</h2>
-      {canRespond && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Each price is for the whole job. Pick the one you want, then sign.</p>}
-      <div className={`grid gap-4 ${options.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-        {options.map((op) => {
-          const shown = canRespond || op.chosen
-          if (!shown) return null
-          return (
-            <div key={op.id} data-testid="quote-option" aria-current={op.chosen ? 'true' : undefined}
-              className={`relative flex flex-col rounded-xl border p-4 ${op.chosen ? 'border-green-600 ring-2 ring-green-200 dark:ring-green-900/50' : 'border-gray-200 dark:border-slate-700'} bg-white dark:bg-slate-900`}>
-              {op.recommended && <span className="absolute -top-3 left-4 rounded-full bg-orange-600 px-3 py-0.5 text-xs font-semibold text-white">Recommended</span>}
-              {op.photos && op.photos.length > 0 && (
-                <div className="mb-3">
-                  <img src={op.photos[0]} alt={`${op.name}`} loading="lazy" className="h-40 w-full rounded-lg object-cover bg-gray-100 dark:bg-slate-800" />
-                  {op.photos.length > 1 && <div className="mt-1 flex gap-1">{op.photos.slice(1, 4).map((src, i) => <img key={i} src={src} alt={`${op.name}, photo ${i + 2}`} loading="lazy" className="h-12 w-1/3 rounded object-cover bg-gray-100 dark:bg-slate-800" />)}</div>}
+    <div className="p-6 border-b dark:border-slate-700 space-y-6" data-testid="quote-options">
+      {sets.map((s) => {
+        const additive = s.kind === 'any'
+        const options = s.options.filter((op) => canRespond || op.chosen)
+        if (!options.length) return null
+        return (
+          <div key={s.index} data-testid="quote-option-set" data-kind={s.kind}>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{many || additive ? s.name : canRespond ? 'Choose your option' : 'Your option'}</h2>
+            {canRespond && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{additive ? 'Add any of these you want — or none. Each price is what it adds.' : many ? 'Pick one. Each price is for the whole job with this option and what you have chosen elsewhere.' : 'Each price is for the whole job. Pick the one you want, then sign.'}</p>}
+            {!canRespond && additive && <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">The add-ons you took.</p>}
+            <div className={`grid gap-4 ${options.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+              {options.map((op) => (
+                <div key={op.id} data-testid="quote-option" aria-current={op.chosen ? 'true' : undefined}
+                  className={`relative flex flex-col rounded-xl border p-4 ${op.chosen ? 'border-green-600 ring-2 ring-green-200 dark:ring-green-900/50' : 'border-gray-200 dark:border-slate-700'} bg-white dark:bg-slate-900`}>
+                  {op.recommended && <span className="absolute -top-3 left-4 rounded-full bg-orange-600 px-3 py-0.5 text-xs font-semibold text-white">Recommended</span>}
+                  {op.photos && op.photos.length > 0 && (
+                    <div className="mb-3">
+                      <img src={op.photos[0]} alt={`${op.name}`} loading="lazy" className="h-40 w-full rounded-lg object-cover bg-gray-100 dark:bg-slate-800" />
+                      {op.photos.length > 1 && <div className="mt-1 flex gap-1">{op.photos.slice(1, 4).map((src, i) => <img key={i} src={src} alt={`${op.name}, photo ${i + 2}`} loading="lazy" className="h-12 w-1/3 rounded object-cover bg-gray-100 dark:bg-slate-800" />)}</div>}
+                    </div>
+                  )}
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{op.name}</h3>
+                  {op.brand && <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{op.brand}</p>}
+                  {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
+                  {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
+                  <AttachmentLinks items={op.attachments} title="Brochures and files" />
+                  {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
+                  {Number(op.discount || 0) > 0 && <p className="mt-2 text-sm font-medium text-green-800 dark:text-green-300" data-testid="option-discount">Includes a {moneyShort(op.discount)} discount</p>}
+                  {/* The customer chooses the option first; its upgrades are offered after that, and are ticked one by one. */}
+                  {op.upgrades && op.upgrades.length > 0 && (
+                    <div className="mt-3 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60" data-testid="option-upgrades">
+                      <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Upgrades for {op.name}</p>
+                      {op.chosen && canRespond
+                        ? <ul className="mt-1 space-y-1">{op.upgrades.map((u, i) => <li key={u.id || i}><label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="checkbox" className="mt-1" checked={!!u.selected} disabled={busy || !u.id} onChange={(e) => u.id && onUpgrade(u.id, e.target.checked)} aria-label={`Add ${u.description}`} /><span className="flex-1">{u.description}</span><span>{moneyShort(u.total)}</span></label></li>)}</ul>
+                        : op.chosen
+                          ? <ul className="mt-1 text-sm text-gray-800 dark:text-slate-200">{op.upgrades.filter((u) => u.selected).map((u, i) => <li key={u.id || i} className="flex justify-between"><span>{u.description}</span><span>{moneyShort(u.total)}</span></li>)}</ul>
+                          : <>
+                            <ul className="mt-1 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.upgrades.map((u, i) => <li key={u.id || i}>{u.description} ({moneyShort(u.total)})</li>)}</ul>
+                            <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">Choose this option first; you pick its upgrades after.</p>
+                          </>}
+                    </div>
+                  )}
+                  <div className="mt-auto pt-4">
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{additive ? `+ ${moneyShort(op.addPrice ?? op.price)}` : moneyShort(op.price)}</p>
+                    {!additive && Number(op.deposit || 0) > 0 && <p className="text-sm text-gray-600 dark:text-slate-400">Deposit on approval: {moneyShort(op.deposit)}</p>}
+                    {canRespond
+                      ? <button type="button" disabled={busy} onClick={() => onChoose(op.id, additive ? !op.chosen : true)} aria-pressed={!!op.chosen} className={op.chosen ? `${btnSuccess} mt-2 w-full justify-center` : `${btnSecondary} mt-2 w-full justify-center`}>
+                          {op.chosen ? <><CheckCircle className="w-4 h-4" /> {additive ? 'Added — tap to remove' : 'Your choice'}</> : additive ? 'Add this' : 'Choose this option'}
+                        </button>
+                      : <p className="mt-1 text-sm font-medium text-green-800 dark:text-green-300">{additive ? 'You added this' : 'You chose this option'}</p>}
+                  </div>
                 </div>
-              )}
-              <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{op.name}</h3>
-              {op.brand && <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{op.brand}</p>}
-              {op.warranty && <p className="mt-1 text-sm text-gray-700 dark:text-slate-300"><span className="font-medium">Warranty:</span> {op.warranty}</p>}
-              {op.description && <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{op.description}</p>}
-              {op.lines && op.lines.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 dark:text-slate-300">{op.lines.map((l, i) => <li key={l.id || i}>{l.description}</li>)}</ul>}
-              <div className="mt-auto pt-4">
-                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{moneyShort(op.price)}</p>
-                {Number(op.deposit || 0) > 0 && <p className="text-sm text-gray-600 dark:text-slate-400">Deposit on approval: {moneyShort(op.deposit)}</p>}
-                {canRespond
-                  ? <button type="button" disabled={busy} onClick={() => onChoose(op.id)} aria-pressed={!!op.chosen} className={op.chosen ? `${btnSuccess} mt-2 w-full justify-center` : `${btnSecondary} mt-2 w-full justify-center`}>{op.chosen ? <><CheckCircle className="w-4 h-4" /> Your choice</> : 'Choose this option'}</button>
-                  : <p className="mt-1 text-sm font-medium text-green-800 dark:text-green-300">You chose this option</p>}
-              </div>
+              ))}
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -131,6 +202,9 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   const [showSign, setShowSign] = useState(false)
   const [showDecline, setShowDecline] = useState(false)
   const [reason, setReason] = useState('')
+  // The initials typed for each term of the proposal, and the terms the server named as missing.
+  const [initials, setInitials] = useState<Record<string, string>>({})
+  const [initialErrors, setInitialErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     portalFetch(`/quotes/${quoteId}`).then(setQuote).catch((e) => setError((e as Error).message)).finally(() => setLoading(false))
@@ -139,9 +213,13 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   const approve = async (sig: SignatureData) => {
     setBusy(true); setShowSign(false); setError('')
     try {
-      const res = await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: sig.signature, signedBy: sig.signedBy, consent: sig.consent }) })
+      const res = await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: sig.signature, signedBy: sig.signedBy, consent: sig.consent, ...(clauses.length ? { initials } : {}) }) })
+      // Signed, and a cosigner still to sign: the quote is not approved yet — read it again, it says who is awaited.
+      if (res?.awaitingCosigner) { setQuote(await portalFetch(`/quotes/${quoteId}`)); return }
       setQuote((q) => ({ ...(q as PortalQuoteData), ...(res?.quote || { status: 'approved', signature: sig.signature, signedBy: sig.signedBy, approvedAt: sig.signedAt }), ...(res?.deposit !== undefined ? { deposit: res.deposit } : {}) }))
-    } catch (e) { setError('Failed to approve quote: ' + (e as Error).message) } finally { setBusy(false) }
+    } catch (e) {
+      setError('Failed to approve quote: ' + (e as Error).message)
+    } finally { setBusy(false) }
   }
   // Tick or untick an optional line before approving: the server works the total out again and answers the quote.
   const choose = async (lineItemId: string, selected: boolean) => {
@@ -149,11 +227,17 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
     try { const res = await portalFetch(`/quotes/${quoteId}/options`, { method: 'POST', body: JSON.stringify({ lineItemId, selected }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
     catch (e) { setError('Could not change that line: ' + (e as Error).message) } finally { setBusy(false) }
   }
-  // Choose one of the quote's options before signing: the server answers the quote with its total for that option.
-  const chooseOption = async (optionId: string) => {
+  // Pick one of a set's options (or add / remove an add-on) before signing: the server answers the quote with its total for every pick.
+  const chooseOption = async (optionId: string, chosen = true) => {
     setBusy(true); setError('')
-    try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ optionId }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
+    try { const res = await portalFetch(`/quotes/${quoteId}/choose-option`, { method: 'POST', body: JSON.stringify({ optionId, chosen }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
     catch (e) { setError('Could not choose that option: ' + (e as Error).message) } finally { setBusy(false) }
+  }
+  // Tick or untick an upgrade of the option already chosen: the server answers the quote with its new total.
+  const chooseUpgrade = async (lineItemId: string, selected: boolean) => {
+    setBusy(true); setError('')
+    try { const res = await portalFetch(`/quotes/${quoteId}/choose-upgrade`, { method: 'POST', body: JSON.stringify({ lineItemId, selected }) }); setQuote((q) => ({ ...(q as PortalQuoteData), ...res })) }
+    catch (e) { setError('Could not change that upgrade: ' + (e as Error).message) } finally { setBusy(false) }
   }
   const decline = async () => {
     setBusy(true); setError('')
@@ -163,7 +247,12 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
 
   if (loading) return <Spinner />
   if (!quote) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">{error || 'Quote not found.'}</div>
-  const canRespond = RESPONDABLE.includes(quote.status)
+  const document = quote.document
+  const clauses = document?.termsClauses || []
+  // Signed by the customer, with a cosigner still to sign: nothing more to change or sign here.
+  const waitingOnCosigner = document?.cosigner?.status === 'waiting'
+  const canRespond = RESPONDABLE.includes(quote.status) && !waitingOnCosigner
+  const missingInitials = canRespond && clauses.some((cl) => !(initials[cl.id] || '').trim())
   const business = (quote.company as { name?: string | null } | undefined)?.name || 'us'
   const hasOptional = (quote.lineItems || []).some((li) => li.optional)
   const proposal = quote.proposal
@@ -185,16 +274,26 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
           </div>
           {quote.expiryDate && <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">Valid until {formatDate(quote.expiryDate)}</p>}
         </div>
-        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} />}
+        {document && (document.coverTitle || document.coverSubtitle || document.coverPhoto) && (
+          <div className="border-b dark:border-slate-700" data-testid="proposal-cover">
+            {document.coverPhoto && <img src={document.coverPhoto} alt="" className="h-56 w-full object-cover bg-gray-100 dark:bg-slate-800" />}
+            <div className="p-6 text-center">{document.coverTitle && <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">{document.coverTitle}</h2>}{document.coverSubtitle && <p className="mt-1 text-gray-600 dark:text-slate-400">{document.coverSubtitle}</p>}</div>
+          </div>
+        )}
+        {document?.aboutUs && <div className="p-6 border-b dark:border-slate-700" data-testid="proposal-about"><h3 className="font-semibold text-gray-900 dark:text-slate-100">About {business}</h3><p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{document.aboutUs}</p></div>}
+        <ProposalSections document={document} placement="top" />
+        <ProposalSections document={document} placement="before_options" />
+        {proposal && <ProposalOptions proposal={proposal} canRespond={canRespond} busy={busy} onChoose={chooseOption} onUpgrade={chooseUpgrade} />}
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           {proposal && quote.lineItems && quote.lineItems.length > 0 && <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">{canRespond ? 'Included with every option' : 'Included'}</h3>}
           <table className="w-full">
             <thead><tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400 dark:border-slate-700"><th className="pb-2">Description</th><th className="pb-2 text-right">Qty</th><th className="pb-2 text-right">Price</th><th className="pb-2 text-right">Total</th></tr></thead>
-            <tbody><SectionedRows lines={quote.lineItems || []} colSpan={4} pad="py-2" row={(item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 whitespace-pre-line dark:text-slate-100">{item.allowance && <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Allowance</span>}{item.optional && canRespond && item.id
+            <tbody><SectionedRows lines={quote.lineItems || []} colSpan={4} pad="py-2" row={(item, i) => <tr key={i} className="border-b last:border-0 dark:border-slate-800"><td className="py-3 text-gray-900 whitespace-pre-line dark:text-slate-100">{item.imageUrl && <img src={item.imageUrl} alt="" className="mb-1 h-20 w-20 rounded object-cover" data-testid="line-picture" />}{item.allowance && <span className="mr-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Allowance</span>}{item.optional && canRespond && item.id
               ? <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!item.selected} disabled={busy} onChange={(e) => choose(item.id!, e.target.checked)} aria-label={`Add ${item.description}`} /><span>{item.description} <span className="text-xs text-gray-600 dark:text-slate-400">(optional)</span></span></label>
               : <>{item.description}{item.optional && <span className="text-xs text-gray-600 dark:text-slate-400">{` (optional${item.selected ? ', included' : ', not included'})`}</span>}</>}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{item.quantity}</td><td className="py-3 text-right text-gray-900 dark:text-slate-100">{moneyShort(item.unitPrice)}</td><td className="py-3 text-right font-medium text-gray-900 dark:text-slate-100">{moneyShort(item.total)}</td></tr>} /></tbody>
           </table>
         </div>
+        <ProposalSections document={document} placement="after_options" />
         <div className="p-6 bg-gray-50 dark:bg-slate-800/60">
           <div className="max-w-xs ml-auto space-y-2 text-gray-900 dark:text-slate-100">
             <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Subtotal</span><span>{moneyShort(quote.subtotal)}</span></div>
@@ -207,12 +306,37 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
             {Number(quote.depositAmount || 0) > 0 && <div className="flex justify-between text-sm" data-testid="quote-deposit"><span className="text-gray-600 dark:text-slate-400">{canRespond ? 'Deposit due on approval' : 'Deposit'}</span><span>{moneyShort(quote.depositAmount)}</span></div>}
           </div>
         </div>
-        {quote.terms && <div className="p-6 border-t dark:border-slate-700"><h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3><p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p></div>}
+        <ProposalSections document={document} placement="before_terms" />
+        {document && <AttachmentLinks items={document.attachments} title="Files with this proposal" />}
+        {(quote.terms || clauses.length > 0) && (
+          <div className="p-6 border-t dark:border-slate-700" data-testid="quote-terms">
+            <h3 className="font-medium text-gray-900 mb-1 dark:text-slate-100">Terms</h3>
+            {quote.terms && <p className="text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{quote.terms}</p>}
+            {clauses.length > 0 && (
+              <ol className="mt-3 space-y-3" data-testid="quote-clauses">
+                {clauses.map((cl, i) => (
+                  <li key={cl.id} className="flex items-start gap-3">
+                    <span className="flex-1 text-sm text-gray-800 dark:text-slate-200">{i + 1}. {cl.text}</span>
+                    {canRespond
+                      ? <InitialsBox value={initials[cl.id] || ''} onChange={(v) => { setInitials((m) => ({ ...m, [cl.id]: v })); setInitialErrors((m) => ({ ...m, [cl.id]: '' })) }} label={`Your initials for term ${i + 1}`} error={initialErrors[cl.id]} />
+                      : cl.initials ? <span className="rounded-lg border-2 border-green-600 px-3 py-1 text-sm font-semibold tracking-wider text-gray-900 dark:text-slate-100" aria-label={`Initialed ${cl.initials}`}>{cl.initials}</span> : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+        {waitingOnCosigner && document?.cosigner && (
+          <div className="p-6 border-t bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100 dark:border-slate-700" data-testid="awaiting-cosigner">
+            <p className="font-medium">You have signed. Waiting for {document.cosigner.name}{document.cosigner.role ? ` (${document.cosigner.role})` : ''} to sign.</p>
+            <p className="mt-1 text-sm">We sent them their own link. This is approved when they have signed too; until then it cannot be changed.</p>
+          </div>
+        )}
         {canRespond && (
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
-            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{mustChoose ? 'Choose one of the options above, then sign to approve.' : 'Please review this quote and provide your signature to approve.'}</p>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{mustChoose ? 'Choose one of the options above, then sign to approve.' : clauses.length ? 'Please review this quote, initial each term and provide your signature to approve.' : document?.cosigner ? `Please review this quote and sign to approve. ${document.cosigner.name} signs after you.` : 'Please review this quote and provide your signature to approve.'}</p>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => setShowSign(true)} disabled={busy || mustChoose} title={mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
+              <button onClick={() => { if (missingInitials) { setError(`Initial ${clauses.length === 1 ? 'the term' : `each of the ${clauses.length} terms`} above before you sign.`); setInitialErrors(Object.fromEntries(clauses.filter((cl) => !(initials[cl.id] || '').trim()).map((cl) => [cl.id, 'Initial this term.']))); return } setError(''); setShowSign(true) }} disabled={busy || mustChoose} title={mustChoose ? 'Choose an option first' : undefined} className={btnSuccess}><PenTool className="w-4 h-4" /> Sign & Approve</button>
               <button onClick={() => setShowDecline(true)} disabled={busy} className={btnSecondary}><XCircle className="w-4 h-4" /> Decline</button>
             </div>
           </div>

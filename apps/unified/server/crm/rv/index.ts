@@ -58,7 +58,9 @@ export function rvMounts(d: CrmDeps): Mount[] {
     { path: '/api/recalls', access: 'user', feature: 'recall_lookup', router: createRecallRoutes(d) },
     { path: '/api/syndication', access: 'user', feature: 'inventory_syndication', router: createSyndicationRoutes(d) },
     { path: '/api/valuation', access: 'user', feature: DEALERSHIP, router: createValuationRoutes(d) },
-    { path: '/api/schedule-events', access: 'user', feature: DEALERSHIP, router: createScheduleEventRoutes(d) },
+    // The calendar's appointments. Also the general contractor's, once Site Visits (lead_site_visit, not ready) is on: a visit booked
+    // from an enquiry is one of these entries (crm/leads/leadSiteVisit.ts). A path can be mounted once, so the one mount names both.
+    { path: '/api/schedule-events', access: 'user', feature: [...DEALERSHIP, 'lead_site_visit'], router: createScheduleEventRoutes(d) },
     // The marketplaces pull the feed by token; switched off, it is not there (404).
     { path: '/api/public/feed', access: 'public', feature: 'inventory_syndication', router: createPublicFeedRoutes(d) },
     // The Factory's website→CRM inventory copy.

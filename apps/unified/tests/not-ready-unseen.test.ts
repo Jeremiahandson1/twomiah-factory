@@ -61,10 +61,14 @@ describe('the registry', () => {
 describe('the Factory', () => {
   // The composer's three files are held by their output below (see the header).
   const PROMPTS = ['sectionComposer.ts', 'composerFacts.ts', 'contentGenerator.ts']
+  // Twomiah STAFF's own tool for a not-ready feature, never shown to a business: home care's assisted migration, run by staff
+  // from the Factory dashboard (apps/platform MigrationPage.tsx) through its API (apps/api src/unified/migration.ts). Nothing
+  // a business, its customers or a signup reads; held out here by path, as the prompts are (11/05 integration).
+  const STAFF_TOOLS = [['apps', 'platform', 'src', 'pages', 'MigrationPage.tsx'], ['apps', 'api', 'src', 'unified', 'migration.ts']].map((p) => join(ROOT, ...p))
   test('no wizard screen, price list, signup or email copy names a not-ready feature', () => {
     const found: string[] = []
     for (const f of [...files(join(ROOT, 'apps/platform/src'), /\.tsx?$/), ...files(join(ROOT, 'apps/api/src'), /\.ts$/)]) {
-      if (/[\\/]config[\\/]featureRegistry\.ts$/.test(f) || PROMPTS.some((p) => f.endsWith(p))) continue
+      if (/[\\/]config[\\/]featureRegistry\.ts$/.test(f) || PROMPTS.some((p) => f.endsWith(p)) || STAFF_TOOLS.includes(f)) continue
       const m = mentions(code(readFileSync(f, 'utf8')))
       if (m.length) found.push(`${f.slice(ROOT.length + 1)}: ${m.join('; ')}`)
     }

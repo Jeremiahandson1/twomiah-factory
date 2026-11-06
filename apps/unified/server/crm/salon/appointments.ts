@@ -15,6 +15,7 @@ import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord
 import { processingProblem, piecesOf, touch, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
 import { findBlock } from './bookBlocks.ts'
+import { carryToBooking } from './onlineBooking.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -30,7 +31,7 @@ import type { SalonServices } from './services.ts'
 import { calendarDayWords } from '../../core/dayWords.ts'
 import { OWN_BOOK_SETTING, inOwnChair, isOwnChair, ownBookOnlyFrom } from './bookScope.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from './visitPhotos.ts'
-import { ONLINE_STYLIST_PICK, stylistPickOn, PATCH_TEST_RULE, PATCH_TEST_SERVICE, offeredServiceId, settingsOf, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
+import { ONLINE_STYLIST_PICK, ONLINE_STYLIST_REQUIRED, stylistPickOn, stylistRequiredOn, PATCH_TEST_RULE, PATCH_TEST_SERVICE, offeredServiceId, settingsOf, ruleOn, ruleOnFor, patchTestHold, stateFor } from './patchTest.ts'
 
 const CANCELLED = ['cancelled', 'no_show']
 const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
@@ -134,17 +135,25 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
   // changed by whoever changes the company.
   app.get('/online-stylist-pick', requirePermission('contacts:read'), async (c) => {
     const u = c.get('user') as any
-    return one(c, { [ONLINE_STYLIST_PICK]: stylistPickOn(await settingsOf(db, u.companyId)) })
+    const settings = await settingsOf(db, u.companyId)
+    return one(c, { [ONLINE_STYLIST_PICK]: stylistPickOn(settings), [ONLINE_STYLIST_REQUIRED]: stylistRequiredOn(settings) })
   })
+  // { onlineStylistPick?: boolean, onlineStylistPickRequired?: boolean } — "required" means the client must choose a named stylist ("anyone" is not
+  // offered); it needs the pick on, so turning it on turns the pick on and turning the pick off turns it off.
   app.put('/online-stylist-pick', requirePermission('company:update'), async (c) => {
     const u = c.get('user') as any
     const body = (await c.req.json().catch(() => null)) ?? ({} as any)
-    if (typeof body[ONLINE_STYLIST_PICK] !== 'boolean') return fail(c, 400, 'Say whether clients choose their stylist online: on or off.', 'BAD_SETTING', { [ONLINE_STYLIST_PICK]: 'On or off.' })
+    const hasPick = typeof body[ONLINE_STYLIST_PICK] === 'boolean', hasReq = typeof body[ONLINE_STYLIST_REQUIRED] === 'boolean'
+    if (!hasPick && !hasReq) return fail(c, 400, 'Say whether clients choose their stylist online: on or off, and whether they must.', 'BAD_SETTING', { [ONLINE_STYLIST_PICK]: 'On or off.' })
     const settings: any = await settingsOf(db, u.companyId)
-    const before = stylistPickOn(settings)
-    await db.update(company).set({ settings: { ...settings, [ONLINE_STYLIST_PICK]: body[ONLINE_STYLIST_PICK] }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
-    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [ONLINE_STYLIST_PICK]: { before, after: body[ONLINE_STYLIST_PICK] } }, req: { user: u } })
-    return one(c, { [ONLINE_STYLIST_PICK]: body[ONLINE_STYLIST_PICK] })
+    const before = { [ONLINE_STYLIST_PICK]: stylistPickOn(settings), [ONLINE_STYLIST_REQUIRED]: stylistRequiredOn(settings) }
+    let pick = hasPick ? body[ONLINE_STYLIST_PICK] : before[ONLINE_STYLIST_PICK]
+    let required = hasReq ? body[ONLINE_STYLIST_REQUIRED] : (settings?.[ONLINE_STYLIST_REQUIRED] === true)
+    if (hasReq && required) pick = true
+    if (!pick) required = false
+    await db.update(company).set({ settings: { ...settings, [ONLINE_STYLIST_PICK]: pick, [ONLINE_STYLIST_REQUIRED]: required }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    await audit.log({ action: 'update', entity: 'company', entityId: u.companyId, metadata: { [ONLINE_STYLIST_PICK]: { before: before[ONLINE_STYLIST_PICK], after: pick }, [ONLINE_STYLIST_REQUIRED]: { before: before[ONLINE_STYLIST_REQUIRED], after: required } }, req: { user: u } })
+    return one(c, { [ONLINE_STYLIST_PICK]: pick, [ONLINE_STYLIST_REQUIRED]: required })
   })
 
   /** The service, if it is on THIS salon's menu — an unknown id is named, not a foreign-key 409. (Salon T27 N17) */
@@ -254,6 +263,19 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (await findStylistConflict(exec, companyId, it.stylist, s, e, ignoreId, it.proc)) return 'That stylist is already booked at this time'
     }
     return null
+  }
+
+  /**
+   * "Book it anyway" over a STYLIST CLASH (salon parity row 27; Fresha's confirmation window lets staff override a conflict): a manager only — a
+   * seat that sees the whole Book and holds schedule:update — and with a reason, kept on the appointment's notes and in the audit log. A clash is
+   * otherwise always refused (a stylist is never double-booked by accident). A chair or station clash is still refused.
+   */
+  async function clashOverride(u: any, reason: unknown): Promise<{ ok: true; reason: string } | { ok: false; status: 400 | 403; error: string; code: string }> {
+    const manager = (await book.seesWholeBook(u)) && d.permissions.hasPermission(String(u.role || ''), 'schedule:update', await d.permissions.getExtraPermissions(u.userId))
+    if (!manager) return { ok: false, status: 403, error: 'Only a manager can book over a clash. Ask the owner or a manager.', code: 'MANAGER_ONLY' }
+    const why = String(reason ?? '').trim().slice(0, 200)
+    if (why.length < 3) return { ok: false, status: 400, error: 'Type why you are booking over the clash.', code: 'CLASH_REASON_REQUIRED' }
+    return { ok: true, reason: why }
   }
 
   /**
@@ -475,6 +497,14 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if ('problem' in made) return fail(c, 400, made.problem, 'BAD_PROCESSING', { processingMin: made.problem })
     const proc = made.proc
     const blocksOn = !body.overrideBlock && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    // Booking over a stylist clash on purpose (manager only, with a reason) — see clashOverride.
+    let overridingClash: string | null = null
+    if (body.overrideConflict === true) {
+      const gate = await clashOverride(currentUser, body.conflictReason)
+      if (!gate.ok) return fail(c, gate.status, gate.error, gate.code, gate.code === 'CLASH_REASON_REQUIRED' ? { conflictReason: gate.error } : undefined)
+      overridingClash = gate.reason
+    }
+    let overrodeClash = false
     const spansOf = () => itemList
       ? itemList.map((i) => ({ stylist: i.stylist, start: new Date(startTime.getTime() + i.offset * 60_000), end: new Date(startTime.getTime() + (i.offset + i.duration) * 60_000), proc: i.proc }))
       : [{ stylist, start: startTime, end: endTime, proc }]
@@ -485,9 +515,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         await lockAppointmentBook(tx, currentUser.companyId)
         if (itemList) {
           const clash = await itemsConflict(currentUser.companyId, itemList, startTime, undefined, tx)
-          if (clash) throw new ApptConflict(clash)
+          if (clash) { if (overridingClash === null) throw new ApptConflict(clash); overrodeClash = true }
         } else if (stylist.stylistId || stylist.stylistMemberId) {
-          if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) throw new ApptConflict('That stylist is already booked at this time')
+          if (await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx, proc)) { if (overridingClash === null) throw new ApptConflict('That stylist is already booked at this time'); overrodeClash = true }
         }
         if (blocksOn && body.status !== 'cancelled') {
           const why = await blockSentence(currentUser.companyId, spansOf(), tx)
@@ -509,7 +539,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           endTime,
           processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null,
           quotedPrice: body.quotedPrice ?? null,
-          notes: [patchNote, body.notes].filter(Boolean).join(' — ') || null,
+          notes: [patchNote, body.notes, overrodeClash ? `Booked over a clash: ${overridingClash}` : null].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
         }).returning()
         if (itemList) {
@@ -527,7 +557,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       throw e
     }
 
-    await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: itemList ? { ...created, services: itemList.map((i) => i.name) } : created, req: { user: currentUser } })
+    await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: { ...(itemList ? { ...created, services: itemList.map((i) => i.name) } : created), ...(overrodeClash ? { overrodeClash: overridingClash } : {}) }, req: { user: currentUser } })
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     const made201 = itemList ? (await itemsOf(currentUser.companyId, [created.id])).get(created.id) : undefined
     return one(c, { ...named(created), ...(made201 ? { items: made201 } : {}) }, 201)
@@ -625,6 +655,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     const nextStation = 'station' in updates ? updates.station : existing.station
     const checkBlocks = !body.overrideBlock && ('startTime' in updates || 'endTime' in updates || 'stylistId' in updates) && !CANCELLED.includes(nextStatus)
       && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    let overridingClash: string | null = null
+    if (body.overrideConflict === true) {
+      const gate = await clashOverride(currentUser, body.conflictReason)
+      if (!gate.ok) return fail(c, gate.status, gate.error, gate.code, gate.code === 'CLASH_REASON_REQUIRED' ? { conflictReason: gate.error } : undefined)
+      overridingClash = gate.reason
+    }
+    let overrodeClash = false
     let updated: AppointmentRow
     try {
       updated = await db.transaction(async (tx: any) => {
@@ -634,9 +671,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
             stylist: { stylistId: i.stylistId, stylistMemberId: i.stylistMemberId ?? null }, offset: i.startOffsetMin, duration: i.durationMin,
             proc: i.processingMin && i.processingMin > 0 ? { afterMin: i.processingAfterMin ?? 0, min: i.processingMin } : null,
           })), nextStart, id, tx)
-          if (clash) throw new ApptConflict(clash)
+          if (clash) { if (overridingClash === null) throw new ApptConflict(clash); overrodeClash = true }
         } else if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
-          if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) throw new ApptConflict('That stylist is already booked at this time')
+          if (await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx, nextProc)) { if (overridingClash === null) throw new ApptConflict('That stylist is already booked at this time'); overrodeClash = true }
         }
         if (checkBlocks) {
           const spans = itemised
@@ -648,6 +685,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
           if (await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id, tx)) throw new ApptConflict(`${String(nextStation).trim()} is already booked at this time`)
         }
+        if (overrodeClash) updates.notes = [('notes' in updates ? updates.notes : existing.notes), `Booked over a clash: ${overridingClash}`].filter(Boolean).join(' — ')
         const [row] = await tx.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
         return row
       })
@@ -655,14 +693,22 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (e instanceof ApptConflict) return fail(c, 409, e.sentence, e.code)
       throw e
     }
-    await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
+    await carryToBooking(db, updated)
+    await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), ...(overrodeClash ? { metadata: { overrodeClash: overridingClash } } : {}), req: { user: currentUser } })
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     // Completing raises the sale; already completed (five of six simultaneous requests) still answers with the bill.
     const invoiceId = nextStatus === 'completed'
       ? (existing.status !== 'completed' ? await onVisitCompleted(updated, currentUser) : await checkout.invoiceIdForVisit(currentUser.companyId, id))
       : null
     if (existing.status === 'completed' && CANCELLED.includes(nextStatus)) await onVisitUncompleted(updated)
-    return one(c, { ...named(updated), invoiceId })
+    // Marked a no-show, and the salon opted in (Settings › Card on file): the fee goes to the card on file now. The answer rides back so the desk can say what happened.
+    const autoFee = nextStatus === 'no_show' && existing.status !== 'no_show' ? await salon.cards.autoNoShow(currentUser.companyId, updated, currentUser) : null
+    // The salon's named patch-test appointment just completed: a test is recorded for it (the result if the desk gave one, else pending) and the
+    // answer carries it, so the screen can ask "passed or failed?".
+    const patchTestRecorded = nextStatus === 'completed' && existing.status !== 'completed'
+      ? await salon.patchTests.forCompletedVisit(currentUser.companyId, updated, body.patchTestResult).catch((e: any) => { d.logger.warn('[patch-test] not recorded', { error: e?.message }); return null })
+      : null
+    return one(c, { ...named(updated), invoiceId, ...(autoFee ? { autoFee } : {}), ...(patchTestRecorded ? { patchTest: patchTestRecorded } : {}) })
   })
 
   // Checking a client in is the front desk's job as well as the stylist's: `schedule:check-in` opens this and nothing else in the
@@ -705,6 +751,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     { const own = await book.ownChairOf(currentUser); if (own && !isOwnChair(own, existing)) return notInBook(c) }
 
     const [updated] = await db.update(appointment).set({ status: 'cancelled', updatedAt: new Date(), ...(existing.status !== 'cancelled' ? { cancelledAt: new Date() } : {}) }).where(eq(appointment.id, id)).returning()
+    await carryToBooking(db, updated)
     // Cancelling from the book and from the list are the same act. (LY0928 M1)
     if (existing.status === 'completed') await onVisitUncompleted(updated)
 

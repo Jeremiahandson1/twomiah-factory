@@ -11,7 +11,7 @@ import {
 } from '@twomiah/tenant-backend'
 import {
   company, user, contact, job, project, quote, invoice, invoiceLineItem, payment, timeEntry, teamMember, location, emailLog,
-  smsConversation, smsMessage, smsTemplate, reviewRequest, campaign, serviceAgreement, agreementVisit, agreementPlan,
+  smsConversation, smsMessage, smsTemplate, reviewRequest, campaign, serviceAgreement, agreementVisit, agreementPlan, agreementEvent,
   inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder,
   purchaseOrderItem, qbIntegration, vehicle, vehicleMaintenance, fuelLog, warrantyTemplate, projectWarranty, warrantyClaim,
   activity, jobAssignment, equipment, equipmentCategory, equipmentMaintenance, pricebookCategory, pricebookItem,
@@ -26,10 +26,14 @@ import type { Logger } from '../core/logger.ts'
 import { crmEmail, crmTemplates } from './messages.ts'
 import { createVisitSubject } from './salon/reviewSubject.ts'
 import { createAppointmentReminders } from './salon/appointmentReminders.ts'
+import { createPatchTests } from './salon/patchTests.ts'
+import { createSalonClock } from './salon/days.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
+import { stopFamilyTexts } from '../data/homecareFamilyTexts.ts'
 import { createInvoiceReminders } from './billing/invoiceReminders.ts'
+import { createQuoteFollowUp } from './billing/quoteFollowUp.ts'
 import { createJobReminders } from './field/jobReminders.ts'
 import { createQuickBooksAutoSync } from './office/quickbooksAutoSync.ts'
 import { smsMediaLinks } from './comms/smsMedia.ts'
@@ -66,6 +70,10 @@ export interface CrmServiceDeps {
   stripe?: any
 }
 
+/** The moments of a job a module can act on. */
+export type JobMomentKind = 'created' | 'dispatched' | 'started' | 'paused' | 'resumed' | 'completed'
+export type JobMoment = (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => Promise<unknown> | unknown
+
 export function createCrmServices(deps: CrmServiceDeps) {
   const { db, email, audit, logger, isFeatureEnabled, settings } = deps
   const sites = !!settings.serviceSites
@@ -92,6 +100,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // A way of paying that a refund puts back where it came from (the salon's gift card): the module hands in what puts the money back,
   // run inside the refund's own transaction (packages/tenant-backend InvoiceOptions.refundTender). Until one registers, a refund by it is refused.
   const tenderRefunds = new Map<string, (tx: any, invoice: any, amount: number) => Promise<string | null>>()
+  let lineEditHook: { before: (tx: any, invoiceId: string) => Promise<unknown>; after: (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => Promise<string | null> } | null = null
   // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
   // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
   let bookingDeposits: BookingDeposits | null = null
@@ -112,6 +121,10 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // The salon's card step at online booking: the salon module hands in its cards service, the app hands in the booking
   // engine's "card saved" (the booking module is made after these services).
   const bookingCard: { cards: any | null; confirm: ((companyId: string, token: string) => Promise<unknown>) | null } = { cards: null, confirm: null }
+  /** A client has answered a form (booking page, sent link, desk, phone): the booking engine lets the bookings that waited for it move on (booking/engine.ts formsReleased). */
+  // The booking engine, for the client portal's hooks (server/crm/salon/portalHooks.ts); app.ts sets it once the engine exists.
+  const bookingEngine: { current: any | null } = { current: null }
+  const bookingForms: { released: ((companyId: string, contactId: string) => Promise<unknown>) | null } = { released: null }
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
@@ -139,12 +152,19 @@ export function createCrmServices(deps: CrmServiceDeps) {
       },
     },
   } as any)
+  const smsReplies: Array<(m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>> = []
   const sms = createSmsService({
     db, tables: { smsConversation, smsMessage, smsTemplate, contact, company, job, user, teamMember }, usage,
     // A customer's own text: texting the business first is consent to be texted back; STOP withdraws it (site/smsConsent.ts).
     onConsent: (companyId: string, phone: string, change: 'given' | 'withdrawn') => change === 'given'
       ? recordConsent(db, companyId, { phone, source: 'texted_first' }).then(() => {})
-      : withdrawConsent(db, companyId, phone),
+      // STOP also ends a relative's arrival texts, by our own record (a home care relative has no saved contact to carry an "opted out" flag).
+      : withdrawConsent(db, companyId, phone).then(() => stopFamilyTexts(db, companyId, phone)).then(() => {}),
+    // A text back that the business answers itself — a visit confirmed by "Y" (field/jobConfirm.ts registers through useSmsReply).
+    onReply: async (m: { companyId: string; contactId: string | null; body: string }) => {
+      for (const h of smsReplies) { const answer = await h(m); if (answer) return answer }
+      return null
+    },
     // Picture messages: files in the private store, handed to the carrier by short-lived signed links (comms/smsMedia.ts).
     media: smsMediaLinks,
   } as any)
@@ -176,7 +196,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const recurring = createRecurringService({ db, tables: { invoice, invoiceLineItem }, emailService } as any)
   const agreements = createAgreementsService({
     db,
-    tables: { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company },
+    tables: { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user },
     stripe: { listSavedPaymentMethods: stripeService.listSavedPaymentMethods, chargeInvoiceOffSession: stripeService.chargeInvoiceOffSession },
     audit,
     sendRenewalNotice: (to: string, data: Record<string, unknown>) => email.send(to, 'agreementRenewalNotice', data),
@@ -218,16 +238,38 @@ export function createCrmServices(deps: CrmServiceDeps) {
    * recurring service agreement.
    */
   const textArrival = !!settings.jobs?.textArrival
-  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook } = {
-    ...(textArrival ? {
-      onDispatch: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_my_way').catch(() => {}) },
-    } : {}),
-    // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
-    onStart: async ({ job: j, companyId }) => {
-      if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
-      if (textArrival) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
+  // What a module does at a job's moments (made, on the way, started, done), registered when the module mounts — the way
+  // invoicePaidSteps are. Run by every door a status is reached by (the job routes and bulk updates). One failing step never
+  // stops the others, or the job.
+  const jobMomentSteps: JobMoment[] = []
+  const afterJobMoment = async (kind: JobMomentKind, ctx: { job: any; companyId: string; userId: string }) => {
+    for (const step of jobMomentSteps) {
+      try { await step(kind, ctx) } catch (err) { logger.warn?.('[jobs] a job-moment step failed', { kind, error: (err as Error)?.message }) }
+    }
+  }
+  // "On my way" and "on site" are told to the customer as they happen. A move the tech tapped with no signal and that reaches the
+  // server long after (JobHook ctx.tappedAt) is recorded with its real time but not texted: "I'm on my way" an hour late is wrong.
+  const STALE_AFTER_MS = 30 * 60_000
+  const stillCurrent = (tappedAt: Date | null | undefined) => !tappedAt || Date.now() - tappedAt.getTime() <= STALE_AFTER_MS
+  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook } = {
+    onCreate: async (ctx) => { await afterJobMoment('created', ctx) },
+    // Paused / resumed (ServiceTitan's Pause): nothing is texted; the clock takes a break where timekeeping is automatic.
+    onPause: async (ctx) => { await afterJobMoment('paused', ctx) },
+    onResume: async (ctx) => { await afterJobMoment('resumed', ctx) },
+    onDispatch: async (ctx) => {
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
+      await afterJobMoment('dispatched', ctx)
     },
-    onComplete: async ({ job: done, companyId }) => {
+    // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".
+    onStart: async (ctx) => {
+      const { job: j, companyId } = ctx
+      await afterJobMoment('started', ctx)
+      if ((j as any).recurringRouteStopId) await stampVisitStart(db, companyId, j.id).catch((err: any) => logger.warn('[jobs] visit start not kept', { error: err?.message }))
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {})
+    },
+    onComplete: async (ctx) => {
+      const { job: done, companyId } = ctx
+      await afterJobMoment('completed', ctx)
       if (textArrival) sms.sendJobUpdate(companyId, done.id, 'completed').catch(() => {})
       // A route billed per visit gets its draft invoice as the crew finishes the visit (data/routeBilling.ts); a failure here
       // never holds up completing the job.
@@ -262,6 +304,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // Invoice reminders and the late fee, on each company's own switch and clock (billing/invoiceReminders.ts): every
   // vertical's invoices, and home care's Billing invoices where this is home care.
   const invoiceReminders = createInvoiceReminders({ db, email: emailService, audit, logger, isFeatureEnabled, homecare: !!settings.homecare })
+  // The nudge to a customer who has not answered a quote, on each company's own switch and clock (billing/quoteFollowUp.ts).
+  const quoteFollowUp = createQuoteFollowUp({ db, email: emailService, audit, logger, isFeatureEnabled })
   // The reminder before a job the office booked, on each business's own switch, hours and clock (field/jobReminders.ts).
   const jobReminders = createJobReminders({ db, sms, email: emailService, logger, isFeatureEnabled })
 
@@ -272,9 +316,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, onJobMoment: (step: JobMoment) => { jobMomentSteps.push(step) }, invoiceReminders, quoteFollowUp, jobReminders, quickbooksSync, scheduledTexts, inventoryLowStock,
     /** The private-events passes (reminders, card charges), put here when the events module mounts so a test can run one. */
     eventJobs: {} as Record<string, (...args: any[]) => Promise<number>>,
+    /** A module that answers a customer's text itself (a visit confirmed by "Y"): returns the reply, or null to leave it to the inbox. */
+    useSmsReply(h: (m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>) { smsReplies.push(h) },
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
@@ -285,6 +331,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     afterInvoicePaid,
     /** The salon's card step at online booking (crm/salon/onlineBooking.ts, booking/engine.ts cardSaved). */
     bookingCard,
+    bookingForms,
+    bookingEngine,
     /** Who claims a connected-account event before the invoices see it (the store's orders, the salon's saved cards). */
     useConnectedEvents(claim: ConnectedEventClaim) { connectedEvents.push(claim) },
     /** A vertical's own way of earning commission on a paid bill (the salon's stylist commissions). */
@@ -295,6 +343,12 @@ export function createCrmServices(deps: CrmServiceDeps) {
     creditTender: async (method: string, tx: any, invoice: any, amount: number) => {
       const doer = tenderRefunds.get(method)
       return doer ? doer(tx, invoice, amount) : 'This way of paying cannot be refunded here.'
+    },
+    /** What a vertical hangs on an invoice line (the salon's retail product link) survives the general invoice edit: the module hands in its snapshot/restore. */
+    useLineEdit(h: { before: (tx: any, invoiceId: string) => Promise<unknown>; after: (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => Promise<string | null> }) { lineEditHook = h },
+    lineEdit: {
+      before: async (tx: any, invoiceId: string) => (lineEditHook ? lineEditHook.before(tx, invoiceId) : undefined),
+      after: async (tx: any, invoiceId: string, snapshot: unknown, rows: any[]) => (lineEditHook ? lineEditHook.after(tx, invoiceId, snapshot, rows) : null),
     },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
@@ -319,9 +373,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
       // (templates/crm-restaurant routes/events.ts ran it when the router loaded). Idempotent; never delays startup.
       if (settings.events) void backfillEventInvoices(db, logger).catch((err: any) => logger.error('[events] invoice backfill failed', { error: err?.message }))
       // Tomorrow's appointments get a reminder text, every 10 minutes (templates/crm-salon index.ts startAppointmentReminders).
-      if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger }).startAppointmentReminders()
+      if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger, note: (co, ct, sm) => createPatchTests(db, createSalonClock(db)).needNote(co, ct, sm) }).startAppointmentReminders()
       // Due-soon and overdue invoice reminders, and the late fee, every hour (each company's own switch decides).
       invoiceReminders.start()
+      // The quote follow-up, every hour (each company's own switch decides).
+      quoteFollowUp.start()
       // Reminders before the jobs the office booked, every 10 minutes (each business's own switch and hours decide).
       jobReminders.start()
       // QuickBooks auto-sync, every 15 minutes, for the companies whose switch is on.

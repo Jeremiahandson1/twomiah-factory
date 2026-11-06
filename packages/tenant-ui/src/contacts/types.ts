@@ -224,6 +224,8 @@ export interface ContactRow {
   source?: string | null
   notes?: string | null
   optedOutSms?: boolean | null
+  /** No AUTOMATIC job reminders for this customer (Job Reminders; a reminder sent by hand still goes). */
+  jobRemindersOff?: boolean | null
   createdAt?: string
   updatedAt?: string
   [key: string]: unknown

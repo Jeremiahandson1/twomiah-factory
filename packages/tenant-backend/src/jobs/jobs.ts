@@ -62,9 +62,9 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    */
   crewLogin?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
-export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
+export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
-export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook }
+export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook }
 /**
  * The hook a status runs when a job moves INTO it — one table for every door a status is reached by: the buttons, the
  * edit form, the Dispatch Board (PUT /:id) and bulk updates (bulk.ts). Staying in a status runs nothing. (2026-10-22)
@@ -101,8 +101,13 @@ export interface JobOptions {
   mediaUrlPrefix?: string
   onStart?: JobHook
   onDispatch?: JobHook
+  /** Runs once for every job a POST / made (each visit of a repeat), after it is saved; a failure never undoes the job. */
+  onCreate?: JobHook
   /** may return extra fields merged into the complete response (e.g. nextServiceDate) */
   onComplete?: JobHook
+  /** Paused / resumed (POST /:id/pause, /:id/resume): the clock takes a break where timekeeping is automatic. */
+  onPause?: JobHook
+  onResume?: JobHook
   maxLimit?: number
   /**
    * Present → a NEW job must be for a customer (the one named, or its project's), refused in words when it is not, and
@@ -175,6 +180,7 @@ export const JOB_STATUSES = ['scheduled', 'pending', 'confirmed', 'dispatched', 
 
 /** What each button (dispatch / start / complete) may move a job FROM — forward only. Anything else: see jobMoveRefusal. */
 export const JOB_MOVES_FROM = {
+  on_hold: ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress'],
   dispatched: ['scheduled', 'pending', 'confirmed', 'on_hold'],
   in_progress: ['scheduled', 'pending', 'confirmed', 'dispatched', 'on_hold'],
   completed: ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress', 'on_hold'],
@@ -182,7 +188,7 @@ export const JOB_MOVES_FROM = {
 
 /** The sentence for a button that would move a job backwards (or out of cancelled). */
 export function jobMoveRefusal(to: string, from: string): string {
-  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : 'completed'
+  const doing = to === 'dispatched' ? 'sent out' : to === 'in_progress' ? 'started' : to === 'on_hold' ? 'put on hold' : to === 'paused' ? 'paused' : to === 'resumed' ? 'resumed' : 'completed'
   if (from === 'cancelled') return `This job was cancelled, so it can't be ${doing}. Reopen it first.`
   if (from === 'completed') return `This job is already completed, so it can't be ${doing} again. Reopen it first if there is more to do.`
   return `This job is already ${from === 'in_progress' ? 'in progress' : from.replace(/_/g, ' ')}, so it can't be ${doing} now.`
@@ -638,9 +644,9 @@ export function createJobRoutes(deps: JobDeps) {
   }
   /** The hook a status runs when a job moves into it — one table for the buttons and the edit (see PUT /:id). */
   const hookFor = (status: string): JobHook | undefined => jobHookFor(status, o)
-  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any) => {
+  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, tappedAt?: Date | null) => {
     if (!hook) return {}
-    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
+    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, tappedAt: tappedAt ?? null })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
   }
 
   // ---------------------------------------------------------------- list / today
@@ -775,7 +781,9 @@ export function createJobRoutes(deps: JobDeps) {
       }
       const out: any[] = []
       for (const x of times) {
-        const [u] = await tx.update(t.job).set({ scheduledTime: x.scheduledTime, updatedAt: new Date() }).where(and(eq(t.job.id, x.id), eq(t.job.companyId, currentUser.companyId))).returning()
+        const row = rows.find((r) => r.id === x.id)
+        const retimed = String(row.scheduledTime ?? '') !== x.scheduledTime
+        const [u] = await tx.update(t.job).set({ scheduledTime: x.scheduledTime, ...(retimed && t.job.confirmedAt ? { confirmedAt: null, confirmedVia: null } : {}), updatedAt: new Date() }).where(and(eq(t.job.id, x.id), eq(t.job.companyId, currentUser.companyId))).returning()
         out.push(u)
       }
       return out
@@ -783,7 +791,8 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash || !saved) return c.json({ error: await clashSentence(currentUser.companyId, clash, true), conflictId: clash?.id }, 409)
     const result = await withRelations(saved, currentUser.companyId)
     for (const r of result) emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, r)
-    return c.json({ data: await shapeJobMoney(c, result) })
+    // `moved`: the stops whose time really changed, for the screen's "Notify client?".
+    return c.json({ data: await shapeJobMoney(c, result), moved: times.filter((x) => String(rows.find((r) => r.id === x.id)?.scheduledTime ?? '') !== x.scheduledTime).map((x) => x.id) })
   })
 
   // ---------------------------------------------------------------- photos (before /:id so /:id/photos routes resolve first)
@@ -812,6 +821,43 @@ export function createJobRoutes(deps: JobDeps) {
       const caption = (form!.get('caption') as string) || null
       const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption }).returning()
       return c.json(photo, 201)
+    })
+
+    // The phone's offline queue (apps/mobile/src/offline/localPhotos.ts) sends a photo in two steps: the file first, named from the
+    // save's id (the same name is the same file, so a retry after a lost reply replaces it), answering its address — then the save,
+    // which records the addresses. A photo taken with no signal is therefore one photo however many times it is sent.
+    app.post('/:id/photos/file', requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+      const form = await c.req.formData().catch(() => null)
+      const file = form?.get('photo') as File | null
+      if (!file || typeof file === 'string') return c.json({ error: 'No photo provided' }, 400)
+      if (file.size > MAX_PHOTO_SIZE) return c.json({ error: 'Photo exceeds 10MB limit' }, 400)
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const type = sniffType(buffer) || ''
+      if (!PHOTO_EXT[type]) return c.json({ error: 'File must be an image' }, 400)
+      if (storage.storageConfigured && !storage.storageConfigured()) return c.json({ error: 'Photo storage is not set up yet.', code: 'storage_not_configured' }, 503)
+      const asked = String(form!.get('name') || '')
+      const name = /^[A-Za-z0-9_-]{8,80}$/.test(asked) ? asked : crypto.randomUUID().replace(/-/g, '')
+      const key = `photos/${currentUser.companyId}/${id}/${name}.${PHOTO_EXT[type]}`
+      await storage.put(key, buffer, type)
+      return c.json({ url: mediaPrefix + key }, 201)
+    })
+
+    app.post('/:id/photos/saved', requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+      const body = await c.req.json().catch(() => null) as { photos?: unknown; caption?: unknown; notes?: unknown } | null
+      const own = `${mediaPrefix}photos/${currentUser.companyId}/${id}/`
+      const urls = Array.isArray(body?.photos) ? body!.photos.filter((u): u is string => typeof u === 'string') : []
+      if (urls.some((u) => !u.startsWith(own) || u.includes('..'))) return c.json({ error: 'A photo could not be read — take it again.', code: 'bad_photo' }, 400)
+      const caption = [typeof body?.caption === 'string' ? body.caption : '', typeof body?.notes === 'string' ? body.notes : ''].map((x) => x.trim()).filter(Boolean).join('\n') || null
+      const have = new Set((await db.select({ url: t.jobPhoto.url }).from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId)))).map((r: any) => r.url))
+      const fresh = [...new Set(urls)].filter((u) => !have.has(u))
+      const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption }))).returning() : []
+      return c.json({ saved: made.length, photos: made }, made.length ? 201 : 200)
     })
 
     app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {
@@ -904,9 +950,10 @@ export function createJobRoutes(deps: JobDeps) {
     // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
     let clash: any = null
     // A repeating job's visits that could not be booked for their assignee, listed back rather than silently made.
-    const skipped: Array<{ date: string; reason: string }> = []
+    const skipped: Array<{ date: string; reason: string; code?: string }> = []
     let seriesRow: any = null
     let made = 0
+    const madeRows: any[] = []
     const insertOne = async (tx: any, scheduledDate: string | undefined, extra: Record<string, unknown> = {}) => {
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
@@ -922,6 +969,7 @@ export function createJobRoutes(deps: JobDeps) {
         createdById: currentUser.userId,
         ...extra,
       }).returning()
+      madeRows.push(row)
       return row
     }
     const created = await db.transaction(async (tx: any) => {
@@ -945,6 +993,13 @@ export function createJobRoutes(deps: JobDeps) {
         for (const day of days) {
           const other = await assigneeConflict(currentUser.companyId, everyone, day.date, data.scheduledTime, undefined, tx, data.estimatedHours)
           if (other) { clash = clash || other; skipped.push({ date: day.date, reason: `already booked on ${other.number}${other.scheduledTime ? ` at ${other.scheduledTime}` : ''}` }); continue }
+          // Each visit is checked against the person's hours and time off too (JobOptions.availability): a visit on a
+          // day they are off is listed back, not made — unless the office said "book anyway", which is recorded.
+          if (o.availability) {
+            const away = await o.availability(currentUser.companyId, everyone, day.date, data.scheduledTime, data.estimatedHours, tx)
+            if (away && !bookAnyway) { skipped.push({ date: day.date, reason: String(away.short || away.message), code: away.code }); continue }
+            if (away) travel = travel || away
+          }
           const row = await insertOne(tx, day.date, { seriesId: seriesRow.id, seriesIndex: day.index })
           await writeOthers(tx, currentUser.companyId, row.id, crew.others)
           made++
@@ -970,7 +1025,12 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash) return c.json({ error: await clashSentence(currentUser.companyId, clash, everyone.length > 1), conflictId: clash.id }, 409)
     if (!created && travel && !bookAnyway) return travelRefusal(c, travel)
     if (created && travel) recordOverride(c, created, travel)
-    if (!created && repeat && 'spec' in repeat) return c.json({ error: `None of the visits could be booked: that person is ${skipped[0]?.reason || 'already booked'}. Pick another time or assignee.` }, 409)
+    if (!created && repeat && 'spec' in repeat) {
+      // A day off reads as its own sentence ("Tia Tech is off on Nov 10."); a clash reads as "that person is already booked on…".
+      const why = skipped[0]?.code === 'unavailable' ? skipped[0].reason : `that person is ${skipped[0]?.reason || 'already booked'}.`
+      return c.json({ error: `None of the visits could be booked: ${why} Pick another time or assignee.`, ...(skipped[0]?.code === 'unavailable' ? { code: 'unavailable', canBookAnyway: true } : {}) }, 409)
+    }
+    if (created && o.onCreate) for (const row of madeRows) await runHook(o.onCreate, row, currentUser)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
     // The saved row comes back whole; a write's reply is a read like any other (./jobMoney.ts).
@@ -1107,6 +1167,9 @@ export function createJobRoutes(deps: JobDeps) {
     const placeChanged = ['address', 'city', 'state', 'zip'].some((k) => differs(k, data[k]))
     const movesSlot = crewChanged || placeChanged || differs('scheduledTime', data.scheduledTime) || differs('estimatedHours', data.estimatedHours)
       || (data.scheduledDate !== undefined && String(data.scheduledDate).slice(0, 10) !== (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : ''))
+    // The visit's day or time moved: the customer's confirmation was for the old one, and the screen asks "Notify client?".
+    const whenChanged = differs('scheduledTime', data.scheduledTime)
+      || (data.scheduledDate !== undefined && String(data.scheduledDate).slice(0, 10) !== (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : ''))
     // A moved address is somewhere else: its old map point would put pins and routes in the wrong place.
     if (placeChanged && t.job.lat) { data.lat = null; data.lng = null }
     const here: Place = placeChanged ? { address: data.address ?? existing.address ?? null } : { lat: existing.lat ?? null, lng: existing.lng ?? null, address: existing.address ?? null }
@@ -1134,6 +1197,7 @@ export function createJobRoutes(deps: JobDeps) {
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
         ...(t.job.estimatedValue ? { estimatedValue: data.estimatedValue !== undefined ? String(data.estimatedValue) : undefined } : { estimatedValue: undefined }),
         ...(completedAt !== undefined ? { completedAt } : {}),
+        ...(whenChanged && t.job.confirmedAt ? { confirmedAt: null, confirmedVia: null } : {}),
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       return row
@@ -1155,7 +1219,7 @@ export function createJobRoutes(deps: JobDeps) {
      */
     const more = data.status !== undefined && data.status !== existing.status ? await runHook(hookFor(data.status), updated, currentUser) : {}
     // A field seat holds jobs:update: the saved row's money is withheld as the read's is (./jobMoney.ts).
-    return c.json({ ...(await shapeJobMoney(c, result)), ...more })
+    return c.json({ ...(await shapeJobMoney(c, result)), ...more, ...(whenChanged ? { scheduleMoved: true } : {}) })
   })
 
   app.delete('/:id', requirePermission('jobs:delete'), async (c) => {
@@ -1223,6 +1287,11 @@ export function createJobRoutes(deps: JobDeps) {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+      // The phone says WHEN the tech tapped (`tappedAt`): a move kept on the phone until signal returns still records the real
+      // time. Believed only if it is a time (not in the future, not more than a week back); else the time it arrives is used.
+      const said = (await c.req.json().catch(() => null) as { tappedAt?: unknown } | null)?.tappedAt
+      const tapped = typeof said === 'string' && !Number.isNaN(Date.parse(said)) ? new Date(said) : null
+      const when = tapped && tapped.getTime() <= Date.now() + 5 * 60_000 && tapped.getTime() >= Date.now() - 7 * 86_400_000 ? tapped : null
       // Moving a job OUT of completed clears the completion stamp — the same rule the status dropdown has
       // followed since landscaping T14 L13. Start and Dispatch only wrote the status, so reopening a finished
       // job left it still claiming a completion time, and "Completed today" kept counting it. (T26 M1)
@@ -1230,6 +1299,9 @@ export function createJobRoutes(deps: JobDeps) {
         status,
         ...(status === 'completed' ? {} : { completedAt: null }),
         ...extra(),
+        ...(status === 'completed' && when ? { completedAt: when } : {}),
+        // Started: the first time the tech said so is kept (a job put on hold and resumed keeps its first start).
+        ...(status === 'in_progress' && t.job.startedAt ? { startedAt: sql`COALESCE(${t.job.startedAt}, ${(when ?? new Date()).toISOString()}::timestamp)` } : {}),
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), inArray(t.job.status, [...movesFrom]))).returning()
       if (!updated) {
@@ -1239,7 +1311,7 @@ export function createJobRoutes(deps: JobDeps) {
         return c.json({ error: jobMoveRefusal(status, String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
       }
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
-      const more = await runHook(hook(), updated, currentUser)
+      const more = await runHook(hook(), updated, currentUser, when)
       // Start / Complete / Dispatch are a field seat's buttons; the moved row's money is withheld (./jobMoney.ts).
       return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })
@@ -1247,6 +1319,33 @@ export function createJobRoutes(deps: JobDeps) {
   transition('start', 'in_progress', () => hookFor('in_progress'))
   transition('complete', 'completed', () => hookFor('completed'), () => ({ completedAt: new Date() }))
   transition('dispatch', 'dispatched', () => hookFor('dispatched'))
+  // Put on hold (waiting on a part, the customer, the weather): the job keeps its crew and day; Start or On my way picks it up again.
+  transition('hold', 'on_hold', () => undefined)
+
+  /**
+   * POST /:id/pause and /:id/resume — Paused (ServiceTitan): the tech stops work for a while (lunch, a parts run) and
+   * stays on the job. A stamp, not a status: the job stays in_progress, so every list and report reads as before. Only a
+   * job being worked can be paused; a repeat changes nothing; a finished or cancelled job is refused in words. The time
+   * tapped on the phone is kept the same way the moves keep it; the hooks let the clock take a break (crm/field/clockExtras).
+   */
+  for (const [path, paused] of [['pause', true], ['resume', false]] as const) {
+    app.post(`/:id/${path}`, requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      const now = await findOwned(id, currentUser.companyId)
+      if (!now) return c.json({ error: 'Job not found' }, 404)
+      if (now.status === 'completed' || now.status === 'cancelled') return c.json({ error: jobMoveRefusal(paused ? 'paused' : 'resumed', String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
+      if (paused && now.status !== 'in_progress') return c.json({ error: `This job is not started, so there is nothing to pause. Tap I've arrived first.`, code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
+      if (!!(now as any).pausedAt === paused) return c.json({ ...(await shapeJobMoney(c, now)), unchanged: true })
+      const said = (await c.req.json().catch(() => null) as { tappedAt?: unknown } | null)?.tappedAt
+      const tapped = typeof said === 'string' && !Number.isNaN(Date.parse(said)) ? new Date(said) : null
+      const when = tapped && tapped.getTime() <= Date.now() + 5 * 60_000 && tapped.getTime() >= Date.now() - 7 * 86_400_000 ? tapped : new Date()
+      const [updated] = await db.update(t.job).set({ pausedAt: paused ? when : null, updatedAt: new Date() } as any).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
+      emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, { id: updated.id, pausedAt: (updated as any).pausedAt })
+      const more = await runHook(paused ? o.onPause : o.onResume, updated, currentUser, when)
+      return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
+    })
+  }
 
   /**
    * POST /:id/invoice — bill this job. Mounted only where options.billing says the template can. (T41)

@@ -9,6 +9,8 @@ import { api } from '../../../api'
 import { useToast, usePermissions, useAuth } from '../../../shared'
 import { roleWord } from '../../viewAs'
 import type { BookScope } from './bookScope'
+import BlockTypesSection from './BlockTypesSection'
+import TeamOrderSection from './TeamOrderSection'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
@@ -18,6 +20,7 @@ export default function BookSettingsPage() {
   const { can, known } = usePermissions()
   const { hasFeature } = useAuth()
   const [pick, setPick] = useState<boolean | null>(null)
+  const [pickRequired, setPickRequired] = useState(false)
   // Who may flip it is who may change the company — the server asks the same (company:update).
   const mayEdit = known && can('company:update')
   const [on, setOn] = useState<boolean | null>(null)
@@ -35,7 +38,7 @@ export default function BookSettingsPage() {
       .then((r: BookScope) => setOn(!!r?.stylistsSeeOwnBookOnly))
       .catch((e: Error) => setLoadError(e.message || 'The book settings could not be loaded.'))
     api.get('/api/appointments/patch-test-rule').then((r: { patchTestRule?: boolean; patchTestServiceId?: string | null }) => { setPatchRule(!!r?.patchTestRule); setOfferId(r?.patchTestServiceId || '') }).catch(() => setPatchRule(null))
-    if (hasFeature('client_stylist_pick')) api.get('/api/appointments/online-stylist-pick').then((r: { onlineStylistPick?: boolean }) => setPick(!!r?.onlineStylistPick)).catch(() => setPick(null))
+    if (hasFeature('client_stylist_pick')) api.get('/api/appointments/online-stylist-pick').then((r: { onlineStylistPick?: boolean; onlineStylistPickRequired?: boolean }) => { setPick(!!r?.onlineStylistPick); setPickRequired(!!r?.onlineStylistPickRequired) }).catch(() => setPick(null))
     api.get('/api/service-menu').then((r: any) => setMenu(((r?.data ?? r) || []) as any[])).catch(() => setMenu([]))
   }, [])
 
@@ -56,9 +59,20 @@ export default function BookSettingsPage() {
   const flipPick = async (next: boolean) => {
     setSaving(true)
     try {
-      const r: { onlineStylistPick?: boolean } = await api.put('/api/appointments/online-stylist-pick', { onlineStylistPick: next })
-      setPick(!!r?.onlineStylistPick)
+      const r: { onlineStylistPick?: boolean; onlineStylistPickRequired?: boolean } = await api.put('/api/appointments/online-stylist-pick', { onlineStylistPick: next })
+      setPick(!!r?.onlineStylistPick); setPickRequired(!!r?.onlineStylistPickRequired)
       toast.success(next ? 'Clients can now choose their stylist when they book online' : 'Online bookings go to whoever is free')
+    } catch (e: any) {
+      toast.error(e?.message || 'The setting could not be saved.')
+    } finally { setSaving(false) }
+  }
+
+  const flipRequired = async (next: boolean) => {
+    setSaving(true)
+    try {
+      const r: { onlineStylistPick?: boolean; onlineStylistPickRequired?: boolean } = await api.put('/api/appointments/online-stylist-pick', { onlineStylistPickRequired: next })
+      setPick(!!r?.onlineStylistPick); setPickRequired(!!r?.onlineStylistPickRequired)
+      toast.success(next ? 'Clients must now choose a stylist when they book online' : 'Clients may choose a stylist, or anyone')
     } catch (e: any) {
       toast.error(e?.message || 'The setting could not be saved.')
     } finally { setSaving(false) }
@@ -112,6 +126,9 @@ export default function BookSettingsPage() {
         </p>
       </section>
 
+      {hasFeature('book_grid') && <TeamOrderSection />}
+      {hasFeature('book_grid') && <BlockTypesSection mayEdit={mayEdit} />}
+
       {pick !== null && (
         <section className={box} aria-label="Choosing a stylist online">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-slate-100">
@@ -122,6 +139,18 @@ export default function BookSettingsPage() {
             Off by default: an online booking goes to whoever is free. On: the client picks a stylist, or &ldquo;anyone&rdquo;, and sees only that
             person&rsquo;s open times. Only stylists who have their own online booking hours (Settings › Online booking) can be picked.
           </p>
+          {pick && (
+            <>
+              <label className="mt-3 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-slate-100">
+                <input type="checkbox" checked={pickRequired} disabled={!mayEdit || saving} onChange={(e) => flipRequired(e.target.checked)} className="h-4 w-4" />
+                Clients must choose a named stylist
+              </label>
+              <p className={hint}>
+                On: &ldquo;Anyone&rdquo; is not offered, no times show until the client has picked a stylist, and a booking that names none is refused. Off: a client may pick a
+                stylist or leave it to whoever is free.
+              </p>
+            </>
+          )}
         </section>
       )}
 

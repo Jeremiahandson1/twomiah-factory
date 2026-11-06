@@ -14,7 +14,7 @@
 //   DELETE /api/certifications/:id           care-hr:delete
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useConfirm } from '../../../../shared'
+import { useAuth, useConfirm } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
 import { agencyDayHasBegun } from '../lib/agencyClock'
@@ -46,7 +46,16 @@ type ProfileRow = Partial<Record<DayKey, boolean>> & {
   capabilities?: string | null
   limitations?: string | null
   preferredHours?: string | null
+  // Row 11 (care_margin_reports): where the caregiver sits, and the day they left.
+  branchId?: string | null
+  team?: string | null
+  department?: string | null
+  managerUserId?: string | null
+  leftOn?: string | null
+  leftReason?: string | null
 }
+interface Placement { branchId: string; team: string; department: string; managerUserId: string; leftOn: string; leftReason: string }
+const EMPTY_PLACEMENT: Placement = { branchId: '', team: '', department: '', managerUserId: '', leftOn: '', leftReason: '' }
 
 interface Certification {
   id: string
@@ -80,6 +89,16 @@ export default function CaregiverProfile() {
     preferredHours: '',
   })
   const [newCert, setNewCert] = useState(EMPTY_CERT)
+  // Row 11 (care_margin_reports): branch, team, department, manager and the leaving date, with the lists the boxes offer.
+  const placementOn = useAuth().hasFeature('care_margin_reports')
+  const [placement, setPlacement] = useState<Placement>(EMPTY_PLACEMENT)
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([])
+  const [managers, setManagers] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    if (!placementOn) return
+    api.get('/api/margin-reports/filters').then((r: any) => setBranches(r?.branches ?? [])).catch(() => setBranches([]))
+    api.get('/api/users/admins', { limit: 200 }).then((r) => setManagers(rows<any>(r).map((u) => ({ id: u.id, name: `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() })))).catch(() => setManagers([]))
+  }, [placementOn])
 
   useEffect(() => {
     loadCaregiverData()
@@ -105,6 +124,10 @@ export default function CaregiverProfile() {
         availableDaysOfWeek: profileData ? DAY_KEYS.flatMap((k, i) => (profileData[k] ? [i] : [])) : [],
         preferredHours: profileData?.preferredHours || '',
       })
+      setPlacement({
+        branchId: profileData?.branchId || '', team: profileData?.team || '', department: profileData?.department || '', managerUserId: profileData?.managerUserId || '',
+        leftOn: profileData?.leftOn ? String(profileData.leftOn).slice(0, 10) : '', leftReason: profileData?.leftReason || '',
+      })
     } catch (error) {
       console.error('Failed to load caregiver data:', error)
     } finally {
@@ -118,6 +141,7 @@ export default function CaregiverProfile() {
       await api.patch(`/api/caregiver-profile/${caregiverId}`, {
         ...rest,
         ...Object.fromEntries(DAY_KEYS.map((k, i) => [k, availableDaysOfWeek.includes(i)])),
+        ...(placementOn ? placement : {}),
       })
       setMessage('Profile updated')
       setTimeout(() => setMessage(''), 2000)
@@ -368,6 +392,30 @@ export default function CaregiverProfile() {
             />
           </div>
 
+          {placementOn && (
+            <div className="hc-card" style={{ marginBottom: '1rem' }}>
+              <h4>Where they sit</h4>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                <div className="form-group"><label>Branch</label>
+                  <select value={placement.branchId} onChange={(e) => setPlacement({ ...placement, branchId: e.target.value })}>
+                    <option value="">None</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select></div>
+                <div className="form-group"><label>Team</label><input type="text" value={placement.team} onChange={(e) => setPlacement({ ...placement, team: e.target.value })} placeholder="e.g. North team" /></div>
+                <div className="form-group"><label>Department</label><input type="text" value={placement.department} onChange={(e) => setPlacement({ ...placement, department: e.target.value })} placeholder="e.g. Personal care" /></div>
+                <div className="form-group"><label>Manager</label>
+                  <select value={placement.managerUserId} onChange={(e) => setPlacement({ ...placement, managerUserId: e.target.value })}>
+                    <option value="">None</option>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select></div>
+              </div>
+              <h4 style={{ marginTop: '0.75rem' }}>Leaving</h4>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                <div className="form-group"><label>Left on</label><input type="date" value={placement.leftOn} onChange={(e) => setPlacement({ ...placement, leftOn: e.target.value })} /></div>
+                <div className="form-group"><label>Reason for leaving</label><input type="text" value={placement.leftReason} onChange={(e) => setPlacement({ ...placement, leftReason: e.target.value })} placeholder="e.g. Moved away" /></div>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--hc-muted)' }}>The leaving date makes the turnover report exact. Leave it empty while they are still here.</p>
+            </div>
+          )}
+
           <div className="form-group">
             <label>General Notes</label>
             <textarea
@@ -395,6 +443,16 @@ export default function CaregiverProfile() {
             <h3>Limitations</h3>
             <p>{formData.limitations || 'None specified'}</p>
           </div>
+
+          {placementOn && (
+            <div className="hc-card">
+              <h3>Where they sit</h3>
+              <p><strong>Branch:</strong> {branches.find((b) => b.id === placement.branchId)?.name || 'None'}</p>
+              <p><strong>Team:</strong> {placement.team || 'None'} · <strong>Department:</strong> {placement.department || 'None'}</p>
+              <p><strong>Manager:</strong> {managers.find((m) => m.id === placement.managerUserId)?.name || 'None'}</p>
+              {placement.leftOn && <p><strong>Left on:</strong> {formatDate(placement.leftOn)}{placement.leftReason ? ` — ${placement.leftReason}` : ''}</p>}
+            </div>
+          )}
 
           <div className="hc-card">
             <h3>Availability</h3>

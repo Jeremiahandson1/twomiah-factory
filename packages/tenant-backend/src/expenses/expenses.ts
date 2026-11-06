@@ -117,6 +117,8 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     receiptUrl: z.string().trim().url().max(2000).optional().nullable().or(z.literal('').transform(() => null)),
     projectId: fk,
     jobId: fk,
+    /** The budget line this cost files under (project budget by cost code). Optional; only kept where the table has the column. */
+    costCode: z.string().trim().max(60).transform(stripTags).optional().nullable(),
     notes: z.string().max(5000).optional().nullable(),
   })
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.issues[0]?.message || 'Invalid expense', details: err.flatten().fieldErrors }, 400)

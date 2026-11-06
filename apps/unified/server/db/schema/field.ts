@@ -285,6 +285,45 @@ export const serviceAgreement = pgTable('service_agreement', {
   index('service_agreement_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * What happened to a service plan, in order (the plan reports): made, renewed, suspended, reactivated, cancelled, expired.
+ * The plan row keeps only where it stands now; this keeps how it got there, so "renewed in the range", "suspended and
+ * reactivated" and "active at the start / end of a period" are counted from what was recorded, never guessed. Plans that
+ * ended before this existed have one made event (and one ended event) written from their own dates by the migration.
+ */
+export const agreementEvent = pgTable('agreement_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  agreementId: text('agreement_id').notNull().references(() => serviceAgreement.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // created | renewed | suspended | reactivated | cancelled | expired
+  at: timestamp('at').defaultNow().notNull(),
+  byUserId: text('by_user_id').references(() => user.id, { onDelete: 'set null' }), // null: the app did it (an automatic renewal or expiry)
+  note: text('note'),
+}, (t) => [
+  index('agreement_event_agreement_idx').on(t.agreementId, t.at),
+  index('agreement_event_company_kind_idx').on(t.companyId, t.kind, t.at),
+])
+
+/**
+ * A report someone saved: its filters and chosen columns, and optionally a schedule that emails it as a CSV. One table for
+ * every report that offers saving (service plans, team revenue), told apart by `report`.
+ */
+export const savedReport = pgTable('saved_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  report: text('report').notNull(), // 'plans' | 'team'
+  name: text('name').notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  params: json('params').notNull(), // { tab, period | startDate/endDate, filters, columns }
+  schedule: json('schedule'), // null, or { frequency: 'weekly' | 'monthly', weekday, dayOfMonth, hour, recipients: string[] }
+  lastSentAt: timestamp('last_sent_at'),
+  lastSentFor: text('last_sent_for'), // the company day it last went for (a run claims it before sending)
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('saved_report_company_idx').on(t.companyId, t.report),
+])
+
 export const agreementVisit = pgTable('agreement_visit', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   scheduledDate: timestamp('scheduled_date').notNull(),
@@ -563,11 +602,22 @@ export const techHours = pgTable('tech_hours', {
   weekday: integer('weekday').notNull(), // 0 = Sunday … 6 = Saturday, as Date.getUTCDay() on a job's day marker
   startsAt: text('starts_at').notNull(),
   endsAt: text('ends_at').notNull(),
+  /**
+   * A shift is a window on a weekday (0055, ServiceTitan's shift types). Several a day is a split shift (no unique
+   * index on person + weekday any more); `kind` on_call is a shift the person can be called out on, drawn apart on the
+   * Dispatch Board and offered after regular hours by Find a time; `ends_next_day` is an overnight shift (22:00–06:00
+   * ends on the next calendar day); `starts_on` / `ends_on` (day markers, both included, either null) bound a recurring
+   * pattern — a summer rota, a cover week — and a shift with neither runs every week.
+   */
+  kind: text('kind').default('regular').notNull(),
+  endsNextDay: boolean('ends_next_day').default(false).notNull(),
+  startsOn: timestamp('starts_on'),
+  endsOn: timestamp('ends_on'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('tech_hours_company_id_idx').on(t.companyId),
-  uniqueIndex('tech_hours_user_weekday_key').on(t.userId, t.weekday),
-  uniqueIndex('tech_hours_member_weekday_key').on(t.memberId, t.weekday),
+  index('tech_hours_user_idx').on(t.userId),
+  index('tech_hours_member_idx').on(t.memberId),
 ])
 
 /** Time off per person (0042): whole days (day markers, midnight UTC, both ends included) or, with times, part of them. */

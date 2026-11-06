@@ -106,6 +106,10 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
       if (existing) return one(c, { ...existing, duplicate: true, authWarnings: authCheck.warnings }, 200)
     }
 
+    // The agency may refuse an expired credential outright (Credential settings › Block); otherwise it is only a flag below.
+    const refused = (await core.certReminders.blockedFor(companyId, [String(caregiverId)], base))[String(caregiverId)]
+    if (refused?.length) return fail(c, 409, `This caregiver has an expired credential (${refused.join(', ')}) and cannot be put on a shift until it is renewed.`, 'credential_expired')
+
     try {
       const id = await insertSchedule(db, companyId, {
         caregiverId, clientId, scheduleType: scheduleType || (isRecurring ? 'recurring' : 'one-time'),
@@ -136,6 +140,8 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
     if (!before) return fail(c, 404, 'Schedule not found')
     const cg = await activeCaregiver(db, companyId, newCaregiverId)
     if (!cg) return fail(c, 404, 'Caregiver not found or inactive')
+    const refused = (await core.certReminders.blockedFor(companyId, [String(newCaregiverId)], before.date || await core.time.today(companyId)))[String(newCaregiverId)]
+    if (refused?.length) return fail(c, 409, `${cg.firstName} ${cg.lastName} has an expired credential (${refused.join(', ')}) and cannot be put on a shift until it is renewed.`, 'credential_expired')
     if (before.date && await dateOverlap(db, companyId, newCaregiverId, id, before.date, before.startTime, before.endTime)) {
       return fail(c, 400, `${cg.firstName} ${cg.lastName} has a conflicting schedule at this time`)
     }
@@ -151,6 +157,7 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
   //   ?scope=all (default)  recurring: END it as of today, keeping every worked occurrence; one-time: remove the row
   //   ?scope=purge          erase the pattern including history (for a pattern made by mistake)
   //   &deletePair=true      also the other half of a split shift
+  //   &series=true          a repeating shift made on several weekdays: every weekday of it (not only this one)
   app.delete('/:scheduleId', perm('care-schedule:delete'), async (c) => {
     const { companyId, me: actor } = who(c)
     const scheduleId = c.req.param('scheduleId')
@@ -158,6 +165,7 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
     const date = c.req.query('date')
     const reason = c.req.query('reason') || null
     const deletePair = c.req.query('deletePair') === 'true'
+    const series = c.req.query('series') === 'true'
 
     const shift = await core.schedules.scheduleById(companyId, scheduleId)
     if (!shift) return fail(c, 404, 'Schedule not found')
@@ -180,14 +188,15 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
 
     if (scope === 'following') {
       const endDate = addDays(date!, -1)
-      await endActivePattern(db, companyId, scheduleId, endDate)
+      await endActivePattern(db, companyId, scheduleId, endDate, series ? shift.repeatGroupId : null)
       const after = await core.schedules.scheduleById(companyId, scheduleId)
       await core.notify.recordAudit(companyId, actor, 'END_PATTERN', 'schedules', scheduleId, shift, after, reason)
       return one(c, { message: 'Recurring pattern ended', endDate, schedule: after })
     }
 
     const isSplitPair = !!(shift.isSplitShift && shift.splitShiftGroupId && deletePair)
-    const target: ScheduleTarget = isSplitPair ? { splitGroup: shift.splitShiftGroupId } : { id: scheduleId }
+    const target: ScheduleTarget = isSplitPair ? { splitGroup: shift.splitShiftGroupId }
+      : series && shift.repeatGroupId ? { repeatGroup: shift.repeatGroupId } : { id: scheduleId }
 
     if (scope === 'purge') {
       const ids = await deactivateSchedules(db, companyId, target)

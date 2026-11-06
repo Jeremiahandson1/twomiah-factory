@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search, Copy, BookmarkPlus, LayoutTemplate } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig, countedLines } from './types'
 import { AreaPricedLine } from './AreaPricedLine'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { SaveTemplateModal, TemplatePickerModal, formLines, useQuoteFeature } from './quoteTemplates'
+import type { MarkupDefaults } from './markup'
+import { MarginSummary } from './MarginSummary'
 import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
-interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[]; depositType: '' | 'percent' | 'fixed'; depositValue: number }
+interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[]; depositType: '' | 'percent' | 'fixed'; depositValue: number; salespersonId: string }
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
 // Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES), a viewed quote included.
 const EDITABLE = ['draft', 'sent', 'viewed']
@@ -35,14 +38,34 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const mayDelete = useMayWrite('quotes:delete')
   const mayInvoice = useMayWrite('invoices:create')
   const mayJob = useMayWrite('jobs:create')
+  // Create similar / start from a template (quote_templates, not ready): both fill the form below and save through the ordinary create.
+  const templatesOn = useQuoteFeature('quote_templates')
+  const [saveAs, setSaveAs] = useState<{ id: string; name: string } | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  // Usual markup by kind of line, with the margin shown as the quote is built (markup_defaults); a picture on each line (quote_line_images).
+  const markupOn = useQuoteFeature('markup_defaults')
+  const imagesOn = useQuoteFeature('quote_line_images')
+  const [markupDefaults, setMarkupDefaults] = useState<MarkupDefaults | null>(null)
+  useEffect(() => {
+    if (!markupOn || !maySeeCost) { setMarkupDefaults(null); return }
+    let live = true
+    Promise.resolve(api.get('/api/markup-defaults')).then((r: any) => { if (live) setMarkupDefaults(r || {}) }).catch(() => { if (live) setMarkupDefaults(null) })
+    return () => { live = false }
+  }, [markupOn, maySeeCost]) // eslint-disable-line react-hooks/exhaustive-deps
+  const uploadLinePicture = async (file: File) => {
+    const body = new FormData(); body.append('file', file)
+    const r: any = await (api as any).upload('/api/quote-line-images', body)
+    return String(r?.url || '')
+  }
   // Every status a quote can hold here. 'rejected' is written by the owner's Reject and the portal's decline in every
   // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
   // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
   const statuses = ['draft', 'sent', 'viewed', 'approved', 'rejected', ...(cfg.quoteDecline ? ['declined'] : []), 'expired']
-  const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()], depositType: '', depositValue: 0 })
+  const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()], depositType: '', depositValue: 0, salespersonId: 'me' })
 
   const [data, setData] = useState<Row[]>([])
   const [contacts, setContacts] = useState<Row[]>([])
+  const [team, setTeam] = useState<Array<{ id: string; name: string }>>([])
   const [projects, setProjects] = useState<Row[]>([])
   const [sites, setSites] = useState<Row[]>([])
   const [equipment, setEquipment] = useState<Row[]>([])
@@ -74,6 +97,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     } catch (e) { toast.error(errMsg(e, 'Failed to load quotes')) }
     finally { setLoading(false) }
     // Customers only: a vendor is never who a quote is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+    // The salesperson list is the Team module's (/api/team is mounted behind the `team` feature): asked only where it is on.
+    if (cfg.quoteSalesperson && (cfg.hasFeature ? cfg.hasFeature('team') : true)) api.get('/api/team/assignable').then((r: any) => { const list = r?.data || (Array.isArray(r) ? r : []); setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' }))) }).catch(() => setTeam([]))
     api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     /**
@@ -103,29 +128,46 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({
-      description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
-      /*
-       * The cost fields have to survive a round trip. PUT replaces the whole line set, so reading a
-       * quote back without them and saving it again would silently wipe every cost the quote had —
-       * the edit path throwing away what the create path recorded. (T41)
-       */
-      ...(li.type ? { type: li.type } : {}),
-      ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
-      ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
-      ...(li.optional ? { optional: true, selected: !!li.selected } : {}),
-      // Estimating fields must survive the round trip too: PUT replaces every line.
-      ...(li.section ? { section: li.section } : {}),
-      ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
-      ...(li.allowance ? { allowance: true } : {}),
-      ...(li.costCode ? { costCode: li.costCode } : {}),
-    })) : [blankLine()], depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
+    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', salespersonId: item.salespersonId || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** A new quote filled in from an old one: same customer, project, lines and wording; nothing tied to the old job, and no expiry. */
+  const createSimilar = useCallback(async (id: string) => {
+    try {
+      const item = await api.get(`/api/quotes/${id}`)
+      setEditing(null)
+      setForm({
+        name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: '', siteId: '', equipmentId: '', expiryDate: '',
+        // A copy is a new quote: its salesperson is chosen as a new quote's is (the one making it, unless changed).
+        salespersonId: 'me', taxRate: Number(item.taxRate), discount: 0, notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '',
+        lineItems: formLines(item.lineItems?.filter((li: any) => !li.proposalOptionId), blankLine),
+        depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0,
+      })
+      loadCustomerExtras(item.contactId || '')
+      setModalOpen(true)
+      toast.success(`Copied from ${item.number}. Change what is different, then save.`)
+    } catch (e) { toast.error(errMsg(e, 'Could not copy that quote')) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  /** A new quote filled in from a template: its lines and wording, and no customer until you pick one. */
+  const fromTemplate = (body: any) => {
+    setEditing(null)
+    setForm({
+      ...emptyForm(), name: body?.name || '', notes: body?.notes || '', customerMessage: body?.customerMessage || '', terms: body?.terms || '',
+      taxRate: Number(body?.taxRate ?? defaultTaxRate) || 0, lineItems: formLines(body?.lineItems, blankLine),
+      depositType: body?.depositType === 'percent' || body?.depositType === 'fixed' ? body.depositType : '', depositValue: Number(body?.depositValue) || 0,
+    })
+    setSites([]); setEquipment([]); setModalOpen(true)
+  }
+
   useEffect(() => {
     // ?new=1 (a job's "Create Quote"), or a contact's quick action, which sends ?contactId= alone.
+    if (searchParams.get('similar') && templatesOn && mayCreate) {
+      const from = searchParams.get('similar') as string
+      searchParams.delete('similar'); setSearchParams(searchParams, { replace: true }); createSimilar(from)
+      return
+    }
     if ((searchParams.get('new') !== '1' && !searchParams.get('contactId')) || !mayCreate) return
     const contactId = searchParams.get('contactId') || ''
     const jobId = cfg.quoteJobs ? searchParams.get('jobId') || '' : ''
@@ -193,6 +235,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       if (cfg.quoteJobs) payload.jobId = form.jobId
       if (cfg.quoteEquipment) payload.equipmentId = form.equipmentId
       if (cfg.quoteCustomerMessage) payload.customerMessage = form.customerMessage
+      // 'me' on a new quote = say nothing and the server credits the signed-in writer; '' = no salesperson.
+      if (cfg.quoteSalesperson && team.length > 0 && form.salespersonId !== 'me') payload.salespersonId = form.salespersonId || null
       if (cfg.quoteDeposit) { payload.depositType = form.depositType || null; payload.depositValue = form.depositType ? form.depositValue : null }
       let saved: any
       if (editing) { saved = await api.put(`/api/quotes/${editing.id}`, payload); toast.success('Quote updated') }
@@ -217,7 +261,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
 
   return (
     <div>
-      <PageHeader title="Quotes" action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button> : undefined} />
+      <PageHeader title="Quotes" action={mayCreate ? <div className="flex gap-2">{templatesOn && <Button variant="secondary" onClick={() => setPickerOpen(true)}><LayoutTemplate className="w-4 h-4" /> From a template</Button>}<Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button></div> : undefined} />
       <div className="mb-4 flex flex-wrap gap-3">
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
           <option value="">All statuses</option>
@@ -236,8 +280,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         { label: cfg.quoteDecline ? 'Mark declined' : 'Mark rejected', icon: X, onClick: r => act(`/api/quotes/${r.id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Convert to Invoice', icon: FileText, onClick: async r => { const inv = await act(`/api/quotes/${r.id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }, show: r => mayInvoice && r.status === 'approved' && !r.invoiced },
         ...(cfg.jobs ? [{ label: 'Convert to Job', icon: Briefcase, onClick: async (r: Row) => { const job = await act(`/api/quotes/${r.id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }, show: (r: Row) => mayJob && r.status === 'approved' && !r.convertedToJobId && !r.jobId }] : []),
+        ...(templatesOn ? [
+          { label: 'Create similar', icon: Copy, onClick: (r: Row) => createSimilar(r.id), show: () => mayCreate },
+          { label: 'Save as template', icon: BookmarkPlus, onClick: (r: Row) => setSaveAs({ id: r.id, name: r.name }), show: () => mayCreate },
+        ] : []),
         { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => mayDelete && r.status === 'draft' },
       ]} />
+      {templatesOn && <SaveTemplateModal api={api as any} toast={toast as any} quote={saveAs} onClose={() => setSaveAs(null)} />}
+      {templatesOn && <TemplatePickerModal api={api as any} toast={toast as any} open={pickerOpen} onClose={() => setPickerOpen(false)} onUse={fromTemplate} mayDelete={mayDelete} />}
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Quote'} size="xl">
         <div className="space-y-4">
@@ -273,7 +323,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                */
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost, loaded: pricebookLoaded } : undefined}
               optional={!!cfg.quoteOptions}
-              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes } : undefined}
+              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes, ...(markupDefaults ? { markupDefaults } : {}), ...(imagesOn ? { images: { upload: uploadLinePicture } } : {}) } : undefined}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (
@@ -306,6 +356,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             </div>
           )}
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
+          {markupDefaults && <MarginSummary lines={cfg.quoteOptions ? countedLines(form.lineItems) : form.lineItems} />}
+          {cfg.quoteSalesperson && team.length > 0 && <Field label="Salesperson"><select value={form.salespersonId} onChange={e => setForm((f) => ({ ...f, salespersonId: e.target.value }))} className={inputCls} aria-label="Salesperson">{!editing && <option value="me">Me</option>}<option value="">No salesperson</option>{team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>}
           {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm((f) => ({ ...f, customerMessage: e.target.value }))} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
           <Field label={<>Notes <span className="text-gray-500 dark:text-slate-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
           <Field label="Terms"><textarea value={form.terms} onChange={e => setForm((f) => ({ ...f, terms: e.target.value }))} rows={2} className={inputCls} /></Field>

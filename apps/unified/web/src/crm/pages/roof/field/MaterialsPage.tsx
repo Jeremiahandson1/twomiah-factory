@@ -5,32 +5,38 @@
 // Changes from the template:
 //   · the Total Cost column follows margin:read — the permission the server withholds an order's prices by — where the
 //     template read a `moneyWithheld` flag the list no longer carries;
-//   · the status filter offers the statuses an order can have (not ordered, ordered, partial, delivered, cancelled); the
+//   · the status filter offers the statuses an order can have (draft, ready to send, sent, rejected, ordered, partly delivered,
+//     delivered, cancelled — Roofr's words where it has them); the
 //     template offered draft and shipped, which no order ever has, and lacked not ordered and partial;
-//   · the total and the page count are the reply's pagination.
+//   · the total and the page count are the reply's pagination;
+//   · the columns are Roofr's order dashboard (status, PO number, job, address, supplier, order date, delivery, amount) and each
+//     header sorts the whole list on the server (?sort=&dir=), a click ascending, a second descending, a third back to newest.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Filter, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Filter, Mail, Plus, Tag } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useMayWrite, usePermissions, useToast } from '../../../../shared'
+import { errorText, useAuth, useMayWrite, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
-import { supplierName } from '../lib/supplier'
+import { ORDER_STATUS_LABELS, orderStatusLabel, supplierName } from '../lib/supplier'
 import { listOf, paginationOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
+import MaterialOrderDetail from './MaterialOrderDetail'
+import MaterialSendForm from './MaterialSendForm'
+import SupplierPriceLists from './SupplierPriceLists'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 /** server/crm/roof/validation.ts MATERIAL_ORDER_STATUSES, each with its badge. */
 const STATUS_COLORS: Record<string, string> = {
   not_ordered: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  ready_to_send: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
+  sent: 'bg-sky-100 text-sky-800 dark:text-sky-300 dark:bg-sky-950/40',
+  rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   ordered: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   partial: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   delivered: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 }
 
-function formatStatus(s: string | null | undefined) {
-  return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
+const formatStatus = (s: string | null | undefined) => orderStatusLabel(s)
 
 interface MaterialOrder {
   id: string
@@ -38,6 +44,8 @@ interface MaterialOrder {
   jobNumber: string | null
   supplier: string | null
   status: string | null
+  poNumber?: string | null
+  deliveryAddress?: string | null
   orderDate: string | null
   deliveryDate: string | null
   /** Absent for a seat without margin:read (the server withholds it). */
@@ -46,16 +54,30 @@ interface MaterialOrder {
 
 const LIMIT = 25
 
+/** The dashboard's columns (Roofr's: status, number, address, supplier, amount, delivery — plus the job and the order date). `sort` is the server's name for it (data/materialOrders.ts). */
+type SortKey = 'status' | 'po' | 'job' | 'address' | 'supplier' | 'orderDate' | 'delivery' | 'amount'
+const COLUMNS: Array<{ key: SortKey; label: string; right?: boolean; cost?: boolean }> = [
+  { key: 'status', label: 'Status' }, { key: 'po', label: 'PO #' }, { key: 'job', label: 'Job #' }, { key: 'address', label: 'Address' },
+  { key: 'supplier', label: 'Supplier' }, { key: 'orderDate', label: 'Order Date' }, { key: 'delivery', label: 'Delivery' },
+  { key: 'amount', label: 'Amount', right: true, cost: true },
+]
+
 export default function MaterialsPage() {
   const toast = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
-  const navigate = useNavigate()
   // What the business paid: shown to the seats the server shows it to (margin:read). (T42)
   const showCost = usePermissions().can('margin:read')
   // A new order (POST /api/materials asks inventory:create): the page had no add control (live test 2026-10-22).
   const mayAdd = useMayWrite('inventory:create')
   const [adding, setAdding] = useState(false)
+  // Sending orders to the supplier (material_supply, inventory:update): pick rows, send them together; and the supplier price lists (they hold costs: margin:read).
+  const maySend = useAuth().hasFeature('material_supply') && usePermissions().can('inventory:update')
+  const [picked, setPicked] = useState<string[]>([])
+  const [sendingMany, setSendingMany] = useState(false)
+  const [priceLists, setPriceLists] = useState(false)
+  // The order opened for reading (and printing).
+  const [openOrder, setOpenOrder] = useState<MaterialOrder | null>(null)
 
   const [orders, setOrders] = useState<MaterialOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,6 +89,9 @@ export default function MaterialsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [suppliers, setSuppliers] = useState<string[]>([])
+  // The header the table is sorted by, and which way (the server sorts: the table is paged).
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null)
+  const sortBy = (key: SortKey) => setSort((cur) => (cur?.key === key ? (cur.dir === 'asc' ? { key, dir: 'desc' } : null) : { key, dir: 'asc' }))
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,6 +100,7 @@ export default function MaterialsPage() {
         page, limit: LIMIT,
         supplier: supplierFilter || undefined, status: statusFilter || undefined,
         dateFrom: dateFrom || undefined, dateTo: dateTo || undefined,
+        sort: sort?.key, dir: sort?.dir,
       })
       const items = listOf<MaterialOrder>(reply)
       const p = paginationOf(reply)
@@ -89,12 +115,16 @@ export default function MaterialsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, supplierFilter, statusFilter, dateFrom, dateTo])
+  }, [page, supplierFilter, statusFilter, dateFrom, dateTo, sort])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setPage(1) }, [supplierFilter, statusFilter, dateFrom, dateTo])
+  useEffect(() => { setPage(1) }, [supplierFilter, statusFilter, dateFrom, dateTo, sort])
 
-  const columns = showCost ? 6 : 5
+  const shown = COLUMNS.filter((c) => !c.cost || showCost)
+  const columns = shown.length + (maySend ? 1 : 0)
+  const togglePick = (id: string) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
+  const pickedOrders = orders.filter((o) => picked.includes(o.id))
+  const oneSupplier = new Set(pickedOrders.map((o) => (o.supplier || '').toLowerCase().replace(/[^a-z0-9]+/g, ''))).size <= 1
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -104,6 +134,16 @@ export default function MaterialsPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Material Orders</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'order' : 'orders'}</p>
           </div>
+          {maySend && pickedOrders.length > 0 && (
+            <button type="button" onClick={() => setSendingMany(true)} disabled={!oneSupplier} title={oneSupplier ? undefined : 'Pick orders of one supplier'} className="flex items-center gap-1.5 px-4 py-2 mr-2 bg-gray-100 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-100">
+              <Mail className="w-4 h-4" /> Send {pickedOrders.length} to supplier
+            </button>
+          )}
+          {maySend && showCost && (
+            <button type="button" onClick={() => setPriceLists(true)} className="flex items-center gap-1.5 px-4 py-2 mr-2 bg-gray-100 text-sm font-medium rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100">
+              <Tag className="w-4 h-4" /> Price lists
+            </button>
+          )}
           {mayAdd && (
             <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
               <Plus className="w-4 h-4" /> New order
@@ -111,6 +151,9 @@ export default function MaterialsPage() {
           )}
         </div>
         {adding && <MaterialOrderForm onClose={() => setAdding(false)} onSaved={load} />}
+        {openOrder && <MaterialOrderDetail orderId={openOrder.id} jobNumber={openOrder.jobNumber} onClose={() => setOpenOrder(null)} onChanged={load} />}
+        {sendingMany && <MaterialSendForm orderIds={pickedOrders.map((o) => o.id)} onClose={() => setSendingMany(false)} onSent={() => { setPicked([]); load() }} />}
+        {priceLists && <SupplierPriceLists onClose={() => setPriceLists(false)} />}
 
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Filter className="w-4 h-4 text-gray-400" />
@@ -122,7 +165,7 @@ export default function MaterialsPage() {
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Statuses</option>
-            {Object.keys(STATUS_COLORS).map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
+            {Object.keys(ORDER_STATUS_LABELS).map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
           </select>
           <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
             <span>From</span>
@@ -139,14 +182,16 @@ export default function MaterialsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b dark:bg-slate-900">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Job #</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Supplier</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Order Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Delivery Date</th>
-                  {showCost && (
-                    <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Total Cost</th>
-                  )}
+                  {maySend && <th scope="col" className="px-4 py-3 w-8"><span className="sr-only">Pick to send</span></th>}
+                  {shown.map((col) => (
+                    <th key={col.key} scope="col" aria-sort={sort?.key === col.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      className={`${col.right ? 'text-right' : 'text-left'} px-4 py-3 font-medium text-gray-500 dark:text-slate-400`}>
+                      <button type="button" onClick={() => sortBy(col.key)} data-testid={`sort-${col.key}`} className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-slate-100">
+                        {col.label}
+                        <span aria-hidden="true" className="text-xs">{sort?.key === col.key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+                      </button>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -158,20 +203,29 @@ export default function MaterialsPage() {
                   orders.map((order) => (
                     <tr
                       key={order.id}
-                      onClick={() => order.jobId && navigate(`/crm/jobs/${order.jobId}`)}
+                      onClick={() => setOpenOrder(order)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setOpenOrder(order) }}
+                      tabIndex={0}
                       className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer"
                     >
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-200">
-                        {/* jobNumber is the real "ROOF-0005"; never glue the raw
-                            record id onto a "ROOF-" prefix as a fallback. */}
-                        {order.jobNumber || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{supplierName(order.supplier) || '—'}</td>
+                      {maySend && (
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" aria-label={`Pick ${order.poNumber || order.jobNumber || 'order'} to send`} checked={picked.includes(order.id)} onChange={() => togglePick(order.id)} />
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status || ''] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
                           {formatStatus(order.status) || 'Ordered'}
                         </span>
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-slate-200">{order.poNumber || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-200">
+                        {/* jobNumber is the real "ROOF-0005"; never glue the raw
+                            record id onto a "ROOF-" prefix as a fallback. */}
+                        {order.jobNumber || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 text-xs dark:text-slate-300">{order.deliveryAddress || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{supplierName(order.supplier) || '—'}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">
                         {order.orderDate ? formatDate(order.orderDate) : '—'}
                       </td>

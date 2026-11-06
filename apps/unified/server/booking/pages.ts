@@ -16,6 +16,13 @@ import { BookingError } from './engine.ts'
 // The site's one rule for a tab's title, "Page — Business, City, ST" (site/menu.ts), as every other page of the site.
 import { pageTitle } from '../site/menu.ts'
 import { whenText } from './emails.ts'
+
+/** An opening offered after a late card or payment: "Tue, Nov 3 · 10:00 AM". */
+const openingText = (date: string, time: string) => {
+  const day = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const [h, m] = time.split(':').map(Number)
+  return `${day} · ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
 import { icsOf } from './happenings.ts'
 import { renderBody, escHtml } from '../site/render.ts'
 import { EMBED_CSP } from '../http/guards.ts'
@@ -26,6 +33,7 @@ import { consentBoxHtml } from '../site/smsConsent.ts'
 const SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(import.meta.dir, '..', '..', 'site', 'public', 'scripts', 'book-flow.ts'), 'utf8'))
 // The embed (another website showing the booking pages in a frame), served from the site like the picker's script.
 const EMBED_SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(import.meta.dir, '..', '..', 'site', 'public', 'scripts', 'book-embed.ts'), 'utf8'))
+const SIGN_SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(import.meta.dir, '..', '..', 'site', 'public', 'scripts', 'form-sign.ts'), 'utf8'))
 const FEATURE = 'online_booking'
 const length = (m: number) => (m % 60 === 0 ? `${m / 60} hr` : m > 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`)
 const price = (p: string | null) => (p == null ? '' : '$' + (Number(p) % 1 ? Number(p).toFixed(2) : String(Number(p))))
@@ -65,6 +73,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
 
   // Cross-origin by design: it is loaded by the business's other website.
   app.get('/scripts/book-embed.js', (c) => c.body(EMBED_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' }))
+  app.get('/scripts/form-sign.js', (c) => c.body(SIGN_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300' }))
   app.get('/scripts/book-flow.js', (c) => c.body(SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300' }))
 
   app.get('/book', async (c) => {
@@ -81,7 +90,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   /** The picker, for a new booking or (with the booking) a new time for an existing one. */
   // askZip: only where somebody covers named ZIP codes (Settings › Service areas) — the ZIP picks who is offered. A salon
   // that has none asked every client for one (salon live test, 2026-10-25).
-  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false, people: Array<{ id: string; name: string }> = []) {
+  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false, people: Array<{ id: string; name: string }> = [], whoRequired = false) {
     const tips = Array.isArray(svc.tipPresets) && svc.price != null ? (svc.tipPresets as number[]) : []
     // The waitlist's dates are held to the booking window like a booking's (engine.customerRules).
     const win = engine.window(settings)
@@ -121,7 +130,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       </ol>
       <div class="book-step book-step--date">
         <h2>Pick a date</h2>
-        ${moving || !people.length ? '' : `<div class="book-who"><label>Your stylist<select id="book-who" name="who"><option value="">Anyone — first available</option>${people.map((p) => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('')}</select></label></div>`}
+        ${moving || !people.length ? '' : `<div class="book-who"><label>Your stylist<select id="book-who" name="who"${whoRequired ? ' required' : ''}><option value="">${whoRequired ? 'Choose your stylist' : 'Anyone — first available'}</option>${people.map((p) => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('')}</select></label></div>`}
         ${moving || !askZip ? '' : `<div class="book-zip"><label>Your ZIP code (optional)<input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" id="book-zip" name="zip" autocomplete="postal-code"></label></div>`}
         <div class="book-dates" id="book-dates"><p class="book-loading">Finding open days…</p></div>
       </div>
@@ -184,7 +193,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>
       <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + servicePrice(svc) : ''}</p>
-      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0), await engine.people(s.ctx.companyId))}
+      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0), await engine.people(s.ctx.companyId), await engine.peopleRequired(s.ctx.companyId))}
     </div></section>`
     return html(c, s.ctx, body, `Book ${svc.name}`, '/book/' + svc.slug)
   })
@@ -192,23 +201,35 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   /** The customer's own page: what, when, and the way to move or cancel it while it's still allowed. */
   app.get('/booking/:token', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
-    const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
+    let b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
     if (!b) return c.notFound()
+    // Held for forms: if they have been filled in some other way since (at the desk, by the link we sent), it moves on now; if the hold ran out, it is let go.
+    if (engine.waitingForForms(b) && b.contactId) { await engine.formsReleased(b.companyId, b.contactId); b = (await engine.byToken(s.ctx.companyId, b.token)) ?? b }
     const svc = b.serviceId ? await engine.serviceById(s.ctx.companyId, b.serviceId) : null
     const tz = safeTz(s.settings.timezone)
     const waitingCard = engine.waitingForCard(b)
-    const status = ({ pending: waitingCard ? 'Waiting for your card' : 'Waiting for the deposit', confirmed: 'Confirmed', cancelled: 'Cancelled', completed: 'Completed', no_show: 'Missed' } as Record<string, string>)[b.status] || b.status
+    const waitingForms = engine.waitingForForms(b)
+    const status = ({ pending: waitingForms ? 'Waiting for your forms' : waitingCard ? 'Waiting for your card' : 'Waiting for the deposit', confirmed: 'Confirmed', cancelled: 'Cancelled', completed: 'Completed', no_show: 'Missed' } as Record<string, string>)[b.status] || b.status
     const open = engine.selfServiceOpen(b, s.settings)
     // A deposit still owed: its amount, and how long the time is held for it (the engine releases it after that).
     const owed = b.status === 'pending' && b.depositStatus === 'pending' && !waitingCard
-    const holdEnds = new Date(b.createdAt.getTime() + s.settings.depositHoldMinutes * 60_000)
+    const holdEnds = new Date(engine.holdStart(b).getTime() + s.settings.depositHoldMinutes * 60_000)
     // Forms the business asks for before the visit (the salon's intake and consent forms), once the booking stands.
     const forms = waitingCard ? [] : await engine.formsPending(b)
     const held = owed && holdEnds.getTime() > Date.now()
     const amount = price(String(Number(b.depositAmount || 0) + Number(b.tipAmount || 0)))
     const holdsCard = waitingCard && holdEnds.getTime() > Date.now()
     const terms = holdsCard ? await engine.cardTerms(b) : null
-    const note = c.req.query('card') === 'saved' && !c.req.query('cancelled') ? (b.status === 'confirmed'
+    // A deposit whose page also keeps the card: the policy to agree to sits beside the button (the server refuses the page without the tick).
+    const depositTerms = held ? await engine.depositTerms(b) : null
+    // A card or payment that came after the hold ran out and the time could not come back: said in words, with the next openings.
+    const late = (c.req.query('card') === 'saved' || c.req.query('deposit') === 'paid') && b.status === 'cancelled' ? await engine.lateNote(b) : null
+    const lateHtml = late ? `<p class="book-error" role="alert">${c.req.query('deposit') === 'paid'
+      ? (b.depositStatus === 'refunded' ? 'Your payment arrived after the hold ran out, and the time had already been taken, so it has been refunded.' : 'Your payment arrived after the hold ran out, and the time had already been taken, so it is being refunded.')
+      : 'Your card is saved, but the hold ran out before it arrived and the time has been given to someone else.'} Please choose another time.</p>
+      ${late.times.length ? `<ul class="book-late-times">${late.times.map((t) => `<li>${escHtml(openingText(t.date, t.time))}</li>`).join('')}</ul>` : ''}
+      <div class="book-actions"><a class="book-submit" href="/book/${escHtml(late.slug)}${keep(c)}"${top(c)}>Choose a new time</a></div>` : ''
+    const note = late ? '' : c.req.query('card') === 'saved' && !c.req.query('cancelled') ? (b.status === 'confirmed'
         ? '<p class="book-ok" role="status">Thank you — your card is saved and your booking is confirmed. A confirmation is on its way.</p>'
         : waitingCard ? '<p class="book-ok" role="status">Thank you — your card is being confirmed. This usually takes a few seconds; refresh to see it.</p>' : '')
       : (c.req.query('card') === 'cancelled' || (c.req.query('card') && c.req.query('cancelled'))) && holdsCard ? `<p class="book-error" role="alert">No card was saved. Your time is held until ${escHtml(whenText(holdEnds, tz))} — add your card below to keep it.</p>`
@@ -222,15 +243,17 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       : c.req.query('error') ? `<p class="book-error" role="alert">${escHtml(c.req.query('error')!)}</p>` : ''
     const body = `<section class="book-thanks"><div class="container container--narrow">
       <h1>Your booking</h1>
-      ${note}
+      ${note}${lateHtml}
       <div class="book-thanks__summary">
         <div><span>Service</span><strong>${escHtml(svc?.name || 'Booking')}</strong></div>
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         <div><span>Status</span><strong>${escHtml(status)}</strong></div>
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
-        ${b.depositAmount ? `<div><span>Deposit</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
+        ${b.depositAmount ? `<div><span>${svc?.prepay ? 'Payment' : 'Deposit'}</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
       </div>
-      ${forms.length ? `<div class="book-forms"><h2>Before your visit</h2><p class="book-thanks__lead">Please fill in ${forms.length === 1 ? 'this form' : 'these forms'} — it saves us time at your appointment.</p><ul>${forms.map((f) => `<li><a href="/booking/${escHtml(b.token)}/form/${escHtml(f.id)}${keep(c)}"${top(c)}>${escHtml(f.name)}</a></li>`).join('')}</ul></div>` : ''}
+      ${forms.length ? `<div class="book-forms"><h2>${waitingForms ? 'Fill in your forms to confirm your booking' : 'Before your visit'}</h2><p class="book-thanks__lead">${waitingForms
+        ? `Your time is held until ${escHtml(whenText(holdEnds, tz))}. Please fill in ${forms.length === 1 ? 'this form' : 'these forms'} to confirm it — after that it is offered to others.`
+        : `Please fill in ${forms.length === 1 ? 'this form' : 'these forms'} — it saves us time at your appointment.`}</p><ul>${forms.map((f) => `<li><a href="/booking/${escHtml(b.token)}/form/${escHtml(f.id)}${keep(c)}"${top(c)}>${escHtml(f.name)}</a>${f.expired ? ' <span class="book-thanks__lead">(your last answers have run out)</span>' : ''}</li>`).join('')}</ul></div>` : ''}
       ${holdsCard ? `<form class="book-card" method="post" action="/booking/${escHtml(b.token)}/card"${top(c)}>
         <p class="book-thanks__lead">To keep this time, please leave a card. It is kept securely on our payment provider's page and is <strong>not charged now</strong>.</p>
         ${terms ? `<p class="book-card__terms">${escHtml(terms)}</p>` : ''}
@@ -238,7 +261,13 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         <div class="book-actions"><button type="submit" class="book-submit">Add my card</button></div>
         <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>
       </form>` : waitingCard ? '<p class="book-error" role="alert">The hold ran out before a card was added, and the time has been offered to others. Please book again.</p>' : ''}
-      ${held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>Pay the ${escHtml(amount)} deposit</a></div>
+      ${held && depositTerms ? `<form class="book-card" method="post" action="/booking/${escHtml(b.token)}/pay"${top(c)}>
+        <p class="book-thanks__lead">${svc?.prepay ? `Pay the ${escHtml(amount)} now` : `Pay the ${escHtml(amount)} deposit`} on our payment provider's page. The card you pay with is also <strong>kept securely</strong> for the policy below.</p>
+        <p class="book-card__terms">${escHtml(depositTerms)}</p>
+        <label class="book-check"><input type="checkbox" name="agree" value="1" required> I agree to the above and to keeping my card on file.</label>
+        <div class="book-actions"><button type="submit" class="book-submit">${svc?.prepay ? `Pay ${escHtml(amount)} and keep my card` : `Pay the ${escHtml(amount)} deposit and keep my card`}</button></div>
+        <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>
+      </form>` : held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>${svc?.prepay ? `Pay ${escHtml(amount)}` : `Pay the ${escHtml(amount)} deposit`}</a></div>
       <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>` : ''}
       ${open ? `<div class="book-actions">
         ${svc?.active ? `<a class="book-submit book-submit--secondary" href="/booking/${escHtml(b.token)}/reschedule"${top(c)}>Reschedule</a>` : ''}
@@ -282,14 +311,44 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     return back(now?.status === 'cancelled' ? 'The time was not held any longer — please book again.' : now?.status === 'confirmed' ? 'Your booking is already confirmed.' : 'Card saving is not available right now — please get in touch.')
   })
 
-  // A form the business asks for (the salon's intake and consent forms): shown on its own page, answered once, kept on the client's chart.
+  // A form the business asks for (the salon's intake and consent forms): shown on its own page, answered once (again when it runs out), kept on the client's chart.
+  // Answered on the booking's page (/booking/:token/form/:id) or by a link we sent a client (/forms/:token).
   const formFields = (q: any) => {
     const name = `q_${escHtml(q.id)}`, req = q.required ? ' required' : ''
     if (q.type === 'longtext') return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<textarea name="${name}" rows="3" maxlength="2000"${req}></textarea></label>`
     if (q.type === 'yesno') return `<fieldset class="book-choice"><legend>${escHtml(q.label)}${q.required ? '' : ' (optional)'}</legend><label class="book-check"><input type="radio" name="${name}" value="yes"${req}> Yes</label> <label class="book-check"><input type="radio" name="${name}" value="no"${req}> No</label></fieldset>`
     if (q.type === 'choice') return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<select name="${name}"${req}><option value="">Choose…</option>${(q.options || []).map((o: string) => `<option>${escHtml(o)}</option>`).join('')}</select></label>`
     if (q.type === 'consent') return `<label class="book-check"><input type="checkbox" name="${name}" value="1" required> ${escHtml(q.label)}</label>`
+    if (q.type === 'photo') return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<input type="file" name="f_${escHtml(q.id)}" accept="image/*"${req}></label>`
+    if (q.type === 'file') return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<input type="file" name="f_${escHtml(q.id)}" accept="image/*,application/pdf"${req}></label>`
     return `<label>${escHtml(q.label)}${q.required ? '' : ' (optional)'}<input type="text" name="${name}" maxlength="300"${req}></label>`
+  }
+  /** The form's page body: its questions, the signature (typed, or drawn in a box), and the buttons. */
+  const formPage = (f: { name: string; kind: string; intro: string | null; questions: any[]; signature: string }, action: string, notNow: string | null, err: string | undefined, c: Context) => {
+    const drawn = f.kind === 'consent' && f.signature === 'drawn'
+    return `<section class="book-thanks"><div class="container container--narrow">
+      <h1>${escHtml(f.name)}</h1>
+      ${f.intro ? `<p class="book-thanks__lead">${escHtml(f.intro)}</p>` : ''}
+      ${err ? `<p class="book-error" role="alert">${escHtml(err)}</p>` : ''}
+      <form method="post" action="${escHtml(action)}" enctype="multipart/form-data" class="book-form"${top(c)}>
+        ${f.questions.map(formFields).join('\n        ')}
+        ${drawn ? `<div class="book-sign" data-signature><p>Sign in the box with your finger or mouse</p><canvas style="width:100%;height:160px;border:1px solid #9ca3af;border-radius:6px;background:#fff;touch-action:none" aria-label="Signature box"></canvas><input type="hidden" name="signature" value=""><button type="button" class="book-submit book-submit--secondary" data-signature-clear>Clear the box</button><noscript><p class="book-error">Signing needs JavaScript. Please turn it on, or sign at the salon.</p></noscript></div>
+        <label>Type your full name under your signature<input type="text" name="signedName" maxlength="120" required autocomplete="name"></label>`
+          : f.kind === 'consent' ? '<label>Type your full name to sign<input type="text" name="signedName" maxlength="120" required autocomplete="name"></label>' : ''}
+        <div class="book-actions"><button type="submit" class="book-submit">Save my answers</button>${notNow ? ` <a href="${escHtml(notNow)}"${top(c)}>Not now</a>` : ''}</div>
+      </form>
+    </div></section>${drawn ? '<script src="/scripts/form-sign.js" defer></script>' : ''}`
+  }
+  /** What a form post carries: the answers, the files for its photo / file questions, and the drawn signature. */
+  const readForm = async (c: Context) => {
+    const form = await c.req.parseBody().catch(() => ({} as Record<string, unknown>))
+    const answers: Record<string, unknown> = {}
+    const files: Record<string, { name: string; type: string; bytes: Uint8Array }> = {}
+    for (const [k, v] of Object.entries(form)) {
+      if (k.startsWith('q_')) answers[k.slice(2)] = typeof v === 'string' ? v : ''
+      else if (k.startsWith('f_') && v && typeof v !== 'string' && (v as File).size > 0) files[k.slice(2)] = { name: (v as File).name, type: (v as File).type, bytes: new Uint8Array(await (v as File).arrayBuffer()) }
+    }
+    return { answers, files, signedName: String(form.signedName || ''), signature: typeof form.signature === 'string' && form.signature ? form.signature : null }
   }
   app.get('/booking/:token/form/:formId', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
@@ -297,43 +356,52 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     if (!b) return c.notFound()
     const f = (await engine.formsPending(b)).find((x) => x.id === c.req.param('formId'))
     if (!f) return c.redirect(`/booking/${b.token}${keep(c)}`, 303)
-    const err = c.req.query('error')
-    const body = `<section class="book-thanks"><div class="container container--narrow">
-      <h1>${escHtml(f.name)}</h1>
-      ${f.intro ? `<p class="book-thanks__lead">${escHtml(f.intro)}</p>` : ''}
-      ${err ? `<p class="book-error" role="alert">${escHtml(err)}</p>` : ''}
-      <form method="post" action="/booking/${escHtml(b.token)}/form/${escHtml(f.id)}" class="book-form"${top(c)}>
-        ${f.questions.map(formFields).join('\n        ')}
-        ${f.kind === 'consent' ? '<label>Type your full name to sign<input type="text" name="signedName" maxlength="120" required autocomplete="name"></label>' : ''}
-        <div class="book-actions"><button type="submit" class="book-submit">Save my answers</button> <a href="/booking/${escHtml(b.token)}${keep(c)}"${top(c)}>Not now</a></div>
-      </form>
-    </div></section>`
-    return html(c, s.ctx, body, f.name, '/booking', true)
+    return html(c, s.ctx, formPage(f, `/booking/${b.token}/form/${f.id}`, `/booking/${b.token}${keep(c)}`, c.req.query('error'), c), f.name, '/booking', true)
   })
   app.post('/booking/:token/form/:formId', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
     const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
     if (!b) return c.notFound()
-    const form = await c.req.parseBody().catch(() => ({} as Record<string, unknown>))
-    const answers: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(form)) if (k.startsWith('q_')) answers[k.slice(2)] = typeof v === 'string' ? v : ''
-    const problem = await engine.formSubmit(b, c.req.param('formId'), answers, String(form.signedName || ''))
+    const got = await readForm(c)
+    const problem = await engine.formSubmit(b, c.req.param('formId'), got.answers, got.signedName, { files: got.files, signature: got.signature })
     if (problem) return c.redirect(`/booking/${b.token}/form/${encodeURIComponent(c.req.param('formId'))}?error=${encodeURIComponent(problem)}${keep(c, '&')}`, 303)
     return c.redirect(`/booking/${b.token}?form=done${keep(c, '&')}`, 303)
   })
+  // A form we sent a client by link: no sign-in, the secret in the address is the way in. Not tied to online booking being on.
+  app.get('/forms/:token', async (c) => {
+    const ctx = await deps.ctxOf(); if (!ctx) return c.notFound()
+    const r = await engine.formRequest(ctx.companyId, c.req.param('token'))
+    if (!r) return html(c, ctx, `<section class="book-thanks"><div class="container container--narrow"><h1>This link does not work</h1><p class="book-thanks__lead">It may be mistyped. Please <a href="/contact">get in touch</a> and we will send it again.</p></div></section>`, 'Form', '/forms', true)
+    if (r.state === 'done') return html(c, ctx, `<section class="book-thanks"><div class="container container--narrow"><div class="book-thanks__check" aria-hidden="true">✓</div><h1>Thank you</h1><p class="book-thanks__lead">${escHtml(r.form.name)} is filled in${c.req.query('done') ? ' and saved' : ''}. You do not need to do anything else.</p></div></section>`, 'Thank you', '/forms', true)
+    return html(c, ctx, formPage(r.form, `/forms/${encodeURIComponent(c.req.param('token'))}`, null, c.req.query('error'), c), r.form.name, '/forms', true)
+  })
+  app.post('/forms/:token', async (c) => {
+    const ctx = await deps.ctxOf(); if (!ctx) return c.notFound()
+    const got = await readForm(c)
+    const problem = await engine.formAnswerRequest(ctx.companyId, c.req.param('token'), got.answers, got.signedName, { files: got.files, signature: got.signature })
+    const token = encodeURIComponent(c.req.param('token'))
+    if (problem) return c.redirect(`/forms/${token}?error=${encodeURIComponent(problem)}${keep(c, '&')}`, 303)
+    return c.redirect(`/forms/${token}?done=1${keep(c, '&')}`, 303)
+  })
 
-  app.get('/booking/:token/pay', async (c) => {
+  // The deposit's own page. One that also keeps the card is opened only from the form (POST below) with its tick.
+  const payPage = async (c: any, agreed: boolean) => {
     const s = await site(c); if (!s) return c.notFound()
     const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
     if (!b) return c.notFound()
-    const url = await engine.depositPage(s.ctx.companyId, b)
+    if (b.keepCard && !agreed) {
+      return c.redirect(`/booking/${b.token}?error=${encodeURIComponent('Please tick the box to agree before paying.')}`, 303)
+    }
+    const url = await engine.depositPage(s.ctx.companyId, b, { agreed })
     if (url) return c.redirect(url, 303)
     const now = await engine.byToken(s.ctx.companyId, b.token)
     const why = now?.depositStatus === 'paid' ? '' : now?.status === 'cancelled'
       ? 'The time was not held any longer — please book again.'
       : 'Card payment is not available right now — please get in touch.'
     return c.redirect(`/booking/${b.token}${why ? '?error=' + encodeURIComponent(why) : ''}`, 303)
-  })
+  }
+  app.get('/booking/:token/pay', (c) => payPage(c, false))
+  app.post('/booking/:token/pay', async (c) => payPage(c, !!(await c.req.parseBody().catch(() => ({} as Record<string, unknown>))).agree))
 
   app.get('/booking/:token/reschedule', async (c) => {
     const s = await site(c); if (!s) return c.notFound()

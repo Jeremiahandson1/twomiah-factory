@@ -33,7 +33,20 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   evvWorkerId: text('evv_worker_id'),
   // Item 2 (care_payroll_rules): this caregiver's id in the agency's payroll provider — the ADP file number / the Paychex worker id.
   payrollWorkerId: text('payroll_worker_id'),
+  // Row 20 (care_payroll_rules): this caregiver's own rate per mile (null = the agency's). Row 19: facility staff are paid under the
+  // agency's facility thresholds (payRules.facility) instead of the state rule's.
+  mileageRate: decimal('mileage_rate', { precision: 5, scale: 3 }),
+  isFacilityStaff: boolean('is_facility_staff').default(false).notNull(),
   medicaidProviderId: text('medicaid_provider_id'),
+  // Row 11 (care_margin_reports): where the caregiver sits in the agency — the branch (a service location), a team, a department,
+  // their manager — so margin and turnover can be drilled total → branch → team → caregiver and results read by manager.
+  branchId: text('branch_id').references(() => serviceLocations.id, { onDelete: 'set null' }),
+  team: text('team'),
+  department: text('department'),
+  managerUserId: text('manager_user_id').references(() => user.id, { onDelete: 'set null' }),
+  // Row 11: the day the caregiver left and why, so turnover is exact (it was dated by their last visit). NULL = still here.
+  leftOn: date('left_on'),
+  leftReason: text('left_reason'),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops them.
   smsEnabled: boolean('sms_enabled').default(true),
   smsOpenShifts: boolean('sms_open_shifts').default(true),
@@ -49,6 +62,8 @@ export const caregiverAvailability = pgTable('caregiver_availability', {
   caregiverId: text('caregiver_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
   status: text('status').default('available').notNull(),
   maxHoursPerWeek: integer('max_hours_per_week').default(40).notNull(),
+  // care_pickup_rewards: the hours a week the caregiver WANTS (maxHoursPerWeek is the most they will do); null until they say.
+  hoursWanted: integer('hours_wanted'),
   weeklyAvailability: json('weekly_availability'),
   notes: text('notes'),
   // Per-day availability
@@ -197,6 +212,8 @@ export const clients = pgTable('clients', {
   phone: text('phone'),
   email: text('email'),
   referredById: text('referred_by_id').references(() => referralSources.id),
+  // Row 11 (care_margin_reports): the branch (service location) this client is served from, for margin by branch.
+  branchId: text('branch_id').references(() => serviceLocations.id, { onDelete: 'set null' }),
   referralDate: date('referral_date'),
   startDate: date('start_date'),
   isActive: boolean('is_active').default(true).notNull(),
@@ -343,6 +360,8 @@ export const schedules = pgTable('schedules', {
   isSplitShift: boolean('is_split_shift').default(false),
   splitShiftGroupId: text('split_shift_group_id'),
   splitSegment: integer('split_segment'),
+  // A repeating shift made on several weekdays at once is one row per weekday; they share this id so the office can end them together.
+  repeatGroupId: text('repeat_group_id'),
   // Training shift (0016_visits): the trainee is paid through payroll, the client is never billed for it.
   isTraining: boolean('is_training').default(false).notNull(),
   // Suspended service (0016_visits): no occurrence on/after this date is generated. NULL = active.
@@ -354,6 +373,7 @@ export const schedules = pgTable('schedules', {
   index('schedules_client_id_idx').on(t.clientId),
   index('schedules_caregiver_id_idx').on(t.caregiverId),
   index('schedules_split_group_idx').on(t.splitShiftGroupId),
+  index('schedules_repeat_group_idx').on(t.repeatGroupId),
   // One active recurring pattern per caregiver, client, weekday and clock time (template 0016_visits.sql).
   uniqueIndex('uniq_active_recurring_schedule').on(t.caregiverId, t.clientId, t.dayOfWeek, scheduleStartClock, scheduleEndClock).where(scheduleActiveRecurring),
   index('idx_schedules_is_training').on(t.isTraining).where(scheduleIsTraining),
@@ -390,9 +410,13 @@ export const openShifts = pgTable('open_shifts', {
   // The caregivers the office offered it to (NULL = everyone); the first of them to accept gets it.
   visibleTo: text('visible_to').array(),
   autoAssign: boolean('auto_assign').default(false).notNull(),
+  // care_open_shift_offers: answer by this time (after it the posting is "Expired" for caregivers); the series a whole-series offer belongs to.
+  respondBy: timestamp('respond_by'),
+  seriesId: text('series_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
+  index('open_shifts_series_idx').on(t.seriesId),
   index('open_shifts_company_id_idx').on(t.companyId),
   index('open_shifts_date_idx').on(t.date),
   index('open_shifts_status_idx').on(t.status),
@@ -410,6 +434,36 @@ export const openShiftNotifications = pgTable('open_shift_notifications', {
   index('open_shift_notifications_company_id_idx').on(t.companyId),
   uniqueIndex('open_shift_notifications_shift_caregiver_idx').on(t.openShiftId, t.caregiverId),
   index('open_shift_notifications_open_shift_id_idx').on(t.openShiftId),
+])
+
+// care_open_shift_offers — a caregiver's answer to an offer that is not "take it": declined (with a reason) or hidden from their list.
+export const openShiftResponse = pgTable('open_shift_response', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  response: text('response').notNull(), // declined | hidden
+  reason: text('reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('open_shift_response_shift_caregiver_idx').on(t.openShiftId, t.caregiverId),
+  index('open_shift_response_company_idx').on(t.companyId),
+])
+
+// The outbox: one row per message tried (shift, caregiver, channel), with where it went and how it ended. A resend writes new rows.
+export const openShiftMessage = pgTable('open_shift_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(), // app | push | sms | email
+  target: text('target'), // the phone number or address it went to ('the app' for an app notice)
+  status: text('status').notNull(), // delivered | sent | failed | skipped
+  detail: text('detail'), // why it failed or was skipped, in words
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('open_shift_message_shift_idx').on(t.openShiftId, t.createdAt),
+  index('open_shift_message_company_idx').on(t.companyId),
 ])
 
 export const absences = pgTable('absences', {
@@ -1576,6 +1630,8 @@ export const careTypes = pgTable('care_types', {
   requiresEvv: boolean('requires_evv').default(true),
   // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops it.
   requiredCertifications: json('required_certifications').default([]),
+  // Row 19 (care_payroll_rules): hours of this service never count toward overtime (HHAeXchange's per-pay-code switch).
+  excludeFromOvertime: boolean('exclude_from_overtime').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('care_types_company_id_idx').on(t.companyId),
@@ -1741,6 +1797,8 @@ export const medications = pgTable('medications', {
   instructions: text('instructions'),
   sideEffects: text('side_effects'),
   isPrn: boolean('is_prn').default(false).notNull(),
+  // The times of day a dose is due, on the agency's clock: ["08:00","20:00"] (item 2, care_medication_reminders). null = none set.
+  doseTimes: json('dose_times'),
   startDate: date('start_date'),
   endDate: date('end_date'),
   status: text('status').default('active').notNull(),
@@ -1835,10 +1893,16 @@ export const mileageEntries = pgTable('mileage_entries', {
   amount: decimal('amount', { precision: 8, scale: 2 }),
   clientId: text('client_id').references(() => clients.id),
   notes: text('notes'),
+  // Row 20 (care_payroll_rules): travel miles (between visits) or errand miles (for a client); a trip the product worked out between
+  // two completed visits' addresses names its review, once — recomputing never doubles it.
+  kind: text('kind').default('travel').notNull(),
+  source: text('source').default('entered').notNull(),
+  reviewId: text('review_id').references(() => payrollShiftReviews.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('mileage_entries_company_id_idx').on(t.companyId),
   index('mileage_entries_caregiver_idx').on(t.caregiverId),
+  uniqueIndex('mileage_entries_review_idx').on(t.reviewId),
 ])
 
 export const prospectAppointments = pgTable('prospect_appointments', {
@@ -2112,11 +2176,24 @@ export const familyMembers = pgTable('family_members', {
   canViewSchedule: boolean('can_view_schedule').default(true).notNull(),
   canViewCarePlan: boolean('can_view_care_plan').default(true).notNull(),
   canViewMedications: boolean('can_view_medications').default(false).notNull(),
+  // care_family_content: vitals have their own switch (they followed the medicines one), and so do the documents the agency shares.
+  canViewVitals: boolean('can_view_vitals').default(false).notNull(),
+  canViewDocuments: boolean('can_view_documents').default(false).notNull(),
+  // Row 22 (care_autopay): this relative may save, replace or remove the card or bank account that pays the client's invoices.
+  canManagePayments: boolean('can_manage_payments').default(false).notNull(),
   canMessage: boolean('can_message').default(true).notNull(),
   isPrimaryContact: boolean('is_primary_contact').default(false).notNull(),
   // Asked for by the relative: a text from the agency when the caregiver arrives and when they leave (core/familyTexts.ts). Off until the office records the yes; visitTextOptInAt is when.
   visitTextOptIn: boolean('visit_text_optin').default(false).notNull(),
   visitTextOptInAt: timestamp('visit_text_optin_at'),
+  // care_family_comms: the exact words the relative agreed to (kept with the yes), when they texted STOP (our own record of it), and the same
+  // yes for the arrival / finish EMAIL.
+  visitTextConsentWording: text('visit_text_consent_wording'),
+  visitTextOptOutAt: timestamp('visit_text_optout_at'),
+  visitEmailOptIn: boolean('visit_email_optin').default(false).notNull(),
+  visitEmailOptInAt: timestamp('visit_email_optin_at'),
+  // The exact words the relative agreed to for the emails, kept with that yes (row 7 extras).
+  visitEmailConsentWording: text('visit_email_consent_wording'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2189,6 +2266,17 @@ export const payrollShiftReviews = pgTable('payroll_shift_reviews', {
   actualMinutes: integer('actual_minutes'),
   // What gets paid
   payableMinutes: integer('payable_minutes'),
+  // Rows 19-20 (care_payroll_rules). Travel: whether travel to this visit is paid (null = the agency's rule), the travel minutes the
+  // office typed over the estimate, and the miles driven to it. Breaks (California Labor Code 512 / 226.7): the meal break taken,
+  // whether it was waived in writing, and a rest break the caregiver could not take. A sleepover (29 CFR 785.22) is a worked day
+  // whose awake minutes are the payable minutes.
+  travelPaid: boolean('travel_paid'),
+  travelMinutes: integer('travel_minutes'),
+  travelMiles: decimal('travel_miles', { precision: 7, scale: 2 }),
+  mealBreakMinutes: integer('meal_break_minutes'),
+  mealWaived: boolean('meal_waived').default(false).notNull(),
+  restBreakMissed: boolean('rest_break_missed').default(false).notNull(),
+  isSleepover: boolean('is_sleepover').default(false).notNull(),
   // Status: pending, verified, approved, flagged, missing_punch, excused, manual_entry
   status: text('status').default('pending').notNull(),
   flagReason: text('flag_reason'),
@@ -2268,10 +2356,96 @@ export const familyVisitText = pgTable('family_visit_text', {
   familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
   event: text('event').notNull(),
   status: text('status').notNull(),
+  // care_family_comms: how it was sent (sms | email), and why it was not when it was not (plain words for the office's screen)
+  channel: text('channel').default('sms').notNull(),
+  reason: text('reason'),
+  // The agency alert rule this notice came from ('' = the built-in arrival / finish notice), so a rule and the built-in notice each send once.
+  ruleId: text('rule_id').default('').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('family_visit_text_company_id_idx').on(t.companyId),
-  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event),
+  uniqueIndex('family_visit_text_key').on(t.timeEntryId, t.familyMemberId, t.event, t.channel, t.ruleId),
+])
+
+// A relative's request to the office (care_family_comms): a change to a visit, a change to the service, or a new visit. It becomes an office task
+// (task_id) and counts on the "Open requests" tile until the office has dealt with it.
+export const familyRequest = pgTable('family_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // visit_change | service_change | new_visit
+  visitDate: text('visit_date'), // the visit it is about / wanted day, YYYY-MM-DD
+  details: text('details').notNull(),
+  status: text('status').default('open').notNull(), // open | done | declined
+  taskId: text('task_id'),
+  handledById: text('handled_by_id').references(() => user.id),
+  handledNote: text('handled_note'),
+  handledAt: timestamp('handled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_request_company_idx').on(t.companyId, t.status, t.createdAt),
+  index('family_request_client_idx').on(t.clientId),
+])
+
+// care_pickup_rewards — an open shift taken by a caregiver: the bonus it carried (integer cents, paid through the pay run once the
+// visit is worked), and the one row that earns the "extra shift" points. One row per posting; a re-fill moves it to the new caregiver.
+export const openShiftPickup = pgTable('open_shift_pickup', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  clientId: text('client_id'),
+  shiftDate: date('shift_date').notNull(),
+  bonusCents: integer('bonus_cents').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('open_shift_pickup_shift_idx').on(t.openShiftId),
+  index('open_shift_pickup_caregiver_idx').on(t.companyId, t.caregiverId, t.shiftDate),
+])
+
+// The points ledger: signed whole points, one row per thing earned (the reference makes each earn once), spent or adjusted.
+export const rewardPoint = pgTable('reward_point', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // extra_shift | on_time | min_hours | adjustment | redeemed | refund
+  points: integer('points').notNull(),
+  reference: text('reference').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('reward_point_ref_idx').on(t.companyId, t.caregiverId, t.kind, t.reference),
+  index('reward_point_caregiver_idx').on(t.companyId, t.caregiverId, t.createdAt),
+])
+
+export const rewardItem = pgTable('reward_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  costPoints: integer('cost_points').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('reward_item_company_idx').on(t.companyId, t.isActive),
+])
+
+export const rewardRedemption = pgTable('reward_redemption', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  rewardItemId: text('reward_item_id').references(() => rewardItem.id, { onDelete: 'set null' }),
+  name: text('name').notNull(), // the reward's name when it was asked for
+  points: integer('points').notNull(),
+  status: text('status').default('requested').notNull(), // requested | fulfilled | declined
+  handledById: text('handled_by_id').references(() => user.id),
+  handledNote: text('handled_note'),
+  handledAt: timestamp('handled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('reward_redemption_company_idx').on(t.companyId, t.status, t.createdAt),
+  index('reward_redemption_caregiver_idx').on(t.caregiverId),
 ])
 
 export const payrollRecords = pgTable('payroll_records', {
@@ -2289,6 +2463,8 @@ export const payrollRecords = pgTable('payroll_records', {
   overtimeRate: decimal('overtime_rate', { precision: 8, scale: 2 }),
   grossPay: decimal('gross_pay', { precision: 12, scale: 2 }),
   mileageReimbursement: decimal('mileage_reimbursement', { precision: 8, scale: 2 }).default('0'),
+  // care_pickup_rewards: the open-shift pickup bonuses inside grossPay.
+  bonusPay: decimal('bonus_pay', { precision: 10, scale: 2 }).default('0'),
   status: text('status').default('draft').notNull(),
   approvedAt: timestamp('approved_at'),
   approvedById: text('approved_by_id').references(() => user.id),
@@ -2301,6 +2477,51 @@ export const payrollRecords = pgTable('payroll_records', {
   index('payroll_records_caregiver_id_idx').on(t.caregiverId),
   index('payroll_records_period_idx').on(t.periodStart, t.periodEnd),
   uniqueIndex('payroll_records_caregiver_period_idx').on(t.caregiverId, t.periodStart, t.periodEnd),
+])
+
+// Row 19 (care_payroll_rules): how each hour of an approved pay run was classified — one row per visit (or travel) segment, with the
+// rule, the rate and the reason in words. Written when a caregiver's period is approved; the live version is GET /api/pay-rules/audit.
+export const payHourAudit = pgTable('pay_hour_audit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  reviewId: text('review_id'),
+  segmentKind: text('segment_kind').notNull(),
+  segmentDate: date('segment_date').notNull(),
+  minutes: integer('minutes').notNull(),
+  regularMinutes: integer('regular_minutes').default(0).notNull(),
+  overtimeMinutes: integer('overtime_minutes').default(0).notNull(),
+  doubleTimeMinutes: integer('double_time_minutes').default(0).notNull(),
+  unpaidMinutes: integer('unpaid_minutes').default(0).notNull(),
+  isHoliday: boolean('is_holiday').default(false).notNull(),
+  rateCents: integer('rate_cents').default(0).notNull(),
+  ruleId: text('rule_id').notNull(),
+  reasons: json('reasons').default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('pay_hour_audit_company_id_idx').on(t.companyId),
+  index('pay_hour_audit_caregiver_period_idx').on(t.caregiverId, t.periodStart, t.periodEnd),
+])
+
+// Row 21 (care_payroll_providers): every push of a pay run to a payroll provider (ADP, Paychex, Gusto, or the embedded full-service
+// provider), with what was sent and what came back.
+export const payrollPush = pgTable('payroll_push', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  status: text('status').notNull(),
+  people: integer('people').default(0).notNull(),
+  request: json('request'),
+  response: json('response'),
+  error: text('error'),
+  createdById: text('created_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('payroll_push_company_id_idx').on(t.companyId),
 ])
 
 export const payrollLineItems = pgTable('payroll_line_items', {
@@ -2531,6 +2752,8 @@ export const documents = pgTable('documents', {
   requiresSignature: boolean('requires_signature').default(false).notNull(),
   expirationDate: date('expiration_date'),
   isConfidential: boolean('is_confidential').default(false).notNull(),
+  // A client's document the office chose to show relatives who may see documents (care_family_content).
+  shareWithFamily: boolean('share_with_family').default(false).notNull(),
   uploadedById: text('uploaded_by_id').references(() => user.id),
   signedAt: timestamp('signed_at'),
   signedById: text('signed_by_id').references(() => user.id),
@@ -2981,6 +3204,13 @@ export const importBatch = pgTable('import_batch', {
   created: integer('created').default(0).notNull(),
   skippedDuplicates: integer('skipped_duplicates').default(0).notNull(),
   failed: integer('failed').default(0).notNull(),
+  // Parity rows 8–10 (0063): records a re-import UPDATED (care_import_wizard), files a zip ATTACHED, who ran it
+  // ('office' — the agency; 'factory' — Twomiah staff through the assisted migration, core/migration.ts) and the choices
+  // it was run with ({ dateFormat, updateMatches, mappingName }).
+  updated: integer('updated').default(0).notNull(),
+  attached: integer('attached').default(0).notNull(),
+  source: text('source').default('office').notNull(),
+  options: json('options'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   undoneAt: timestamp('undone_at'),
@@ -2996,8 +3226,91 @@ export const importBatchRecord = pgTable('import_batch_record', {
   recordId: text('record_id').notNull(),
   line: integer('line'),
   undone: boolean('undone').default(false).notNull(),
+  // 0063: which table the record is in (a child kind's, e.g. 'medications'; null = the batch kind's own table), whether
+  // the import CREATED it, UPDATED it (`previous` holds the columns as they were, so undo puts them back) or ATTACHED a
+  // file to it, and any rows made beside it (`extra`: a qualification's document row), removed with it on undo.
+  tableName: text('table_name'),
+  action: text('action').default('created').notNull(), // 'created' | 'updated' | 'attached'
+  previous: json('previous'),
+  extra: json('extra'),
 }, (t) => [
   index('import_batch_record_batch_idx').on(t.batchId),
+])
+
+// Row 9 (care_import_wizard): a column mapping the agency saved to reuse next time (the headers it was saved for, and
+// which field each goes into). Offered automatically when a file with the same headers is previewed.
+export const importMapping = pgTable('import_mapping', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  name: text('name').notNull(),
+  headers: json('headers').notNull(),
+  mapping: json('mapping').notNull(),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+}, (t) => [
+  uniqueIndex('import_mapping_company_kind_name').on(t.companyId, t.kind, t.name),
+])
+
+// Row 9: the id a client, caregiver or payer had in the agency's OLD system ("reference code"), so a re-import — or a
+// child file (authorizations, medicines…) — finds the same record by it, whatever the name says. One per record.
+export const importExternalId = pgTable('import_external_id', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  entity: text('entity').notNull(), // 'client' | 'caregiver' | 'payer'
+  externalId: text('external_id').notNull(),
+  recordId: text('record_id').notNull(),
+}, (t) => [
+  uniqueIndex('import_external_id_key').on(t.companyId, t.entity, t.externalId),
+  index('import_external_id_record_idx').on(t.companyId, t.entity, t.recordId),
+])
+
+// Row 9: a value from a "custom:" column of an import — a field the old system had and this one has no column for —
+// kept against the record by name, so nothing in the agency's file is thrown away.
+export const customFieldValue = pgTable('custom_field_value', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  entity: text('entity').notNull(), // 'client' | 'caregiver' | 'payer'
+  recordId: text('record_id').notNull(),
+  name: text('name').notNull(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('custom_field_value_key').on(t.companyId, t.entity, t.recordId, t.name),
+])
+
+// Row 10 (care_migration): an agency's request for Twomiah to load its old system's export for it (core/migration.ts).
+// The files it sent (migration_file), the record counts the old system showed (old_counts: { clients: 120, … }), the
+// sign-off checklist ({ item: { by, at } }), the imports staff ran for it (batch ids) and where it stands.
+export const migrationRequest = pgTable('migration_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  status: text('status').default('sent').notNull(), // 'sent' | 'in_progress' | 'done' | 'cancelled'
+  fromSystem: text('from_system'),
+  note: text('note'),
+  oldCounts: json('old_counts'),
+  signoffs: json('signoffs').default({}).notNull(),
+  batchIds: json('batch_ids').default([]).notNull(),
+  staffNote: text('staff_note'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('migration_request_company_idx').on(t.companyId, t.createdAt),
+])
+
+export const migrationFile = pgTable('migration_file', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  requestId: text('request_id').notNull().references(() => migrationRequest.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  size: integer('size').notNull(),
+  // the file itself, base64 — a Render disk is wiped on every deploy (the same rule as documents.file_data)
+  data: text('data').notNull(),
+  uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+}, (t) => [
+  index('migration_file_request_idx').on(t.requestId),
 ])
 
 // Item 3 (care_autopay): a client's saved card for automatic payment of their invoices — on the AGENCY's own Stripe
@@ -3020,6 +3333,14 @@ export const clientAutopay = pgTable('client_autopay', {
   setupSessionId: text('setup_session_id'),
   consentText: text('consent_text'),
   consentAt: timestamp('consent_at'),
+  // Row 22: what is on file — 'card', a US bank account ('us_bank_account', ACH debit) or a Canadian one ('acss_debit',
+  // pre-authorized debit); the bank's name for the office; Stripe's mandate for a bank debit; who saved it ('office',
+  // 'family', 'client'); and the card expiry month ('YYYY-MM') a warning was already sent for.
+  method: text('method').default('card').notNull(),
+  bankName: text('bank_name'),
+  mandateId: text('mandate_id'),
+  savedBy: text('saved_by'),
+  expiryWarnedFor: text('expiry_warned_for'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -3045,11 +3366,39 @@ export const autopayAttempt = pgTable('autopay_attempt', {
   hardDecline: boolean('hard_decline').default(false).notNull(),
   nextAttemptAt: timestamp('next_attempt_at'),
   notifiedAt: timestamp('notified_at'),
+  // Row 22: the scheduled charge (autopay_schedule) this try was for, null for the charge on issue; the reminders sent after a
+  // "bank needs the owner" notice; when the receipt went out after a success.
+  scheduleId: text('schedule_id'),
+  remindersSent: integer('reminders_sent').default(0).notNull(),
+  lastReminderAt: timestamp('last_reminder_at'),
+  receiptSentAt: timestamp('receipt_sent_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('autopay_attempt_key').on(t.invoiceId, t.attemptNo),
   index('autopay_attempt_company_idx').on(t.companyId, t.status),
+])
+
+// Row 22 (care_autopay): a charge the office set for a later day — the whole balance on a chosen date, or a part of it (an
+// instalment plan is several rows on one invoice). An invoice with a plan is charged only by its plan, never on issue.
+// Each row is charged once (its tries are autopay_attempt rows carrying schedule_id); 'charged' when the money landed,
+// 'failed' when its tries ended, 'cancelled' when the office took it back.
+export const autopaySchedule = pgTable('autopay_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  chargeOn: date('charge_on').notNull(),
+  // null = whatever is still owed on the day
+  amountCents: integer('amount_cents'),
+  label: text('label'),
+  status: text('status').default('waiting').notNull(), // 'waiting' | 'charged' | 'failed' | 'cancelled'
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('autopay_schedule_due_idx').on(t.companyId, t.status, t.chargeOn),
+  index('autopay_schedule_invoice_idx').on(t.invoiceId),
 ])
 
 // Item 3 (care_ltc_billing): a client's long-term-care insurance policy, for the claim packet the payer asks for.
@@ -3070,3 +3419,360 @@ export const clientLtcPolicy = pgTable('client_ltc_policy', {
 
 // Item 4 (care_offline_saves): the saved answers behind Idempotency-Key are the server-wide saved_request (db/schema/core.ts,
 // http/savedOnce.ts) — one table and one guard for every signed-in write (10/30 integration).
+
+// Row 1 (care_cert_reminders, home care parity): a client's own credentials — a certification or licence the agency must
+// keep current for them (AxisCare monitors client certifications). Reminded like a caregiver's, but to the office only
+// (a client does not sign in to be told).
+export const clientCredential = pgTable('client_credential', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  credentialType: text('credential_type').notNull(),
+  issuingBody: text('issuing_body'),
+  issueDate: date('issue_date'),
+  expiryDate: date('expiry_date'),
+  documentUrl: text('document_url'),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_credential_company_idx').on(t.companyId),
+  index('client_credential_client_idx').on(t.clientId),
+])
+
+// One reminder per (client credential, expiry date, stage) — the same claim that makes a caregiver's reminders send once.
+export const clientCredentialReminder = pgTable('client_credential_reminder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientCredentialId: text('client_credential_id').notNull().references(() => clientCredential.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull(),
+  expiryDate: date('expiry_date').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_credential_reminder_key').on(t.clientCredentialId, t.expiryDate, t.stage),
+])
+
+// A dose reminder or a missed-dose alert that has been sent (item 2, care_medication_reminders). The row is inserted BEFORE
+// the send, so the scan that inserts it is the only one that sends: a dose is reminded once per visit and flagged once.
+export const medicationDoseReminder = pgTable('medication_dose_reminder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  medicationId: text('medication_id').notNull().references(() => medications.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  dueAt: timestamp('due_at').notNull(),
+  kind: text('kind').notNull(), // 'due' = the caregiver's reminder, 'missed' = the office's alert
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('medication_dose_reminder_once_idx').on(t.medicationId, t.timeEntryId, t.dueAt, t.kind),
+  index('medication_dose_reminder_company_idx').on(t.companyId),
+])
+
+// Questions the caregiver answers when they clock in and/or out (item 3, care_visit_questions): safety, the client's
+// condition, breaks. Yes/no, a short text, or one pick from a list; one may be required, and an answer can raise a flag to the office.
+export const visitQuestion = pgTable('visit_question', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  prompt: text('prompt').notNull(),
+  kind: text('kind').notNull(), // 'yes_no' | 'text' | 'choice'
+  options: json('options'), // the list a 'choice' picks from
+  phase: text('phase').notNull(), // 'clock_in' | 'clock_out' | 'both'
+  required: boolean('required').default(false).notNull(),
+  // The answer that tells the office ("no" to "Was the home safe?"): compared with what was answered, ignoring case.
+  flagOn: text('flag_on'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_question_company_idx').on(t.companyId),
+])
+
+// One answer to one question at one clock event of one visit. The prompt is copied, so the record reads the same after the question is edited or removed.
+export const visitAnswer = pgTable('visit_answer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  questionId: text('question_id').notNull(),
+  prompt: text('prompt').notNull(),
+  phase: text('phase').notNull(), // 'clock_in' | 'clock_out'
+  answer: text('answer').notNull(),
+  flagged: boolean('flagged').default(false).notNull(),
+  answeredById: text('answered_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_answer_once_idx').on(t.timeEntryId, t.questionId, t.phase),
+  index('visit_answer_company_idx').on(t.companyId, t.createdAt),
+])
+
+// What a caregiver works through inside a visit besides the client's care tasks (item 4, care_visit_items): forms to fill in,
+// interventions (what to do for a goal), goals (progress is noted each visit) and tasks for every visit. A row with no client applies to
+// every visit; one with a client, to that client's visits only.
+export const visitItem = pgTable('visit_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'form' | 'intervention' | 'goal' | 'general_task'
+  name: text('name').notNull(),
+  detail: text('detail'),
+  goalId: text('goal_id'), // an intervention: the goal it is for
+  formTemplateId: text('form_template_id').references(() => formTemplates.id, { onDelete: 'cascade' }),
+  required: boolean('required').default(false).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_item_company_client_idx').on(t.companyId, t.clientId),
+])
+
+// One item at one visit: done, skipped or refused with a note; a goal also carries how it went; a form points at the filled-in submission.
+export const visitItemLog = pgTable('visit_item_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull().references(() => visitItem.id, { onDelete: 'cascade' }),
+  status: text('status').notNull(), // 'done' | 'skipped' | 'refused'
+  rating: text('rating'), // a goal: 'progress' | 'no_change' | 'declined'
+  note: text('note'),
+  formSubmissionId: text('form_submission_id').references(() => formSubmissions.id, { onDelete: 'set null' }),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_item_log_once_idx').on(t.timeEntryId, t.itemId),
+  index('visit_item_log_company_idx').on(t.companyId),
+])
+
+// The client's signature for one visit, drawn on the caregiver's phone (row 5, care_visit_signature) — or, when the client cannot sign,
+// the reason picked from the agency's list. One row per visit. signedAt is the moment the client signed (the phone's time if it was
+// signed offline), not the moment it reached us.
+export const visitSignature = pgTable('visit_signature', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  signatureImage: text('signature_image'),
+  signedAt: timestamp('signed_at'),
+  reasonCode: text('reason_code'), // set instead of the image when the client could not sign
+  reasonNote: text('reason_note'),
+  recordedById: text('recorded_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_signature_visit_idx').on(t.timeEntryId),
+  index('visit_signature_company_idx').on(t.companyId, t.createdAt),
+])
+
+// A meal the caregiver recorded on a visit (row 6, care_family_content): which meal, what, how much was eaten. Relatives with the care-plan
+// switch see these under "Daily care"; the office reads them with the visit.
+export const visitMeal = pgTable('visit_meal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  meal: text('meal').notNull(), // breakfast | lunch | dinner | snack
+  description: text('description'),
+  amountEaten: text('amount_eaten').notNull(), // all | most | half | little | none
+  note: text('note'),
+  recordedById: text('recorded_by_id').references(() => user.id),
+  // when the meal was served — the phone's time if it was recorded offline
+  servedAt: timestamp('served_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_meal_visit_idx').on(t.timeEntryId),
+  index('visit_meal_client_idx').on(t.clientId, t.servedAt),
+  // one record per meal per visit; saving again replaces it
+  uniqueIndex('visit_meal_once_idx').on(t.timeEntryId, t.meal),
+])
+
+// A relative's own phone or browser that agreed to arrival notices as web push (care_family_comms, row 7 extras).
+export const familyPushSubscription = pgTable('family_push_subscription', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
+  subscription: json('subscription').notNull(),
+  endpoint: text('endpoint').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_push_subscription_member_idx').on(t.familyMemberId),
+  uniqueIndex('family_push_subscription_endpoint_idx').on(t.companyId, t.endpoint),
+])
+
+// An alert rule the agency wrote (care_family_comms, row 7 extras; core/alertRules.ts): when something happens on a visit, tell these
+// people by these channels, in the agency's words.
+export const familyAlertRule = pgTable('family_alert_rule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // clock_in | clock_out | late_clock_in
+  minutes: integer('minutes'), // late_clock_in: how many minutes after the scheduled start
+  audience: text('audience').notNull(), // relatives | office | caregiver
+  channels: json('channels').notNull(), // ['sms','email','push']
+  message: text('message'), // the agency's wording with {caregiver} {client} {time} {agency} ({minutes}); empty = a plain default
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('family_alert_rule_company_idx').on(t.companyId, t.trigger),
+])
+
+// What an agency alert rule did for the office or the caregiver of a visit (a relative's goes in family_visit_text): one row per rule,
+// visit, person and channel, so a replayed punch never alerts twice.
+export const alertRuleLog = pgTable('alert_rule_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  ruleId: text('rule_id').notNull().references(() => familyAlertRule.id, { onDelete: 'cascade' }),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  recipientId: text('recipient_id').notNull(),
+  channel: text('channel').notNull(),
+  status: text('status').notNull(),
+  detail: text('detail'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('alert_rule_log_company_idx').on(t.companyId, t.createdAt),
+  uniqueIndex('alert_rule_log_key').on(t.ruleId, t.timeEntryId, t.recipientId, t.channel),
+])
+
+// ── Row 12 (care_report_builder): the report builder, custom dashboards and scheduled report emails ─────────────────────────────
+// A saved custom report over the visit fields: which columns, which filters, the sort and the grouping. Copied from the library
+// (core/reportBuilder.ts LIBRARY) or from another saved report (copiedFromId), then edited.
+export const reportDefinition = pgTable('report_definition', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  source: text('source').default('visits').notNull(), // what the rows are: 'visits'
+  columns: json('columns').notNull(), // ['date', 'clientName', …] — the field keys, in order
+  filters: json('filters').default([]).notNull(), // [{ field, op, value }]
+  sortBy: text('sort_by'),
+  sortDir: text('sort_dir').default('asc'),
+  groupBy: text('group_by'),
+  copiedFromId: text('copied_from_id'), // a library key or another report's id
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_definition_company_idx').on(t.companyId, t.name),
+])
+
+// A custom dashboard: the tiles the office chose (each a kind from the catalogue with its settings).
+export const dashboardLayout = pgTable('dashboard_layout', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tiles: json('tiles').notNull(), // [{ kind, title?, days?, by? }]
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('dashboard_layout_company_idx').on(t.companyId),
+])
+
+// A report the agency wants emailed on a schedule: which report, as what file, how often and when (on the agency's clock), over what
+// window, to whom. The mail never carries the report: the file is stored encrypted (report_delivery) and the mail carries a link that
+// opens only for a signed-in recipient.
+export const reportSchedule = pgTable('report_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  reportKind: text('report_kind').notNull(), // client_margin | visit_margin | turnover | daily_manager | caregiver_performance | workforce | saved
+  reportId: text('report_id').references(() => reportDefinition.id, { onDelete: 'cascade' }), // kind 'saved': which one
+  format: text('format').default('csv').notNull(), // csv | pdf
+  cadence: text('cadence').notNull(), // daily | weekly | monthly
+  dayOfWeek: integer('day_of_week'), // weekly: 0 Sunday … 6
+  dayOfMonth: integer('day_of_month'), // monthly: 1 … 28
+  hour: integer('hour').default(6).notNull(), // the agency's clock
+  windowDays: integer('window_days').default(7).notNull(), // the report covers the last N days ending yesterday
+  recipients: json('recipients').notNull(), // user ids of the agency's staff
+  isActive: boolean('is_active').default(true).notNull(),
+  lastRunOn: date('last_run_on'),
+  nextRunOn: date('next_run_on'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_schedule_company_idx').on(t.companyId, t.isActive),
+  index('report_schedule_due_idx').on(t.nextRunOn),
+])
+
+// One sent report: the file, encrypted at rest (AES-256-GCM, core/encryption.ts), who it went to, until when the link works.
+export const reportDelivery = pgTable('report_delivery', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  scheduleId: text('schedule_id').references(() => reportSchedule.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type').notNull(),
+  ciphertext: text('ciphertext').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  periodStart: date('period_start'),
+  periodEnd: date('period_end'),
+  recipients: json('recipients').notNull(), // user ids
+  sentTo: json('sent_to').default([]).notNull(), // the addresses the mail went to
+  expiresAt: timestamp('expires_at').notNull(),
+  downloads: integer('downloads').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('report_delivery_company_idx').on(t.companyId, t.createdAt),
+])
+
+// ── Row 13 (care_caregiver_surveys): caregiver satisfaction surveys and the retention risk ──────────────────────────────────────
+// A survey the agency asks caregivers at set points: after their first visit with a client, N days after they were hired, or every N
+// days. Its questions are the agency's (a 1–5 scale, yes/no or free text); a score under alertBelow tells the office.
+export const caregiverSurvey = pgTable('caregiver_survey', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // first_visit_with_client | days_after_hire | every_days
+  days: integer('days'), // days_after_hire: how many days after; every_days: how often
+  questions: json('questions').notNull(), // [{ id, text, kind: 'scale' | 'yes_no' | 'text' }]
+  alertBelow: integer('alert_below').default(3).notNull(), // a score (1–5 average of the scale questions) under this alerts the office
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('caregiver_survey_company_idx').on(t.companyId, t.isActive),
+])
+
+// One survey asked of one caregiver at one point: when it was due and sent, what they answered and the score; the key makes each
+// point ask once (a first visit with a client once per client, a day-after-hire once, a repeat once per cycle).
+export const caregiverSurveyRequest = pgTable('caregiver_survey_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  surveyId: text('survey_id').notNull().references(() => caregiverSurvey.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }), // first_visit_with_client: which client
+  pointKey: text('point_key').notNull(), // what made it due: client:<id> | hire:<days> | cycle:<YYYY-MM-DD>
+  reason: text('reason').notNull(), // in words, for the caregiver and the office
+  dueOn: date('due_on').notNull(),
+  sentAt: timestamp('sent_at'),
+  pushed: boolean('pushed').default(false).notNull(),
+  answeredAt: timestamp('answered_at'),
+  answers: json('answers'), // { [questionId]: number | boolean | string }
+  score: integer('score'), // average of the scale answers × 100 (so 3.5 is 350), null when there were no scale questions
+  comment: text('comment'),
+  alertedAt: timestamp('alerted_at'), // the office was told of a low score
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('caregiver_survey_request_once_idx').on(t.surveyId, t.caregiverId, t.pointKey),
+  index('caregiver_survey_request_caregiver_idx').on(t.caregiverId, t.answeredAt),
+  index('caregiver_survey_request_company_idx').on(t.companyId, t.dueOn),
+])
+
+// The retention risk of one caregiver on one day, kept so the office sees the trend: the score (0–100, higher = more likely to leave),
+// the band and the reasons (our own signals: hours drop, call-outs and missed visits, survey, tenure).
+export const caregiverRiskSnapshot = pgTable('caregiver_risk_snapshot', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  asOf: date('as_of').notNull(),
+  score: integer('score').notNull(),
+  band: text('band').notNull(), // low | watch | high
+  reasons: json('reasons').notNull(), // [{ signal, label, points, detail }]
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('caregiver_risk_snapshot_day_idx').on(t.caregiverId, t.asOf),
+  index('caregiver_risk_snapshot_company_idx').on(t.companyId, t.asOf),
+])

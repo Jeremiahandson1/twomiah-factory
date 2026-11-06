@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ClipboardList, Copy, Plus, Send, Trash2, X } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
+import { errorText, useConfirm, useMayWrite, usePermissions, useToast } from '../../../../shared'
+import { money } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
@@ -15,6 +16,8 @@ interface WorkOrder {
   id: string; title: string; status: string; scope?: string | null; address?: string | null; startDate?: string | null
   recipientName: string; recipientPhone: string; crewId?: string | null; materialLines: Line[]; photoIds: string[]
   respondedByName?: string | null; rejectReason?: string | null; completedAt?: string | null; completionNote?: string | null
+  /** The crew's lump-sum price for the job — only for a seat that reads what the shop pays (margin:read). */
+  price?: number | null
   completionPhotoIds: string[]; linkUrl?: string; linkExpired?: boolean; sentAt?: string | null
 }
 interface CrewRow { id: string; name: string; foremanName?: string | null; foremanPhone?: string | null }
@@ -77,7 +80,7 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${CHIP[o.status] || CHIP.draft}`}>{codeLabel(o.status)}</span>
               </div>
               <p className="text-xs text-gray-600 dark:text-slate-400">
-                {o.recipientName} · {o.recipientPhone}{o.startDate ? ` · Starts ${formatDate(o.startDate)}` : ''}
+                {o.recipientName} · {o.recipientPhone}{o.startDate ? ` · Starts ${formatDate(o.startDate)}` : ''}{o.price != null ? ` · Price ${money(o.price)}` : ''}
               </p>
               {o.status === 'accepted' && <p className="text-xs text-gray-600 dark:text-slate-400">Accepted by {o.respondedByName}</p>}
               {o.status === 'rejected' && <p className="text-xs text-red-700 dark:text-red-300">Rejected by {o.respondedByName}: {o.rejectReason}</p>}
@@ -105,13 +108,16 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
 
 function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobId: string; jobAddress?: string | null; existing: WorkOrder | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast()
+  const { can } = usePermissions()
+  // What the crew is paid is the shop's cost: asked for, and sent, only by a seat that reads it (the server asks the same).
+  const mayPrice = can('margin:read')
   const [crews, setCrews] = useState<CrewRow[]>([])
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [photos, setPhotos] = useState<PhotoRow[]>([])
   const [form, setForm] = useState({
     crewId: existing?.crewId || '', recipientName: existing?.recipientName || '', recipientPhone: existing?.recipientPhone || '',
     title: existing?.title || '', scope: existing?.scope || '', address: existing?.address || jobAddress || '',
-    startDate: existing?.startDate ? existing.startDate.slice(0, 10) : '', materialOrderId: '',
+    startDate: existing?.startDate ? existing.startDate.slice(0, 10) : '', materialOrderId: '', price: existing?.price != null ? String(existing.price) : '',
   })
   const [lines, setLines] = useState<Line[]>(existing?.materialLines || [])
   const [shared, setShared] = useState<string[]>(existing?.photoIds || [])
@@ -142,6 +148,7 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
       ...(form.crewId ? { crewId: form.crewId } : {}), ...(form.startDate ? { startDate: form.startDate } : {}),
       materialLines: filled.map((l) => ({ description: l.description.trim(), qty: Number(l.qty), unit: l.unit.trim() || 'ea' })), photoIds: shared,
       ...(form.materialOrderId ? { materialOrderId: form.materialOrderId } : {}),
+      ...(mayPrice ? { price: form.price.trim() === '' ? null : Number(form.price) } : {}),
     }
     try {
       if (existing) await api.put(`/api/work-orders/${encodeURIComponent(existing.id)}`, body)
@@ -168,6 +175,11 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
           <div><label htmlFor="wo-phone" className={lab}>Phone *</label><input id="wo-phone" type="tel" value={form.recipientPhone} onChange={(e) => set('recipientPhone', e.target.value)} className={input} /></div>
           <div><label htmlFor="wo-start" className={lab}>Start date</label><input id="wo-start" type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} className={input} /></div>
           <div><label htmlFor="wo-address" className={lab}>Address</label><input id="wo-address" value={form.address} onChange={(e) => set('address', e.target.value)} className={input} /></div>
+          {mayPrice && (
+            <div className="sm:col-span-2"><label htmlFor="wo-price" className={lab}>Price for the whole job ($)</label>
+              <input id="wo-price" type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="What the crew is paid, as one lump sum" className={input} />
+              <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">The crew never sees it. Once the work order is sent it counts as the job&rsquo;s crew labour in job costing, in place of pay by the square.</p></div>
+          )}
           <div className="sm:col-span-2"><label htmlFor="wo-scope" className={lab}>Scope of work</label><textarea id="wo-scope" rows={4} value={form.scope} onChange={(e) => set('scope', e.target.value)} placeholder="What to do, what to watch for, where to park…" className={input} /></div>
         </div>
 

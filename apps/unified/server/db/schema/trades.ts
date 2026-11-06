@@ -1,7 +1,7 @@
 // Service-trades layer: a customer's service sites, job photos, vehicle trips, the activity log and portal sessions —
 // the tables the trades CRMs (basic, field service, landscaping, bar) share beyond the base CRM's. Column for column
 // from templates/crm-{basic,fieldservice,landscaping,bar}/backend/db/schema.ts (the union where they differ).
-import { pgTable, text, boolean, decimal, integer, real, timestamp, json, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, decimal, integer, real, timestamp, json, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, job } from './crm.ts'
@@ -41,9 +41,15 @@ export const jobPhoto = pgTable('job_photo', {
   longitude: decimal('longitude', { precision: 10, scale: 7 }),
   // Shown to the homeowner in their portal (roofing's Photos & documents). Off until someone with portal:share turns it on.
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  // A MARKED COPY (arrows, circles and text drawn on a photo; server/crm/roof/photoMarkup): the photo it was drawn on, and the
+  // drawing itself (shapes in fractions of the picture) so it can be changed later. Both null on a photo as taken. The
+  // original is never changed; one original has at most one marked copy, kept beside it.
+  sourcePhotoId: text('source_photo_id'),
+  markup: json('markup'),
 }, (t) => [
   index('job_photo_company_id_idx').on(t.companyId),
   index('job_photo_job_id_idx').on(t.jobId),
+  uniqueIndex('job_photo_source_photo_id_uniq').on(t.sourcePhotoId),
 ])
 
 export const portalSession = pgTable('portal_session', {

@@ -158,6 +158,7 @@
   "/api/team?limit=25&page=1",
   "/api/tech/my-jobs",
   "/api/text-activity/contact/:id",
+  "/api/time-clock/overtime",
   "/api/time/active",
   "/api/time?limit=25&page=1",
   "/api/warranties/claims?status=open",

@@ -73,7 +73,7 @@ export function createBookScope(db: any, permissions: Permissions) {
     return { userId: String(u.userId), memberIds: await memberIdsOf(u.companyId, String(u.userId)) }
   }
 
-  return { switchOn, seesWholeBook, ownChairOf }
+  return { switchOn, seesWholeBook, ownChairOf, memberIdsOf }
 }
 
 export type BookScope = ReturnType<typeof createBookScope>

@@ -2,7 +2,7 @@
 // kept against a client, a caregiver or the company, uploaded, downloaded, deleted, and signed on screen.
 // (server/crm/homecare/clients/documents.ts: rows are camelCase — documentName, fileName, entityType, uploadedAt …)
 import { useState, useEffect, type FormEvent } from 'react'
-import { useConfirm, useToast } from '../../../../shared'
+import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
@@ -21,6 +21,9 @@ interface DocRow {
   fileName?: string | null
   fileSize?: number | null
   requiresSignature?: boolean
+  isConfidential?: boolean
+  /** shown to the client's family in their portal (care_family_content) */
+  shareWithFamily?: boolean
   expirationDate?: string | null
   signedAt?: string | null
   uploadedAt?: string | null
@@ -50,6 +53,7 @@ const ENTITY_CHIP: Record<string, string> = {
 const DocumentsManagement = () => {
   // Uploading is care-clients:create and deleting care-clients:delete, the server's checks (lib/useMay.ts).
   const may = useMay('care-clients')
+  const familyOn = useAuth().hasFeature('care_family_content')
   const toast = useToast()
   const confirm = useConfirm()
   const [documents, setDocuments] = useState<DocRow[]>([])
@@ -91,6 +95,17 @@ const DocumentsManagement = () => {
       loadDocuments()
     } catch (error) {
       toast.error('Failed: ' + errorMessage(error))
+    }
+  }
+
+  // Share a client's document with their family, or stop (the family sees it in their portal's Documents tab).
+  const setSharing = async (doc: DocRow, share: boolean) => {
+    try {
+      await api.put(`/api/documents/${doc.id}/sharing`, { shareWithFamily: share })
+      toast.success(share ? 'Shared with the family' : 'No longer shared with the family')
+      loadDocuments()
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not change sharing'))
     }
   }
 
@@ -271,6 +286,12 @@ const DocumentsManagement = () => {
                           ✓ Signed
                         </span>
                       )}
+                      {familyOn && doc.entityType === 'client' && !doc.isConfidential && may.update && (
+                        <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setSharing(doc, !doc.shareWithFamily)}
+                          title={doc.shareWithFamily ? 'The family can see this. Click to stop sharing.' : 'Share with the family'}>
+                          {doc.shareWithFamily ? '👪 Shared' : '👪 Share'}
+                        </button>
+                      )}
                       <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => downloadDocument(doc)} title="Download">
                         ⬇️
                       </button>
@@ -322,7 +343,9 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }: {
     expirationDate: '',
     notes: '',
     requiresSignature: false,
+    shareWithFamily: false,
   })
+  const familyOn = useAuth().hasFeature('care_family_content')
   const [file, setFile] = useState<File | null>(null)
 
   const handleSubmit = (e: FormEvent) => {
@@ -345,6 +368,7 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }: {
     if (formData.expirationDate) data.append('expirationDate', formData.expirationDate)
     if (formData.notes) data.append('notes', formData.notes)
     if (formData.requiresSignature) data.append('requiresSignature', 'true')
+    if (familyOn && formData.entityType === 'client' && formData.shareWithFamily) data.append('shareWithFamily', 'true')
 
     onSubmit(data)
   }
@@ -371,6 +395,15 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }: {
               <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
             ))}
           </select>
+        </div>
+      )}
+
+      {familyOn && formData.entityType === 'client' && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input type="checkbox" checked={formData.shareWithFamily} onChange={(e) => setFormData({ ...formData, shareWithFamily: e.target.checked })} />
+            Share with the family (they see it in their portal's Documents tab, if their Documents switch is on)
+          </label>
         </div>
       )}
 

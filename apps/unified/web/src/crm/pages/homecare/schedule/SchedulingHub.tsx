@@ -323,8 +323,9 @@ const SchedulingHub = () => {
   // Schedule saves return authWarnings (authorization balance, etc). They are advisory — the shift IS created — so they
   // ride on the success message as a warning: a red "No active authorization" over a 201 read as a failure (Run 5).
   const showSaved = (text: string, body: SavedReply | null | undefined, failed = false) => {
-    const w = body?.authWarnings
-    if (Array.isArray(w) && w.length) showMsg(`${text} ⚠️ ${w[0]}`, failed ? 'error' : 'warning')
+    // Advice that rides on a successful save: the authorization balance, and an expired credential (never a refusal unless the agency blocks it).
+    const warns = [...(Array.isArray(body?.authWarnings) ? body!.authWarnings! : []), ...(Array.isArray(body?.credentialWarnings) ? body!.credentialWarnings!.map((w) => `Expired credential: ${w}`) : [])]
+    if (warns.length) showMsg(`${text} ⚠️ ${warns.join(' · ')}`, failed ? 'error' : 'warning')
     else showMsg(text, failed ? 'error' : 'success')
   }
 
@@ -544,7 +545,27 @@ const SchedulingHub = () => {
         const freq = repeatsOn && repeatChoice ? (repeatChoice === 'monthly' ? 'monthly' : everyNWeeks(Number(repeatChoice))) : formData.scheduleType === 'bi-weekly' ? 'biweekly' : 'weekly'
         let created = 0, dup = 0, failed = 0
         let firstFailure: string | null = null, lastWarnings: string[] | null = null
-        for (const dayOfWeek of selectedDays) {
+        // Several weekdays are ONE request (a series): all or none, and the weekdays count their weeks from the same week. An agency that
+        // does not have it switched on gets the old way below, one request per weekday.
+        let asSeries = false
+        if (selectedDays.length > 1 && freq !== 'monthly') {
+          try {
+            const body = await api.post('/api/schedules-enhanced', {
+              caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
+              daysOfWeek: selectedDays, date: null, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
+              frequency: freq, effectiveDate: formData.date || today, anchorDate: anchorStr, endDate: formData.endDate || null,
+              isTraining: formData.isTraining, overnight,
+            }) as SavedReply & { rows?: unknown[] }
+            if (body?.authWarnings?.length) lastWarnings = body.authWarnings
+            created = body?.rows?.length || selectedDays.length
+            asSeries = true
+          } catch (err) {
+            const e = err as { status?: number; data?: { code?: string } }
+            if (e.status === 409) dup = selectedDays.length
+            else if (e.data?.code !== 'repeat_not_available') { failed = selectedDays.length; firstFailure = errorMessage(err) }
+          }
+        }
+        for (const dayOfWeek of asSeries || dup || failed ? [] : selectedDays) {
           try {
             const body = await api.post('/api/schedules-enhanced', {
               caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
@@ -603,8 +624,11 @@ const SchedulingHub = () => {
       // erase lives in the grid's scope box (scope=purge), behind its own confirm.
       if (!(await confirm(`Stop ${what} going forward? Past (already-worked) occurrences are kept.`, { danger: true, title: 'Stop recurring schedule', confirmText: 'Stop it' }))) return
     } else if (!(await confirm(`Delete ${what}?`, { danger: true, title: 'Delete schedule', confirmText: 'Delete' }))) return
+    // A repeating shift made on several weekdays: the office may stop every weekday of it together.
+    const wholeSeries = isRecurring && !!schedule.repeatGroupId
+      && await confirm('This shift was made on several weekdays together. Stop the other weekdays too? Cancel keeps them running.', { title: 'Several weekdays', confirmText: 'Stop all weekdays' })
     try {
-      await api.delete(`/api/schedules/${scheduleId}?scope=all`)
+      await api.delete(`/api/schedules/${scheduleId}?scope=all${wholeSeries ? '&series=true' : ''}`)
       showMsg(isRecurring ? 'Schedule stopped going forward' : 'Schedule deleted')
       loadCaregiverSchedules(selectedCaregiverId)
       if (scheduleView === 'month') loadCalendarData()
@@ -1873,7 +1897,7 @@ const SchedulingHub = () => {
                           <span style={{ fontWeight: 700 }}>{idx + 1}. {sg.firstName} {sg.lastName}</span>
                           <span style={{ background: tint(t.tone).bg, color: tint(t.tone).ink, fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{t.label} · {sg.score}</span>
                         </div>
-                        {sg.reasons && sg.reasons.length > 0 && <div style={{ marginTop: 3, fontSize: '0.72rem', color: C.muted }}>{sg.reasons.slice(0, 4).join(' · ')}</div>}
+                        {sg.reasons && sg.reasons.length > 0 && <div style={{ marginTop: 3, fontSize: '0.72rem', color: C.muted }}>{sg.reasons.join(' · ')}</div>}
                       </button>
                     )
                   })}

@@ -1,8 +1,8 @@
 // The salon's raw SQL (RULEBOOK §2): the book's lock, the client's lifetime spend, the visit repairs, the win-back list,
 // the dashboard's takings by chair and the team report. From templates/crm-salon/backend/src/routes (appointments,
 // clients, serviceMenu, memberships, serviceRecords, reminders, dashboard, reporting).
-import { and, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
-import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct } from '../db/schema/index.ts'
+import { and, asc, eq, gte, lte, lt, isNotNull, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import { invoice, serviceRecord, serviceMenu, membershipEnrollment, user, teamMember, contact, appointmentItem, salonGiftCard, salonGiftCardLedger, appointment, invoiceLineItem, payment, salonStockMove, salonRetailSale, salonRetailProduct, salonStockLocation, salonSupplier, saleTipSplit } from '../db/schema/index.ts'
 
 const rowsOf = (r: any): any[] => ((r as any)?.rows || r) as any[]
 
@@ -34,7 +34,7 @@ export async function serviceNamedOnMenu(db: any, companyId: string, name: strin
  * the salon vertical (CrmSettings.invoices.giftCardSalesAreLiability), and the client's lifetime spend below uses it directly. It reads
  * the card's own row (salon_gift_card.invoice_id), not the invoice's lines, so editing a sale's lines cannot turn it back into revenue.
  */
-export const notGiftCardSale: SQL = sql`NOT EXISTS (SELECT 1 FROM ${salonGiftCard} WHERE ${salonGiftCard.invoiceId} = ${invoice.id})`
+export const notGiftCardSale: SQL = sql`NOT EXISTS (SELECT 1 FROM ${salonGiftCard} WHERE ${salonGiftCard.invoiceId} = ${invoice.id}) AND NOT EXISTS (SELECT 1 FROM ${salonGiftCardLedger} gl WHERE gl.invoice_id = ${invoice.id} AND gl.kind = 'reload')`
 
 /** Money the client actually paid, net of refunds, across every live invoice that is revenue (Salon T27 N9; gift-card sales are not, follow-up 10/30). */
 export async function clientLifetimePaid(db: any, companyId: string, contactId: string): Promise<number> {
@@ -283,10 +283,13 @@ export async function activeSequencesForTrigger(db: any, companyId: string, trig
 
 // ─── Gift cards (salon #10) ──────────────────────────────────────────────────────────────────────────
 
-/** Take cents off a salon gift card. The row is locked by the caller; the `balance >= cents` guard is the second belt. False = it was not there to take. */
-export async function takeFromSalonCard(tx: any, cardId: string, cents: number): Promise<boolean> {
-  const out = await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} - ${cents}` })
-    .where(and(eq(salonGiftCard.id, cardId), gte(salonGiftCard.balanceCents, cents))).returning({ id: salonGiftCard.id })
+/**
+ * Take cents off a salon gift card, `fromBonus` of them from its free bonus. The row is locked by the caller; the guards are the second belt.
+ * False = it was not there to take.
+ */
+export async function takeFromSalonCard(tx: any, cardId: string, cents: number, fromBonus = 0): Promise<boolean> {
+  const out = await tx.update(salonGiftCard).set({ balanceCents: sql`${salonGiftCard.balanceCents} - ${cents}`, bonusCents: sql`${salonGiftCard.bonusCents} - ${fromBonus}` })
+    .where(and(eq(salonGiftCard.id, cardId), gte(salonGiftCard.balanceCents, cents), gte(salonGiftCard.bonusCents, fromBonus))).returning({ id: salonGiftCard.id })
   return out.length > 0
 }
 
@@ -317,6 +320,21 @@ export async function visitsForReport(db: any, companyId: string, from: Date, to
     .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
     .orderBy(serviceRecord.performedAt).limit(REPORT_VISIT_CAP + 1)
   return rows as Array<{ id: string; contactId: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null; performedAt: Date; rebooked: boolean }>
+}
+
+/** Visits in [from, to) in time order, each with the date of the SAME client's next visit (any service), for the return-window reports (crm/salon/returnWindows.ts). */
+export async function visitsWithNext(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    contactId: serviceRecord.contactId, stylistId: serviceRecord.stylistId, stylistMemberId: serviceRecord.stylistMemberId, serviceId: serviceRecord.serviceId,
+    firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name, performedAt: serviceRecord.performedAt,
+    nextMs: sql<string | null>`(select (extract(epoch from min(nx.performed_at)) * 1000)::bigint::text from ${serviceRecord} nx where nx.company_id = ${serviceRecord.companyId} and nx.contact_id = ${serviceRecord.contactId} and nx.performed_at > ${serviceRecord.performedAt})`,
+  }).from(serviceRecord)
+    .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+    .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
+    .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, from), lt(serviceRecord.performedAt, to)))
+    .orderBy(serviceRecord.performedAt).limit(REPORT_VISIT_CAP + 1)
+  // The next visit comes back as epoch milliseconds: a bare timestamp string would be read in the server's own zone.
+  return (rows as any[]).map(({ nextMs, ...r }) => ({ ...r, performedAt: new Date(r.performedAt), nextAt: nextMs ? new Date(Number(nextMs)) : null })) as Array<{ contactId: string; stylistId: string | null; stylistMemberId: string | null; serviceId: string | null; firstName: string | null; lastName: string | null; memberName: string | null; performedAt: Date; nextAt: Date | null }>
 }
 
 /** The clients who had a visit in [from, to). */
@@ -404,4 +422,161 @@ export async function tipsReceived(db: any, companyId: string, from: Date, to: D
     .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric <> 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
     .groupBy(appointment.stylistId, appointment.stylistMemberId, user.firstName, user.lastName, teamMember.name)
   return rows as Array<{ tips: string; payments: string; stylistId: string | null; stylistMemberId: string | null; firstName: string | null; lastName: string | null; memberName: string | null }>
+}
+
+
+/**
+ * Tips in [from, to) by SALE: the net of each sale's tip lines (refunds are negative), how many payments took a tip, and the visit's own
+ * stylist. The Tips report splits each sale's net across the people on it (crm/salon/tipSplit.ts) — the sale's own shares if the salon set
+ * them, else by the value of each person's services.
+ */
+export async function tipsBySale(db: any, companyId: string, from: Date, to: Date) {
+  const rows = await db.select({
+    invoiceId: payment.invoiceId, tips: sql<string>`sum(${payment.tipAmount}::numeric)`, payments: sql<string>`count(*) FILTER (WHERE ${payment.tipAmount}::numeric > 0)`,
+    appointmentId: invoice.appointmentId, stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId,
+  }).from(payment)
+    .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .where(and(eq(invoice.companyId, companyId), sql`${payment.tipAmount}::numeric <> 0`, gte(payment.paidAt, from), lt(payment.paidAt, to)))
+    .groupBy(payment.invoiceId, invoice.appointmentId, appointment.stylistId, appointment.stylistMemberId)
+  return rows as Array<{ invoiceId: string; tips: string; payments: string; appointmentId: string | null; stylistId: string | null; stylistMemberId: string | null }>
+}
+
+/** The services on these visits with who does each and its price (a visit with no rows has one stylist: the visit's). */
+export async function itemsOfVisits(db: any, appointmentIds: string[]) {
+  if (!appointmentIds.length) return []
+  const rows = await db.select({ appointmentId: appointmentItem.appointmentId, stylistId: appointmentItem.stylistId, stylistMemberId: appointmentItem.stylistMemberId, price: appointmentItem.price })
+    .from(appointmentItem).where(sql`${appointmentItem.appointmentId} in (${sql.join(appointmentIds.map((i) => sql`${i}`), sql`, `)})`)
+  return rows as Array<{ appointmentId: string; stylistId: string | null; stylistMemberId: string | null; price: string | null }>
+}
+
+/** The shares the salon set on these sales (hundredths of a percent); a sale with none uses the default split. */
+export async function tipSharesSet(db: any, companyId: string, invoiceIds: string[]) {
+  if (!invoiceIds.length) return []
+  const rows = await db.select({ invoiceId: saleTipSplit.invoiceId, stylistId: saleTipSplit.stylistId, stylistMemberId: saleTipSplit.stylistMemberId, shareBp: saleTipSplit.shareBp })
+    .from(saleTipSplit).where(and(eq(saleTipSplit.companyId, companyId), sql`${saleTipSplit.invoiceId} in (${sql.join(invoiceIds.map((i) => sql`${i}`), sql`, `)})`))
+  return rows as Array<{ invoiceId: string; stylistId: string | null; stylistMemberId: string | null; shareBp: number }>
+}
+
+/** Replace a sale's own shares (none = back to the default), in one transaction. */
+export async function setTipShares(db: any, companyId: string, invoiceId: string, shares: Array<{ stylistId: string | null; stylistMemberId: string | null; shareBp: number }>, setByUserId: string | null) {
+  await db.transaction(async (tx: any) => {
+    await tx.delete(saleTipSplit).where(and(eq(saleTipSplit.companyId, companyId), eq(saleTipSplit.invoiceId, invoiceId)))
+    if (shares.length) await tx.insert(saleTipSplit).values(shares.map((x) => ({ companyId, invoiceId, stylistId: x.stylistId, stylistMemberId: x.stylistMemberId, shareBp: x.shareBp, setByUserId })))
+  })
+}
+
+/** Names for these logins and roster members, by key (`u:<id>` / `m:<id>`). */
+export async function peopleNames(db: any, userIds: string[], memberIds: string[]) {
+  const out = new Map<string, string>()
+  if (userIds.length) {
+    const rows = await db.select({ id: user.id, f: user.firstName, l: user.lastName }).from(user).where(sql`${user.id} in (${sql.join(userIds.map((i) => sql`${i}`), sql`, `)})`)
+    for (const r of rows) out.set(`u:${r.id}`, [r.f, r.l].filter(Boolean).join(' ').trim() || 'Team member')
+  }
+  if (memberIds.length) {
+    const rows = await db.select({ id: teamMember.id, n: teamMember.name }).from(teamMember).where(sql`${teamMember.id} in (${sql.join(memberIds.map((i) => sql`${i}`), sql`, `)})`)
+    for (const r of rows) out.set(`m:${r.id}`, String(r.n || 'Team member'))
+  }
+  return out
+}
+
+/** The tip still on a sale in whole cents: every tip taken less every tip given back. */
+export async function tipsNetCents(db: any, invoiceId: string): Promise<number> {
+  const [row] = await db.select({ n: sql<string>`coalesce(sum(${payment.tipAmount}::numeric), 0)` }).from(payment).where(eq(payment.invoiceId, invoiceId))
+  return Math.round(Number(row?.n || 0) * 100)
+}
+
+
+// ─── Retail stock by place (salon row 12; crm/salon/retailStock.ts) ───────────────────────────────────────────────
+
+/** The salon's first stock location (stock with no place named is there). Made on first use, so every salon has one. */
+export async function defaultStockLocation(exec: any, companyId: string): Promise<string> {
+  const [first] = await exec.select({ id: salonStockLocation.id }).from(salonStockLocation).where(eq(salonStockLocation.companyId, companyId)).orderBy(asc(salonStockLocation.createdAt), asc(salonStockLocation.id)).limit(1)
+  if (first) return first.id
+  const [made] = await exec.insert(salonStockLocation).values({ companyId, name: 'Main shop' }).returning({ id: salonStockLocation.id })
+  return made.id
+}
+
+/** Units on hand per product at ONE place: stock moved there less the units sold from it (a void sale gives its units back). */
+export async function retailOnHandAt(exec: any, companyId: string, locationId: string, ids: string[] | null): Promise<Map<string, number>> {
+  const first = await defaultStockLocation(exec, companyId)
+  const here = locationId === first
+  const only = (col: AnyColumn) => (ids ? sql`${col} in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})` : sql`true`)
+  const at = (col: AnyColumn) => (here ? sql`(${col} = ${locationId} or ${col} is null)` : sql`${col} = ${locationId}`)
+  const moved = await exec.select({ productId: salonStockMove.productId, n: sql<string>`coalesce(sum(${salonStockMove.quantity}), 0)` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), at(salonStockMove.locationId), only(salonStockMove.productId))).groupBy(salonStockMove.productId)
+  const sold = await exec.select({ productId: salonRetailSale.productId, n: sql<string>`coalesce(sum(${salonRetailSale.quantity}), 0)` })
+    .from(salonRetailSale).innerJoin(invoice, eq(salonRetailSale.invoiceId, invoice.id))
+    .where(and(eq(salonRetailSale.companyId, companyId), at(salonRetailSale.locationId), sql`${invoice.status} <> 'void'`, only(salonRetailSale.productId))).groupBy(salonRetailSale.productId)
+  const out = new Map<string, number>()
+  for (const r of moved) out.set(r.productId, Number(r.n) || 0)
+  for (const r of sold) out.set(r.productId, (out.get(r.productId) || 0) - (Number(r.n) || 0))
+  return out
+}
+
+/** Units of each product already put back on the shelf after a refund, per sale. */
+export async function retailReturnedOn(exec: any, companyId: string, invoiceId: string): Promise<Map<string, number>> {
+  const rows = await exec.select({ productId: salonStockMove.productId, n: sql<string>`coalesce(sum(${salonStockMove.quantity}), 0)` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), eq(salonStockMove.invoiceId, invoiceId), eq(salonStockMove.kind, 'returned'))).groupBy(salonStockMove.productId)
+  return new Map(rows.map((r: any) => [r.productId, Number(r.n) || 0]))
+}
+
+/** Products whose barcode or SKU is this code, ignoring case, spaces, dashes and any other punctuation (what a scanner may add or drop). */
+export async function retailProductsByCode(exec: any, companyId: string, code: string): Promise<Array<typeof salonRetailProduct.$inferSelect>> {
+  const norm = (col: AnyColumn) => sql`upper(regexp_replace(${col}, '[^A-Za-z0-9]', '', 'g'))`
+  return exec.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), sql`(${norm(salonRetailProduct.barcode)} = ${code} or ${norm(salonRetailProduct.sku)} = ${code})`)).limit(5)
+}
+
+/**
+ * Retail on sales paid (or since refunded) in [from, to), one row per retail line: the product it is linked to (brand, category, supplier, SKU), the
+ * sale's discount and refund, what a unit cost when it was sold, and who is credited — the stylist named on the line, else the visit's. Lines typed by hand
+ * (no product link) come too, with a null product. `returned` = units put back on the shelf after a refund, per sale and product.
+ */
+export async function retailLinesSold(db: any, companyId: string, from: Date, to: Date) {
+  const who = sql`coalesce(${salonRetailSale.stylistId}, ${appointment.stylistId})`
+  const whoMember = sql`coalesce(${salonRetailSale.stylistMemberId}, ${appointment.stylistMemberId})`
+  const linked = await db.select({
+    invoiceId: invoice.id, lineId: invoiceLineItem.id, productId: salonRetailSale.productId, qty: salonRetailSale.quantity, lineTotal: invoiceLineItem.total, description: invoiceLineItem.description,
+    subtotal: invoice.subtotal, discount: invoice.discount, total: invoice.total, amountRefunded: invoice.amountRefunded, unitCostCents: salonRetailSale.unitCostCents, sortOrder: invoiceLineItem.sortOrder,
+    name: salonRetailProduct.name, brand: salonRetailProduct.brand, category: salonRetailProduct.category, sku: salonRetailProduct.sku, supplier: salonSupplier.name,
+    stylistId: who, stylistMemberId: whoMember, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(salonRetailSale)
+    .innerJoin(invoice, eq(salonRetailSale.invoiceId, invoice.id))
+    .innerJoin(invoiceLineItem, eq(salonRetailSale.lineItemId, invoiceLineItem.id))
+    .innerJoin(salonRetailProduct, eq(salonRetailSale.productId, salonRetailProduct.id))
+    .leftJoin(salonSupplier, eq(salonRetailProduct.supplierId, salonSupplier.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(user.id, who))
+    .leftJoin(teamMember, eq(teamMember.id, whoMember))
+    .where(and(eq(invoice.companyId, companyId), sql`${invoice.status} in ('paid', 'refunded')`, gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
+    .orderBy(invoice.id, invoiceLineItem.sortOrder)
+  const unlinked = await db.select({
+    invoiceId: invoice.id, lineId: invoiceLineItem.id, qty: invoiceLineItem.quantity, lineTotal: invoiceLineItem.total, description: invoiceLineItem.description,
+    subtotal: invoice.subtotal, discount: invoice.discount, total: invoice.total, amountRefunded: invoice.amountRefunded,
+    stylistId: appointment.stylistId, stylistMemberId: appointment.stylistMemberId, firstName: user.firstName, lastName: user.lastName, memberName: teamMember.name,
+  }).from(invoiceLineItem)
+    .innerJoin(invoice, eq(invoiceLineItem.invoiceId, invoice.id))
+    .leftJoin(salonRetailSale, eq(salonRetailSale.lineItemId, invoiceLineItem.id))
+    .leftJoin(appointment, eq(appointment.id, invoice.appointmentId))
+    .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
+    .where(and(eq(invoice.companyId, companyId), sql`${invoice.status} in ('paid', 'refunded')`, eq(invoiceLineItem.type, 'retail'), sql`${salonRetailSale.id} is null`, gte(invoice.paidAt, from), lt(invoice.paidAt, to)))
+  const ids = [...new Set<string>(linked.map((r: any) => r.invoiceId))]
+  const returned = ids.length ? await db.select({ invoiceId: salonStockMove.invoiceId, productId: salonStockMove.productId, n: sql<string>`sum(${salonStockMove.quantity})` })
+    .from(salonStockMove).where(and(eq(salonStockMove.companyId, companyId), eq(salonStockMove.kind, 'returned'), sql`${salonStockMove.invoiceId} in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`))
+    .groupBy(salonStockMove.invoiceId, salonStockMove.productId) : []
+  return { linked: linked as any[], unlinked: unlinked as any[], returned: returned as Array<{ invoiceId: string; productId: string; n: string }> }
+}
+
+/** What the stock on hand is worth, at cost and at the shelf price (active products; a product with no cost is counted apart). */
+export async function retailStockValue(exec: any, companyId: string) {
+  const rows: Array<typeof salonRetailProduct.$inferSelect> = await exec.select().from(salonRetailProduct).where(and(eq(salonRetailProduct.companyId, companyId), eq(salonRetailProduct.active, true))).limit(5000)
+  const have = await retailOnHand(exec, companyId, null)
+  let costCents = 0, retailCents = 0, units = 0, productsWithoutCost = 0
+  for (const p of rows) {
+    const n = Math.max(0, have.get(p.id) ?? 0)
+    units += n; retailCents += n * p.priceCents
+    if (p.costCents == null) { if (n > 0) productsWithoutCost++ } else costCents += n * p.costCents
+  }
+  return { costCents, retailCents, units, productsWithoutCost, products: rows.length }
 }

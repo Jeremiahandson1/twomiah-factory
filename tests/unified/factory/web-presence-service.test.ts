@@ -3,7 +3,7 @@
 // Covers: one site per customer, set-up order and what the site's settings hold, sign-in links, the site asking the Factory (signed),
 // cancel at the end of the paid period, the move up to the full plan, a change of trade, the credit watch, the signup — and that
 // with the switch off every one of those refuses.
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
 import { fakeStore } from './fakeStore'
 import { Netlify } from '../../../apps/api/src/webPresence/netlify'
 import {
@@ -18,6 +18,11 @@ import { composeOnePage } from '../../../apps/api/src/webPresence/compose'
 import { buildSpec, canonicalise } from '../../../apps/api/src/webPresence/spec'
 import { siteSecret, verifySignin, signRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
 import { createHandler } from '../../../apps/api/src/webPresence/site/handler.mjs'
+
+// UNIFIED_SIGNUPS is set by tests below ('all', 'off'); it is put back when the file ends, so a later Factory test file in the
+// same process (alerts.test.ts: POST /public/preview) is not decided by it (11/05: CI ran this one first and that test failed).
+const savedSignups = process.env.UNIFIED_SIGNUPS
+afterAll(() => { if (savedSignups === undefined) delete process.env.UNIFIED_SIGNUPS; else process.env.UNIFIED_SIGNUPS = savedSignups })
 
 const MASTER = 'master-key-for-tests'
 const ON = { WEB_PRESENCE_ON: '1', WEB_PRESENCE_SECRET_KEY: MASTER, TWOMIAH_FACTORY_URL: 'https://factory.test' }

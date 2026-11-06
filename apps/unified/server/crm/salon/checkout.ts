@@ -5,8 +5,8 @@
 // per the payment terms, status "open" so it shows as owed and can take a payment at once. The invoice is linked to the
 // appointment so a second completion never double-bills.
 import { and, eq } from 'drizzle-orm'
-import { dueDateFromTerms, nextNumber } from '@twomiah/tenant-backend'
-import { invoice, invoiceLineItem, company } from '../../db/schema/index.ts'
+import { dueDateFromTerms, nextNumber, recordInvoicePayment } from '@twomiah/tenant-backend'
+import { invoice, invoiceLineItem, company, booking, payment } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
@@ -67,8 +67,31 @@ export function createSalonCheckout(d: CrmDeps) {
     return linked?.id || null
   }
 
+  /**
+   * What the client already paid online for this visit (a deposit, or the whole price when the service takes it up front: salon parity row 5)
+   * goes on its bill as a card payment, once (by the Stripe payment's reference), so the chair never asks for it again.
+   */
+  async function creditOnlinePayment(companyId: string, appointmentId: string | null | undefined, inv: InvoiceRow): Promise<InvoiceRow> {
+    if (!appointmentId) return inv
+    const [b] = await db.select().from(booking).where(and(eq(booking.companyId, companyId), eq(booking.appointmentId, appointmentId), eq(booking.depositStatus, 'paid'))).limit(1)
+    if (!b || !b.depositAmount || !b.paymentIntentId || Number(b.depositAmount) <= 0) return inv
+    const out = await recordInvoicePayment(db, { invoice, payment }, true, {
+      invoiceId: inv.id, companyId, amount: round2(Number(b.depositAmount)), tipAmount: round2(Number(b.tipAmount || 0)), method: 'card', reference: b.paymentIntentId,
+      notes: 'Paid online when booking', paidAt: b.depositPaidAt ?? undefined, allowOverpayment: true, idempotentByReference: true,
+    })
+    if (!out.ok || out.duplicate) return inv
+    live.emitToCompany(companyId, live.EVENTS.REFRESH, { entity: 'invoice' })
+    const [fresh] = await db.select().from(invoice).where(eq(invoice.id, inv.id)).limit(1)
+    return fresh ?? inv
+  }
+
   /** The invoice for this visit, created if none exists yet. Null when there is nothing to bill (no price). */
   async function ensureInvoiceForVisit(v: VisitSale): Promise<InvoiceRow | null> {
+    const inv = await raiseInvoiceForVisit(v)
+    return inv ? creditOnlinePayment(v.companyId, v.appointmentId, inv) : inv
+  }
+
+  async function raiseInvoiceForVisit(v: VisitSale): Promise<InvoiceRow | null> {
     const price = round2(Number(v.price))
     if (!Number.isFinite(price) || price <= 0) return null
 

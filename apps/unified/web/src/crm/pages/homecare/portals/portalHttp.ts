@@ -77,6 +77,8 @@ export interface PortalClient {
   send<T>(method: 'POST' | 'PUT', path: string, body?: unknown): Promise<T | null>
   /** A file the server sends (an invoice PDF). */
   blob(path: string): Promise<Blob>
+  /** DELETE, the reply's JSON (null on a 429). */
+  del<T>(path: string): Promise<T | null>
 }
 
 /** A client that signs every request with this portal's token. */
@@ -115,6 +117,10 @@ export function createPortalClient(token: string, hooks: PortalHooks): PortalCli
       const res = await raw(path)
       if (!res) throw new Error('The server is busy. Please try again in a moment.')
       return res.blob()
+    },
+    async del<T>(path: string) {
+      const res = await raw(path, { method: 'DELETE' })
+      return res ? ((await res.json()) as T) : null
     },
   }
 }

@@ -17,7 +17,7 @@ import { kioskLocked, setKioskLock } from './kioskLock'
 
 interface Size { id: string; name: string; priceCents: number | null }
 interface Mod { id: string; name: string; priceCents: number }
-interface Item { id: string; name: string; is86ed: boolean; description?: string | null; imageUrl?: string | null; sizes: Size[]; modifiers?: Mod[] }
+interface Item { id: string; name: string; is86ed: boolean; stockCount?: number | null; description?: string | null; imageUrl?: string | null; sizes: Size[]; modifiers?: Mod[] }
 interface Section { id: string; name: string; kind: string; items: Item[] }
 interface KState { menu: Section[]; kiosk: { idleSeconds: number; askTable: boolean; payAtCounter: boolean }; reader: boolean; readerSimulated?: boolean; payAtCounter: boolean; taxRateBps: number; businessName: string }
 interface Line { key: string; item: Item; size: Size; mods: Mod[]; qty: number }
@@ -235,7 +235,7 @@ export default function KioskPage() {
                 {i.imageUrl && <img src={i.imageUrl} alt="" className="w-full h-24 object-cover rounded-xl mb-2" />}
                 <span className="block font-semibold leading-tight">{i.name}</span>
                 {i.description && <span className={`block text-xs mt-1 line-clamp-2 ${i.is86ed ? '' : MUTED}`}>{i.description}</span>}
-                <span className="block text-sm mt-1 font-mono">{i.is86ed ? 'Sold out' : `${i.sizes.length > 1 ? 'from ' : ''}${money(from)}`}</span>
+                <span className="block text-sm mt-1 font-mono">{i.is86ed ? 'Sold out' : `${i.sizes.length > 1 ? 'from ' : ''}${money(from)}`}{!i.is86ed && i.stockCount != null && i.stockCount <= 10 ? <span className={`ml-2 ${MUTED}`}>{i.stockCount} left</span> : null}</span>
               </button>
             )
           })}

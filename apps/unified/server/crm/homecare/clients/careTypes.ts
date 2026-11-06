@@ -62,6 +62,8 @@ export function createCareTypeRoutes(d: CrmDeps) {
     if (b.name !== undefined) updates.name = String(b.name).trim()
     if (b.description !== undefined) updates.description = b.description || null
     if (b.hourlyRate !== undefined) updates.hourlyRate = rate(b.hourlyRate)
+    // Row 19 (care_payroll_rules): hours of this service never count toward overtime.
+    if (b.excludeFromOvertime !== undefined) updates.excludeFromOvertime = b.excludeFromOvertime === true
     if (b.isActive !== undefined) updates.isActive = !!b.isActive
     if (!Object.keys(updates).length) {
       const [row] = await db.select().from(careTypes).where(and(eq(careTypes.id, c.req.param('id')), eq(careTypes.companyId, companyId))).limit(1)

@@ -22,7 +22,9 @@ import type { SalonServices } from './services.ts'
 import { withVisitPhotos } from './visitPhotos.ts'
 import { inOwnChair } from './bookScope.ts'
 import { patchTestState } from './patchTest.ts'
+import { PatchTestError } from './patchTests.ts'
 
+const PATCH_KEYS: string[] = ['patchTestAt', 'patchTestResult']
 const PROFILE_EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'patchTestResult', 'preferences', 'pronouns', 'birthday', 'notes'] as const
 // Hair type is a short label on a client card; the longer free-text fields keep their own ceilings. (Salon T28 L4)
 const FIELD_MAX: Record<string, number> = { hairType: 120, pronouns: 40, scalpNotes: 2000, allergies: 2000, preferences: 2000, notes: 5000 }
@@ -218,18 +220,70 @@ export function createClientRoutes(d: CrmDeps, salon: SalonServices) {
     let saved: typeof clientProfile.$inferSelect
     if (existing) {
       const updates: Record<string, unknown> = { updatedAt: new Date() }
-      for (const k of PROFILE_EDITABLE) if (k in body) updates[k] = body[k] || null
+      for (const k of PROFILE_EDITABLE) if (k in body && !PATCH_KEYS.includes(k)) updates[k] = body[k] || null
       ;[saved] = await db.update(clientProfile).set(updates).where(eq(clientProfile.id, existing.id)).returning()
       await audit.log({ action: 'update', entity: 'client_profile', entityId: existing.id, changes: audit.diff(existing, saved), req: { user: currentUser } })
     } else {
       const values: Record<string, unknown> = { id: createId(), contactId, companyId: currentUser.companyId }
-      for (const k of PROFILE_EDITABLE) if (k in body) values[k] = body[k] || null
+      for (const k of PROFILE_EDITABLE) if (k in body && !PATCH_KEYS.includes(k)) values[k] = body[k] || null
       ;[saved] = await db.insert(clientProfile).values(values as any).returning()
       await audit.log({ action: 'create', entity: 'client_profile', entityId: saved.id, metadata: saved, req: { user: currentUser } })
+    }
+    // The chart's "last patch test" (date + result) is a view of the history: record or correct that day's test, or remove it, and the profile follows.
+    if ('patchTestAt' in body || 'patchTestResult' in body) {
+      const was = existing?.patchTestAt ? String(existing.patchTestAt).slice(0, 10) : null
+      const now = 'patchTestAt' in body ? (body.patchTestAt ? String(body.patchTestAt).slice(0, 10) : null) : was
+      // The same date sent back with no result is an edit of something else on the form: the test on that day stays as it is.
+      if (now === was && !('patchTestResult' in body)) { /* nothing to record */ } else await salon.patchTests.setLatest(currentUser.companyId, contactId, was, now, body.patchTestResult ?? null, currentUser)
+      ;[saved] = await db.select().from(clientProfile).where(eq(clientProfile.id, saved.id)).limit(1)
     }
     refresh(currentUser.companyId, 'client_profile')
     return one(c, saved)
   })
+
+  // ─── Patch tests: a history per client (salon parity row 22; ./patchTests.ts) ───────────────────────────────────────────────
+  const patchAnswer = async (c: any, fn: () => Promise<Response>) => {
+    try { return await fn() } catch (e: any) {
+      if (e instanceof PatchTestError) return fail(c, e.status, e.message, e.code, e.field ? { [e.field]: e.message } : undefined)
+      throw e
+    }
+  }
+  app.get('/:contactId/patch-tests', requirePermission('contacts:read'), async (c) => {
+    const u = c.get('user') as any
+    const contactId = c.req.param('contactId')
+    if (!(await clientOf(u.companyId, contactId))) return fail(c, 404, 'Client not found')
+    c.header('Cache-Control', 'no-store')
+    return one(c, { tests: await salon.patchTests.list(u.companyId, contactId), state: await salon.patchTests.state(u.companyId, contactId) })
+  })
+  app.post('/:contactId/patch-tests', requirePermission('contacts:update'), async (c) => patchAnswer(c, async () => {
+    const u = c.get('user') as any
+    const contactId = c.req.param('contactId')
+    if (!(await clientOf(u.companyId, contactId))) return fail(c, 404, 'Client not found')
+    const test = await salon.patchTests.create(u.companyId, contactId, ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>, u)
+    await audit.log({ action: 'create', entity: 'patch_test', entityId: test.id, metadata: { contactId, status: test.status, testedAt: test.testedAt }, req: { user: u } })
+    refresh(u.companyId, 'client_profile')
+    return one(c, test, 201)
+  }))
+  app.put('/:contactId/patch-tests/:id', requirePermission('contacts:update'), async (c) => patchAnswer(c, async () => {
+    const u = c.get('user') as any
+    const contactId = c.req.param('contactId')
+    if (!(await clientOf(u.companyId, contactId))) return fail(c, 404, 'Client not found')
+    const test = await salon.patchTests.update(u.companyId, c.req.param('id'), ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>, u)
+    if (test.contactId !== contactId) return fail(c, 404, 'That patch test is not on this client.')
+    await audit.log({ action: 'update', entity: 'patch_test', entityId: test.id, metadata: { contactId, status: test.status, testedAt: test.testedAt }, req: { user: u } })
+    refresh(u.companyId, 'client_profile')
+    return one(c, test)
+  }))
+  app.delete('/:contactId/patch-tests/:id', requirePermission('contacts:update'), async (c) => patchAnswer(c, async () => {
+    const u = c.get('user') as any
+    const contactId = c.req.param('contactId')
+    if (!(await clientOf(u.companyId, contactId))) return fail(c, 404, 'Client not found')
+    const out = await salon.patchTests.remove(u.companyId, c.req.param('id'))
+    if (out.contactId !== contactId) return fail(c, 404, 'That patch test is not on this client.')
+    await audit.log({ action: 'delete', entity: 'patch_test', entityId: c.req.param('id'), metadata: { contactId, was: out.was }, req: { user: u } })
+    refresh(u.companyId, 'client_profile')
+    return one(c, { removed: true })
+  }))
 
   // ─── The formulas a client is kept on ─────────────────────────────────────────────────────────────────────────
 

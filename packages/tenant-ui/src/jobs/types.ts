@@ -69,6 +69,11 @@ export interface JobsConfig {
    * jobs.ts options). Default false: the repeat box is as it was. Landscaping only.
    */
   repeatWeekdays?: boolean
+  /**
+   * "Find a time" on the form (jobs/FindTime.tsx): the open slots inside people's shifts, around their booked jobs and
+   * the drive between them — GET /api/availability/find, the unified app's Tech Availability. Default false.
+   */
+  findTime?: boolean
   /** An app's own panel at the top of the job's side column (the unified app's billing against the job's quote). */
   aside?: (job: Record<string, any>) => import('react').ReactNode
 }
@@ -101,6 +106,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     customerWord: cfg.customerWord || 'customer',
     jobTypes: cfg.jobTypes && cfg.jobTypes.length ? cfg.jobTypes : null,
     repeatWeekdays: !!cfg.repeat && !!cfg.repeatWeekdays,
+    findTime: !!cfg.findTime,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),

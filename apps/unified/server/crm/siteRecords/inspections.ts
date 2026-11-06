@@ -3,13 +3,13 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, desc } from 'drizzle-orm'
-import { createActorName, companyTimeZone, storeDateString, markerDay } from '@twomiah/tenant-backend'
+import { createActorName, companyTimeZone, storeDateString, markerDay, withoutSigningEvidence } from '@twomiah/tenant-backend'
 import { inspection, inspectionItem, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { partialOf } from '@twomiah/tenant-backend'
-import { checklistCounts, checklistLines } from './inspectionChecklists.ts'
+import { autoChecklist, checklistCounts, checklistLines } from './inspectionChecklists.ts'
 
 const schema = z.object({ type: z.string(), projectId: z.string(), scheduledDate: z.string().optional(), inspector: z.string().optional(), notes: z.string().optional() })
 
@@ -84,9 +84,10 @@ export function createInspectionRoutes(d: CrmDeps) {
     // flat number/type/status/date/inspector) works.
     const counts = await checklistsOn(me.companyId) ? await checklistCounts(d, me.companyId, (data as any[]).map((r) => r.inspection.id)) : null
     const flat = (data as any[]).map((r) => {
-      const { photos: _photos, ...rest } = r.inspection
-      // The checklist summary and the photo count are only there where checklists are on; everything else is as it was.
-      return counts ? { ...rest, project: r.project, checklist: counts.get(r.inspection.id) || { total: 0, answered: 0, failed: 0 }, photoCount: Array.isArray(_photos) ? _photos.length : 0 } : { ...r.inspection, project: r.project }
+      const { photos: _photos, ...rest } = withoutSigningEvidence(r.inspection) as any
+      // The checklist summary and the photo count are only there where checklists are on; everything else is as it was. A signature's image
+      // and evidence are never in a list.
+      return counts ? { ...rest, project: r.project, checklist: counts.get(r.inspection.id) || { total: 0, answered: 0, failed: 0 }, photoCount: Array.isArray(_photos) ? _photos.length : 0 } : { ...withoutSigningEvidence(r.inspection), project: r.project }
     })
     return list(c, flat, { page: pageNum, limit: limitNum, total: Number(total) })
   })
@@ -101,7 +102,9 @@ export function createInspectionRoutes(d: CrmDeps) {
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
       companyId: me.companyId,
     }).returning()
-    return one(c, item, 201)
+    // With Automatic Inspection Checklists on, the right checklist is already on the new visit.
+    const attached = await autoChecklist(d, me.companyId, item)
+    return one(c, attached.length ? { ...withoutSigningEvidence(item), checklistAttached: attached } : withoutSigningEvidence(item), 201)
   })
 
   app.put('/:id', requirePermission('inspections:update'), async (c) => {
@@ -115,7 +118,7 @@ export function createInspectionRoutes(d: CrmDeps) {
       updatedAt: new Date(),
     }).where(and(eq(inspection.id, id), eq(inspection.companyId, me.companyId))).returning()
     if (!item) return fail(c, 404, 'Inspection not found')
-    return one(c, item)
+    return one(c, withoutSigningEvidence(item))
   })
 
   app.delete('/:id', requirePermission('inspections:delete'), async (c) => {
@@ -149,7 +152,7 @@ export function createInspectionRoutes(d: CrmDeps) {
     const [item] = await db.update(inspection).set({
       status: 'passed', result: 'pass', resultedAt: new Date(), resultedBy: await actorName(me), updatedAt: new Date(),
     }).where(and(eq(inspection.id, id), eq(inspection.companyId, me.companyId))).returning()
-    return one(c, item)
+    return one(c, withoutSigningEvidence(item))
   })
 
   app.post('/:id/fail', requirePermission('inspections:update'), async (c) => {
@@ -181,7 +184,7 @@ export function createInspectionRoutes(d: CrmDeps) {
       status: 'failed', result: 'fail', deficiencies,
       resultedAt: new Date(), resultedBy: await actorName(me), updatedAt: new Date(),
     }).where(and(eq(inspection.id, id), eq(inspection.companyId, me.companyId))).returning()
-    return one(c, item)
+    return one(c, withoutSigningEvidence(item))
   })
 
   /**
@@ -222,7 +225,7 @@ export function createInspectionRoutes(d: CrmDeps) {
       const failedLines = (await checklistLines(d, me.companyId, existing.id)).filter((l) => l.result === 'fail')
       if (failedLines.length) await db.insert(inspectionItem).values(failedLines.map((l, i) => ({ companyId: me.companyId, inspectionId: (made as any).id, label: l.label, sortOrder: i })) as any)
     }
-    return one(c, { inspection: made, reinspectionOf: existing }, 201)
+    return one(c, { inspection: withoutSigningEvidence(made), reinspectionOf: withoutSigningEvidence(existing) }, 201)
   })
 
   return app

@@ -6,7 +6,7 @@
 // Stripe from the browser; this page and our server never see it.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { Loader2, Check, FileSignature, CreditCard, AlertCircle, Download } from 'lucide-react'
+import { Loader2, Check, FileSignature, CreditCard, Landmark, AlertCircle, Download } from 'lucide-react'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { SignaturePad } from '@twomiah/tenant-ui/src/portal/SignaturePad'
 import { getStripe } from '@twomiah/tenant-ui/src/portal/PaymentForm'
@@ -53,6 +53,10 @@ interface View {
   selections: Record<string, string[]>
   chosen: Array<{ name: string; quantity: number; unitPrice: number; total: number }>
   subtotal: number; tax: number; total: number
+  contract: { name: string; text: string } | null
+  signers: Array<{ position: number; role: string; roleLabel: string; name: string; status: 'waiting' | 'sent' | 'signed'; signedAt: string | null }>
+  you: { position: number; role: string; roleLabel: string; status: 'waiting' | 'sent' | 'signed'; name: string | null } | null
+  pay?: PayOffer | null
 }
 const CLOSED: Record<string, string> = { expired: 'This proposal has expired. Please ask us for a new one.', declined: 'This proposal was declined.', superseded: 'We have sent you a newer proposal — please use the newest link in your email.' }
 
@@ -69,9 +73,12 @@ export function ProposalPage() {
   const [declining, setDeclining] = useState(false)
   useEffect(() => { call(base).then(setV).catch((e) => setErr(e.message)) }, [base])
   useEffect(() => { document.title = v?.brand?.name ? `${v.brand.name} — Your event proposal` : 'Your event proposal' }, [v?.brand?.name])
-  const open = v && ['sent', 'viewed'].includes(v.status)
+  const open = v && ['sent', 'viewed', 'partly_signed'].includes(v.status)
+  // The first signer makes the choices; whoever signs after them reads what was chosen. Your turn: the signature box shows.
+  const choosing = !!v && !!open && (v.you?.position ?? 1) === 1 && !v.signers.some((s) => s.status === 'signed')
+  const myTurn = !!v && !!open && (!v.you || v.you.status === 'sent')
   const choose = async (optId: string, choiceId: string, kind: 'single' | 'multi') => {
-    if (!v || !open) return
+    if (!v || !choosing) return
     const cur = v.selections[optId] || []
     const next = kind === 'single' ? (cur[0] === choiceId ? [] : [choiceId]) : cur.includes(choiceId) ? cur.filter((x) => x !== choiceId) : [...cur, choiceId]
     setErr('')
@@ -93,7 +100,9 @@ export function ProposalPage() {
         <p className="text-gray-600 dark:text-slate-400">{[v.space?.name, v.event.guestCount ? `${v.event.guestCount} guests` : '', v.event.type].filter(Boolean).join(' · ')}</p>
         {v.message && <p className="mt-3 whitespace-pre-line">{v.message}</p>}
       </section>
-      {v.status === 'accepted' && <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />Signed by {v.signedBy}{v.acceptedAt ? ` on ${momentDate(v.acceptedAt)}` : ''}. Your date is booked — thank you!</p>}
+      {v.status === 'accepted' && <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />{v.signers.length > 1 ? 'Everyone has signed' : `Signed by ${v.signedBy}`}{v.acceptedAt ? ` on ${momentDate(v.acceptedAt)}` : ''}. Your date is booked — thank you!</p>}
+      {v.status === 'partly_signed' && v.you?.status === 'signed' && <p role="status" className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />Thank you — your signature is kept. The date is booked once everyone below has signed; we will email you.</p>}
+      {open && v.you?.status === 'waiting' && <p role="status" className="text-amber-800 dark:text-amber-300">It is not your turn to sign yet. You will be emailed a message when the people before you have signed. You can read everything below.</p>}
       {CLOSED[v.status] && <Err>{CLOSED[v.status]}</Err>}
 
       {v.options.map((o) => (
@@ -105,7 +114,7 @@ export function ProposalPage() {
               const on = (v.selections[o.id] || []).includes(c.id)
               return (
                 <li key={c.id}>
-                  <button type="button" disabled={!open} aria-pressed={on} onClick={() => choose(o.id, c.id, o.kind)} className={`w-full text-left flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${on ? 'border-orange-600 bg-orange-50 dark:bg-orange-950/30' : 'border-gray-300 dark:border-slate-700'} disabled:opacity-70`}>
+                  <button type="button" disabled={!choosing} aria-pressed={on} onClick={() => choose(o.id, c.id, o.kind)} className={`w-full text-left flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${on ? 'border-orange-600 bg-orange-50 dark:bg-orange-950/30' : 'border-gray-300 dark:border-slate-700'} disabled:opacity-70`}>
                     <span className="flex items-center gap-2">{on && <Check className="w-4 h-4" />}{c.label}</span>
                     <span className="text-sm">{c.price > 0 ? `${money(c.price)}${c.perPerson ? ' per guest' : ''}` : 'Included'}</span>
                   </button>
@@ -129,17 +138,25 @@ export function ProposalPage() {
         {v.schedule.length > 0 && <div className="mt-3 text-sm"><p className="font-medium">When you pay</p><ul>{v.schedule.map((s, i) => <li key={i}>{s.label}: {money(s.amount)}{s.dueDate ? `, due ${s.dueDate}` : ''}</li>)}</ul></div>}
       </section>
 
+      {v.contract && <section className={box} data-testid="contract"><h2 className="font-semibold mb-2">{v.contract.name}</h2><p className="whitespace-pre-line text-sm">{v.contract.text}</p></section>}
       {v.terms && <section className={box}><h2 className="font-semibold mb-1">Terms</h2><p className="whitespace-pre-line text-sm">{v.terms}</p></section>}
       {err && <Err>{err}</Err>}
 
-      {open && (
+      {v.signers.length > 1 && (
+        <section className={box} data-testid="signers">
+          <h2 className="font-semibold mb-2">Who signs, in order</h2>
+          <ol className="space-y-1 text-sm">{v.signers.map((s) => <li key={s.position} className="flex items-center gap-2">{s.status === 'signed' ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <span className="w-4" />}<span><strong>{s.roleLabel}</strong> — {s.name}{s.status === 'signed' && s.signedAt ? `, signed ${momentDate(s.signedAt)}` : s.status === 'sent' ? ', waiting to sign' : s.status === 'waiting' ? ', next in line' : ''}</span></li>)}</ol>
+        </section>
+      )}
+
+      {myTurn && (
         <section className={`${box} space-y-3`}>
-          <h2 className="font-semibold flex items-center gap-2"><FileSignature className="w-4 h-4" />Sign to book your date</h2>
+          <h2 className="font-semibold flex items-center gap-2"><FileSignature className="w-4 h-4" />{(v.you?.position ?? 1) === 1 && v.signers.length <= 1 ? 'Sign to book your date' : `Sign as ${v.you?.roleLabel.toLowerCase() || 'the client'}`}</h2>
           <div><label className="block text-sm font-medium mb-1" htmlFor="signer">Your full name</label><input id="signer" className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-800 dark:border-slate-700" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></div>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I agree that my electronic signature is the legal equivalent of my handwritten signature.</label>
-          {missing && <p className="text-sm text-amber-800 dark:text-amber-300">Please choose for “{missing.title}” first.</p>}
+          {choosing && missing && <p className="text-sm text-amber-800 dark:text-amber-300">Please choose for “{missing.title}” first.</p>}
           {!signing
-            ? <button type="button" disabled={!name.trim() || !consent || !!missing || busy} onClick={() => setSigning(true)} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">Draw my signature</button>
+            ? <button type="button" disabled={!name.trim() || !consent || (choosing && !!missing) || busy} onClick={() => setSigning(true)} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">Draw my signature</button>
             : <div className="space-y-2">{busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <SignaturePad onSave={sign} onCancel={() => setSigning(false)} width={500} height={180} />}</div>}
           <div className="pt-2 border-t border-gray-100 dark:border-slate-800">
             {!declining ? <button type="button" className="text-sm underline text-gray-600 dark:text-slate-400" onClick={() => setDeclining(true)}>This isn’t for me</button> : (
@@ -149,7 +166,18 @@ export function ProposalPage() {
           </div>
         </section>
       )}
-      {v.status === 'accepted' && <a className="inline-flex items-center gap-2 underline" href={`${base}/pdf`}><Download className="w-4 h-4" />Download your signed copy (PDF)</a>}
+      {v.pay && (
+        <section className={`${box} space-y-3`} data-testid="pay-at-signing">
+          <h2 className="font-semibold flex items-center gap-2"><CreditCard className="w-4 h-4" />{v.pay.owed > 0.005 ? `Pay your ${v.pay.label.toLowerCase()} now` : `Your ${v.pay.label.toLowerCase()} is paid`}</h2>
+          {v.pay.owed > 0.005
+            ? <><p className="text-3xl font-bold">{money(v.pay.owed)}<span className="text-base font-normal text-gray-600 dark:text-slate-400">{v.pay.dueDate ? ` due ${v.pay.dueDate}` : ''}</span></p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Your date is booked. You can pay this now, here, or later from the link in your email. You can also keep your card for the rest of your payments, so each is paid on its due date.</p></>
+            : <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium"><Check className="w-5 h-5" />Thank you — it has been received.</p>}
+          {!v.pay.canPayByCard && <p>This venue takes card payments in person or by arrangement{v.brand.phone ? ` — please call ${v.brand.phone}` : ''}.</p>}
+        </section>
+      )}
+      {v.pay && <PayPanel base={`${base}/pay`} offer={v.pay} onChanged={() => { call(base).then(setV).catch((e) => setErr(e.message)) }} />}
+      {(v.status === 'accepted' || v.signers.some((x) => x.status === 'signed')) && <a className="inline-flex items-center gap-2 underline" href={`${base}/pdf`}><Download className="w-4 h-4" />{v.status === 'accepted' ? 'Download your signed copy (PDF)' : 'Download the copy so far (PDF)'}</a>}
     </Page>
   )
 }
@@ -158,7 +186,7 @@ export function ProposalPage() {
 interface PayView {
   brand: { name?: string; phone?: string; color?: string | null; logo?: string | null }
   event: { name: string; dateWords: string }; label: string; dueDate: string | null; amount: number; owed: number; state: string
-  canPayByCard: boolean; autopay: { brand: string | null; last4: string | null } | null; autopayConsent: string
+  canPayByCard: boolean; autopay: { brand: string | null; last4: string | null; bank?: boolean } | null; autopayConsent: string
 }
 interface Started { clientSecret: string; stripeAccount: string; publishableKey: string; paymentIntentId?: string; setupIntentId?: string }
 
@@ -187,17 +215,30 @@ function CardForm({ kind, onDone, label }: { kind: 'pay' | 'setup'; onDone: () =
   )
 }
 
-export function PayPage() {
-  const { token = '' } = useParams()
-  const base = `/api/event-pay/${token}`
-  const [v, setV] = useState<PayView | null>(null)
+/** What the panel needs to take one payment: the amount owed and how it can be paid (the pay page's own fields, and the proposal's `pay`). */
+export interface PayOffer {
+  label: string; dueDate: string | null; owed: number; canPayByCard: boolean; autopay: { brand: string | null; last4: string | null; bank?: boolean } | null; autopayConsent: string
+  // Paying from a US bank account (only when the venue has it on): the debit takes days, so a payment on its way is shown, not "paid".
+  canPayByBank?: boolean; bankConsent?: string; bankAutopayConsent?: string
+  bankPending?: { amount: number; waitingToVerify: boolean; verifyUrl: string | null; bank: string | null; last4: string | null } | null
+  bankFailed?: { message: string | null } | null
+}
+
+type StartKind = 'pay' | 'setup' | 'bank' | 'banksetup'
+
+/**
+ * Taking one payment on a page: pay by card or from a bank account, with the option to keep it for the rest of the event, or leave one
+ * without paying now. `base` is the API prefix (/api/event-pay/<token> or, after the signature, /api/proposal-links/<token>/pay), so the
+ * pay link and the proposal page take money the same way. `onChanged` reloads the page's own view after a payment or a stop.
+ * A bank payment is "on its way" when the client has done their part: it is paid only when the bank settles it.
+ */
+export function PayPanel({ base, offer, onChanged }: { base: string; offer: PayOffer; onChanged: () => void }) {
   const [err, setErr] = useState('')
-  const [started, setStarted] = useState<(Started & { kind: 'pay' | 'setup'; save: boolean }) | null>(null)
+  const [started, setStarted] = useState<(Started & { kind: StartKind; save: boolean }) | null>(null)
   const [save, setSave] = useState(false)
+  const [bankSave, setBankSave] = useState(false)
   const [done, setDone] = useState('')
-  const load = useCallback(() => call(base).then(setV).catch((e) => setErr(e.message)), [base])
-  useEffect(() => { load() }, [load])
-  useEffect(() => { document.title = v?.brand?.name ? `${v.brand.name} — Pay for your event` : 'Pay for your event' }, [v?.brand?.name])
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null)
   const [stripePromise, setStripePromise] = useState<ReturnType<typeof getStripe> | null>(null)
   useEffect(() => { setStripePromise(started ? getStripe(started.publishableKey, started.stripeAccount) : null) }, [started])
   const startPay = async () => {
@@ -208,16 +249,93 @@ export function PayPage() {
     setErr('')
     try { const r = await call(`${base}/autopay`, 'POST', { consent: true }); setStarted({ ...r, kind: 'setup', save: true }) } catch (e) { setErr((e as Error).message) }
   }
+  const startBank = async () => {
+    setErr('')
+    try { const r = await call(`${base}/bank/intent`, 'POST', { consent: true, ...(bankSave ? { saveBank: true, autopayConsent: true } : {}) }); setStarted({ ...r, kind: 'bank', save: bankSave }) } catch (e) { setErr((e as Error).message) }
+  }
+  const startBankSetup = async () => {
+    setErr('')
+    try { const r = await call(`${base}/bank/autopay`, 'POST', { consent: true }); setStarted({ ...r, kind: 'banksetup', save: true }) } catch (e) { setErr((e as Error).message) }
+  }
   const finish = async () => {
     if (!started) return
     try {
       if (started.kind === 'pay') await call(`${base}/confirm`, 'POST', { paymentIntentId: started.paymentIntentId, ...(started.save ? { saveCard: true, consent: true } : {}) })
-      else await call(`${base}/autopay/confirm`, 'POST', { setupIntentId: started.setupIntentId })
+      else if (started.kind === 'setup') await call(`${base}/autopay/confirm`, 'POST', { setupIntentId: started.setupIntentId })
+      else if (started.kind === 'bank') {
+        const r = await call(`${base}/bank/confirm`, 'POST', { paymentIntentId: started.paymentIntentId })
+        setDone(r.message); setVerifyUrl(r.verifyUrl || null); setStarted(null); onChanged(); return
+      } else {
+        const r = await call(`${base}/bank/autopay/confirm`, 'POST', { setupIntentId: started.setupIntentId })
+        setDone(r.saved ? 'Your bank account is saved. We will debit it on each due date.' : r.message); setVerifyUrl(r.verifyUrl || null); setStarted(null); onChanged(); return
+      }
       setDone(started.kind === 'pay' ? 'Thank you — your payment has been received.' : 'Your card is saved. We will charge it on each due date.')
-      setStarted(null); load()
+      setStarted(null); onChanged()
     } catch (e) { setErr((e as Error).message) }
   }
-  const stop = async () => { try { await call(`${base}/autopay/stop`, 'POST', {}); setDone('Your card was removed.'); load() } catch (e) { setErr((e as Error).message) } }
+  const stop = async () => { try { await call(`${base}/autopay/stop`, 'POST', {}); setDone(offer.autopay?.bank ? 'Your bank account was removed.' : 'Your card was removed.'); onChanged() } catch (e) { setErr((e as Error).message) } }
+  const onItsWay = offer.bankPending
+  const canPay = offer.owed > 0.005 && !onItsWay
+  const saved = offer.autopay ? (offer.autopay.bank ? `bank account at ${offer.autopay.brand || 'your bank'}` : `${offer.autopay.brand || 'card'}`) : ''
+  return (
+    <>
+      {done && <p role="status" className="flex items-center gap-2 text-green-800 dark:text-green-300"><Check className="w-4 h-4" />{done}{verifyUrl && <a className="underline ml-1" href={verifyUrl} target="_blank" rel="noreferrer">Verify your bank account</a>}</p>}
+      {err && <Err>{err}</Err>}
+      {onItsWay && (
+        <section className={`${box} space-y-1`} role="status">
+          <p className="font-medium">Your {money(onItsWay.amount)} bank payment is on its way.</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400">{onItsWay.waitingToVerify
+            ? 'Your bank still has to verify the account with two small deposits. Once that is done the payment starts.'
+            : 'A bank debit can take up to four business days to clear. This page shows it as paid when your bank has settled it, and we will email you.'}</p>
+          {onItsWay.waitingToVerify && onItsWay.verifyUrl && <p className="text-sm"><a className="underline" href={onItsWay.verifyUrl} target="_blank" rel="noreferrer">Verify your bank account</a></p>}
+        </section>
+      )}
+      {offer.bankFailed && !onItsWay && <Err>{`Your last bank payment did not go through${offer.bankFailed.message ? ` — ${offer.bankFailed.message.replace(/^The bank returned the payment: /, 'your bank returned it: ')}` : ''} You can try again below.`}</Err>}
+      {(offer.canPayByCard || offer.canPayByBank) && !started && (
+        <section className={`${box} space-y-3`}>
+          {canPay && offer.canPayByCard && (
+            <>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={save} onChange={(e) => setSave(e.target.checked)} />Keep this card for the rest of my event’s payments. <span className="text-gray-600 dark:text-slate-400">{offer.autopayConsent}</span></label>
+              <button type="button" onClick={startPay} className="px-4 py-2 rounded-lg bg-orange-600 text-white inline-flex items-center gap-2"><CreditCard className="w-4 h-4" />Pay {money(offer.owed)} by card</button>
+            </>
+          )}
+          {canPay && offer.canPayByBank && (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600 dark:text-slate-400">{offer.bankConsent}</p>
+              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={bankSave} onChange={(e) => setBankSave(e.target.checked)} />Keep this bank account for the rest of my event’s payments. <span className="text-gray-600 dark:text-slate-400">{offer.bankAutopayConsent}</span></label>
+              <button type="button" onClick={startBank} className="px-4 py-2 rounded-lg border border-orange-600 text-orange-700 dark:text-orange-300 inline-flex items-center gap-2"><Landmark className="w-4 h-4" />Pay {money(offer.owed)} from my bank account</button>
+            </div>
+          )}
+          {offer.autopay
+            ? <p className="text-sm">A {saved} ending {offer.autopay.last4} is saved for this event. <button type="button" className="underline" onClick={stop}>Remove it</button></p>
+            : canPay && (
+              <p className="text-sm space-x-1">
+                {offer.canPayByCard && <><button type="button" className="underline" onClick={startSetup}>Leave a card on file without paying now</button> <span className="text-gray-600 dark:text-slate-400">— {offer.autopayConsent}</span></>}
+                {offer.canPayByBank && <span className="block"><button type="button" className="underline" onClick={startBankSetup}>Leave a bank account on file without paying now</button> <span className="text-gray-600 dark:text-slate-400">— {offer.bankAutopayConsent}</span></span>}
+              </p>
+            )}
+        </section>
+      )}
+      {started && stripePromise && (
+        <section className={box}>
+          <Elements stripe={stripePromise} options={{ clientSecret: started.clientSecret }}>
+            <CardForm kind={started.kind === 'pay' || started.kind === 'bank' ? 'pay' : 'setup'} onDone={finish}
+              label={started.kind === 'pay' ? `Pay ${money(offer.owed)}` : started.kind === 'bank' ? `Pay ${money(offer.owed)} from this account` : started.kind === 'banksetup' ? 'Save this bank account' : 'Save this card'} />
+          </Elements>
+        </section>
+      )}
+    </>
+  )
+}
+
+export function PayPage() {
+  const { token = '' } = useParams()
+  const base = `/api/event-pay/${token}`
+  const [v, setV] = useState<PayView | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(() => call(base).then(setV).catch((e) => setErr(e.message)), [base])
+  useEffect(() => { load() }, [load])
+  useEffect(() => { document.title = v?.brand?.name ? `${v.brand.name} — Pay for your event` : 'Pay for your event' }, [v?.brand?.name])
   if (!v) return <Page title="Pay for your event" brand={null}>{err ? <Err>{err}</Err> : <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}</Page>
   return (
     <Page title={`${v.label} — ${v.event.name}`} brand={v.brand}>
@@ -227,29 +345,8 @@ export function PayPage() {
           ? <p className="text-3xl font-bold mt-1">{money(v.owed)}<span className="text-base font-normal text-gray-600 dark:text-slate-400">{v.dueDate ? ` due ${v.dueDate}` : ''}</span></p>
           : <p className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium mt-1"><Check className="w-5 h-5" />This payment has been made. Thank you!</p>}
       </section>
-      {done && <p role="status" className="flex items-center gap-2 text-green-800 dark:text-green-300"><Check className="w-4 h-4" />{done}</p>}
-      {err && <Err>{err}</Err>}
-      {v.owed > 0.005 && !v.canPayByCard && <section className={box}><p>This venue takes card payments in person or by arrangement{v.brand.phone ? ` — please call ${v.brand.phone}` : ''}.</p></section>}
-      {v.canPayByCard && !started && (
-        <section className={`${box} space-y-3`}>
-          {v.owed > 0.005 && (
-            <>
-              <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={save} onChange={(e) => setSave(e.target.checked)} />Keep this card for the rest of my event’s payments. <span className="text-gray-600 dark:text-slate-400">{v.autopayConsent}</span></label>
-              <button type="button" onClick={startPay} className="px-4 py-2 rounded-lg bg-orange-600 text-white inline-flex items-center gap-2"><CreditCard className="w-4 h-4" />Pay {money(v.owed)} by card</button>
-            </>
-          )}
-          {v.autopay
-            ? <p className="text-sm">A {v.autopay.brand || 'card'} ending {v.autopay.last4} is saved for this event. <button type="button" className="underline" onClick={stop}>Remove it</button></p>
-            : v.owed > 0.005 && <p className="text-sm"><button type="button" className="underline" onClick={startSetup}>Leave a card on file without paying now</button> <span className="text-gray-600 dark:text-slate-400">— {v.autopayConsent}</span></p>}
-        </section>
-      )}
-      {started && stripePromise && (
-        <section className={box}>
-          <Elements stripe={stripePromise} options={{ clientSecret: started.clientSecret }}>
-            <CardForm kind={started.kind} onDone={finish} label={started.kind === 'pay' ? `Pay ${money(v.owed)}` : 'Save this card'} />
-          </Elements>
-        </section>
-      )}
+      {v.owed > 0.005 && !v.canPayByCard && !(v as any).canPayByBank && <section className={box}><p>This venue takes card payments in person or by arrangement{v.brand.phone ? ` — please call ${v.brand.phone}` : ''}.</p></section>}
+      <PayPanel base={base} offer={v} onChanged={load} />
     </Page>
   )
 }

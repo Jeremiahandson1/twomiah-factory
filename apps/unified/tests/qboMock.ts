@@ -26,6 +26,8 @@ export function createQboMock() {
   const deposits = new Map<string, Rec>()
   const calls: Array<{ method: string; path: string; body: any }> = []
   let nextId = 100
+  /** Money the roofer's bookkeeper entered against a customer: bills, cheques and card spend (what a Purchase or Bill carries). */
+  const spend: Array<{ customerId: string; amount: number; account: string; kind: 'COGS' | 'Expenses' }> = []
   let authFails = false
   const id = () => String(++nextId)
   const time = () => new Date().toISOString()
@@ -98,14 +100,36 @@ export function createQboMock() {
   }
   /** select * from <Entity> where <Field> = '<value>' — the one shape the app asks. */
   function query(q: string) {
-    const m = /^select \* from (\w+) where (\w+) = '((?:\\.|[^'])*)'/i.exec(q.trim())
+    const m = /^select \* from (\w+) where (\w+) (=|like) '((?:\\.|[^'])*)'/i.exec(q.trim())
     if (!m) return validation('4000', 'Query parse error', q)
-    const [, entity, field, raw] = m
+    const [, entity, field, op, raw] = m
     const value = raw.replace(/\\(.)/g, '$1')
     const source = entity === 'Account' ? accounts : entity === 'Item' ? items : entity === 'Customer' ? customers : null
     if (!source) return validation('4000', 'Query parse error', `Unknown entity ${entity}`)
-    const rows = [...source.values()].filter((r) => String(r[field]).toLowerCase() === value.toLowerCase())
+    const rows = [...source.values()].filter((r) => op.toLowerCase() === 'like'
+      ? String(r[field]).toLowerCase().includes(value.replace(/%/g, '').toLowerCase())
+      : String(r[field]).toLowerCase() === value.toLowerCase())
     return reply(200, { QueryResponse: rows.length ? { [entity]: rows } : {}, time: time() })
+  }
+
+
+  /** Reports/ProfitAndLoss?customer=<id>: that customer's invoices are income, what was entered against them is cost — in QuickBooks' own row shape. */
+  function profitAndLoss(params: URLSearchParams) {
+    const cid = params.get('customer')
+    if (!cid || !customers.has(cid)) return validation('2500', 'Invalid Reference Id', `Invalid Reference Id : Customer ${cid ?? '(none)'}`)
+    if (!params.get('start_date') || !params.get('end_date')) return validation('2020', 'Required param missing, need to supply the required value for the API', 'start_date and end_date are required')
+    const income = money([...invoices.values()].filter((i) => String(i.CustomerRef?.value) === cid).reduce((n, i) => n + i.TotalAmt, 0))
+    const cogs = money(spend.filter((x) => x.customerId === cid && x.kind === 'COGS').reduce((n, x) => n + x.amount, 0))
+    const exp = money(spend.filter((x) => x.customerId === cid && x.kind === 'Expenses').reduce((n, x) => n + x.amount, 0))
+    const cell = (label: string, v: number) => ({ type: 'Section', Summary: { ColData: [{ value: label }, { value: v.toFixed(2) }] } })
+    const rows: any[] = [
+      { ...cell('Total Income', income), group: 'Income' },
+      { ...cell('Total Cost of Goods Sold', cogs), group: 'COGS' },
+      { ...cell('Gross Profit', money(income - cogs)), group: 'GrossProfit' },
+      { ...cell('Total Expenses', exp), group: 'Expenses' },
+      { ...cell('Net Income', money(income - cogs - exp)), group: 'NetIncome' },
+    ]
+    return reply(200, { Header: { ReportName: 'ProfitAndLoss', StartPeriod: params.get('start_date'), EndPeriod: params.get('end_date'), Option: [{ Name: 'AccountingMethod', Value: params.get('accounting_method') || 'Accrual' }] }, Columns: { Column: [{ ColTitle: '' }, { ColTitle: 'Total' }] }, Rows: { Row: rows }, time: time() })
   }
 
   function customer(body: any) {
@@ -183,6 +207,7 @@ export function createQboMock() {
     if (method === 'POST' && entity === 'salesreceipt') return receipt('SalesReceipt', body?.SalesReceipt)
     if (method === 'POST' && entity === 'refundreceipt') return receipt('RefundReceipt', body?.RefundReceipt)
     if (method === 'POST' && entity === 'deposit') return deposit(body?.Deposit)
+    if (method === 'GET' && entity === 'reports' && oid === 'ProfitAndLoss') return profitAndLoss(url.searchParams)
     const store = entity === 'customer' ? customers : entity === 'invoice' ? invoices : entity === 'payment' ? payments : null
     if (!store) return reply(400, { Fault: { Error: [{ Message: 'Unsupported Operation', Detail: entity, code: '500' }], type: 'ValidationFault' } })
     if (method === 'GET') {
@@ -196,7 +221,7 @@ export function createQboMock() {
   }
 
   return {
-    customers, invoices, payments, accounts, items, salesReceipts, refundReceipts, deposits, calls, fetch: fetchMock,
+    customers, invoices, payments, accounts, items, salesReceipts, refundReceipts, deposits, spend, calls, fetch: fetchMock,
     /** A second bank account, so the owner has to choose. */
     addBank(name: string) { return addAccount({ Name: name, AccountType: 'Bank', AccountSubType: 'Savings' }) },
     /** Every request from now on answers 401 (a revoked token), until switched back. */

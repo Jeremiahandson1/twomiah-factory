@@ -6,6 +6,10 @@ import { sql } from 'drizzle-orm'
 /** commission: one automatic commission per invoice, plan and person; one reversal per commission. */
 export const commissionIsAuto = sql`source = 'auto'`
 export const commissionIsReversal = sql`source = 'reversal'`
+/** A paid commission taken back in part when its sale was partly refunded (salon row 15): one row for each share of the sale refunded. */
+export const commissionIsRefund = sql`source = 'refund'`
+/** commission: a roofing job's commission, draw or refund adjustment is made once per its earn_key (roof/commissions.ts). */
+export const commissionHasEarnKey = sql`earn_key IS NOT NULL`
 
 /** job: one visit per route stop per day — making a route's visits twice cannot stack two on one day (landscaping routes). */
 export const jobOnRouteStop = sql`recurring_route_stop_id IS NOT NULL`

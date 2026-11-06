@@ -2,7 +2,7 @@
 // activity, storms and storm radar, canvassing, and the measurement providers. Column for column from
 // templates/crm-roof/backend/db/schema.ts (docs/UNIFIED_ROOF_PLAN.md decision 7). A roofing job, its customer, quotes
 // and invoices are the CRM's own tables (crm.ts), with roofing's columns on `job` (decision 2).
-import { pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, job } from './crm.ts'
@@ -55,6 +55,38 @@ export const measurementReport = pgTable('measurement_report', {
   index('measurement_report_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * A supplier's price list as the roofer holds it (0069): what ABC Supply, SRS, a local yard charges the business for its items.
+ * An order priced from a list is locked to it (server/crm/roof/supplierPricing.ts) — Roofr's "created locked to that supplier",
+ * "change supplier clears pricing". Money is integer cents. These are the business's costs: read with margin:read.
+ */
+export const supplierPriceList = pgTable('supplier_price_list', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  supplier: text('supplier').notNull(),
+  name: text('name').notNull(),
+  active: boolean('active').default(true).notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('supplier_price_list_company_id_idx').on(t.companyId),
+])
+
+export const supplierPriceItem = pgTable('supplier_price_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  priceListId: text('price_list_id').notNull().references(() => supplierPriceList.id, { onDelete: 'cascade' }),
+  /** Which kind of line on our material list this is the price of (shingles, starter, ridge-cap…), so a list-made order prices itself. */
+  code: text('code'),
+  sku: text('sku'),
+  description: text('description').notNull(),
+  unit: text('unit').default('ea').notNull(),
+  unitPriceCents: integer('unit_price_cents').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('supplier_price_item_price_list_id_idx').on(t.priceListId),
+])
+
 export const material = pgTable('material', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -68,10 +100,39 @@ export const material = pgTable('material', {
   supplierOrderNumber: text('supplier_order_number'),
   deliveryAddress: text('delivery_address'),
   notes: text('notes'),
+  // The roofer's own purchase order number, and who the supplier calls about the delivery (0067). `supplier_order_number`
+  // stays the supplier's confirmation number.
+  poNumber: text('po_number'),
+  contactName: text('contact_name'),
+  contactPhone: text('contact_phone'),
+  contactEmail: text('contact_email'),
+  // The supplier price list the order's prices came from (0069): while set, the prices are locked to it and to the supplier; a
+  // different supplier clears them. And each time the order was sent to the supplier: who, to whom, what was said.
+  priceListId: text('price_list_id').references((): AnyPgColumn => supplierPriceList.id, { onDelete: 'set null' }),
+  sendLog: json('send_log'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('material_company_id_idx').on(t.companyId),
+])
+
+/**
+ * A saved material-list template (0068): a name for a set of assumptions (waste, bundles to the square, coverage per roll,
+ * vent type…) and the standing extra lines a roofer always adds (pipe boots, caulk, a dumpster), with the supplier they usually
+ * order from. `assumptions` holds only the numbers that differ from the defaults (server/crm/roof/materialList.ts).
+ */
+export const materialListTemplate = pgTable('material_list_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  assumptions: json('assumptions').notNull(),
+  extraLines: json('extra_lines').notNull(),
+  supplier: text('supplier'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('material_list_template_company_id_idx').on(t.companyId),
 ])
 
 export const jobNote = pgTable('job_note', {
@@ -184,11 +245,65 @@ export const supplement = pgTable('supplement', {
   approvedAmount: decimal('approved_amount', { precision: 10, scale: 2 }),
   denialReason: text('denial_reason'),
   notes: text('notes'),
+  // The company's own status on top of the fixed four (supplement_status): which one, and when it was set. Null: none.
+  customStatusId: text('custom_status_id').references(() => supplementStatus.id, { onDelete: 'set null' }),
+  customStatusAt: timestamp('custom_status_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('supplement_company_id_idx').on(t.companyId),
   index('supplement_claim_id_idx').on(t.claimId),
+])
+
+/**
+ * A company's own supplement status (roofing parity, row 10; AccuLynx's pre-set supplement statuses: "under review",
+ * "pending re-inspection", "need more information"). It sits ON TOP of the fixed four on `supplement.status` (draft / submitted
+ * / approved / denied), which everything — the claim's money, the Xactimate scope, the follow-ups — stays keyed on: a custom
+ * status never changes the fixed one. `baseStatus` is the fixed status it sits under, and it can be put only on a supplement
+ * that is in it; when the fixed status moves, a custom status that no longer fits is cleared. `archivedAt`: kept on the
+ * supplements that carry it, offered to no new one.
+ */
+export const supplementStatus = pgTable('supplement_status', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  baseStatus: text('base_status').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  archivedAt: timestamp('archived_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('supplement_status_company_id_idx').on(t.companyId),
+  uniqueIndex('supplement_status_company_name_idx').on(t.companyId, t.name),
+])
+
+/**
+ * A permit on a roofing job (roofing parity, row 11; AccuLynx "Tips for Managing Your Roofing Permits, Mortgage Checks, &
+ * Supplements"): what the city or county was asked for, what it cost, and where it stands. `status` is needed -> applied ->
+ * issued -> finaled (closed out after the final inspection), or rejected; each step is stamped with its day. The days are CALENDAR
+ * DAYS (a UTC-midnight marker for the day on the company's clock, read back with markerDay) and the fee is integer cents.
+ */
+export const jobPermit = pgTable('job_permit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  permitType: text('permit_type'),
+  jurisdiction: text('jurisdiction'),
+  permitNumber: text('permit_number'),
+  status: text('status').default('needed').notNull(),
+  feeCents: integer('fee_cents'),
+  feePaidOn: timestamp('fee_paid_on'),
+  appliedOn: timestamp('applied_on'),
+  issuedOn: timestamp('issued_on'),
+  expiresOn: timestamp('expires_on'),
+  finaledOn: timestamp('finaled_on'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_permit_company_id_idx').on(t.companyId),
+  index('job_permit_job_id_idx').on(t.jobId),
 ])
 
 export const adjusterContact = pgTable('adjuster_contact', {
@@ -437,6 +552,9 @@ export const workOrder = pgTable('work_order', {
   scope: text('scope'),
   address: text('address'),
   startDate: timestamp('start_date'),
+  // What the crew or sub is paid for this job, as one lump sum (the shop's cost — margin:read to see or set). Counts as the job's
+  // labour while the order is sent, accepted or completed (roof/jobCosts.ts). Null: no price on it.
+  price: decimal('price', { precision: 12, scale: 2 }),
   recipientName: text('recipient_name').notNull(),
   recipientPhone: text('recipient_phone').notNull(),
   materialLines: json('material_lines').default([]).notNull(),
@@ -476,6 +594,62 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
   uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
 ])
 
+/**
+ * A roofing company's money rules, one row per company (roofing parity, rows 1-5; docs/parity/roof-commissions-costing.md): the
+ * floor under which no commission plan pays (min_profit_kind 'percent' of the contract, or 'amount' in dollars — both null: no
+ * floor). The commission disclaimer, who sees commissions and the worksheet approval switch join it as those rows land. Changed only
+ * through /api/roof-money/settings (commissions:update), never through the general company settings.
+ */
+export const roofMoneySetting = pgTable('roof_money_setting', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  minProfitKind: text('min_profit_kind'),
+  minProfitValue: decimal('min_profit_value', { precision: 12, scale: 2 }),
+  // The roles below owner/admin that see EVERYONE's commissions and the pay structure (a list of role ids); null = the default, the
+  // manager. Everyone always sees their own earnings.
+  commissionViewerRoles: json('commission_viewer_roles'),
+  // The disclaimer a person who collects commissions accepts before seeing their own (./commissionDisclaimer.ts). Null: none. The
+  // version goes up whenever the words change, so a changed disclaimer is accepted again.
+  commissionDisclaimer: text('commission_disclaimer'),
+  commissionDisclaimerVersion: integer('commission_disclaimer_version').default(0).notNull(),
+  // A job's worksheet (its costing) must be approved before its profit counts — in commissions on profit, the minimum profit, and the
+  // job-costing roll-ups (./worksheetApproval.ts). Off by default: every job's figures count as they always did.
+  requireWorksheetApproval: boolean('require_worksheet_approval').default(false).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('roof_money_setting_company_id_idx').on(t.companyId),
+])
+
+// A job's approved worksheet: who signed its costing off, when, and the figures they saw (before commissions). One row per job; reopening
+// the worksheet removes the row (the audit log keeps the history). Only read when roof_money_setting.require_worksheet_approval is on.
+export const jobWorksheetApproval = pgTable('job_worksheet_approval', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  approvedById: text('approved_by_id').references(() => user.id, { onDelete: 'set null' }),
+  approvedAt: timestamp('approved_at').defaultNow().notNull(),
+  revenue: decimal('revenue', { precision: 12, scale: 2 }).notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).notNull(),
+  profit: decimal('profit', { precision: 12, scale: 2 }).notNull(),
+  note: text('note'),
+}, (t) => [
+  uniqueIndex('job_worksheet_approval_job_id_idx').on(t.jobId),
+  index('job_worksheet_approval_company_id_idx').on(t.companyId),
+])
+
+// Who accepted which version of the company's commission disclaimer, and the words they accepted (kept as they were, so a later edit
+// never rewrites what a person agreed to).
+export const commissionDisclaimerAcceptance = pgTable('commission_disclaimer_acceptance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(),
+  version: integer('version').notNull(),
+  disclaimerText: text('disclaimer_text').notNull(),
+  acceptedAt: timestamp('accepted_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('commission_disclaimer_acceptance_user_version_idx').on(t.userId, t.version),
+  index('commission_disclaimer_acceptance_company_id_idx').on(t.companyId),
+])
 
 // A job's inspection report (docs/parity/roof-inspection-report.md): a branded write-up built from the job's photos, in
 // roof sections, that the roofer shares as a private link (public_token, the same kind a quote's link is) and a PDF.
@@ -492,10 +666,36 @@ export const inspectionReport = pgTable('inspection_report', {
   linkExpiresAt: timestamp('link_expires_at'),
   // Listed in the homeowner's portal under Photos & documents (the portal opens it by their own login link, not this one).
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  // How the page and the PDF are laid out (photos per row, which details print under a photo, the job's timeline): null is the
+  // standard layout. Read through layoutOf (inspection/view.ts).
+  layout: json('layout'),
+  // The last time it was sent to the homeowner from the CRM, and how ('sms' | 'email'). The job's timeline holds every send.
+  sentAt: timestamp('sent_at'),
+  sentVia: text('sent_via'),
+  // Frozen PDF copies filed under the job's documents: [{ documentId, savedAt, savedById }]. Read through copiesOf (checked against documents).
+  copies: json('copies').default([]).notNull(),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('inspection_report_company_id_idx').on(t.companyId),
   index('inspection_report_job_id_idx').on(t.jobId),
+])
+
+// A saved starting point for inspection reports (a roofer's own sections and layout): building a report from one takes its
+// intro and sections - each section filled with the job's photos of the kind it names - and its layout.
+export const inspectionReportTemplate = pgTable('inspection_report_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  intro: text('intro'),
+  // [{ title, notes, photoType }]: photoType is the kind of job photo that fills the section ('damage', 'before' ...), or null for none.
+  sections: json('sections').default([]).notNull(),
+  layout: json('layout'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('inspection_report_template_company_id_idx').on(t.companyId),
+  uniqueIndex('inspection_report_template_company_name_uniq').on(t.companyId, t.name),
 ])

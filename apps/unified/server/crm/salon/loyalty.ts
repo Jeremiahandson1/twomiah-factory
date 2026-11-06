@@ -20,6 +20,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, done, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { VOIDED_ON_CANCEL } from './checkout.ts'
+import { tierReached } from './offers.ts'
 
 /** Money crosses into the engine in cents and comes back out in dollars for this schema's columns. */
 const toCents = (dollars: unknown) => Math.round((Number(dollars) || 0) * 100)
@@ -273,6 +274,10 @@ export function createLoyaltyRoutes(d: CrmDeps) {
     }
 
     await db.update(loyaltyMember).set({ pointsBalance: newBalance, lifetimePoints: Math.max(0, member.lifetimePoints + lifetimeDelta), updatedAt: new Date() } as any).where(eq(loyaltyMember.id, member.id))
+    // A correction that lifts the client into a higher tier is a move up, like earning their way there.
+    const tierCfg = await configFor(u.companyId)
+    const reached = tierReached(tierCfg.tiers, member.lifetimePoints, Math.max(0, member.lifetimePoints + lifetimeDelta))
+    if (reached) await db.update(loyaltyMember).set({ tierMin: reached.minPoints, tierAt: new Date() } as any).where(eq(loyaltyMember.id, member.id))
     await db.insert(loyaltyTransaction).values({
       companyId: u.companyId, memberId: member.id, type: applied >= 0 ? 'adjustment_add' : 'adjustment_subtract',
       points: applied, balanceAfter: newBalance, description: data.reason, createdBy: u.userId,

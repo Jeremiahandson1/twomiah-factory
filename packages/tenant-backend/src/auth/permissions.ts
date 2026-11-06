@@ -347,6 +347,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // punch-lists:create — the crew on site is who finds what is left to fix (owner's decision, 10/14).
     'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read', 'punch-lists:create',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
+    // Answers the lines of an inspection's checklist, adds photos and takes the customer's signature on the phone — NOT the
+    // visit's result, the checklists themselves or booking one (those stay inspections:update / :create). It does nothing until the
+    // business switches Inspections on the phone on (unified crm/siteRecords/inspectionChecklists.ts checks the feature).
+    'inspections:answer',
     'company:read', 'dashboard:read', 'schedule:read',
     // Sees the bookings (their day); changing them is the office's. (2026-10-18)
     'bookings:read',
@@ -401,6 +405,13 @@ export interface PermissionsDeps {
    * presentation only — every gate still works on the hierarchy id. (Salon T28 M3)
    */
   roleLabels?: Record<string, string>
+  /**
+   * Grants that come from the COMPANY's own settings rather than from a person's row — a roofer choosing which roles see
+   * commissions. Given the user's id, returns permissions to add and — written with a leading "-" — permissions to take away
+   * ("-commissions:read"). Read with the person's own grants (getExtraPermissions), so every guard, the login payload and View As
+   * agree. The owner's and an admin's access ("*") is never taken away.
+   */
+  companyGrants?: (userId: string) => Promise<string[]>
 }
 
 /**
@@ -448,10 +459,15 @@ export function createPermissions(deps: PermissionsDeps) {
       const [row] = await db.select({ extra: user.extraPermissions }).from(user).where(eq(user.id, userId)).limit(1)
       list = Array.isArray(row?.extra) ? (row!.extra as string[]).filter((x) => typeof x === 'string') : []
     } catch { list = [] }
+    if (deps.companyGrants) {
+      try { list = [...list, ...(await deps.companyGrants(userId)).filter((x) => typeof x === 'string')] } catch { /* a settings read that fails leaves the role's own list */ }
+    }
     GRANT_CACHE.set(userId, { at: Date.now(), list })
     return list
   }
   function invalidateExtraPermissions(userId: string) { GRANT_CACHE.delete(userId) }
+  /** Forget every cached grant — after a company changes a setting that grants or withholds for a whole role. */
+  function invalidateAllGrants() { GRANT_CACHE.clear() }
 
   function hasPermission(role: string, permission: string, extra: string[] = []): boolean {
     // Per-user grants (extra_permissions) sit on top of the role.
@@ -459,6 +475,8 @@ export function createPermissions(deps: PermissionsDeps) {
     const normalizedRole = normalizeRole(role)
     const permissions = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
     if (permissions.includes('*')) return true
+    // A company taking a permission away from a role (companyGrants → "-permission"); "*" above is never touched.
+    if (extra.includes(`-${permission}`)) return false
     if (permissions.includes(permission)) return true
     const [resource] = permission.split(':')
     if (permissions.includes(`${resource}:*`)) return true
@@ -526,7 +544,7 @@ export function createPermissions(deps: PermissionsDeps) {
 
   return {
     ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole, roleLabel,
-    getExtraPermissions, invalidateExtraPermissions,
+    getExtraPermissions, invalidateExtraPermissions, invalidateAllGrants,
     hasPermission, getPermissions,
     requirePermission, requireAnyPermission, requireRole, requireOwnership,
   }

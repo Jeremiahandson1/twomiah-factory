@@ -7,6 +7,7 @@
 import type { Mount } from '../../../http/registry.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
+import { createCaregiverSurveyRoutes } from './caregiverSurveys.ts'
 import { createCaregiversRoutes } from './caregivers.ts'
 import { createCaregiverProfileRoutes } from './caregiverProfile.ts'
 import { createApplicationsRoutes } from './applications.ts'
@@ -14,6 +15,7 @@ import { createBackgroundChecksRoutes } from './backgroundChecks.ts'
 import { createOnboardingPacketsRoutes, createOnboardingPacketsPublicRoutes } from './onboardingPackets.ts'
 import { createJobPostingsRoutes, createCareersPublicRoutes } from './jobPostings.ts'
 import { createCertificationsRoutes, createTrainingRecordsRoutes } from './certifications.ts'
+import { createCredentialsRoutes } from './credentials.ts'
 import { createPerformanceReviewsRoutes } from './performanceReviews.ts'
 
 export function hrMounts(core: HomecareCore, d: CrmDeps): Mount[] {
@@ -29,6 +31,9 @@ export function hrMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/public/careers', access: 'public', router: createCareersPublicRoutes(core, d) },
     { path: '/api/certifications', access: 'user', router: createCertificationsRoutes(core, d) },
     { path: '/api/training-records', access: 'user', router: createTrainingRecordsRoutes(core, d) },
+    // Credential search, the agency's reminder settings and client credentials (row 1, care_cert_reminders, not ready).
+    { path: '/api/credentials', access: 'user', feature: 'care_cert_reminders', router: createCredentialsRoutes(core, d) },
+    { path: '/api/caregiver-surveys', access: 'user', feature: 'care_caregiver_surveys', router: createCaregiverSurveyRoutes(core, d) },
     { path: '/api/performance-reviews', access: 'user', router: createPerformanceReviewsRoutes(core, d) },
   ]
 }

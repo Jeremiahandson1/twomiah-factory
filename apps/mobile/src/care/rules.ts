@@ -167,3 +167,213 @@ export function docsToSign<T>(prev: T[], res: { ok: boolean; status: number }, l
   if (res.status === 403) return []
   return prev
 }
+
+
+// ─── Clock-in / clock-out questions (care_visit_questions) ────────────────────────────────────────
+
+/** A question the agency asks at a clock event (GET /api/visit-questions/active). */
+export interface VisitQuestion { id: string; prompt: string; kind: 'yes_no' | 'text' | 'choice'; options?: string[] | null; required?: boolean }
+export type VisitAnswers = Record<string, string>
+
+/** The questions still blank that must be answered, in the agency's order. A live punch waits for these. */
+export function unansweredRequired(questions: VisitQuestion[], answers: VisitAnswers): VisitQuestion[] {
+  return questions.filter((q) => q.required && !String(answers[q.id] ?? '').trim())
+}
+
+/** The answers as the server takes them: [{ questionId, answer }] for what was filled in (blank ones are left out). */
+export function answersBody(questions: VisitQuestion[], answers: VisitAnswers): { questionId: string; answer: string }[] {
+  return questions.filter((q) => String(answers[q.id] ?? '').trim()).map((q) => ({ questionId: q.id, answer: String(answers[q.id]).trim() }))
+}
+
+
+// ─── In-visit forms, interventions and goals (care_visit_items) ───────────────────────────────────
+
+/** A field of a form template (GET /api/forms/templates/:id). */
+export interface FormField { id: string; type: string; label?: string; options?: string[]; required?: boolean }
+
+/** The labels of the required fields still unanswered (a checkbox with options needs one pick; one without needs the box ticked). */
+export function formMissing(fields: FormField[], data: Record<string, unknown>): string[] {
+  const blank = (f: FormField) => {
+    const v = data[f.id]
+    if (f.type === 'checkbox') return Array.isArray(f.options) && f.options.length ? !(Array.isArray(v) && v.length) : !v
+    return v === undefined || v === null || String(v).trim() === ''
+  }
+  return fields.filter((f) => f.required && f.type !== 'section' && blank(f)).map((f) => f.label || f.id)
+}
+
+export const GOAL_RATINGS: { value: 'progress' | 'no_change' | 'declined'; label: string }[] = [
+  { value: 'progress', label: 'Progress' }, { value: 'no_change', label: 'No change' }, { value: 'declined', label: 'Declined' },
+]
+
+/** What a note must say before the phone sends a skip or a refusal: the reason is needed for a refusal and for a required item. */
+export function reasonNeeded(status: 'skipped' | 'refused', required: boolean): boolean {
+  return status === 'refused' || required
+}
+
+
+// ─── Required tasks, the client's signature, and the Clock out button (row 5) ────────────────────────
+
+/** A care task on the visit checklist (GET /api/care-tasks/time-entry/:id), as far as the rules need. */
+export interface ChecklistTask { taskId: string; taskName: string; isRequired?: boolean; status?: string | null; notes?: string | null; cadence?: string | null; doneThisWeek?: boolean; appliesToVisit?: boolean }
+
+/** Does the task belong to this visit? The server says (a Tuesday task on a Wednesday visit is false); an older server says nothing: yes. */
+export const taskAppliesHere = (t: { appliesToVisit?: boolean }) => t.appliesToVisit !== false
+
+/**
+ * The names of the REQUIRED tasks still open on this visit — the same rule the server holds the clock-out by: required, belongs to
+ * this visit, and neither done, nor skipped / refused with a reason, nor a weekly task already done earlier this week.
+ */
+export function openRequiredTasks(tasks: ChecklistTask[]): string[] {
+  return tasks.filter((t) => t.isRequired && taskAppliesHere(t)
+    && !(t.status === 'completed' || ((t.status === 'skipped' || t.status === 'refused') && String(t.notes ?? '').trim()) || (t.cadence === 'weekly' && t.doneThisWeek)))
+    .map((t) => t.taskName)
+}
+
+/** The names of required in-visit items (forms, interventions, goals, tasks) with nothing recorded yet. */
+export function openRequiredItems(items: { name: string; required: boolean; status: string | null }[]): string[] {
+  return items.filter((i) => i.required && !i.status).map((i) => i.name)
+}
+
+export interface SignatureConfig { required: boolean; reasons: { code: string; label: string }[] }
+/** What the phone keeps for one visit's signature and sends with the clock-out (and as soon as it can). `savedAt` is when the client signed. */
+export interface PendingSignature { signature?: string; reasonCode?: string; note?: string; savedAt: string }
+
+/** Why a "could not sign" choice is not ready, in plain words — or null when it is. "Another reason" needs the reason written. */
+export function reasonProblem(code: string | null | undefined, note: string | null | undefined): string | null {
+  if (!code) return 'Pick why the client could not sign.'
+  if (code === 'other' && !String(note ?? '').trim()) return 'Write the reason.'
+  return null
+}
+
+/** The signature as the server takes it: the drawing, or the reason (with its note) — never both. */
+export function signatureBody(p: PendingSignature): { signature?: string; reasonCode?: string; note?: string; savedAt: string } {
+  return p.signature ? { signature: p.signature, savedAt: p.savedAt } : { reasonCode: p.reasonCode, ...(p.note?.trim() ? { note: p.note.trim() } : {}), savedAt: p.savedAt }
+}
+
+// ── Meals (care_family_content) ──
+export interface MealOption { code: string; label: string }
+export interface MealRecord { id?: string; meal: string; mealLabel?: string; description: string | null; amountEaten: string; amountLabel?: string; note?: string | null }
+
+/** Why a meal is not ready to save, in plain words — or null when it is. */
+export function mealProblem(meal: string | null | undefined, description: string | null | undefined, amount: string | null | undefined): string | null {
+  if (!meal) return 'Pick the meal: breakfast, lunch, dinner or a snack.'
+  if (!String(description ?? '').trim()) return 'Write what was served.'
+  if (!amount) return 'Say how much was eaten.'
+  return null
+}
+
+/** The meal as the server takes it; `savedAt` keeps the time it was served when it is sent later. */
+export function mealBody(m: { description: string; amountEaten: string; note?: string }, savedAt: string): { description: string; amountEaten: string; note?: string; savedAt: string } {
+  return { description: m.description.trim(), amountEaten: m.amountEaten, ...(m.note?.trim() ? { note: m.note.trim() } : {}), savedAt }
+}
+
+// ── Hours wanted, time off and rewards (care_pickup_rewards) ──
+export const DAYS = [
+  { key: 'monday', label: 'Monday' }, { key: 'tuesday', label: 'Tuesday' }, { key: 'wednesday', label: 'Wednesday' }, { key: 'thursday', label: 'Thursday' },
+  { key: 'friday', label: 'Friday' }, { key: 'saturday', label: 'Saturday' }, { key: 'sunday', label: 'Sunday' },
+] as const
+export const TIME_OFF_TYPES = [
+  { code: 'vacation', label: 'Vacation' }, { code: 'sick', label: 'Sick' }, { code: 'personal', label: 'Personal day' }, { code: 'unpaid', label: 'Unpaid time off' },
+] as const
+export const TIME_OFF_STATUS: Record<string, string> = { pending: 'Waiting for the office', approved: 'Approved', denied: 'Declined', rejected: 'Declined' }
+
+const wholeHours = (text: string): number | null => (/^\d{1,3}$/.test(text.trim()) && Number(text) <= 168 ? Number(text) : null)
+const clock = (t: string) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(t.trim())
+const mins = (t: string) => Number(t.trim().split(':')[0]) * 60 + Number(t.trim().split(':')[1])
+
+export interface DayChoice { available: boolean; start: string; end: string }
+
+/** Why the availability is not ready to save, in plain words — or null when it is. Blank hours wanted is allowed (clears it). */
+export function availabilityProblem(hoursWanted: string, maxHours: string, days: Record<string, DayChoice>): string | null {
+  if (hoursWanted.trim() && wholeHours(hoursWanted) === null) return 'Hours you want a week must be a whole number from 0 to 168.'
+  if (maxHours.trim() && wholeHours(maxHours) === null) return 'The most hours a week must be a whole number from 0 to 168.'
+  if (hoursWanted.trim() && maxHours.trim() && Number(hoursWanted) > Number(maxHours)) return 'You cannot want more hours than the most you will work.'
+  for (const d of DAYS) {
+    const c = days[d.key]
+    if (!c?.available) continue
+    if (!clock(c.start) || !clock(c.end)) return `${d.label}: enter the times as HH:MM, like 08:00 and 16:00.`
+    if (mins(c.end) <= mins(c.start)) return `${d.label}: the end must be after the start.`
+  }
+  return null
+}
+
+/** The availability as the server takes it. A day that is off keeps its times out of the body. */
+export function availabilityBody(hoursWanted: string, maxHours: string, days: Record<string, DayChoice>): Record<string, unknown> {
+  const body: Record<string, unknown> = { hoursWanted: hoursWanted.trim() ? Number(hoursWanted) : null }
+  if (maxHours.trim()) body.maxHoursPerWeek = Number(maxHours)
+  for (const d of DAYS) {
+    const c = days[d.key]
+    if (!c) continue
+    body[`${d.key}Available`] = !!c.available
+    if (c.available) { body[`${d.key}StartTime`] = c.start.trim(); body[`${d.key}EndTime`] = c.end.trim() }
+  }
+  return body
+}
+
+/** Why a time-off request is not ready, in plain words — or null. `today` is the agency's day (YYYY-MM-DD). */
+export function timeOffProblem(start: string, end: string, type: string | null, today: string): string | null {
+  if (!type) return 'Pick what kind of time off it is.'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return 'Pick the first and last day.'
+  if (end < start) return 'The last day cannot be before the first.'
+  if (end < today) return 'That is already in the past — tell the office instead.'
+  return null
+}
+
+export function timeOffBody(start: string, end: string, type: string, reason: string): { startDate: string; endDate: string; type: string; reason?: string } {
+  return { startDate: start, endDate: end, type, ...(reason.trim() ? { reason: reason.trim() } : {}) }
+}
+
+/** What a reward costs against what the caregiver has, in words. */
+export function rewardAffordText(balance: number, cost: number): string {
+  return balance >= cost ? `${cost} points` : `${cost} points — ${cost - balance} more to go`
+}
+
+// ── Open shifts: turning one down, the answer-by time, a series (row 17, care_open_shift_offers) ─────────────
+
+/** Why a decline is not ready, in plain words — or null. "Another reason" needs the caregiver's own words. */
+export function declineProblem(reason: string | null, note: string): string | null {
+  if (!reason) return 'Pick why you are turning this shift down.'
+  if (reason === 'other' && !note.trim()) return 'Write the reason.'
+  return null
+}
+export function declineBody(reason: string, note: string): { reason: string; note?: string } {
+  return { reason, ...(note.trim() ? { note: note.trim() } : {}) }
+}
+/** "Answer by Mon, Nov 2 at 5:00 PM" from the agency's wall time ('YYYY-MM-DDTHH:MM[:SS]'), or null when there is none. */
+export function answerByText(respondBy: string | null | undefined, fmtDay: (ymd: string) => string, fmtTime: (hm: string) => string): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(respondBy || ''))
+  return m ? `Answer by ${fmtDay(m[1])} at ${fmtTime(m[2])}` : null
+}
+/** The words on the button and in the confirm for one shift or a series offered together. */
+export function takeText(seriesVisits: number | null | undefined): { button: string; confirm: string } {
+  const n = Number(seriesVisits) || 0
+  return n > 1
+    ? { button: `Take all ${n} visits`, confirm: `This offer is one of ${n} visits offered together. Taking it takes all ${n}.` }
+    : { button: 'Take this shift', confirm: '' }
+}
+
+// ── Caregiver satisfaction survey (row 13, care_caregiver_surveys) ──────────────────────────────────────────────────────────────
+export interface SurveyQuestion { id: string; text: string; kind: 'scale' | 'yes_no' | 'text' }
+export type SurveyAnswers = Record<string, number | boolean | string | undefined>
+export const SCALE_WORDS = ['Very unhappy', 'Unhappy', 'So-so', 'Happy', 'Very happy']
+
+/** What stops the survey being sent: the first scale or yes/no question with no answer (free text may be left empty). */
+export function surveyProblem(questions: SurveyQuestion[], answers: SurveyAnswers): string | null {
+  for (const q of questions) {
+    const v = answers[q.id]
+    if (q.kind === 'scale' && !(typeof v === 'number' && v >= 1 && v <= 5)) return `Pick 1 to 5 for "${q.text}".`
+    if (q.kind === 'yes_no' && typeof v !== 'boolean') return `Answer yes or no to "${q.text}".`
+  }
+  return null
+}
+
+/** The answers the server reads: every scale and yes/no answer, and a text answer only when it says something. */
+export function surveyBody(questions: SurveyQuestion[], answers: SurveyAnswers): Record<string, number | boolean | string> {
+  const out: Record<string, number | boolean | string> = {}
+  for (const q of questions) {
+    const v = answers[q.id]
+    if (q.kind === 'text') { const text = typeof v === 'string' ? v.trim() : ''; if (text) out[q.id] = text }
+    else if (v !== undefined) out[q.id] = v as number | boolean
+  }
+  return out
+}

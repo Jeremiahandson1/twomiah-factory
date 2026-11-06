@@ -28,6 +28,12 @@ import { stampFields, type PhotoStamp } from '../photos/stamp'
 import { useToast } from './ToastProvider'
 import { useHaptics } from '../hooks/useHaptics'
 import { useVertical } from '../vertical/VerticalContext'
+import { PhotoMarkup } from '../photos/PhotoMarkup'
+import type { MarkupShape } from '../photos/markup'
+import { useOfflineApi } from '../offline/useOfflineApi'
+import { useOfflineQueue } from '../offline/OfflineContext'
+import { getSaved } from '../offline/readThrough'
+import { jobPhotoRequest, pendingJobPhotos } from '../jobflow/jobPhotos'
 
 /** The verticals whose job carries its own photos (CrmSettings.jobs.photos, and roofing's job module). */
 const PHOTOS_ON_JOB = ['basic', 'fieldservice', 'landscaping', 'roofing']
@@ -38,13 +44,16 @@ export interface JobPhoto {
   url?: string | null
   thumbnailUrl?: string | null
   caption?: string | null
+  /** On a marked copy (roofing's photo_markup): the photo it was drawn on, and the drawing. */
+  sourcePhotoId?: string | null
+  markup?: MarkupShape[] | null
 }
 
 /** The photos of one job, as either store answers them (a bare array from the shared module, { data } from roofing's). */
 export async function loadJobPhotos(vertical: string, jobId: string): Promise<{ ok: boolean; photos: JobPhoto[] }> {
   const res = photosOnJob(vertical)
-    ? await get(`/api/jobs/${jobId}/photos`)
-    : await get(`/api/photos?jobId=${encodeURIComponent(jobId)}`)
+    ? await getSaved(`/api/jobs/${jobId}/photos`)
+    : await getSaved(`/api/photos?jobId=${encodeURIComponent(jobId)}`)
   if (!res.ok) return { ok: false, photos: [] }
   const rows = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : []
   return { ok: true, photos: rows }
@@ -92,7 +101,14 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const [failed, setFailed] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [viewPhoto, setViewPhoto] = useState<JobPhoto | null>(null)
+  // Drawing on a photo (photo_markup, not ready; ../photos/PhotoMarkup.tsx): the original being drawn on.
+  const [drawing, setDrawing] = useState<JobPhoto | null>(null)
+  const mayDraw = canAdd && photosOnJob(vertical) && hasFeature('photo_markup')
   const enabled = hasFeature('photo_capture')
+  const offline = useOfflineApi()
+  const { queue } = useOfflineQueue()
+  // Pictures taken here that are still on the phone (no signal, or not yet sent).
+  const pending = photosOnJob(vertical) ? pendingJobPhotos(queue, jobId) : []
 
   const loadPhotos = useCallback(async () => {
     if (!enabled) { setLoading(false); return }
@@ -103,6 +119,9 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   }, [vertical, jobId, enabled])
 
   useEffect(() => { loadPhotos() }, [loadPhotos])
+  // When what was waiting is sent, the strip is read again.
+  const sentCount = pending.length
+  useEffect(() => { if (sentCount === 0) loadPhotos() }, [sentCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Photo capture is switched off for this business: no strip, rather than one that is refused.
   if (!enabled) return null
@@ -110,6 +129,16 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const handleAdd = async (mode: 'camera' | 'gallery') => {
     const result = mode === 'camera' ? await takePhoto() : await pickImage()
     if (!result) return
+    // A job that keeps its own photos sends them through the offline queue: with signal at once, without it kept on the phone.
+    if (photosOnJob(vertical)) {
+      setUploading(true)
+      const r = await offline.post(`/api/jobs/${jobId}/photos/saved`, jobPhotoRequest(jobId, [result.uri], 'Job photo').body, { recordKey: jobPhotoRequest(jobId, [], '').recordKey, label: 'Job photo' })
+      setUploading(false)
+      if (r.queued) { haptics.success(); toast.success('Saved on the phone \u2014 waiting to send') }
+      else if (r.ok) { haptics.success(); toast.success('Photo uploaded'); loadPhotos() }
+      else { haptics.error(); toast.error(r.error || 'Upload failed') }
+      return
+    }
     setUploading(true)
     const res = await uploadJobPhoto(vertical, jobId, result.uri, result.stamp)
     if (res.ok) {
@@ -143,7 +172,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
         <ActivityIndicator style={{ marginVertical: 20 }} color={t.primary} />
       ) : failed ? (
         <Text style={{ color: t.textMuted, fontSize: 12 }}>Photos could not be loaded. Pull to refresh.</Text>
-      ) : photos.length === 0 && !uploading ? (
+      ) : photos.length === 0 && !uploading && pending.length === 0 ? (
         canAdd ? (
           <TouchableOpacity style={[styles.emptyBox, { borderColor: t.border }]} onPress={() => handleAdd('camera')}>
             <Ionicons name="camera-outline" size={24} color={t.textMuted} />
@@ -159,9 +188,16 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
               <ActivityIndicator color={t.primary} />
             </View>
           )}
+          {pending.map(p => (
+            <View key={`${p.itemId}:${p.uri}`} accessibilityLabel={p.state === 'failed' ? "Couldn't send \u2014 tap to fix in Waiting to send" : 'Waiting to send'}>
+              <Image source={{ uri: p.uri }} style={[styles.thumb, { opacity: 0.6 }]} />
+              <View style={{ position: 'absolute', right: 4, top: 4 }}><Ionicons name={p.state === 'failed' ? 'alert-circle' : 'time'} size={18} color={p.state === 'failed' ? t.error : t.warning} /></View>
+            </View>
+          ))}
           {photos.map(photo => (
-            <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)}>
+            <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)} accessibilityLabel={photo.sourcePhotoId ? `Marked copy of ${photo.caption || 'photo'}` : photo.caption || 'Photo'}>
               <Image source={photoSource(photo, true)} style={styles.thumb} />
+              {photo.sourcePhotoId ? <View style={[styles.marked, { backgroundColor: t.primary }]}><Text style={[styles.markedText, { color: t.onPrimary }]}>Marked</Text></View> : null}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -179,8 +215,26 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
           {viewPhoto?.caption ? (
             <Text style={styles.caption}>{viewPhoto.caption}</Text>
           ) : null}
+          {mayDraw && viewPhoto && (
+            <TouchableOpacity style={[styles.drawBtn, { backgroundColor: t.primary, bottom: insets.bottom + 24 }]} accessibilityRole="button"
+              onPress={() => { const original = photos.find((p) => p.id === (viewPhoto.sourcePhotoId || viewPhoto.id)); if (original) { setDrawing(original); setViewPhoto(null) } }}>
+              <Ionicons name="pencil" size={18} color={t.onPrimary} />
+              <Text style={[styles.drawText, { color: t.onPrimary }]}>{viewPhoto.sourcePhotoId || photos.some((p) => p.sourcePhotoId === viewPhoto.id) ? 'Change the marks' : 'Draw on this photo'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
+
+      {drawing && (
+        <PhotoMarkup
+          visible
+          photo={drawing}
+          source={photoSource(drawing)}
+          shapes={photos.find((p) => p.sourcePhotoId === drawing.id)?.markup || []}
+          onClose={() => setDrawing(null)}
+          onSaved={(queued) => { setDrawing(null); if (!queued) loadPhotos() }}
+        />
+      )}
     </View>
   )
 }
@@ -207,4 +261,8 @@ const styles = StyleSheet.create({
   modalClose: { position: 'absolute', right: 20, zIndex: 10, padding: 8 },
   fullImage: { width: SCREEN_WIDTH, height: SCREEN_WIDTH },
   caption: { color: OVERLAY_INK, fontSize: 14, marginTop: 12, textAlign: 'center' },
+  marked: { position: 'absolute', left: 4, top: 4, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  markedText: { color: OVERLAY_INK, fontSize: 10, fontWeight: '700' },
+  drawBtn: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24 },
+  drawText: { color: OVERLAY_INK, fontSize: 15, fontWeight: '600' },
 })

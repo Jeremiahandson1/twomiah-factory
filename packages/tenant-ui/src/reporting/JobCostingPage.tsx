@@ -23,6 +23,8 @@ interface JobRow {
   /** Revenue from an invoice raised against the project, shown on each of the project's jobs. */
   sharedRevenue?: number; directRevenue?: number
   billedCost?: number; unratedLaborHours?: number
+  /** Roofing: false while the company wants worksheets approved and this job's is not — its profit is left out of the totals. */
+  counted?: boolean
 }
 interface Totals {
   estimatedRevenue: number; invoicedRevenue: number; totalCost: number; profit: number
@@ -50,12 +52,20 @@ interface Detail {
   invoices?: Array<{ number?: string; status?: string; revenue?: number; taxAmount?: number; shared?: boolean }>
   /** Roofing only: what its material orders, crew and supplements add to the figures above (server crm/roof/jobCosts.ts). */
   roof?: {
-    materialOrderCost: number; crewCost: number; crewBasis: 'clocked' | 'per_square' | 'unknown'
+    materialOrderCost: number; crewCost: number; crewBasis: 'clocked' | 'lump_sum' | 'per_square' | 'unknown'
+    workOrderCost?: number
     crewName: string | null; squares: number; payPerSquare: number | null
+    /** Commissions earned on the job — a cost, so the profit above is after them. */
+    commissionCost?: number
     supplements: { approved: number; pending: number; denied: number; count: number }
   }
+  workOrderDetail?: Array<{ title?: string; recipient?: string; status?: string; cost?: number }>
   materialOrderDetail?: Array<{ supplier?: string; orderNumber?: string | null; status?: string; cost?: number }>
   crewDetail?: Array<{ crew?: string; squares?: number; payPerSquare?: number | null; cost?: number }>
+  /** Roofing: whether the company wants worksheets approved, and whether this one is (server crm/roof/worksheetApproval.ts). */
+  worksheet?: { required: boolean; approved: boolean; approvedAt?: string | null; approvedByName?: string | null }
+  /** Roofing, for a seat that reads commissions: who earned what on the job. */
+  commissionDetail?: Array<{ person?: string; source?: string; status?: string; amount?: number }>
   supplementDetail?: Array<{ number?: string; status?: string; reason?: string; asked?: number; approved?: number | null }>
 }
 
@@ -107,6 +117,12 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [unapproved, setUnapproved] = useState(0)
+  const [reload, setReload] = useState(0)
+  const [approving, setApproving] = useState(false)
+  const [approvalError, setApprovalError] = useState('')
+  // Approving or reopening a worksheet is reports:update (the owner and an admin) — the server asks the same.
+  const mayApprove = !!auth && typeof auth.can === 'function' && auth.can('reports:update')
 
   useEffect(() => {
     let cancelled = false
@@ -132,13 +148,14 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
         setTotals(s?.totals || null)
         setCount(typeof s?.count === "number" ? s.count : (s?.jobs || []).length)
         setTruncated(!!s?.truncated)
+        setUnapproved(Number(s?.unapprovedJobs || 0))
         // A bare array from the CRM templates, { data, pagination } from the unified app: read both.
         setTrend(Array.isArray(t) ? t : Array.isArray(t?.data) ? t.data : [])
       })
       .catch((e: any) => { if (!cancelled) setError(e?.message || 'Could not load costing') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [api, status, startDate, endDate])
+  }, [api, status, startDate, endDate, reload])
 
   useEffect(() => {
     if (!selected) { setDetail(null); return }
@@ -149,7 +166,14 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
       .catch(() => { if (!cancelled) setDetail(null) })
       .finally(() => { if (!cancelled) setDetailLoading(false) })
     return () => { cancelled = true }
-  }, [api, selected])
+  }, [api, selected, reload])
+
+  const decideWorksheet = async (what: 'approve' | 'reopen') => {
+    if (!selected) return
+    setApproving(true); setApprovalError('')
+    try { await (api as any).post(`/api/job-worksheet/${selected}/${what}`, {}); setReload((n) => n + 1) }
+    catch (e: any) { setApprovalError(e?.message || 'That could not be saved') } finally { setApproving(false) }
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
@@ -172,6 +196,22 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                 {detail.job.contact?.name || 'No client'}{detail.job.project?.name ? ` · ${detail.job.project.name}` : ''}
               </p>
             </div>
+
+            {detail.worksheet?.required && (
+              <div className={`${card} flex flex-wrap items-center justify-between gap-3`} data-card="worksheet-approval">
+                <p className="text-sm text-gray-900 dark:text-slate-100">
+                  {detail.worksheet.approved
+                    ? <>Worksheet approved{detail.worksheet.approvedByName ? ` by ${detail.worksheet.approvedByName}` : ''}. Its profit counts in the totals and in commissions.</>
+                    : <>Worksheet waiting for approval. Until it is approved this job&rsquo;s profit is left out of the totals and a commission on profit is not made.</>}
+                </p>
+                {mayApprove && (
+                  <button type="button" disabled={approving} onClick={() => decideWorksheet(detail.worksheet!.approved ? 'reopen' : 'approve')} className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">
+                    {detail.worksheet.approved ? 'Reopen worksheet' : 'Approve worksheet'}
+                  </button>
+                )}
+                {approvalError && <p role="alert" className="w-full text-sm text-red-700 dark:text-red-300">{approvalError}</p>}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {([['Estimated', detail.estimated], ['Actual', detail.actual]] as Array<[string, CostSide]>).map(([label, side]) => (
@@ -255,9 +295,10 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             {detail.roof && (
               <div className={card}>
                 <h3 className={h3}>Roof</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <Stat label="Material orders" value={money(detail.roof.materialOrderCost)} />
-                  <Stat label="Crew" value={detail.roof.crewBasis === 'per_square' ? money(detail.roof.crewCost) : detail.roof.crewBasis === 'clocked' ? 'Clocked hours' : 'Not known'} />
+                  <Stat label="Crew" value={detail.roof.crewBasis === 'per_square' || detail.roof.crewBasis === 'lump_sum' ? money(detail.roof.crewCost) : detail.roof.crewBasis === 'clocked' ? 'Clocked hours' : 'Not known'} />
+                  <Stat label="Commissions" value={money(detail.roof.commissionCost ?? 0)} />
                   <Stat label="Supplements approved" value={money(detail.roof.supplements.approved)} />
                   <Stat label="Supplements waiting" value={money(detail.roof.supplements.pending)} />
                 </div>
@@ -265,7 +306,9 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                   Material orders count once they are placed (ordered, partly or fully delivered); a list not yet ordered, or a cancelled order, is not spend.
                   {detail.roof.crewBasis === 'unknown' ? ' The crew\u2019s pay is not known: give the crew its pay per square on the Crews page, and put the roof\u2019s squares on the job.' : ''}
                   {detail.roof.crewBasis === 'clocked' ? ' Hours were clocked on this job, so the crew is costed from those hours, not from its pay per square.' : ''}
+                  {detail.roof.crewBasis === 'lump_sum' ? ' The crew is costed from the price on its work orders (a lump sum for the job), in place of pay by the square.' : ''}
                   {detail.roof.crewBasis === 'per_square' ? ` ${detail.roof.crewName} is paid ${money(detail.roof.payPerSquare ?? 0)} a square on ${detail.roof.squares} squares.` : ''}
+                  {' '}Commissions the job\u2019s people have earned (not void or cancelled, taken-back lines netted off) are a cost of the job, so the profit shown is after them; what a commission is worked out on is the profit before them.
                   {' '}Approved supplements raise the estimated revenue; they count as earned revenue once they are on an invoice.
                 </p>
               </div>
@@ -290,7 +333,9 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             {([['Labour', detail.laborDetail, (r: any) => [r.userName || r.user || 'Unassigned', `${r.hours ?? 0} h`, r.rateKnown === false ? 'no rate' : money(r.cost ?? 0)]],
                ['Materials', detail.materialDetail, (r: any) => [r.name || r.item || 'Item', String(r.quantity ?? ''), money(r.cost ?? 0)]],
                ['Material orders', detail.materialOrderDetail, (r: any) => [r.supplier || 'Supplier', [r.orderNumber, r.status].filter(Boolean).join(' · '), money(r.cost ?? 0)]],
+               ['Work orders', detail.workOrderDetail, (r: any) => [r.title || 'Work order', [r.recipient, r.status].filter(Boolean).join(' · '), money(r.cost ?? 0)]],
                ['Crew', detail.crewDetail, (r: any) => [r.crew || 'Crew', `${r.squares ?? 0} squares × ${money(r.payPerSquare ?? 0)}`, money(r.cost ?? 0)]],
+               ['Commissions', detail.commissionDetail, (r: any) => [r.person || 'Someone', [r.source === 'draw' ? 'draw in advance' : r.source === 'reversal' ? 'taken back' : '', r.status].filter(Boolean).join(' · '), money(r.amount ?? 0)]],
                ['Supplements', detail.supplementDetail, (r: any) => [`${r.number || 'Supplement'}${r.reason ? ` — ${r.reason}` : ''}`, r.status || '', r.approved != null ? money(r.approved) : money(r.asked ?? 0)]],
                ['Expenses', detail.expenseDetail, (r: any) => [r.description || 'Expense', r.category || '', money(r.amount ?? 0)]],
                ['Vendor bills', detail.billDetail, (r: any) => [r.vendor || 'Vendor', r.number || '', money(r.amount ?? 0)]],
@@ -364,6 +409,11 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
           </div>
           {/* These figures cover every matching job, which the table below may not — it used to be the
               other way round, silently. Invoiced is ex-tax and counts each invoice once. (T32 B3) */}
+          {unapproved > 0 && (
+            <p className="text-xs mt-4 font-medium text-amber-800 dark:text-amber-300" data-note="unapproved-jobs">
+              {unapproved} {unapproved === 1 ? 'job’s worksheet is' : 'jobs’ worksheets are'} waiting for approval, so {unapproved === 1 ? 'it is' : 'they are'} not in these totals.
+            </p>
+          )}
           <p className={`text-xs mt-4 ${muted}`}>
             Across all {count} {noun.toLowerCase()} that match these filters
             {truncated ? `, of which the table below lists ${rows.length}` : ''}. Invoiced excludes sales tax
@@ -432,7 +482,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                     className="border-t border-gray-100 dark:border-slate-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/60"
                   >
                     <td className="py-2 pr-4 font-medium text-gray-900 dark:text-slate-100">{r.number}</td>
-                    <td className="py-2 pr-4 text-gray-900 dark:text-slate-100">{r.title}</td>
+                    <td className="py-2 pr-4 text-gray-900 dark:text-slate-100">{r.title}{r.counted === false && <span className="ml-2 text-xs font-medium text-amber-800 dark:text-amber-300">Not approved</span>}</td>
                     <td className="py-2 pr-4"><StatusBadge status={r.status} /></td>
                     {/* A project invoice shows on each of the project's jobs. Without this marker two
                         rows carry the same figure under a smaller total and it reads as a bug. */}

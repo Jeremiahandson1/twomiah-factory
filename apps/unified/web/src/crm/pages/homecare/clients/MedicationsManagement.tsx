@@ -27,6 +27,8 @@ interface Medication {
   sideEffects?: string | null
   isPrn?: boolean | null
   isActive: boolean
+  /** The times of day a dose is due, 'HH:MM' on the agency's clock (care_medication_reminders). */
+  doseTimes?: string[] | null
 }
 
 /** A row of GET /api/medications/logs/client/:clientId. */
@@ -60,7 +62,11 @@ interface MedForm {
   sideEffects: string
   isPrn: boolean
   isActive: boolean
+  doseTimes: string[]
 }
+
+/** The agency's dose-reminder choices (GET /api/medication-reminders/settings). */
+interface ReminderSettings { enabled: boolean; leadMinutes: number; officeGraceMinutes: number; leadChoices: number[]; graceChoices: number[] }
 
 interface LogFormData { medicationId: string; status: string; dosageGiven: string; notes: string; witnessedBy: string }
 
@@ -73,6 +79,11 @@ const LOG_STATUS_CHIP: Record<string, string> = {
   missed: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200',
   held: 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200',
 }
+/** '08:00' → '8:00 AM' (a clock face, not a zone: dose times are the agency's wall clock). */
+const clock12 = (hm: string) => {
+  const [h, m] = hm.split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
 const GREY_CHIP = 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200'
 const chipStyle = { padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' } as const
 
@@ -84,6 +95,9 @@ const MedicationsManagement = () => {
   // Item 4 (care_offline_saves): an entry that reached us long after it was given says so (it was saved on a phone without signal).
   const showLate = useAuth().hasFeature('care_offline_saves')
   const confirm = useConfirm()
+  // Item 2 (care_medication_reminders): dose times on each medicine, and the agency's reminder choices.
+  const showReminders = useAuth().hasFeature('care_medication_reminders')
+  const [reminder, setReminder] = useState<ReminderSettings | null>(null)
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState('')
   const [medications, setMedications] = useState<Medication[]>([])
@@ -96,8 +110,21 @@ const MedicationsManagement = () => {
 
   useEffect(() => {
     loadClients()
+    if (showReminders) {
+      api.get('/api/medication-reminders/settings').then((r) => setReminder(((r as any)?.data ?? r) as ReminderSettings)).catch((e) => toast.error(errorMessage(e, 'Could not load the reminder choices')))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const saveReminder = async (patch: Partial<ReminderSettings>) => {
+    try {
+      const r = await api.put('/api/medication-reminders/settings', patch)
+      setReminder(((r as any)?.data ?? r) as ReminderSettings)
+      toast.success('Reminder choices saved')
+    } catch (e) {
+      toast.error('Not saved: ' + errorMessage(e))
+    }
+  }
 
   useEffect(() => {
     if (selectedClient) {
@@ -144,7 +171,9 @@ const MedicationsManagement = () => {
 
   const saveMedication = async (formData: MedForm) => {
     try {
-      const body = { ...formData, clientId: selectedClient }
+      const { doseTimes, ...rest } = formData
+      // Dose times are sent only where the feature is on, so a screen without it never clears them.
+      const body = { ...rest, ...(showReminders && !formData.isPrn ? { doseTimes } : formData.isPrn ? { doseTimes: [] } : {}), clientId: selectedClient }
       if (editingMed) await api.put(`/api/medications/${editingMed.id}`, body)
       else await api.post('/api/medications', body)
       setShowAddModal(false)
@@ -246,6 +275,32 @@ const MedicationsManagement = () => {
           )}
 
           {/* Medications Tab */}
+          {activeTab === 'medications' && showReminders && reminder && (
+            <div className="hc-card" style={{ marginBottom: '1rem' }}>
+              <h4 style={{ marginBottom: '0.5rem' }}>Dose reminders</h4>
+              <p style={{ color: 'var(--hc-muted)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                The caregiver on the visit gets a phone alert when a dose is due, and the office is told of a dose during a visit that nobody recorded. Set the times on each medicine.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <input type="checkbox" checked={reminder.enabled} disabled={!may.update} onChange={(e) => saveReminder({ enabled: e.target.checked })} />
+                  Send dose reminders
+                </label>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Tell the caregiver</label>
+                  <select value={reminder.leadMinutes} disabled={!may.update || !reminder.enabled} onChange={(e) => saveReminder({ leadMinutes: Number(e.target.value) })}>
+                    {reminder.leadChoices.map((n) => <option key={n} value={n}>{n === 0 ? 'when the dose is due' : `${n} minutes before`}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Tell the office about an unrecorded dose</label>
+                  <select value={reminder.officeGraceMinutes} disabled={!may.update || !reminder.enabled} onChange={(e) => saveReminder({ officeGraceMinutes: Number(e.target.value) })}>
+                    {reminder.graceChoices.map((n) => <option key={n} value={n}>{n >= 60 ? `${n / 60} hour${n === 60 ? '' : 's'}` : `${n} minutes`} after the visit ends</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === 'medications' && (
             <div className="hc-card">
               {loading ? (
@@ -263,6 +318,7 @@ const MedicationsManagement = () => {
                             <th>Medication</th>
                             <th>Dosage</th>
                             <th>Frequency</th>
+                            {showReminders && <th>Dose times</th>}
                             <th>Route</th>
                             <th>Prescriber</th>
                             <th>PRN</th>
@@ -280,6 +336,7 @@ const MedicationsManagement = () => {
                               </td>
                               <td>{med.dosage || '-'}</td>
                               <td>{med.frequency || '-'}</td>
+                              {showReminders && <td>{med.doseTimes?.length ? med.doseTimes.map(clock12).join(', ') : '-'}</td>}
                               <td>{med.route || '-'}</td>
                               <td>{med.prescriber || '-'}</td>
                               <td>{med.isPrn ? '✓ Yes' : 'No'}</td>
@@ -416,12 +473,18 @@ const MedicationForm = ({ medication, onSubmit, onCancel }: { medication: Medica
     sideEffects: medication?.sideEffects || '',
     isPrn: !!medication?.isPrn,
     isActive: medication?.isActive ?? true,
+    doseTimes: medication?.doseTimes || [],
   })
+  const showReminders = useAuth().hasFeature('care_medication_reminders')
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!formData.medicationName) {
       toast.warning('Medication name is required')
+      return
+    }
+    if (formData.doseTimes.some((t) => !t)) {
+      toast.warning('Fill in every dose time, or remove the empty ones')
       return
     }
     onSubmit(formData)
@@ -458,6 +521,22 @@ const MedicationForm = ({ medication, onSubmit, onCancel }: { medication: Medica
           </select>
         </div>
       </div>
+
+      {showReminders && !formData.isPrn && (
+        <div className="form-group">
+          <label>Dose times (the agency's clock)</label>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {formData.doseTimes.map((t, i) => (
+              <span key={i} style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center' }}>
+                <input type="time" aria-label={`Dose time ${i + 1}`} value={t} onChange={(e) => set('doseTimes', formData.doseTimes.map((x, j) => (j === i ? e.target.value : x)))} />
+                <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" aria-label={`Remove dose time ${i + 1}`} onClick={() => set('doseTimes', formData.doseTimes.filter((_, j) => j !== i))}>×</button>
+              </span>
+            ))}
+            <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => set('doseTimes', [...formData.doseTimes, '08:00'])}>+ Add a time</button>
+          </div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--hc-muted)' }}>The caregiver on the visit is reminded at each time. Leave empty for no reminder.</div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <div className="form-group">

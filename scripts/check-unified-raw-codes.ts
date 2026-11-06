@@ -56,7 +56,10 @@ for (const d of DIRS) {
       if (ts.isJsxExpression(n) && n.expression && (ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent))) {
         checked++
         const name = nameOf(n.expression)
-        if (name && CODE.test(name)) fail(`${at(n)}: {…${name}} prints a stored code — show it through codeLabel() (labels/codes.ts)`)
+        // {errors.frequency}: a form's message for that field ("Choose how often"), not the stored code — a validation-error
+        // map keyed by field name holds sentences (11/05 integration: salon booth rent's form).
+        const owner = ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression) ? n.expression.expression.text : ''
+        if (name && CODE.test(name) && !/^(errors|fieldErrors)$/.test(owner)) fail(`${at(n)}: {…${name}} prints a stored code — show it through codeLabel() (labels/codes.ts)`)
       }
       // LIST.map((s) => <option …>{s}</option>): each code printed as stored.
       if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'map') {

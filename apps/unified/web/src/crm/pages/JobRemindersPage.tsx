@@ -15,9 +15,20 @@ interface Rules {
   sendUntilHour: number
   message: string
   maxMessage: number
+  maxEmailBody: number
   variables: string[]
+  timing: 'hours_before' | 'fixed_time'
+  fixed: Array<{ daysBefore: number; time: string }>
+  emailSubject: string
+  emailBody: string
+  askConfirm: boolean
+  movedMessage: string
 }
-type Form = { enabled: boolean; hoursBefore: string[]; sms: boolean; email: boolean; sendFromHour: string; sendUntilHour: string; message: string }
+type Form = {
+  enabled: boolean; hoursBefore: string[]; sms: boolean; email: boolean; sendFromHour: string; sendUntilHour: string; message: string
+  timing: 'hours_before' | 'fixed_time'; fixed: Array<{ daysBefore: string; time: string }>
+  emailSubject: string; emailBody: string; askConfirm: boolean; movedMessage: string
+}
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const field = 'mt-1 w-full max-w-[12rem] rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
@@ -28,6 +39,8 @@ const errText = 'mt-1 text-xs text-red-700 dark:text-red-300'
 const toForm = (r: Rules): Form => ({
   enabled: r.enabled, hoursBefore: r.hoursBefore.map(String), sms: r.sms, email: r.email,
   sendFromHour: String(r.sendFromHour), sendUntilHour: String(r.sendUntilHour), message: r.message,
+  timing: r.timing, fixed: r.fixed.map((f) => ({ daysBefore: String(f.daysBefore), time: f.time })),
+  emailSubject: r.emailSubject, emailBody: r.emailBody, askConfirm: r.askConfirm, movedMessage: r.movedMessage,
 })
 const hourWords = (h: number) => (h === 0 || h === 24 ? 'midnight' : h === 12 ? 'noon' : `${h % 12}${h < 12 ? 'am' : 'pm'}`)
 
@@ -62,6 +75,9 @@ export default function JobRemindersPage() {
         sendFromHour: Number(form.sendFromHour === '' ? NaN : form.sendFromHour),
         sendUntilHour: Number(form.sendUntilHour === '' ? NaN : form.sendUntilHour),
         message: form.message,
+        timing: form.timing,
+        fixed: form.fixed.map((f) => ({ daysBefore: Number(f.daysBefore === '' ? NaN : f.daysBefore), time: f.time })),
+        emailSubject: form.emailSubject, emailBody: form.emailBody, askConfirm: form.askConfirm, movedMessage: form.movedMessage,
       })
       setRules(next); setForm(toForm(next))
       toast.success('Job reminders saved')
@@ -94,7 +110,39 @@ export default function JobRemindersPage() {
         </label>
         <p className={hint}>Off by default. Off, nothing is sent.</p>
 
-        <div className="mt-4">
+        <fieldset className="mt-4">
+          <legend className={label}>When reminders go out</legend>
+          <div className="mt-1 flex flex-wrap gap-5">
+            <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100"><input type="radio" name="timing" checked={form.timing === 'hours_before'} disabled={!mayEdit} onChange={() => set({ timing: 'hours_before' })} className="h-4 w-4" />A set number of hours before the job</label>
+            <label className="flex items-center gap-2 text-sm text-gray-900 dark:text-slate-100"><input type="radio" name="timing" checked={form.timing === 'fixed_time'} disabled={!mayEdit} onChange={() => set({ timing: 'fixed_time' })} className="h-4 w-4" />At a fixed time of day, some days before</label>
+          </div>
+          {errors.timing && <p className={errText}>{errors.timing}</p>}
+        </fieldset>
+
+        {form.timing === 'fixed_time' && (
+          <div className="mt-4">
+            <span className={label}>Send a reminder at this time, this many days before the job</span>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              {form.fixed.map((f, i) => (
+                <span key={i} className="inline-flex items-center gap-1">
+                  <input aria-label={`Reminder ${i + 1}, days before`} type="number" min="0" max="14" inputMode="numeric" className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={f.daysBefore} disabled={!mayEdit}
+                    onChange={(e) => set({ fixed: form.fixed.map((x, j) => (j === i ? { ...x, daysBefore: e.target.value } : x)) })} />
+                  <span className="text-sm text-gray-700 dark:text-slate-300">days before, at</span>
+                  <input aria-label={`Reminder ${i + 1}, time of day`} type="time" className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={f.time} disabled={!mayEdit}
+                    onChange={(e) => set({ fixed: form.fixed.map((x, j) => (j === i ? { ...x, time: e.target.value } : x)) })} />
+                  {mayEdit && form.fixed.length > 1 && <button type="button" aria-label={`Remove reminder ${i + 1}`} onClick={() => set({ fixed: form.fixed.filter((_, j) => j !== i) })} className="rounded p-1 text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700"><X className="h-4 w-4" /></button>}
+                </span>
+              ))}
+              {mayEdit && form.fixed.length < 2 && (
+                <button type="button" onClick={() => set({ fixed: [...form.fixed, { daysBefore: '0', time: '08:00' }] })} className="inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:underline dark:text-orange-200"><Plus className="h-4 w-4" />Add a second reminder</button>
+              )}
+            </div>
+            <p className={hint}>0 days before is the morning of the job. Times are on your business&rsquo;s clock.</p>
+            {Object.entries(errors).filter(([k]) => k.startsWith('fixed')).map(([k, v]) => <p key={k} className={errText}>{v}</p>)}
+          </div>
+        )}
+
+        <div className={form.timing === 'hours_before' ? 'mt-4' : 'hidden'}>
           <span className={label}>Send a reminder this many hours before the job</span>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {form.hoursBefore.map((h, i) => (
@@ -142,8 +190,32 @@ export default function JobRemindersPage() {
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">The text message</h2>
         <label htmlFor="msg" className="sr-only">Text message wording</label>
         <textarea id="msg" rows={3} maxLength={rules.maxMessage} className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={form.message} disabled={!mayEdit} onChange={(e) => set({ message: e.target.value })} />
-        <p className={hint}>{left} characters left. Fill-ins you can use: {rules.variables.map((v) => `{{${v}}}`).join(' ')}. The email has fixed wording.</p>
+        <p className={hint}>{left} characters left. Fill-ins you can use: {rules.variables.map((v) => `{{${v}}}`).join(' ')}.</p>
         {errors.message && <p className={errText}>{errors.message}</p>}
+        <label className="mt-3 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-slate-100">
+          <input type="checkbox" checked={form.askConfirm} disabled={!mayEdit} onChange={(e) => set({ askConfirm: e.target.checked })} className="h-4 w-4" />
+          Ask the customer to confirm
+        </label>
+        <p className={hint}>Adds &ldquo;Reply Y to confirm.&rdquo; to the text and a Confirm button to the email. A confirmed visit shows on the job and in the customer portal; moving the visit clears it.</p>
+      </section>
+
+      <section className={box} aria-label="Email">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">The email</h2>
+        <label htmlFor="email-subject" className="mt-2 block text-sm font-medium text-gray-800 dark:text-slate-200">Subject</label>
+        <input id="email-subject" maxLength={200} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={form.emailSubject} disabled={!mayEdit} onChange={(e) => set({ emailSubject: e.target.value })} />
+        {errors.emailSubject && <p className={errText}>{errors.emailSubject}</p>}
+        <label htmlFor="email-body" className="mt-3 block text-sm font-medium text-gray-800 dark:text-slate-200">Message</label>
+        <textarea id="email-body" rows={7} maxLength={rules.maxEmailBody} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={form.emailBody} disabled={!mayEdit} onChange={(e) => set({ emailBody: e.target.value })} />
+        <p className={hint}>Same fill-ins as the text. Your logo and colors are added around it.</p>
+        {errors.emailBody && <p className={errText}>{errors.emailBody}</p>}
+      </section>
+
+      <section className={box} aria-label="Visit moved">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">When a visit is moved</h2>
+        <p className={hint}>After you reschedule a visit you are asked whether to tell the customer. This is the text they get; the email uses the same words.</p>
+        <label htmlFor="moved-msg" className="sr-only">Visit moved wording</label>
+        <textarea id="moved-msg" rows={3} maxLength={rules.maxMessage} className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" value={form.movedMessage} disabled={!mayEdit} onChange={(e) => set({ movedMessage: e.target.value })} />
+        {errors.movedMessage && <p className={errText}>{errors.movedMessage}</p>}
       </section>
 
       {mayEdit && (

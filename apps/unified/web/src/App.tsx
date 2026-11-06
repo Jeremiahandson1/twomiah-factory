@@ -38,6 +38,7 @@ import * as storeScreens from './crm/verticals/store'
 const PortalApp = lazy(() => import('./crm/portal'))
 // A quote's or an invoice's own page, from the link in its email (crm/documentLink.tsx).
 const DocumentLinkApp = lazy(() => import('./crm/documentLink'))
+const CosignLinkApp = lazy(() => import('./crm/cosignLink'))
 // A private event's proposal and payment pages, by the link in the client's email (no sign-in; crm/guest.tsx).
 const EventGuestApp = lazy(() => import('./crm/guest'))
 const DomainPage = page(() => import('./crm/pages/DomainPage'))
@@ -67,6 +68,7 @@ const ContactSupportPage = page(() => import('./crm/pages/ContactSupportPage'))
 const HelpPage = page(() => import('./crm/pages/HelpPage'))
 const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
 const CrewLinkPage = page(() => import('./crm/pages/roof/field/CrewLinkPage'))
+const VisitConfirmPage = page(() => import('./crm/pages/VisitConfirmPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 // Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
@@ -77,10 +79,16 @@ const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventor
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
+const QuoteFollowUpPage = page(() => import('./crm/pages/QuoteFollowUpPage'))
+const MarkupDefaultsPage = page(() => import('./crm/pages/MarkupDefaultsPage'))
+const TimeClockSettingsPage = page(() => import('./crm/pages/TimeClockSettingsPage'))
+const TimeKioskPage = page(() => import('./crm/pages/TimeKioskPage'))
 const ChecklistsPage = page(() => import('./crm/pages/ChecklistsPage'))
 const AvailabilityPage = page(() => import('./crm/pages/AvailabilityPage'))
 const TeamRevenuePage = page(() => import('./crm/pages/TeamRevenuePage'))
 const PlanReportsPage = page(() => import('./crm/pages/PlanReportsPage'))
+const ClientCommunicationsPage = page(() => import('./crm/pages/ClientCommunicationsPage'))
+const AiCallAnsweringPage = page(() => import('./crm/pages/AiCallAnsweringPage'))
 const ExportEverythingPage = page(() => import('./crm/pages/ExportEverythingPage'))
 
 function NotFound() {
@@ -166,6 +174,7 @@ export default function App() {
                         <Route path="checklists" element={<ChecklistsPage />} />
                         <Route path="team-revenue" element={<TeamRevenuePage />} />
                         <Route path="plan-reports" element={<PlanReportsPage />} />
+                        <Route path="client-communications" element={<ClientCommunicationsPage />} />
                         <Route path="lead-sources" element={<Crm.LeadSources />} />
                         <Route path="email" element={<Crm.EmailInbox />} />
                         <Route path="google-reviews" element={<Crm.GoogleReviews />} />
@@ -197,6 +206,7 @@ export default function App() {
                         <Route path="selections" element={<SelectionsPage />} />
                         <Route path="call-tracking" element={<CallTrackingPage />} />
                         <Route path="ai-receptionist" element={<AIReceptionistPage />} />
+                        <Route path="ai-call-answering" element={<AiCallAnsweringPage />} />
                         <Route path="support" element={<SupportPage />} />
                         <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                         <Route path="visualizer" element={<VisualizerPage />} />
@@ -250,6 +260,10 @@ export default function App() {
                       <Route path="settings/email" element={<EmailAliases />} />
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
                       <Route path="settings/job-reminders" element={<JobRemindersPage />} />
+                      <Route path="settings/quote-followup" element={<QuoteFollowUpPage />} />
+                      <Route path="settings/markup-defaults" element={<MarkupDefaultsPage />} />
+                      <Route path="settings/time-clock" element={<TimeClockSettingsPage />} />
+                      <Route path="time-kiosk" element={<TimeKioskPage />} />
                       <Route path="settings/export" element={<ExportEverythingPage />} />
                       <Route path="paywall" element={<Paywall />} />
                       <Route path="*" element={<NotFound />} />
@@ -264,6 +278,8 @@ export default function App() {
                     {/* A quote's or an invoice's own page, by the link in its email (no sign-in, no portal needed). A
                         home-care agency's invoices are its Billing book's: their /d/<token> is in its public routes above. */}
                     {!homecareScreens.isHomecare && <Route path="/d/:token" element={<Suspense fallback={null}><DocumentLinkApp /></Suspense>} />}
+                    {/* The cosigner a proposal asks to sign after the customer (the insurance carrier, a spouse): their own link. */}
+                    {!homecareScreens.isHomecare && <Route path="/c/:token" element={<Suspense fallback={null}><CosignLinkApp /></Suspense>} />}
 
                     <Route path="/event-proposal/:token" element={<Suspense fallback={null}><EventGuestApp which="proposal" /></Suspense>} />
                     <Route path="/event-pay/:token" element={<Suspense fallback={null}><EventGuestApp which="pay" /></Suspense>} />
@@ -273,6 +289,9 @@ export default function App() {
 
                     {/* A crew's or sub's work order, by the private link in the text (no sign-in, no shell). */}
                     <Route path="/w/:token" element={<CrewLinkPage />} />
+
+                    {/* The link in a visit reminder: one visit and a Confirm button (no sign-in, no shell). */}
+                    <Route path="/confirm-visit/:token" element={<VisitConfirmPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

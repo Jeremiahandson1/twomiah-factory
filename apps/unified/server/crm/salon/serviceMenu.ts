@@ -11,9 +11,10 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { processingProblem } from './segments.ts'
+import { parseServiceFees } from './cardFees.ts'
 
 const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
-const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'bookableOnline', 'active'] as const
+const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'prepayOnline', 'bookableOnline', 'active'] as const
 
 export function createServiceMenuRoutes(d: CrmDeps) {
   const { db, audit } = d
@@ -33,6 +34,26 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     if (problem) return { problem, code: 'BAD_PROCESSING' }
     return { values: { processingAfterMin: Number(body.processingAfterMin || 0), processingMin: Number(body.processingMin) } }
   }
+
+  /**
+   * This service's own no-show / late-cancel fee (salon parity row 4; feature `card_on_file`): the columns to write, or the refusal. Changing a fee
+   * a client can be charged is the owner's call (company:update), not the menu editor's; clearing one is always allowed to them too.
+   */
+  async function feesIn(u: any, body: any): Promise<{ values: Record<string, number | null> } | { refuse: { status: 400 | 403 | 409; message: string; code: string; fields?: Record<string, string> } }> {
+    const got = parseServiceFees(body)
+    if ('fields' in got) return { refuse: { status: 400, message: 'Check the highlighted boxes.', code: 'VALIDATION', fields: got.fields } }
+    if (!got.touched) return { values: {} }
+    const extra = await d.permissions.getExtraPermissions(u.userId)
+    if (!d.permissions.hasPermission(String(u.role || ''), 'company:update', extra)) return { refuse: { status: 403, message: 'Only the owner or an admin can set the fee a service charges for a no-show or late cancel.', code: 'FEE_NEEDS_OWNER' } }
+    if (!(await d.features.isFeatureEnabled(u.companyId, 'card_on_file'))) return { refuse: { status: 409, message: 'Card on file is not switched on for this salon.', code: 'FEATURE_OFF' } }
+    return { values: got.values }
+  }
+
+  /** "Take the full price online" needs a fixed price: a "from" price's final figure isn't known at booking. The sentence that refuses, or null. */
+  const prepayProblem = (m: { prepayOnline?: unknown; price?: unknown; priceIsFrom?: unknown }) =>
+    m.prepayOnline === true && (m.priceIsFrom === true || !(Number(m.price) > 0))
+      ? (m.priceIsFrom === true ? 'A "from" price can\'t be paid in full when booking — its final price isn\'t known yet. Untick "Take the full price online" or make the price a fixed one.' : 'Set a price before taking the full price online.')
+      : null
 
   // GET /service-menu — ?category=, ?includeInactive=1
   app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -57,6 +78,8 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     // "abc" is not a negative price, it is not a price at all. (T20 L2)
     if (body.price != null && isNaN(Number(body.price))) return fail(c, 400, 'Price must be a number.')
     if (body.price != null && (Number(body.price) < 0 || roundsToNothing(body.price))) return fail(c, 400, 'Price cannot be negative.')
+    const feeValues = await feesIn(currentUser, body)
+    if ('refuse' in feeValues) return fail(c, feeValues.refuse.status, feeValues.refuse.message, feeValues.refuse.code, feeValues.refuse.fields)
     let processingValues: { processingAfterMin?: number | null; processingMin?: number | null } = {}
     if ('processingMin' in body || 'processingAfterMin' in body) {
       const got = await processingIn(currentUser.companyId, body, Number(body.durationMin ?? 60))
@@ -75,6 +98,9 @@ export function createServiceMenuRoutes(d: CrmDeps) {
       return fail(c, 409, `"${body.name.trim()}" is already on the menu.`, 'DUPLICATE_SERVICE')
     }
 
+    const noPrepay = prepayProblem({ prepayOnline: body.prepayOnline === true, price: body.price, priceIsFrom: body.priceIsFrom === true })
+    if (noPrepay) return fail(c, 400, noPrepay, 'PREPAY_NEEDS_PRICE')
+
     // The item and its online booking service in one write (onlineBooking.ts keepOnlineService): the menu is the one
     // list /book offers.
     const created = await db.transaction(async (tx: any) => {
@@ -86,9 +112,11 @@ export function createServiceMenuRoutes(d: CrmDeps) {
         durationMin: body.durationMin ?? 60,
         price: body.price ?? null,
         priceIsFrom: body.priceIsFrom ?? false,
+        prepayOnline: body.prepayOnline === true,
         rebookIntervalDays: body.rebookIntervalDays ?? null,
         requiresPatchTest: body.requiresPatchTest ?? false,
         ...processingValues,
+        ...feeValues.values,
         bookableOnline: body.bookableOnline ?? false,
         active: body.active ?? true,
         companyId: currentUser.companyId,
@@ -120,6 +148,13 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, unknown> = { updatedAt: new Date() }
     for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+    const feeValues = await feesIn(currentUser, body)
+    if ('refuse' in feeValues) return fail(c, feeValues.refuse.status, feeValues.refuse.message, feeValues.refuse.code, feeValues.refuse.fields)
+    Object.assign(updates, feeValues.values)
+    if ('prepayOnline' in body && typeof body.prepayOnline !== 'boolean') return fail(c, 400, 'Take the full price online must be on or off.', 'VALIDATION', { prepayOnline: 'On or off.' })
+    const merged = { ...existing, ...updates } as any
+    const noPrepay = prepayProblem({ prepayOnline: merged.prepayOnline, price: merged.price, priceIsFrom: merged.priceIsFrom })
+    if (noPrepay) return fail(c, 400, noPrepay, 'PREPAY_NEEDS_PRICE')
     if ('processingMin' in body || 'processingAfterMin' in body || ('durationMin' in body && existing.processingMin)) {
       // A shorter service must still hold its processing gap; changing nothing about the gap re-checks the old one against the new length.
       const source = 'processingMin' in body || 'processingAfterMin' in body ? body : { processingMin: existing.processingMin, processingAfterMin: existing.processingAfterMin }

@@ -152,12 +152,70 @@ ${data.disclosure}`,
   }),
 
   /**
+   * The receipt for a paid sale at the salon (salon parity row 11): what was bought, what was paid, the tip so far, and — when the salon allows
+   * it — a button to add a tip afterwards (data.tipPath, the sale's private tip page). Everything typed by a person is escaped.
+   */
+  saleReceipt: (data, b, appUrl) => {
+    const m = (v: unknown) => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const lines = (Array.isArray(data.lines) ? data.lines : []) as Array<{ description: string; total: number }>
+    const link = data.tipPath ? appUrl + String(data.tipPath) : ''
+    const rows = lines.map((l) => `<tr><td>${escHtml(l.description)}</td><td style="text-align:right;">${m(l.total)}</td></tr>`).join('')
+    return {
+      subject: `Your receipt from ${b.companyName} - ${data.invoiceNumber}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">Receipt</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Thank you for visiting ${escHtml(b.companyName)}.</p>
+          <table style="width:100%;border-collapse:collapse;">${rows}
+            <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>${m(data.total)}</strong></td></tr>
+            ${Number(data.tip) > 0 ? `<tr><td>Tip</td><td style="text-align:right;">${m(data.tip)}</td></tr>` : ''}
+          </table>
+          <p>Invoice ${escHtml(data.invoiceNumber)}</p>
+          ${link ? `<p>Want to leave a tip for the team? <a href="${escHtml(link)}" style="display:inline-block;padding:10px 18px;background:#0f766e;color:#fff;border-radius:8px;text-decoration:none;">Add a tip</a></p>` : ''}
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>`,
+      text: `Receipt ${data.invoiceNumber} from ${b.companyName}\n${lines.map((l) => `${l.description}: ${m(l.total)}`).join('\n')}\nTotal: ${m(data.total)}${Number(data.tip) > 0 ? `\nTip: ${m(data.tip)}` : ''}${link ? `\n\nAdd a tip for the team: ${link}` : ''}`,
+    }
+  },
+
+  /**
    * The quote, as the customer receives it. (E2E run 1, 10/14: it arrived as "Quote from …: undefined", with no
    * number, no lines and no way to approve.) Everything here was typed by a person — escaped. The internal cost of a
    * line is never passed in. The button opens the quote's own private link (data.documentPath, /d/<token>), where the
    * customer approves or declines it — every quote, portal or not (2026-10-22: it went only to customers whose client
    * portal was on, so everyone else had no way to accept). Without a link (a caller that made none) they are told how.
    */
+
+  /** A quote the customer was sent and has not answered (billing/quoteFollowUp.ts): a short, polite nudge with the quote's own link. */
+  quoteFollowUp: (data, b, appUrl) => {
+    const link = data.documentPath ? appUrl + String(data.documentPath) : ''
+    const total = '$' + Number(data.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const name = data.quoteName ? ` (${escHtml(data.quoteName)})` : ''
+    const until = data.expiryDate ? `<p>The price holds until <strong>${escHtml(data.expiryDate)}</strong>.</p>` : ''
+    const reach = data.companyPhone ? `If you have a question, reply to this email or call us on ${escHtml(data.companyPhone)}.` : 'If you have a question, just reply to this email.'
+    return {
+      subject: `Following up on quote ${data.quoteNumber} from ${data.companyName}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We sent you quote ${escHtml(data.quoteNumber)}${name} for <strong>${total}</strong> and wanted to check that you got it.</p>
+          ${until}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View the quote</a></p>` : ''}
+          <p>${reach}</p>
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `Hi ${data.contactName}, we sent you quote ${data.quoteNumber} for ${total} and wanted to check that you got it.${data.expiryDate ? ` The price holds until ${data.expiryDate}.` : ''}${link ? ` View it here: ${link}` : ''} ${data.companyPhone ? `Questions? Reply or call ${data.companyPhone}.` : 'Questions? Just reply to this email.'}`,
+    }
+  },
 
   quoteSent: (data, b, appUrl) => {
     const money = (v: unknown) => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -204,6 +262,54 @@ ${data.disclosure}`,
         + (approveUrl ? `Review and approve: ${approveUrl}` : howToAccept),
     }
   },
+
+  /**
+   * A proposal the customer has signed that needs a second signature (the insurance carrier, a spouse): the cosigner's own private
+   * link (data.cosignPath, /c/<token>) opens that one proposal and nothing else. Everything here was typed by a person — escaped.
+   */
+  quoteCosign: (data, b, appUrl) => {
+    const url = data.cosignPath ? appUrl + data.cosignPath : ''
+    const role = data.cosignerRole ? ` as ${escHtml(data.cosignerRole)}` : ''
+    return {
+      subject: `Your signature is needed: quote ${data.quoteNumber} from ${data.companyName}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.cosignerName)},</p>
+          <p>${escHtml(data.signerName)} has signed quote <strong>${escHtml(data.quoteNumber)}</strong>${data.quoteName ? ` (${escHtml(data.quoteName)})` : ''} and asked for your signature${role} to complete it.</p>
+          ${url ? `<p style="text-align:center;"><a href="${escHtml(url)}" class="button">Review and sign</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">This link is for you alone. Please do not forward it.</p>` : `<p>Please contact ${escHtml(data.companyName)}${data.companyPhone ? ' on ' + escHtml(data.companyPhone) : ''}.</p>`}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `${data.signerName} has signed quote ${data.quoteNumber} and asked for your signature${data.cosignerRole ? ' as ' + data.cosignerRole : ''} to complete it.\n\n${url ? 'Review and sign: ' + url : 'Please contact ' + data.companyName}`,
+    }
+  },
+
+  /**
+   * The inspection report sent to the homeowner from the job (roof/inspection/delivery.ts). The link (data.reportUrl) opens that
+   * one report and nothing else of the job. The title and the note are typed by a person - escaped.
+   */
+  inspectionReportSent: (data, b) => ({
+    subject: `Your roof inspection report from ${data.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.firstName)},</p>
+          ${data.message ? `<p>${escHtml(data.message).replace(/\n/g, '<br>')}</p>` : `<p>Your roof inspection report is ready.</p>`}
+          <p style="text-align:center;"><a href="${escHtml(data.reportUrl)}" class="button">View ${escHtml(data.title)}</a></p>
+          <p style="font-size:13px;color:#6b7280;text-align:center;">The report has the photos and notes from your inspection. You can download it as a PDF from that page.</p>
+          ${data.companyPhone ? `<p>Questions? Call ${escHtml(data.companyPhone)}.</p>` : ''}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.firstName},\n\n${data.message || 'Your roof inspection report is ready.'}\n\n${data.title}: ${data.reportUrl}\n\n${data.companyName}`,
+  }),
 
   quoteApproved: (data, b, appUrl) => ({
     subject: `Quote ${data.quoteNumber} has been approved!`,
@@ -431,14 +537,49 @@ ${data.disclosure}`,
     `,
     text: `Hi ${data.contactName}, ${data.headline}\n\n${data.body}${data.path ? `\n\n${appUrl}${data.path}` : ''}`,
   }),
-  // The reminder before a job the office booked (crm/field/jobReminders.ts). Every value is typed by staff, so each is escaped.
-  jobReminder: (data, b) => ({
-    subject: `Reminder: ${data.jobTitle || 'your visit'} on ${data.when}`,
-    html: `
+  // A report the events module emails to a seat on its schedule (server/crm/restaurant/eventReports.ts): a headline, a line of
+  // words and one table. data: { companyName, contactName, subject, headline, intro, head: string[], rows: string[][], path, button }.
+  eventReport: (data, b, appUrl) => {
+    const head: string[] = Array.isArray(data.head) ? data.head.map(String) : []
+    const rows: string[][] = Array.isArray(data.rows) ? data.rows.map((r: unknown[]) => r.map(String)) : []
+    const cell = 'padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-size:14px;'
+    return {
+      subject: String(data.subject ?? data.headline ?? ''),
+      html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
       <body><div class="container">
         <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
         <div class="content">
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p><strong>${escHtml(data.headline)}</strong></p>
+          <p>${escHtml(data.intro)}</p>
+          <table style="border-collapse:collapse;width:100%;">
+            <thead><tr>${head.map((h, i) => `<th style="${cell}font-weight:600;${i === 0 ? 'text-align:left;' : ''}">${escHtml(h)}</th>`).join('')}</tr></thead>
+            <tbody>${rows.map((r, n) => `<tr>${r.map((v, i) => `<td style="${cell}${i === 0 ? 'text-align:left;' : ''}${n === rows.length - 1 ? 'font-weight:600;' : ''}">${escHtml(v)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+          ${data.path ? `<p style="text-align:center;"><a href="${appUrl}${escHtml(data.path)}" class="button">${escHtml(data.button || 'Open')}</a></p>` : ''}
+        </div>
+        <div class="footer">${escHtml(data.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `Hi ${data.contactName}, ${data.headline}\n\n${data.intro}\n\n${[head, ...rows].map((r) => r.join(' | ')).join('\n')}${data.path ? `\n\n${appUrl}${data.path}` : ''}`,
+    }
+  },
+  // The reminder before a job the office booked, and the notice that a visit moved (crm/field/jobReminders.ts). The wording is the
+  // business's own (data.subject / data.body, merged from its fields); every value is typed by staff, so each is escaped. With no
+  // wording the original fixed layout is used. A confirm button when the customer is asked to confirm (data.confirmPath).
+  jobReminder: (data, b, appUrl) => {
+    const confirm = data.confirmPath ? `${appUrl}${data.confirmPath}` : ''
+    return {
+      subject: data.subject || `Reminder: ${data.jobTitle || 'your visit'} on ${data.when}`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
+        <div class="content">
+          ${data.body ? `
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p style="white-space:pre-wrap;">${escHtml(data.body)}</p>` : `
           <h2>Your upcoming visit</h2>
           <p>Hi ${escHtml(data.contactName)},</p>
           <p>This is a reminder of your visit with ${escHtml(data.companyName)}.</p>
@@ -448,13 +589,17 @@ ${data.disclosure}`,
             ${data.address ? `<p><strong>Where:</strong> ${escHtml(data.address)}</p>` : ''}
             ${data.techName ? `<p><strong>Who:</strong> ${escHtml(data.techName)}</p>` : ''}
           </div>
-          <p>If you need to change the time, reply to this email or call us.</p>
+          <p>If you need to change the time, reply to this email or call us.</p>`}
+          ${confirm ? `<p style="text-align:center;"><a href="${escHtml(confirm)}" class="button">Confirm my visit</a></p>` : ''}
         </div>
         <div class="footer">${escHtml(data.companyName)}</div>
       </div></body></html>
     `,
-    text: `Hi ${data.contactName}, a reminder of your visit with ${data.companyName}: ${data.jobTitle} on ${data.when}${data.address ? ` at ${data.address}` : ''}. If you need to change the time, reply to this email or call us.`,
-  }),
+      text: data.body
+        ? `Hi ${data.contactName},\n\n${data.body}${confirm ? `\n\nConfirm my visit: ${confirm}` : ''}`
+        : `Hi ${data.contactName}, a reminder of your visit with ${data.companyName}: ${data.jobTitle} on ${data.when}${data.address ? ` at ${data.address}` : ''}. If you need to change the time, reply to this email or call us.${confirm ? ` Confirm my visit: ${confirm}` : ''}`,
+    }
+  },
   // The receipt for a no-show or late-cancellation fee charged to the card a client keeps on file (salon/cardOnFile.ts).
   cardFeeReceipt: (data, b) => ({
     subject: `Receipt: ${data.label} — ${b.companyName}`,
@@ -527,6 +672,160 @@ ${data.disclosure}`,
       </div></body></html>
     `,
     text: `${data.clientName}'s ${data.plan} membership was paused after their card was declined on every try (invoice ${data.invoiceNumber}, $${data.amount}). They have been emailed a link to give a new card. Resume it in Memberships once it is sorted out.`,
+  }),
+  // To staff who hold the payments permission: a member's card was declined (every decline, not only the last).
+  membershipDeclinedStaff: (data, b) => ({
+    subject: `Card declined — ${data.clientName}'s ${data.plan} membership (try ${data.attempt} of ${data.tries})`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>A membership card was declined</h2>
+          <p>${escHtml(data.clientName)}'s card was declined for <strong>$${escHtml(data.amount)}</strong> (${escHtml(data.plan)} membership, invoice ${escHtml(data.invoiceNumber)}). This was try ${escHtml(data.attempt)} of ${escHtml(data.tries)}.</p>
+          <p>${escHtml(data.reason)} ${escHtml(data.backup)}</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s card was declined for $${data.amount} (${data.plan} membership, invoice ${data.invoiceNumber}), try ${data.attempt} of ${data.tries}. ${data.reason} ${data.backup} ${data.next}`,
+  }),
+  // Booth rent (salon/boothRent.ts): the invoice notice, the receipt, a declined charge, the pause and its link, the card link, the statement.
+  boothRentInvoice: (data, b) => ({
+    subject: `Rent due ${data.due} — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your rent is due</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Your chair rent of <strong>$${escHtml(data.amount)}</strong> is due on ${escHtml(data.due)} (invoice ${escHtml(data.invoiceNumber)}). Please pay it at the desk or by the way we agreed.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your chair rent of $${data.amount} is due on ${data.due} (invoice ${data.invoiceNumber}). Please pay it at the desk or by the way we agreed.`,
+  }),
+  boothRentCharged: (data, b) => ({
+    subject: `Receipt: chair rent — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Receipt</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We charged <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your chair rent (invoice ${escHtml(data.invoiceNumber)}).</p>
+          <p>If you think this is a mistake, please reply to this email or contact us and we will look into it.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we charged $${data.amount} to your ${data.card} for your chair rent (invoice ${data.invoiceNumber}). If you think this is a mistake, reply to this email or contact ${b.companyName}.`,
+  }),
+  boothRentPaymentFailed: (data, b) => ({
+    subject: `We could not charge your card — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your rent payment</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We tried to charge <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your chair rent (invoice ${escHtml(data.invoiceNumber)}), but it did not go through.</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we tried to charge $${data.amount} to your ${data.card} for your chair rent (invoice ${data.invoiceNumber}), but it did not go through. ${data.next}`,
+  }),
+  boothRentPaused: (data, b) => ({
+    subject: `Automatic rent payments are paused — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Automatic rent payments are paused</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>We could not charge <strong>$${escHtml(data.amount)}</strong> to your ${escHtml(data.card)} for your chair rent (invoice ${escHtml(data.invoiceNumber)}), so automatic payments are paused. The rent is still owed.</p>
+          <p style="text-align:center;margin:24px 0;"><a href="${escHtml(data.link)}" style="background:#0f766e;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Update my card</a></p>
+          <p>Once a new card is saved we will charge what is unpaid and automatic payments start again.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, we could not charge $${data.amount} to your ${data.card} for your chair rent (invoice ${data.invoiceNumber}), so automatic payments are paused. The rent is still owed. Update your card here: ${data.link}`,
+  }),
+  boothRentPausedSalon: (data, b) => ({
+    subject: `Rent autopay paused for a declined card — ${data.clientName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Autopay paused for a declined card</h2>
+          <p>${escHtml(data.clientName)}'s automatic rent payments were paused after their card was declined on every try (invoice ${escHtml(data.invoiceNumber)}, $${escHtml(data.amount)}). They have been emailed a link to give a new card. The rent is still owed. Resume it in Booth rent once it is sorted out.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s automatic rent payments were paused after their card was declined on every try (invoice ${data.invoiceNumber}, $${data.amount}). They have been emailed a link to give a new card. The rent is still owed.`,
+  }),
+  boothRentDeclinedStaff: (data, b) => ({
+    subject: `Card declined — ${data.clientName}'s chair rent (try ${data.attempt} of ${data.tries})`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>A rent card was declined</h2>
+          <p>${escHtml(data.clientName)}'s card was declined for <strong>$${escHtml(data.amount)}</strong> (chair rent, invoice ${escHtml(data.invoiceNumber)}). This was try ${escHtml(data.attempt)} of ${escHtml(data.tries)}.</p>
+          <p>${escHtml(data.reason)} ${escHtml(data.backup)}</p>
+          <div class="highlight"><p style="margin:0;">${escHtml(data.next)}</p></div>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `${data.clientName}'s card was declined for $${data.amount} (chair rent, invoice ${data.invoiceNumber}), try ${data.attempt} of ${data.tries}. ${data.reason} ${data.backup} ${data.next}`,
+  }),
+  boothRentCardLink: (data, b) => ({
+    subject: `Pay your chair rent by card — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Pay your rent by card</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Your chair rent is ${escHtml(data.rent)}. Give us a card on our payment provider's secure page and it is charged when each rent is due.</p>
+          <p style="text-align:center;margin:24px 0;"><a href="${escHtml(data.link)}" style="background:#0f766e;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Add my card</a></p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your chair rent is ${data.rent}. Add a card here and it is charged when each rent is due: ${data.link}`,
+  }),
+  boothRentStatement: (data, b) => ({
+    subject: `Your rent statement — ${b.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>Your rent statement</h2>
+          <p>Hi ${escHtml(data.contactName)},</p>
+          <p>Your chair-rent statement from ${escHtml(data.from)} to ${escHtml(data.to)}.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th align="left">Date</th><th align="left">What</th><th align="right">Charged</th><th align="right">Paid</th><th align="right">Balance</th></tr></thead><tbody>${data.rows}</tbody></table>
+          <p>Owed at the start: $${escHtml(data.opening)}. Charged: $${escHtml(data.charged)}. Paid: $${escHtml(data.paid)}. <strong>Owed now: $${escHtml(data.closing)}.</strong></p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your chair-rent statement from ${data.from} to ${data.to}. Owed at the start: $${data.opening}. Charged: $${data.charged}. Paid: $${data.paid}. Owed now: $${data.closing}.\n${data.text}`,
   }),
   // A membership charge that did not go through: what happened, and what happens next.
   membershipPaymentFailed: (data, b) => ({

@@ -20,10 +20,13 @@ import { createMenuPackageRoutes } from './menuPackages.ts'
 import { createVenueImportRoutes } from './eventImport.ts'
 import { createEventSettingsRoutes } from './eventSettings.ts'
 import { createEventMinimumRoutes } from './eventMinimums.ts'
-import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes } from './eventCalendar.ts'
-import { createEventReportRoutes } from './eventReports.ts'
-import { createEventProposalRoutes, createProposalLinkRoutes } from './eventProposals.ts'
+import { createEventCalendarRoutes, createEventWaitlistRoutes, createEventFeedRoutes, runHoldReminders, runHoldReleases } from './eventCalendar.ts'
+import { createEventReportRoutes, createEventSpendRoutes, createEventReportScheduleRoutes, runScheduledReports } from './eventReports.ts'
+import { createEventCampaignRoutes, createEventFormPublicRoutes } from './eventForm.ts'
+import { createEventProposalRoutes, createProposalLinkRoutes, previewContract } from './eventProposals.ts'
+import { createEventContractRoutes } from './eventContracts.ts'
 import { createEventPaymentRoutes, createEventPayLinkRoutes, startEventPaymentJobs, runPaymentReminders, runAutopay } from './eventPayments.ts'
+import { createEventBankRoutes, bankEventClaim, runBankSettlement } from './eventBank.ts'
 import { runGuaranteeReminders } from './eventGuarantee.ts'
 
 export function restaurantMounts(d: CrmDeps): Mount[] {
@@ -31,13 +34,27 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     runGuaranteeReminders: (now?: Date) => runGuaranteeReminders(d, now),
     runPaymentReminders: (now?: Date, opts?: { fromHour?: number }) => runPaymentReminders(d, now, opts),
     runAutopay: (now?: Date) => runAutopay(d, now),
+    runBankSettlement: (now?: Date) => runBankSettlement(d, now),
+    runHoldReminders: (now?: Date) => runHoldReminders(d, now),
+    runHoldReleases: (now?: Date) => runHoldReleases(d, now),
+    runScheduledReports: (now?: Date) => runScheduledReports(d, now),
   })
+  // Stripe's events for a bank debit this module started (processing, settled, returned) come first to it, not to the shared card handler.
+  d.services.useConnectedEvents?.(bankEventClaim(d))
   // The reminders and the day's card charges, hourly, started with the CRM's other timed work (never in a test).
   d.services.addJob(() => {
     startEventPaymentJobs(d)
     const guarantee = () => runGuaranteeReminders(d).catch((err: any) => d.logger.error('[events] guarantee reminders failed', { error: err?.message }))
     setTimeout(guarantee, 120_000)
     setInterval(guarantee, 6 * 60 * 60 * 1000)
+    // Holds that lapse (restaurant-bar parity #5): the reminder, then the release and the waitlist's offer, hourly.
+    const holds = async () => { try { await runHoldReminders(d); await runHoldReleases(d) } catch (err: any) { d.logger.error('[events] hold pass failed', { error: err?.message }) } }
+    setTimeout(holds, 150_000)
+    setInterval(holds, 60 * 60 * 1000)
+    // Reports emailed on a schedule (restaurant-bar parity #6): hourly, each goes from 8am on the venue's clock on its day.
+    const reports = () => runScheduledReports(d).catch((err: any) => d.logger.error('[events] scheduled reports failed', { error: err?.message }))
+    setTimeout(reports, 180_000)
+    setInterval(reports, 60 * 60 * 1000)
   })
   return [
     { path: '/api/events', access: 'user', feature: 'event_bookings', router: createEventRoutes(d) },
@@ -53,9 +70,16 @@ export function restaurantMounts(d: CrmDeps): Mount[] {
     { path: '/api/event-waitlist', access: 'user', feature: 'event_calendar', router: createEventWaitlistRoutes(d) },
     { path: '/api/event-feed', access: 'public', feature: 'event_calendar', router: createEventFeedRoutes(d) },
     { path: '/api/event-reports', access: 'user', feature: 'event_reports', router: createEventReportRoutes(d) },
+    { path: '/api/event-spend', access: 'user', feature: 'event_marketing_spend', router: createEventSpendRoutes(d) },
+    { path: '/api/event-report-schedules', access: 'user', feature: 'event_report_schedules', router: createEventReportScheduleRoutes(d) },
+    // The enquiry form's rooms and one form (link and embed) per campaign (restaurant-bar parity #4); the public side takes nothing and holds nothing.
+    { path: '/api/event-campaigns', access: 'user', feature: 'event_form_campaigns', router: createEventCampaignRoutes(d) },
+    { path: '/api/event-form', access: 'public', feature: 'event_form_campaigns', router: createEventFormPublicRoutes(d) },
     { path: '/api/event-proposals', access: 'user', feature: 'event_proposals', router: createEventProposalRoutes(d) },
     { path: '/api/proposal-links', access: 'public', feature: 'event_proposals', router: createProposalLinkRoutes(d) },
+    { path: '/api/event-contracts', access: 'user', feature: 'event_contracts', router: createEventContractRoutes(d, (companyId, eventId, body) => previewContract(d.db, companyId, eventId, body)) },
     { path: '/api/event-payments', access: 'user', feature: 'event_payment_automation', router: createEventPaymentRoutes(d) },
+    { path: '/api/event-bank-payments', access: 'user', feature: 'event_bank_payments', router: createEventBankRoutes(d) },
     { path: '/api/event-pay', access: 'public', feature: 'event_payment_automation', router: createEventPayLinkRoutes(d) },
   ]
 }

@@ -184,7 +184,7 @@ const salon: VerticalSettings = {
     commissions: { roleWords: { technician: 'Stylist', sales_rep: 'Front desk', manager: 'Manager', all: 'Everyone' }, planExample: 'Stylist standard', salesKinds: true },
     portal: {
       providerNoun: 'salon',
-      clientNav: ['appointments', 'invoices', 'paymentMethods', 'messages'],
+      clientNav: ['appointments', 'account', 'invoices', 'paymentMethods', 'messages'],
       collaboratorNav: ['sharedDocuments', 'messages'],
       reviewerNav: ['messages'],
     },

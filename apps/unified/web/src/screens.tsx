@@ -10,11 +10,12 @@ import { api } from './api'
 import { SHELL_HERE, SETTINGS_SUB_PAGES } from './shell'
 import { verticalScreens } from './crm/vertical'
 import { leadStarts } from './leadStarts'
+import { LeadPipelineStrip } from './crm/pages/LeadPipelineStrip'
 import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { SETTINGS_EXTRA as SALON_SETTINGS_EXTRA } from './crm/verticals/salon'
 import { useLiveConnection, subscribeLive } from './live'
-import { MessageSquare, BellRing, FileArchive } from 'lucide-react'
+import { MessageSquare, BellRing, FileArchive, MailCheck, Percent, Clock } from 'lucide-react'
 import { isHomecare } from './crm/verticals/homecare'
 import { ViewAsUserButton, roleWord } from './crm/viewAs'
 import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
@@ -27,8 +28,17 @@ const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: 
  */
 const INVOICE_REMINDER_SETTINGS = { to: '/crm/settings/invoice-reminders', label: 'Invoice Reminders', icon: BellRing, permission: 'company:update', ...(isHomecare ? {} : { feature: 'invoices' }) }
 
+/** Settings › Quote Follow-up (crm/pages/QuoteFollowUpPage.tsx; server crm/billing/quoteFollowUp.ts): the owner and admins, where the Quote Follow-up feature is on. */
+const QUOTE_FOLLOWUP_SETTINGS = { to: '/crm/settings/quote-followup', label: 'Quote Follow-up', icon: MailCheck, permission: 'company:update', feature: 'quote_followup' }
+
+/** Settings › Markup Defaults (crm/pages/MarkupDefaultsPage.tsx; server crm/billing/markupDefaults.ts): the owner and admins, where the Markup Defaults feature is on. */
+const MARKUP_DEFAULTS_SETTINGS = { to: '/crm/settings/markup-defaults', label: 'Markup Defaults', icon: Percent, permission: 'company:update', feature: 'markup_defaults' }
+
 /** Settings › Job Reminders (crm/pages/JobRemindersPage.tsx; server crm/field/jobReminderRoutes.ts): the owner and admins, where the Job Reminders feature is on. */
 const JOB_REMINDER_SETTINGS = { to: '/crm/settings/job-reminders', label: 'Job Reminders', icon: BellRing, permission: 'company:update', feature: 'job_reminders' }
+
+/** Settings › Time Clock (crm/pages/TimeClockSettingsPage.tsx; server crm/field/clockExtras.ts): the owner and admins, where Time Tracking is on. */
+const TIME_CLOCK_SETTINGS = { to: '/crm/settings/time-clock', label: 'Time Clock', icon: Clock, permission: 'company:update', feature: 'time_tracking' }
 
 /** Settings › Your data (crm/pages/ExportEverythingPage.tsx): every list the business has, one ZIP — the owner's and the admins'. */
 const EXPORT_SETTINGS = { to: '/crm/settings/export', label: 'Your Data', icon: FileArchive, permission: 'settings:update' }
@@ -79,7 +89,7 @@ export function Settings() {
   // workWeek: on for every vertical unless its settings say `workWeek: false` (the store runs no pay week). It used to be
   // passed as `true` after the vertical's own settings were spread, so no vertical could turn it off.
   const own = verticalScreens().settings as { workWeek?: boolean }
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, JOB_REMINDER_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, QUOTE_FOLLOWUP_SETTINGS, MARKUP_DEFAULTS_SETTINGS, JOB_REMINDER_SETTINGS, TIME_CLOCK_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />
@@ -99,7 +109,13 @@ export const LeadInbox = () => {
   const screens = verticalScreens() as any
   // Convert and start the work in one step: only what this trade has, the business has on, and this seat may create (leadStarts.ts).
   const startAfterConvert = leadStarts(screens, hasFeature, can)
-  return <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert }} subscribe={subscribeLive} />
+  // Lost with a reason, site visits and the pipeline strip are each their own switch (not ready): offered only where on.
+  return (
+    <>
+      <div className="px-6 pt-6"><LeadPipelineStrip /></div>
+      <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert, lost: hasFeature('lead_lost'), siteVisit: hasFeature('lead_site_visit') }} subscribe={subscribeLive} />
+    </>
+  )
 }
 
 export function AuditLog() {

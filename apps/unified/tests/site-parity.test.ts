@@ -38,7 +38,10 @@ const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ej
   'sections/menu/sections.ejs',
   // Site sections the old standard sites had (docs/site-sections/REPORT.md): a service card links to its service page and
   // lists its parts; the gallery has a filter bar once photos are sorted into groups.
-  'sections/services/cards-grid.ejs', 'sections/services/alternating.ejs', 'sections/gallery/grid.ejs'])
+  'sections/services/cards-grid.ejs', 'sections/services/alternating.ejs', 'sections/gallery/grid.ejs',
+  // The financing calculator shows a payment, an APR and a term only with the lender's own disclosure under them (field service
+  // parity item 11, 10/31: Wisetack's compliance rule, docs/parity/fieldservice-financing-needs.md row 5).
+  'sections/financing/calculator.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {

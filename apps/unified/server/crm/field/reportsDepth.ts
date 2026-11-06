@@ -101,7 +101,8 @@ export function createWipRoutes(d: CrmDeps) {
     const loose = await db.select().from(job)
       .where(and(eq(job.companyId, companyId), isNull(job.projectId), notInArray(job.status, ['completed', 'cancelled', 'canceled']))) as any[]
     const jobIds = [...onProjects, ...loose].map((j) => j.id)
-    const costs = await jobCosting.costsByJob(companyId, jobIds)
+    // Cost to date for the schedule of work in progress: the work, not what the job's people earned on it (commissions are not cost of completion).
+    const costs = await jobCosting.costsByJob(companyId, jobIds, { beforeCommissions: true })
     const projectOfJob = new Map<string, string>(onProjects.map((j) => [j.id, j.projectId]))
 
     // Billed: each invoice once, to the project it is on — or its job's project — or the loose job it bills.

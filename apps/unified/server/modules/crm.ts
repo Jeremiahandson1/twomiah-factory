@@ -6,6 +6,7 @@
 // Access: a module whose router signs people in itself AND answers a provider or a customer without a session
 // (texting's and Stripe's webhooks, QuickBooks' callback, a review link, an unsubscribe link) is mounted public, as the
 // template mounted it; every other one is mounted for signed-in users, and the registry signs them in first.
+import { createCommissionDisclaimer } from '../crm/roof/commissionDisclaimer.ts'
 import { checkAvailability } from '../data/techAvailability.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -18,9 +19,9 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createStripeLinkInternalRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
-  money, createAccountBalanceStore, documentLinkPath,
+  money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { asc, desc } from 'drizzle-orm'
+import { and, asc, desc, eq, eq as eqCol } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -30,12 +31,14 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
 } from '../db/schema/index.ts'
 import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
 import { salonTeamProductivity, notGiftCardSale } from '../data/salon.ts'
 import { createSalonClock } from '../crm/salon/days.ts'
+import { createSalonPortalHooks } from '../crm/salon/portalHooks.ts'
+import { createSalonPayees, createSalonPlanClash } from '../crm/salon/commissionPlans.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
 import { createEventsDashboardRoutes } from '../crm/restaurant/eventsDashboard.ts'
@@ -58,6 +61,7 @@ import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
 import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
 import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
+import { attachedChecklistFiles } from '../crm/field/checklistLife.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH, pictureToken } from '../crm/comms/smsMedia.ts'
@@ -65,19 +69,27 @@ import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
+import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
+import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
+import { createMarkupDefaultsRoutes } from '../crm/billing/markupDefaults.ts'
+import { createQuoteLineImageRoutes } from '../crm/billing/quoteLineImages.ts'
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
+import { createJobConfirm } from '../crm/field/jobConfirm.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { ownContactsWhere } from '../crm/ownWork.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../crm/salon/visitPhotos.ts'
+import { intakeFilesOf } from '../crm/salon/intakeForms.ts'
 import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
 import { createTextActivityRoutes } from '../crm/textActivity.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
+import { leadMounts } from '../crm/leads/index.ts'
+import { dashboardPanelMounts } from '../crm/dashboard/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
@@ -203,7 +215,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // A contact's visits go with it by the cascade, and their photo files with them (crm/salon/visitPhotos.ts — the one
     // rule every visit deletion path calls). Any vertical: service records are served wherever their features are on.
     beforeDelete: async (companyId: string, contactId: string) => {
-      const files = await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] })
+      // Their forms' photos, files and drawn signatures too (crm/salon/intakeForms.ts): health and consent records go with the client.
+      const files = [...await visitPhotoFilesOf(db, companyId, { contactIds: [contactId] }), ...await intakeFilesOf(db, companyId, [contactId])]
       return () => removeVisitPhotoFiles(s.storage, files)
     },
   })
@@ -216,7 +229,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ownContacts: (userId: string) => ownContactsWhere(db, userId),
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
-      extraFields: { optedOutSms: z.boolean().optional() },
+      extraFields: { optedOutSms: z.boolean().optional(), jobRemindersOff: z.boolean().optional() },
       // The one contact-delete rule, with its guards and its photo-file clean-up (contactDeleter above).
       deleter: contactDeleter,
       // The vertical's contact types, and what a converted lead becomes (CrmSettings.contacts; a dealership sells to
@@ -263,7 +276,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}),
-      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
+      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate, onPause: s.jobHooks.onPause, onResume: s.jobHooks.onResume,
       // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
       // Only for a business that has switched Tech Availability on.
       availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>
@@ -272,12 +285,16 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, quoteProposalOption, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, user, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, ...(sites ? { equipment, site } : {}) },
     authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
+    sendCosignEmail: (to: string, data: Record<string, unknown>) => s.emailService.send(to, 'quoteCosign', data),
+    storage: s.storage,
     loadPdf: loadQuotePdf,
     options: {
       hasLineCost: true, timeZoneFor,
+      // A picture on a quote line, kept only for a business with quote_line_images on (crm/billing/quoteLineImages.ts).
+      lineImagesEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_line_images'),
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),
@@ -290,7 +307,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A converted quote's invoice is numbered as every invoice is (CrmSettings.invoices.numbering; templates/crm-rv routes/quotes.ts).
       ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
       // A roofing proposal belongs to its job (quote.job_id; CrmSettings.roof).
-      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', ...(v.roof ? ['jobId'] : [])],
+      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', 'salespersonId', ...(v.roof ? ['jobId'] : [])],
       // An approved roofing proposal converts to a roofing job, made the one way a roofing job is made (ROOF-0001, titled
       // by the property address — server/crm/roof/jobs.ts insertRoofJob), at `signed`: an approved quote is the signed
       // contract. The CRM's default made a JOB-00001 at `pending`, a status no roofing screen has a column for.
@@ -332,7 +349,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         if (invoiceId) void syncEventInvoiceDueDate(db, invoiceId).catch((err: any) => logger.error('[events] invoice due-date sync failed', { error: err?.message }))
       },
     } : {}),
-    sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
+    // An invoice goes out with the checklist PDFs attached to it (crm/field/checklistLife.ts); one that cannot be read is left off.
+    sendInvoiceEmail: async (to: string, data: Record<string, unknown>) => {
+      const attachments = await attachedChecklistFiles(db, s.storage, String(data.invoiceId || ''))
+      return attachments.length ? s.emailService.send(to, 'invoiceSent', data, { attachments }) : s.emailService.sendInvoice(to, data)
+    },
     loadPdf: loadInvoicePdf, audit,
     options: {
       timeZoneFor, minLineItems: 1, afterMoney: async (invoiceId: string) => { await s.earnCommission(invoiceId); await s.afterInvoicePaid(invoiceId) },
@@ -355,6 +376,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A refund by gift card goes back onto the card, inside the refund's own transaction (crm/salon/giftCards.ts registers the doer).
       // A gift card's sale is not revenue (data/salon.ts notGiftCardSale): the list's money totals leave it out, as Reports do.
       ...(v.invoices?.giftCardSalesAreLiability ? { revenueOnly: notGiftCardSale } : {}),
+      // The salon's retail product link survives a general invoice edit (crm/salon/retail.ts lineEdit).
+      ...(v.invoices?.giftCardTender ? { lineEdit: s.lineEdit } : {}),
       ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
       ...(v.invoices?.accountBalance ? { accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
@@ -416,9 +439,17 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
     // no one feature; each action asks its permission.
     { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
+    // Saved quotes to start the next from, and the automatic nudge to a customer who has not answered (crm/billing; both not ready).
+    { path: '/api/quote-templates', access: 'user', feature: 'quote_templates', router: createQuoteTemplateRoutes(own) },
+    { path: '/api/quote-followup', access: 'user', feature: 'quote_followup', router: createQuoteFollowUpRoutes(own, s.quoteFollowUp) },
+    // The usual markup by kind of line, and a picture on a quote line (crm/billing; both not ready).
+    { path: '/api/markup-defaults', access: 'user', feature: 'markup_defaults', router: createMarkupDefaultsRoutes(own) },
+    { path: '/api/quote-line-images', access: 'user', feature: 'quote_line_images', router: createQuoteLineImageRoutes(own) },
     // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
     { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
+      // The order the salon dragged its team into (Settings › The Book › Team order) — every picker that reads this follows it.
+      teamOrder: async (companyId: string) => readTeamOrder((await db.select({ settings: company.settings }).from(company).where(eqCol(company.id, companyId)).limit(1))[0]?.settings),
       // A stylist holds appointments: removing one unassigns their chair (templates/crm-salon routes/team.ts, Salon T27 N14).
       // The unified job table carries assigned_to_member_id for every vertical, so jobs are counted too (the salon copy's
       // job table had no such column); the appointment comes first, so the reply speaks of appointments.
@@ -467,7 +498,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
-    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.dashboard === 'salon' ? { salesKinds: true } : {}) } as any) },
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.roof ? { ownWithheld: createCommissionDisclaimer(own).pendingFor } : {}), ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
@@ -545,7 +576,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/portal', access: 'public', router: inFront('/api/portal', createPortalRoutes({
       db,
       tables: {
-        contact, company, user, quote, quoteLineItem, quoteProposalOption, invoice, invoiceLineItem, payment, message, auditLog, activity,
+        contact, company, user, quote, quoteLineItem, quoteProposalOption, quoteProposalDocument, quoteProposalMark, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
         equipment, serviceAgreement, agreementVisit, formSubmission,
         // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).
@@ -556,6 +587,19 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       loadInvoicePdf, loadQuotePdf,
       selections: createSelectionsService(own),
       fileService: s.storage,
+      // Field service, basic: the visits still to come, each one confirmed with a button (crm/field/jobConfirm.ts; the Job Reminders feature).
+      // (Only field service and basic list it in their portal menu — verticals' clientNav — and it answers only with Job Reminders on.)
+      upcomingVisits: (() => {
+        const confirm = createJobConfirm(own)
+        return {
+          list: (companyId: string, contactId: string) => confirm.upcomingFor(companyId, contactId),
+          confirm: async (companyId: string, contactId: string, jobId: string) => {
+            const [mine] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, companyId), eq(job.contactId, contactId))).limit(1)
+            if (!mine) return { ok: false as const, error: 'That visit was not found.', status: 404 }
+            return confirm.confirm(companyId, jobId, 'portal')
+          },
+        }
+      })(),
       // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       ...live, logger,
@@ -572,7 +616,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
-      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: { appointment, service: serviceMenu, stylist: user, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}` } } : {}) },
+      options: { disable: v.portal.disable, ...(v.portal.appointments ? { appointments: {
+        appointment, service: serviceMenu, stylist: user, member: teamMember, booking, manageUrl: (token: string) => `${siteOrigin()}/booking/${token}`,
+        // Past visits with "Book again", the account page, moving a desk booking and booking inside the portal (crm/salon/portalHooks.ts).
+        salon: createSalonPortalHooks({ db, isFeatureEnabled: features.isFeatureEnabled, engine: s.bookingEngine }),
+      } } : {}) },
     } as any)) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },
@@ -589,6 +637,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ...homecareMounts(own),
     ...roofMounts(own),
     ...storeMounts(own),
+    // Lost with a reason, site visits and the pipeline strip (crm/leads; all not ready).
+    ...leadMounts(own),
+    // The owner's "needs you today" panel and the crew's "my day" (crm/dashboard; both not ready).
+    ...dashboardPanelMounts(own),
   ]
 }
 

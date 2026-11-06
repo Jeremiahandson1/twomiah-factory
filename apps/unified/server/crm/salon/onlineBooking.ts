@@ -19,8 +19,12 @@
 // (BookingAddOn.serviceList), and a booking of one writes the appointment with that menu item. Linking a row rather than
 // teaching the engine a second kind of service keeps every booking, deposit, buffer and reminder on the one table they
 // already hang off; the menu stays the only place a service's name, length and price are changed.
+import { createSalonClock } from './days.ts'
+import { createPatchTests } from './patchTests.ts'
 import { and, eq, gt, gte, inArray, isNull, lt, ne, notExists, notInArray, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { findOff, offSpans } from './timeOff.ts'
+import { readTeamOrder } from '@twomiah/tenant-backend'
 import { appointment, appointmentItem, bookBlock, booking, bookingService, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import { findStylistConflict } from './held.ts'
 import { piecesOf } from './segments.ts'
@@ -30,10 +34,40 @@ import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.t
 import { policyWords, type CardOnFile } from './cardOnFile.ts'
 import { siteOrigin } from '../../booking/happenings.ts'
 import { createIntakeForms } from './intakeForms.ts'
-import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor, stylistPickOn } from './patchTest.ts'
+import { offeredServiceId, patchTestHold, ruleOnFor, settingsOf, stateFor, stylistPickOn, stylistRequiredOn } from './patchTest.ts'
 
 /** The list a salon's online booking is, in the words the refusals and Booking settings use. */
 export const SERVICE_LIST = 'Service Menu'
+
+/**
+ * A change made at the desk to an appointment that has a booking behind it (booked online, or given a booking page by the client portal) is
+ * carried to the booking: cancelled or no-show frees the time, and a new time or stylist moves it. Without this the booking went on holding the
+ * old time online and its page offered to move or cancel an appointment that was already gone. Completed is left alone (the salon's own review
+ * and rebook messages cover a finished visit). Never throws: the desk's change has been made.
+ */
+export async function carryToBooking(exec: any, appt: { id: string; companyId: string; status: string; startTime: Date; endTime: Date | null; stylistId: string | null; cancelledAt?: Date | null }) {
+  try {
+    const rows = await exec.select().from(booking).where(and(eq(booking.companyId, appt.companyId), eq(booking.appointmentId, appt.id), inArray(booking.status, ['pending', 'confirmed'])))
+    for (const b of rows as any[]) {
+      if (appt.status === 'cancelled' || appt.status === 'no_show') {
+        await exec.update(booking).set({
+          status: appt.status, updatedAt: new Date(),
+          ...(appt.status === 'cancelled' ? { cancelledAt: appt.cancelledAt ?? new Date(), cancelledReason: 'staff', depositStatus: b.depositStatus === 'pending' || b.depositStatus === 'forms' ? 'expired' : b.depositStatus } : {}),
+        }).where(eq(booking.id, b.id))
+      } else if (['scheduled', 'confirmed'].includes(appt.status)) {
+        const start = new Date(appt.startTime), end = appt.endTime ? new Date(appt.endTime) : null
+        const moved = start.getTime() !== new Date(b.startAt).getTime() || (end && end.getTime() !== new Date(b.endAt).getTime())
+        const person = appt.stylistId && appt.stylistId !== b.assignedUserId
+        if (moved || person) {
+          await exec.update(booking).set({
+            startAt: start, ...(end ? { endAt: end } : {}), ...(person ? { assignedUserId: appt.stylistId } : {}),
+            ...(moved ? { reminderEmailSentAt: null, reminderSmsSentAt: null } : {}), updatedAt: new Date(),
+          }).where(eq(booking.id, b.id))
+        }
+      }
+    }
+  } catch { /* the desk's change stands */ }
+}
 
 type MenuItem = typeof serviceMenu.$inferSelect
 
@@ -47,7 +81,7 @@ type MenuItem = typeof serviceMenu.$inferSelect
  */
 export async function keepOnlineService(exec: any, m: MenuItem) {
   const offered = m.bookableOnline && m.active
-  const values = { name: m.name, description: m.description ?? null, durationMinutes: m.durationMin, price: m.price ?? null, priceIsFrom: m.priceIsFrom, rebookIntervalDays: null, active: offered, updatedAt: new Date() }
+  const values = { name: m.name, description: m.description ?? null, durationMinutes: m.durationMin, price: m.price ?? null, priceIsFrom: m.priceIsFrom, prepay: m.prepayOnline && !m.priceIsFrom && m.price != null && Number(m.price) > 0, rebookIntervalDays: null, active: offered, updatedAt: new Date() }
   const [linked] = await exec.select({ id: bookingService.id }).from(bookingService).where(and(eq(bookingService.companyId, m.companyId), eq(bookingService.serviceMenuId, m.id))).limit(1)
   if (linked) { await exec.update(bookingService).set(values).where(eq(bookingService.id, linked.id)); return }
   if (!offered) return
@@ -72,22 +106,37 @@ const DEFAULT_MINUTES = 60
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
-export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; db?: any } = {}): BookingAddOn {
+export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean>; db?: any; storage?: any; released?: (companyId: string, contactId: string) => Promise<unknown> } = {}): BookingAddOn {
   return {
     questions: [],
     serviceList: { name: SERVICE_LIST },
+    // The confirmation and the reminder tell a client whose service needs a patch test that they need one (patchTests.needNote).
+    async note(b, svc) {
+      if (!opts.db || !b.contactId) return null
+      return createPatchTests(opts.db, createSalonClock(opts.db)).needNote(b.companyId, b.contactId, (svc as any)?.serviceMenuId ?? null)
+    },
 
     // Clients choose their stylist (Settings › The Book; the feature `client_stylist_pick`): off unless the salon switched it on.
     // The salon's intake and consent forms, offered on the booking's page (feature `intake_forms`); none until the salon builds one.
     forms: opts.db ? (() => {
-      const kept = createIntakeForms({ db: opts.db })
+      const kept = createIntakeForms({ db: opts.db, storage: opts.storage, released: opts.released })
       const on = async (companyId: string) => !!opts.isFeatureEnabled && await opts.isFeatureEnabled(companyId, 'intake_forms')
+      const offer = (f: any) => ({ id: f.id, name: f.name, kind: f.kind, intro: f.intro, questions: f.questions as any[], signature: (f.signature === 'drawn' ? 'drawn' : 'typed') as 'typed' | 'drawn', beforeConfirm: !!f.beforeConfirm, expired: !!f.expired })
       return {
         async pending(a: { companyId: string; contactId: string; serviceMenuId: string | null }) {
-          return (await on(a.companyId)) ? (await kept.pending(a.companyId, a.contactId, a.serviceMenuId)).map((f) => ({ id: f.id, name: f.name, kind: f.kind, intro: f.intro, questions: f.questions as any[] })) : []
+          return (await on(a.companyId)) ? (await kept.pending(a.companyId, a.contactId, a.serviceMenuId)).map(offer) : []
         },
-        async submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string) {
-          return (await on(a.companyId)) ? kept.submit(a, formId, answers, signedName) : 'Forms are not available.'
+        async submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string, extra?: any) {
+          return (await on(a.companyId)) ? kept.submit(a, formId, answers, signedName, extra) : 'Forms are not available.'
+        },
+        async blocking(a: { companyId: string; contactId: string; serviceMenuId: string | null }, exec?: any) {
+          return (await on(a.companyId)) ? kept.blocking(a, exec) : 0
+        },
+        async request(a: { companyId: string; token: string }) {
+          return (await on(a.companyId)) ? kept.request(a) : null
+        },
+        async answerRequest(a: { companyId: string; token: string }, answers: Record<string, unknown>, signedName: string, extra?: any) {
+          return (await on(a.companyId)) ? kept.answerRequest(a, answers, signedName, extra) : 'Forms are not available.'
         },
       }
     })() : undefined,
@@ -96,6 +145,13 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       async enabled(companyId) {
         if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false
         return stylistPickOn(await settingsOf(opts.db, companyId))
+      },
+      // The salon's own team order (Settings › The Book › Team order): the stylists a client may choose between follow it.
+      async order(companyId) { return opts.db ? readTeamOrder(await settingsOf(opts.db, companyId)) : [] },
+      // "Choice required": the client must pick a named stylist; "anyone" is not offered (Settings › The Book).
+      async required(companyId) {
+        if (!opts.db || !opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'client_stylist_pick'))) return false
+        return stylistRequiredOn(await settingsOf(opts.db, companyId))
       },
     },
 
@@ -168,6 +224,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
           eq(bookBlock.companyId, companyId), or(eq(bookBlock.stylistId, b.assignedUserId), and(isNull(bookBlock.stylistId), isNull(bookBlock.stylistMemberId))),
           lt(bookBlock.startTime, b.endAt), gt(bookBlock.endTime, b.startAt))).limit(1)
         if (blocked) throw new BookingError('That time has just been taken — please pick another.', 409, 'taken')
+        // A day off or a closed day (timeOff.ts): the same, and the client is never told why.
+        if (await findOff(tx, companyId, [{ stylist: { stylistId: b.assignedUserId, stylistMemberId: null }, start: b.startAt, end: b.endAt }])) throw new BookingError('That time has just been taken — please pick another.', 409, 'taken')
       }
       // The name typed is kept on the appointment when the client record (found by email) carries another (Vet T12 L11).
       const [owner] = await tx.select({ name: contact.name }).from(contact).where(eq(contact.id, contactId)).limit(1)
@@ -196,6 +254,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       if (!b.appointmentId) return
       const own = and(eq(appointment.id, b.appointmentId), eq(appointment.companyId, b.companyId), notInArray(appointment.status, ['completed', 'in_chair', 'checked_in']))
       if (change === 'moved') await exec.update(appointment).set({ startTime: b.startAt, endTime: b.endAt, stylistId: b.assignedUserId ?? null, updatedAt: new Date() }).where(own)
+      // A hold that ran out and then came back (a late card or payment, the time still free): the visit is on the Book again.
+      else if (b.status === 'confirmed' && change === 'status') await exec.update(appointment).set({ status: 'scheduled', cancelledAt: null, updatedAt: new Date() }).where(and(own, eq(appointment.status, 'cancelled')))
       else if (b.status === 'cancelled' || b.status === 'no_show') await exec.update(appointment).set({ status: b.status, updatedAt: new Date(), ...(b.status === 'cancelled' ? { cancelledAt: b.cancelledAt ?? new Date() } : {}) }).where(own)
     },
 
@@ -233,6 +293,8 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       const blocks = await exec.select({ stylistId: bookBlock.stylistId, memberId: bookBlock.stylistMemberId, start: bookBlock.startTime, end: bookBlock.endTime }).from(bookBlock)
         .where(and(eq(bookBlock.companyId, companyId), lt(bookBlock.startTime, to), gt(bookBlock.endTime, from)))
       for (const k of blocks) if (k.stylistId || !k.memberId) out.push({ userId: k.stylistId ?? null, start: new Date(k.start), end: new Date(k.end) })
+      // Approved time off and closed days (timeOff.ts): a stylist's, or everybody's.
+      for (const o of await offSpans(exec, companyId, from, to)) if (o.stylistId || !o.stylistMemberId) out.push({ userId: o.stylistId ?? null, start: o.start, end: o.end })
       return out
     },
   }

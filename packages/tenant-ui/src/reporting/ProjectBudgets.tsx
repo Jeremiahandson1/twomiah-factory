@@ -6,8 +6,8 @@ import React, { useEffect, useState } from 'react'
 import { money } from '../invoicing/ui'
 import type { ReportingApi } from './types'
 
-type Line = { costCode: string; estimatedCost: number; estimatedPrice: number; uncostedLines: number }
-type Budget = { projectName: string; lines: Line[]; totalCost: number; totalPrice: number; uncostedLines: number; actualCost: number; remainingCost: number; jobCount: number }
+type Line = { costCode: string; estimatedCost: number; estimatedPrice: number; uncostedLines: number; actualCost?: number; overBy?: number; profit?: number; margin?: number | null }
+type Budget = { projectName: string; lines: Line[]; totalCost: number; totalPrice: number; uncostedLines: number; actualCost: number; remainingCost: number; jobCount: number; byCode?: boolean; unbudgeted?: Array<{ costCode: string; actualCost: number }>; totalProfit?: number }
 type Proj = { id: string; name: string; number?: string }
 
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
@@ -75,6 +75,8 @@ export function ProjectBudgets({ api }: { api: ReportingApi }) {
                 <th className="py-2 pr-3 text-left text-xs uppercase text-gray-600 dark:text-slate-400">Cost code</th>
                 <th className={th}>Budgeted cost</th>
                 <th className={th}>Priced at</th>
+                {budget.byCode && <th className={th}>Actual cost</th>}
+                {budget.byCode && <th className={th}>Expected profit</th>}
               </tr>
             </thead>
             <tbody>
@@ -83,6 +85,16 @@ export function ProjectBudgets({ api }: { api: ReportingApi }) {
                   <td className="py-2 pr-3 text-gray-900 dark:text-slate-100">{l.costCode}</td>
                   <td className={td}>{money(l.estimatedCost)}</td>
                   <td className={td}>{money(l.estimatedPrice)}</td>
+                  {budget.byCode && <td className={`${td} ${(l.overBy || 0) > 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{money(l.actualCost || 0)}</td>}
+                  {budget.byCode && <td className={`${td} ${(l.profit || 0) < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{money(l.profit || 0)}{l.margin != null ? ` (${l.margin}%)` : ''}</td>}
+                </tr>
+              ))}
+              {budget.byCode && (budget.unbudgeted || []).map((u) => (
+                <tr key={'u-' + u.costCode} className="border-b border-gray-100 dark:border-slate-800">
+                  <td className="py-2 pr-3 text-gray-900 dark:text-slate-100">{u.costCode} <span className={`text-xs ${muted}`}>(not on the budget)</span></td>
+                  <td className={td}>{money(0)}</td><td className={td}>{money(0)}</td>
+                  <td className={`${td} text-red-600 dark:text-red-400`}>{money(u.actualCost)}</td>
+                  <td className={`${td} text-red-600 dark:text-red-400`}>{money(-u.actualCost)}</td>
                 </tr>
               ))}
             </tbody>
@@ -95,6 +107,12 @@ export function ProjectBudgets({ api }: { api: ReportingApi }) {
               <dd className={`font-semibold tabular-nums ${over ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>{money(Math.abs(budget.remainingCost))}</dd>
             </div>
           </dl>
+          {budget.byCode && (
+            <p className={`text-xs ${muted} mt-3`}>
+              Expected profit is the price less the larger of the budget and what the line has cost so far. Cost with no cost code files under "Uncoded".
+              {typeof budget.totalProfit === 'number' && <> Expected profit on the whole project: <span className="font-semibold">{money(budget.totalProfit)}</span>.</>}
+            </p>
+          )}
           {budget.uncostedLines > 0 && (
             <p className={`text-xs ${muted} mt-3`}>
               {budget.uncostedLines} quote {budget.uncostedLines === 1 ? 'line has' : 'lines have'} no cost entered, so the budget may be lower than the work will really cost.

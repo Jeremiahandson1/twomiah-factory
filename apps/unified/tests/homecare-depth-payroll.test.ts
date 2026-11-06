@@ -31,7 +31,7 @@ const calc = async (start = '2026-11-01', end = '2026-11-07') => (await send('ow
 const seg = (id: string, date: string, hours: number, kind: 'work' | 'travel' = 'work'): Segment => ({ id, kind, clientId: 'c', date, minutes: Math.round(hours * 60) })
 const sums = (rows: any[]) => rows.reduce((t, r) => [t[0] + r.regular, t[1] + r.overtime, t[2] + r.doubleTime], [0, 0, 0]).map((m: number) => m / 60)
 
-const visit = (over: Partial<any> = {}) => ({ id: 'v', caregiverId: 'g', clientId: 'a', shiftDate: '2026-11-02', minutes: 120, actualStart: null, actualEnd: null, scheduledStart: null, scheduledEnd: null, ...over })
+const visit = (over: Partial<any> = {}): any => ({ id: 'v', caregiverId: 'g', clientId: 'a', shiftDate: '2026-11-02', minutes: 120, actualStart: null, actualEnd: null, scheduledStart: null, scheduledEnd: null, ...over })
 
 describe('home care — pay rules: the rule engine (pure)', () => {
   test('federal: only hours over 40 in the week', () => {
@@ -61,7 +61,7 @@ describe('home care — pay rules: the rule engine (pure)', () => {
     expect(sums(classifyWeek(one, OVERTIME_RULES.colorado))).toEqual([12, 1, 0])
   })
   test('travel: paid up to the cap when the gap is short enough, between different clients, from times of the same kind', () => {
-    const tr = { enabled: true, maxGapMinutes: 60, capMinutes: 30 }
+    const tr = { enabled: true, maxGapMinutes: 60, capMinutes: 30, rateCents: null, method: 'gap' as const, roundToMinutes: 1, fromHome: false, mileageFromVisits: false }
     const a = visit({ id: 'a', clientId: 'x', scheduledStart: '2026-11-02T09:00:00', scheduledEnd: '2026-11-02T11:00:00' })
     const after = (gapMin: number, over: Partial<any> = {}) => {
       const startMs = Date.parse('2026-11-02T11:00:00Z') + gapMin * 60_000
@@ -119,8 +119,8 @@ describe('home care — pay rules: the pay run', () => {
     expect((await send('owner', 'PUT', '/api/pay-rules', { overtimeRule: 'mars' })).body.code).toBe('bad_rule')
     expect((await send('owner', 'PUT', '/api/pay-rules', { travel: { enabled: true, maxGapMinutes: 0 } })).body.code).toBe('bad_travel')
     const got = await send('owner', 'GET', '/api/pay-rules')
-    expect(got.body.rules).toEqual({ overtimeRule: 'federal', travel: { enabled: false, maxGapMinutes: 60, capMinutes: 30 } })
-    expect(got.body.overtimeRules.map((r: any) => r.id)).toEqual(['federal', 'california', 'alaska', 'colorado'])
+    expect(got.body.rules).toMatchObject({ overtimeRule: 'federal', travel: { enabled: false, maxGapMinutes: 60, capMinutes: 30 } })
+    expect(got.body.overtimeRules.map((r: any) => r.id)).toEqual(['federal', 'california', 'california_personal_attendant', 'alaska', 'nevada', 'colorado', 'kentucky'])
   })
 
   test('california with travel: daily overtime, double time and the 30 minutes between Alma and Ben', async () => {
@@ -131,7 +131,7 @@ describe('home care — pay rules: the pay run', () => {
     expect(line).toMatchObject({ regularHours: 21.5, overtimeHours: 6, doubleTimeHours: 1, travelHours: 0.5, totalHours: 28.5, shifts: 4 })
     // 21.5 × 20 + 6 × 30 + 1 × 40
     expect(line).toMatchObject({ regularPay: 430, overtimePay: 180, doubleTimePay: 40, wagesPay: 650 })
-    expect(line.weeks).toEqual([{ weekStart: '2026-11-01', hours: 28.5, regularHours: 21.5, overtimeHours: 6, doubleTimeHours: 1 }])
+    expect(line.weeks).toMatchObject([{ weekStart: '2026-11-01', hours: 28.5, regularHours: 21.5, overtimeHours: 6, doubleTimeHours: 1, blendedRate: 20, pay: 650 }])
   })
 
   test('a range that starts mid-week is paid only for its own days', async () => {
@@ -157,7 +157,7 @@ describe('home care — pay rules: the pay run', () => {
     const csv = await send('owner', 'GET', '/api/gusto/export-csv?startDate=2026-11-01&endDate=2026-11-07')
     expect(csv.status).toBe(200)
     expect(csv.text.split('\n')[0]).toContain('Double Overtime Hours')
-    expect(csv.text.split('\n')[1]).toEndWith('1.00')
+    expect(csv.text.split('\n')[1]).toContain(',28.50,1.00,')
     expect((await send('owner', 'POST', '/api/gusto/export', {})).status).toBe(404)
   })
 

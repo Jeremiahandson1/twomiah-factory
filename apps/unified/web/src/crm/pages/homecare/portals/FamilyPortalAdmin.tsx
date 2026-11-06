@@ -27,13 +27,26 @@ import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { PasswordInput } from '../../../../shared'
 
-type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canMessage'
+type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canManagePayments' | 'canMessage'
 // A relative's switches: [the API's name, the label].
 const PERMISSIONS: Array<[PermKey, string]> = [
   ['canViewSchedule', 'Schedule'],
   ['canViewCarePlan', 'Care plan'],
   ['canViewMedications', 'Medications & vitals'],
   ['canMessage', 'Messages'],
+]
+// With care_family_content on, vitals and documents are their own switches and the medicines one says so. With care_autopay on
+// (row 22), a relative can be let manage the card or bank account that pays the invoices.
+const permissionsFor = (content: boolean, payments = false): Array<[PermKey, string]> => [
+  ...(!content ? PERMISSIONS : [
+    ['canViewSchedule', 'Schedule'],
+    ['canViewCarePlan', 'Care plan and daily care'],
+    ['canViewMedications', 'Medicine list'],
+    ['canViewVitals', 'View vitals'],
+    ['canViewDocuments', 'View documents'],
+    ['canMessage', 'Messages'],
+  ] as Array<[PermKey, string]>),
+  ...(payments ? [['canManagePayments', 'Manage payments (card or bank on file)']] as Array<[PermKey, string]> : []),
 ]
 
 interface Member {
@@ -46,9 +59,17 @@ interface Member {
   isActive: boolean
   isPrimaryContact: boolean | null
   visitTextOptIn?: boolean | null
+  visitTextConsentWording?: string | null
+  visitTextOptOutAt?: string | null
+  visitEmailOptIn?: boolean | null
+  visitEmailOptInAt?: string | null
+  visitEmailConsentWording?: string | null
   canViewSchedule: boolean | null
   canViewCarePlan: boolean | null
   canViewMedications: boolean | null
+  canViewVitals?: boolean | null
+  canViewDocuments?: boolean | null
+  canManagePayments?: boolean | null
   canMessage: boolean | null
   lastLogin: string | null
   clientFirstName: string | null
@@ -124,6 +145,8 @@ export default function FamilyPortalAdmin() {
   const { can } = usePermissions()
   const mayCreate = can('care-portal:create')
   const showQuietHours = useAuth().hasFeature('care_family_texts') && can('care-portal:update')
+  const contentOn = useAuth().hasFeature('care_family_content')
+  const paymentsOn = useAuth().hasFeature('care_autopay')
   const [familyMembers, setFamilyMembers] = useState<Member[]>([])
   const [messages, setMessages] = useState<FamilyMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -396,7 +419,7 @@ export default function FamilyPortalAdmin() {
                       <td>
                         {/* What the relative can see; changed in ✏️ Edit (one door, saved together). */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                          {PERMISSIONS.map(([key, label]) => {
+                          {permissionsFor(contentOn, paymentsOn).map(([key, label]) => {
                             const on = !!member[key]
                             return <span key={key}>{on ? '✓' : '✗'} {label}{on ? '' : ' (off)'}</span>
                           })}
@@ -592,15 +615,17 @@ export default function FamilyPortalAdmin() {
 // ── Add a relative ──
 interface AddForm {
   clientId: string; firstName: string; lastName: string; email: string; phone: string; relationship: string; password: string
-  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean
+  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; canMessage: boolean
 }
 
 function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[]; onSubmit: (f: AddForm) => void; onCancel: () => void }) {
   const toast = useToast()
   const [formData, setFormData] = useState<AddForm>({
     clientId: '', firstName: '', lastName: '', email: '', phone: '', relationship: 'child', password: '',
-    canViewSchedule: true, canViewCarePlan: true, canViewMedications: false, canMessage: true,
+    canViewSchedule: true, canViewCarePlan: true, canViewMedications: false, canViewVitals: false, canViewDocuments: false, canManagePayments: false, canMessage: true,
   })
+  const contentOn = useAuth().hasFeature('care_family_content')
+  const addPaymentsOn = useAuth().hasFeature('care_autopay')
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -612,7 +637,9 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
       toast.error('Password must be at least 8 characters')
       return
     }
-    onSubmit(formData)
+    // Feature off: the vitals and documents switches are not shown, so leave them out and the server keeps vitals with the medicines switch.
+    const { canViewVitals, canViewDocuments, ...rest } = formData
+    onSubmit((contentOn ? formData : rest) as AddForm)
   }
 
   const box = (key: PermKey, label: string) => (
@@ -677,7 +704,10 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
           {box('canViewSchedule', 'View Schedule')}
           {box('canViewCarePlan', 'View Care Plan')}
-          {box('canViewMedications', 'View Medications')}
+          {box('canViewMedications', contentOn ? 'View Medicine list' : 'View Medications')}
+          {contentOn && box('canViewVitals', 'View vitals')}
+          {contentOn && box('canViewDocuments', 'View documents')}
+          {addPaymentsOn && box('canManagePayments', 'Manage payments (card or bank on file)')}
           {box('canMessage', 'Send Messages')}
         </div>
       </div>
@@ -694,8 +724,9 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
 const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'guardian', 'other']
 interface EditPatch {
   name: string; phone: string; relationship: string
-  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canMessage: boolean; isPrimaryContact: boolean
+  canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; canMessage: boolean; isPrimaryContact: boolean
   visitTextOptIn: boolean
+  visitEmailOptIn: boolean
 }
 
 function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubmit: (patch: EditPatch) => Promise<void>; onCancel: () => void }) {
@@ -707,11 +738,23 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
     canViewSchedule: !!member.canViewSchedule,
     canViewCarePlan: !!member.canViewCarePlan,
     canViewMedications: !!member.canViewMedications,
+    canViewVitals: !!member.canViewVitals,
+    canViewDocuments: !!member.canViewDocuments,
+    canManagePayments: !!member.canManagePayments,
     canMessage: !!member.canMessage,
     isPrimaryContact: !!member.isPrimaryContact,
     visitTextOptIn: !!member.visitTextOptIn,
+    visitEmailOptIn: !!member.visitEmailOptIn,
   })
   const textsOn = useAuth().hasFeature('care_family_texts')
+  const editContentOn = useAuth().hasFeature('care_family_content')
+  const editPaymentsOn = useAuth().hasFeature('care_autopay')
+  const commsOn = useAuth().hasFeature('care_family_comms')
+  const [words, setWords] = useState('')
+  const [emailWords, setEmailWords] = useState('')
+  useEffect(() => {
+    if (commsOn) api.get('/api/family-comms/consent-wording').then((r: any) => { setWords(r?.text || ''); setEmailWords(r?.email || '') }).catch(() => {})
+  }, [commsOn, textsOn])
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -742,7 +785,7 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
       <div className="form-group">
         <label>What they can see in the family portal</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-          {PERMISSIONS.map(([key, label]) => (
+          {permissionsFor(editContentOn, editPaymentsOn).map(([key, label]) => (
             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <input type="checkbox" checked={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} />
               {label}
@@ -763,6 +806,32 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
             Text them when the caregiver arrives and when they leave
           </label>
           <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Needs a phone number. No texts between 9 PM and 8 AM; they can reply STOP at any time.</small>
+          {commsOn && (
+            <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: 'var(--hc-ink-soft)' }}>
+              {member.visitTextOptIn && member.visitTextConsentWording
+                ? <>What they agreed to, kept with their yes: &ldquo;{member.visitTextConsentWording}&rdquo;</>
+                : member.visitTextOptIn
+                  ? <>Their yes was recorded before the words were kept.</>
+                  : words ? <>Ticking this records their yes to: &ldquo;{words}&rdquo; Read it to them first.</> : null}
+              {member.visitTextOptOutAt && !member.visitTextOptIn ? <div>They replied STOP on {formatDateTime(member.visitTextOptOutAt)}. Texts stay off until you record a new yes.</div> : null}
+            </div>
+          )}
+        </div>
+      )}
+      {commsOn && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input type="checkbox" checked={form.visitEmailOptIn} onChange={(e) => setForm({ ...form, visitEmailOptIn: e.target.checked })} />
+            Email them when the caregiver arrives and when they leave
+          </label>
+          <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Goes to their login email.</small>
+          <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: 'var(--hc-ink-soft)' }}>
+            {member.visitEmailOptIn && member.visitEmailConsentWording
+              ? <>What they agreed to, kept with their yes{member.visitEmailOptInAt ? ` on ${formatDateTime(member.visitEmailOptInAt)}` : ''}: &ldquo;{member.visitEmailConsentWording}&rdquo;</>
+              : member.visitEmailOptIn
+                ? <>Their yes was recorded before the words were kept.</>
+                : emailWords ? <>Ticking this records their yes to: &ldquo;{emailWords}&rdquo; Read it to them first.</> : null}
+          </div>
         </div>
       )}
       <div className="modal-actions">

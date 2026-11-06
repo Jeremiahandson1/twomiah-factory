@@ -2,12 +2,12 @@
 // payment reminders / pay links / card on file, the guarantee note, the room minimums, the room calendar with its
 // waitlist and feeds, the lead-source and year reports, and the venue's event settings. Each shows only with its own
 // feature on (all of them not ready) and asks the permission its server route asks.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode, type DragEvent as ReactDragEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2 } from 'lucide-react'
+import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, CalendarDays, Rss, Plus, Trash2, Download, BarChart3, Settings2, Link2, ArrowUp, ArrowDown, Check, ScrollText, Landmark, RefreshCw } from 'lucide-react'
 import { api } from '../api'
 import { useAuth, useToast, useConfirm, usePrompt, errorText } from '../shared'
-import { money } from '@twomiah/tenant-ui/src/money'
+import { money, moneyCents } from '@twomiah/tenant-ui/src/money'
 import { companyTodayKey, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const client = api as any
@@ -72,8 +72,9 @@ export function GuaranteeNote({ guarantee, event }: { guarantee?: { cutoff: stri
 // ── On the event: proposals ──────────────────────────────────────────────────────────────────────────────────────────
 interface Choice { id?: string; label: string; price: string; perPerson: boolean }
 interface OptionGroup { id?: string; title: string; kind: 'single' | 'multi'; required: boolean; choices: Choice[] }
-interface Proposal { id: string; version: number; status: string; message?: string | null; options: Array<{ id: string; title: string; kind: 'single' | 'multi'; required: boolean; choices: Array<{ id: string; label: string; price: number; perPerson: boolean }> }>; selections?: Record<string, string[]>; path?: string; sentAt?: string | null; expiresAt?: string | null; acceptedAt?: string | null; signedBy?: string | null; declineReason?: string | null; stale?: boolean }
-const PSTATUS: Record<string, string> = { draft: 'Draft', sent: 'Sent', viewed: 'Opened', accepted: 'Signed', declined: 'Declined', expired: 'Expired', superseded: 'Replaced' }
+interface SignerRow { position: number; role: string; roleLabel: string; name: string | null; status: string; email?: string; path?: string; signedAt?: string | null }
+interface Proposal { id: string; version: number; status: string; contractName?: string | null; signers?: SignerRow[]; message?: string | null; options: Array<{ id: string; title: string; kind: 'single' | 'multi'; required: boolean; choices: Array<{ id: string; label: string; price: number; perPerson: boolean }> }>; selections?: Record<string, string[]>; path?: string; sentAt?: string | null; expiresAt?: string | null; acceptedAt?: string | null; signedBy?: string | null; declineReason?: string | null; stale?: boolean }
+const PSTATUS: Record<string, string> = { draft: 'Draft', sent: 'Sent', viewed: 'Opened', partly_signed: 'Part signed', accepted: 'Signed', declined: 'Declined', expired: 'Expired', superseded: 'Replaced' }
 
 export function ProposalsPanel({ eventId, onChanged }: { eventId: string; onChanged: () => void }) {
   const { hasFeature, can } = useAuth()
@@ -118,13 +119,24 @@ export function ProposalsPanel({ eventId, onChanged }: { eventId: string; onChan
               <span className="font-medium">Proposal {p.version} <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${p.status === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200'}`}>{PSTATUS[p.status] || p.status}</span></span>
               <span className="flex flex-wrap gap-2">
                 {p.status === 'draft' && mayEdit && <button type="button" className={primary} onClick={() => send(p)}><Send className="w-4 h-4" />Send</button>}
-                {p.path && ['sent', 'viewed'].includes(p.status) && <button type="button" className={btn} onClick={() => copy(toast, abs(p.path!))}><Copy className="w-4 h-4" />Copy link</button>}
-                {['sent', 'viewed'].includes(p.status) && mayEdit && <button type="button" className={btn} onClick={() => withdraw(p)}><Ban className="w-4 h-4" />Withdraw</button>}
+                {p.path && !(p.signers && p.signers.length > 1) && ['sent', 'viewed'].includes(p.status) && <button type="button" className={btn} onClick={() => copy(toast, abs(p.path!))}><Copy className="w-4 h-4" />Copy link</button>}
+                {['sent', 'viewed', 'partly_signed'].includes(p.status) && mayEdit && <button type="button" className={btn} onClick={() => withdraw(p)}><Ban className="w-4 h-4" />Withdraw</button>}
                 <button type="button" className={btn} onClick={() => pdf(p)}><Download className="w-4 h-4" />PDF</button>
               </span>
             </div>
             {p.stale && <p role="alert" className="mt-2 text-amber-800 dark:text-amber-300">The date, time, room or head count changed after this was sent — the client can’t sign it. Send a new one.</p>}
-            {p.status === 'accepted' && <p className="mt-2 text-green-800 dark:text-green-300">Signed by {p.signedBy}{p.acceptedAt ? ` on ${whenDateTime(p.acceptedAt)}` : ''}.</p>}
+            {p.status === 'accepted' && !(p.signers && p.signers.length > 1) && <p className="mt-2 text-green-800 dark:text-green-300">Signed by {p.signedBy}{p.acceptedAt ? ` on ${whenDateTime(p.acceptedAt)}` : ''}.</p>}
+            {p.contractName && <p className={`mt-2 ${muted}`}><ScrollText className="w-4 h-4 inline mr-1" />Contract: {p.contractName}</p>}
+            {p.signers && p.signers.length > 1 && (
+              <ol className="mt-2 space-y-1" data-testid="proposal-signers">
+                {p.signers.map((sg) => (
+                  <li key={sg.position} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">{sg.status === 'signed' ? <Check className="w-4 h-4 text-green-700 dark:text-green-300" /> : <span className="w-4" />}<strong>{sg.roleLabel}</strong> {sg.name || ''}<span className={muted}>{sg.status === 'signed' && sg.signedAt ? `signed ${whenDateTime(sg.signedAt)}` : sg.status === 'sent' ? 'has the link, not signed' : sg.status === 'waiting' ? 'waiting its turn' : 'in the draft'}</span></span>
+                    {sg.path && mayEdit && <button type="button" className={btn} onClick={() => copy(toast, abs(sg.path!))}><Copy className="w-4 h-4" />Copy link</button>}
+                  </li>
+                ))}
+              </ol>
+            )}
             {p.status === 'declined' && <p className="mt-2">Declined{p.declineReason ? `: “${p.declineReason}”` : '.'}</p>}
             {p.options.length > 0 && <p className={`mt-2 ${muted}`}>{p.options.map((o) => `${o.title} (${o.choices.length})`).join(' · ')}</p>}
           </li>
@@ -135,8 +147,28 @@ export function ProposalsPanel({ eventId, onChanged }: { eventId: string; onChan
   )
 }
 
+interface ContractTemplate { id: string; name: string; body: string; isDefault: boolean; active: boolean }
+interface SignerDraft { role: 'client' | 'client_second' | 'venue'; name: string; email: string }
+const SIGNER_WORDS: Record<SignerDraft['role'], string> = { client: 'Client', client_second: 'Second client signer', venue: 'Venue (countersignature)' }
+
 function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClose: () => void; onMade: () => void }) {
   const toast = useToast()
+  const { hasFeature } = useAuth()
+  const contracts = hasFeature('event_contracts')
+  const [templates, setTemplates] = useState<ContractTemplate[]>([])
+  const [templateId, setTemplateId] = useState<string>('')
+  const [preview, setPreview] = useState('')
+  const [signers, setSigners] = useState<SignerDraft[]>([{ role: 'client', name: '', email: '' }])
+  useEffect(() => {
+    if (!contracts) return
+    client.get('/api/event-contracts').then((r: { data: ContractTemplate[] }) => { const on = r.data.filter((t) => t.active); setTemplates(on); setTemplateId(on.find((t) => t.isDefault)?.id || '') }).catch(() => setTemplates([]))
+  }, [contracts])
+  useEffect(() => {
+    if (!templateId) { setPreview(''); return }
+    client.get(`/api/event-contracts/${templateId}/preview`, { eventId }).then((r: { text: string }) => setPreview(r.text)).catch(() => setPreview(''))
+  }, [templateId, eventId])
+  const addSigner = (role: SignerDraft['role']) => setSigners((x) => (x.some((y) => y.role === role) ? x : [...x, { role, name: '', email: '' }]))
+  const moveSigner = (i: number, by: -1 | 1) => setSigners((x) => { const n = [...x]; const j = i + by; if (j < 1 || j >= n.length) return x; [n[i], n[j]] = [n[j], n[i]]; return n })
   const [message, setMessage] = useState('')
   const [groups, setGroups] = useState<OptionGroup[]>([])
   const [busy, setBusy] = useState(false)
@@ -146,7 +178,7 @@ function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClos
   const submit = async () => {
     setBusy(true); setErr('')
     try {
-      await client.post('/api/event-proposals', { eventId, message: message.trim() || undefined, options: groups.map((g) => ({ title: g.title, kind: g.kind, required: g.required, choices: g.choices.map((c) => ({ label: c.label, price: Number(c.price || 0), perPerson: c.perPerson })) })) })
+      await client.post('/api/event-proposals', { eventId, message: message.trim() || undefined, ...(contracts ? { contractTemplateId: templateId || null, signers: signers.map((x) => ({ role: x.role, ...(x.name.trim() ? { name: x.name.trim() } : {}), ...(x.email.trim() ? { email: x.email.trim() } : {}) })) } : {}), options: groups.map((g) => ({ title: g.title, kind: g.kind, required: g.required, choices: g.choices.map((c) => ({ label: c.label, price: Number(c.price || 0), perPerson: c.perPerson })) })) })
       toast.success('Draft made — send it when you are ready'); onMade()
     } catch (e) { setErr(errorText(e, 'Could not make the proposal')) } finally { setBusy(false) }
   }
@@ -156,6 +188,42 @@ function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClos
         <h3 className="text-lg font-semibold">New proposal</h3>
         <p className={muted}>It is made from the event as it stands now — room, date, hours, head count, menu lines, minimum and the payment schedule. Add the choices the client makes.</p>
         <div><label className={label}>Note to the client</label><textarea value={message} onChange={(e) => setMessage(e.target.value)} className={input} rows={2} /></div>
+        {contracts && (
+          <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2" data-testid="contract-choice">
+            <label className={label} htmlFor="contract-template">Contract</label>
+            <select id="contract-template" className={input} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+              <option value="">No contract — the terms in settings only</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? ' (default)' : ''}</option>)}
+            </select>
+            {preview && <details><summary className="cursor-pointer text-sm underline">Read it filled in for this event</summary><p className={`mt-2 whitespace-pre-line text-sm ${muted}`}>{preview}</p></details>}
+          </div>
+        )}
+        {contracts && (
+          <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2" data-testid="signers-choice">
+            <p className="font-medium">Who signs, in order</p>
+            <p className={`text-sm ${muted}`}>The client signs first and makes the choices. Each person is emailed when the one before them has signed. The event is booked when the last one signs.</p>
+            <ol className="space-y-2">
+              {signers.map((sg, i) => (
+                <li key={sg.role} className="flex flex-wrap items-end gap-2">
+                  <span className="w-48 font-medium">{i + 1}. {SIGNER_WORDS[sg.role]}</span>
+                  {sg.role === 'client' ? <span className={muted}>the event’s client, by their email</span> : (
+                    <>
+                      <input className={`${input} w-44`} placeholder="Full name" aria-label={`${SIGNER_WORDS[sg.role]} name`} value={sg.name} onChange={(e) => setSigners((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} />
+                      <input className={`${input} w-56`} type="email" placeholder={sg.role === 'venue' ? 'Email (blank = the business email)' : 'Email'} aria-label={`${SIGNER_WORDS[sg.role]} email`} value={sg.email} onChange={(e) => setSigners((x) => x.map((y, j) => (j === i ? { ...y, email: e.target.value } : y)))} />
+                      <button type="button" className={btn} aria-label="Sign earlier" disabled={i <= 1} onClick={() => moveSigner(i, -1)}><ArrowUp className="w-4 h-4" /></button>
+                      <button type="button" className={btn} aria-label="Sign later" disabled={i >= signers.length - 1} onClick={() => moveSigner(i, 1)}><ArrowDown className="w-4 h-4" /></button>
+                      <button type="button" className={btn} aria-label={`Remove ${SIGNER_WORDS[sg.role]}`} onClick={() => setSigners((x) => x.filter((_, j) => j !== i))}><Trash2 className="w-4 h-4" /></button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+            <div className="flex gap-2">
+              {!signers.some((x) => x.role === 'client_second') && <button type="button" className={btn} onClick={() => addSigner('client_second')}><Plus className="w-4 h-4" />Add a second client signer</button>}
+              {!signers.some((x) => x.role === 'venue') && <button type="button" className={btn} onClick={() => addSigner('venue')}><Plus className="w-4 h-4" />Add the venue’s countersignature</button>}
+            </div>
+          </div>
+        )}
         {groups.map((g, i) => (
           <div key={i} className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
             <div className="flex gap-2 items-end">
@@ -190,7 +258,7 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
   const toast = useToast()
   const ask = useConfirm()
   const show = hasFeature('event_payment_automation') && can('invoices:read')
-  const [data, setData] = useState<{ instalments: Instalment[]; autopay: { status: string; brand: string | null; last4: string | null; consentAt: string | null } | null; cardsOn: boolean } | null>(null)
+  const [data, setData] = useState<{ instalments: Instalment[]; autopay: { status: string; brand: string | null; last4: string | null; bank?: boolean; consentAt: string | null } | null; cardsOn: boolean } | null>(null)
   const load = useCallback(async () => { try { setData(await client.get(`/api/event-payments/${eventId}`)) } catch (e) { toast.error(errorText(e, 'Could not load the payment reminders')) } }, [eventId, toast])
   useEffect(() => { if (show) load() }, [show, load])
   if (!show) return null
@@ -209,7 +277,7 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
       <ul className="space-y-2">
         {data?.instalments.map((i) => (
           <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
-            <span><strong>{i.label}</strong> {money(i.amount)}{i.dueDate ? ` · due ${i.dueDate}` : ''} <span className={muted}>· {i.state === 'paid' ? 'paid' : last(i)}</span>{i.autopayStatus === 'failed' && <span className="ml-2 text-red-700 dark:text-red-300">card declined{i.autopayError ? `: ${i.autopayError}` : ''}</span>}</span>
+            <span><strong>{i.label}</strong> {money(i.amount)}{i.dueDate ? ` · due ${i.dueDate}` : ''} <span className={muted}>· {i.state === 'paid' ? 'paid' : last(i)}</span>{i.autopayStatus === 'failed' && <span className="ml-2 text-red-700 dark:text-red-300">autopay failed{i.autopayError ? `: ${i.autopayError}` : ''}</span>}{i.autopayStatus === 'processing' && <span className="ml-2 text-amber-800 dark:text-amber-300">bank debit on its way</span>}</span>
             {i.state !== 'paid' && i.state !== 'void' && (
               <span className="flex gap-2">
                 {i.payPath && <button type="button" className={btn} onClick={() => copy(toast, abs(i.payPath!))}><Link2 className="w-4 h-4" />Copy pay link</button>}
@@ -223,9 +291,104 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
         <p className="mt-3 flex flex-wrap items-center gap-2">
           <CreditCard className="w-4 h-4" />
           {data.autopay?.status === 'active'
-            ? <>The client left a {data.autopay.brand || 'card'} ending {data.autopay.last4}; each payment is charged to it on its due date.{mayEdit && <button type="button" className={btn} onClick={stop}>Stop</button>}</>
+            ? <>The client left {data.autopay.bank ? `a bank account at ${data.autopay.brand || 'their bank'}` : `a ${data.autopay.brand || 'card'}`} ending {data.autopay.last4}; each payment is {data.autopay.bank ? 'debited from' : 'charged to'} it on its due date.{mayEdit && <button type="button" className={btn} onClick={stop}>Stop</button>}</>
             : data.cardsOn ? <span className={muted}>No card on file. The client can leave one from any pay link.</span> : <span className={muted}>Card payments are not switched on for this business, so pay links show the amount only.</span>}
         </p>
+      )}
+      {hasFeature('event_bank_payments') && <BankPaymentsList eventId={eventId} />}
+    </section>
+  )
+}
+
+// A bank debit takes days: this lists each one on the event with where it stands, so "processing" is never mistaken for paid.
+interface BankRow { id: string; label: string; amount: number; status: string; source: string; bank: string | null; last4: string | null; startedAt: string | null; settledAt: string | null; failedAt: string | null; note: string | null; verifyUrl: string | null }
+const BANK_STATUS: Record<string, string> = { processing: 'Processing — not paid until the bank settles it', requires_action: 'Waiting for the client to verify the bank account', succeeded: 'Cleared and recorded', failed: 'Returned by the bank — not paid' }
+function BankPaymentsList({ eventId }: { eventId: string }) {
+  const { can } = useAuth()
+  const toast = useToast()
+  const [rows, setRows] = useState<BankRow[] | null>(null)
+  const load = useCallback(async () => { try { setRows((await client.get(`/api/event-bank-payments/${eventId}`)).payments) } catch (e) { toast.error(errorText(e, 'Could not load the bank payments')) } }, [eventId, toast])
+  useEffect(() => { load() }, [load])
+  const refresh = async (r: BankRow) => { try { await client.post(`/api/event-bank-payments/${eventId}/${r.id}/refresh`); await load() } catch (e) { toast.error(errorText(e, 'Could not check with Stripe')) } }
+  if (!rows || rows.length === 0) return <p className={`${muted} mt-3 flex items-center gap-2`}><Landmark className="w-4 h-4" />No bank payments yet.</p>
+  return (
+    <div className="mt-3" data-testid="bank-payments">
+      <h4 className="font-medium flex items-center gap-2 mb-1"><Landmark className="w-4 h-4" />Bank payments</h4>
+      <ul className="space-y-1">
+        {rows.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span>{r.label} {money(r.amount)}{r.bank ? ` from ${r.bank}` : ''}{r.last4 ? ` ending ${r.last4}` : ''}{r.source === 'autopay' ? ' (autopay)' : ''} <span className={r.status === 'failed' ? 'text-red-700 dark:text-red-300' : muted}>· {BANK_STATUS[r.status] || 'In progress'}{r.status === 'failed' && r.note ? `. ${r.note}` : ''}{r.settledAt ? ` · ${whenDateTime(r.settledAt)}` : r.failedAt ? ` · ${whenDateTime(r.failedAt)}` : ''}</span></span>
+            {(r.status === 'processing' || r.status === 'requires_action') && can('invoices:update') && <button type="button" className={btn} onClick={() => refresh(r)}><RefreshCw className="w-4 h-4" />Check now</button>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ── Settings: the venue's contract templates ─────────────────────────────────────────────────────────────────────────
+interface MergeField { id: string; label: string; example: string }
+export function ContractTemplatesPanel() {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const ask = useConfirm()
+  const show = hasFeature('event_contracts') && can('invoices:read')
+  const may = can('settings:update')
+  const [rows, setRows] = useState<ContractTemplate[] | null>(null)
+  const [fields, setFields] = useState<MergeField[]>([])
+  const [edit, setEdit] = useState<{ id?: string; name: string; body: string; isDefault: boolean; active: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    try { setRows(((await client.get('/api/event-contracts')) as { data: ContractTemplate[] }).data); setFields(((await client.get('/api/event-contracts/fields')) as { data: MergeField[] }).data) } catch (e) { toast.error(errorText(e, 'Could not load the contract templates')) }
+  }, [toast])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async () => {
+    if (!edit) return
+    setErr('')
+    try {
+      const body = { name: edit.name, body: edit.body, isDefault: edit.isDefault, active: edit.active }
+      if (edit.id) await client.put(`/api/event-contracts/${edit.id}`, body); else await client.post('/api/event-contracts', body)
+      setEdit(null); await load(); toast.success('Contract saved')
+    } catch (e) { setErr(errorText(e, 'Could not save the contract')) }
+  }
+  const remove = async (t: ContractTemplate) => {
+    if (!(await ask('Proposals already sent keep the words they were sent with.', { title: `Delete “${t.name}”?`, confirmText: 'Delete' }))) return
+    try { await client.delete('/api/event-contracts', t.id); await load() } catch (e) { toast.error(errorText(e, 'Could not delete it')) }
+  }
+  return (
+    <section className={card} data-testid="contract-templates">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="font-semibold flex items-center gap-2"><ScrollText className="w-4 h-4" />Contract templates</h2>
+        {may && <button type="button" className={primary} onClick={() => { setErr(''); setEdit({ name: '', body: '', isDefault: !rows?.length, active: true }) }}><Plus className="w-4 h-4" />New contract</button>}
+      </div>
+      <p className={`${muted} mb-3`}>Write a contract once with merge fields like {'{{client_name}}'}; choose it for each event’s proposal and the event’s own date, room, menu, totals and terms are filled in when the client reads and signs.</p>
+      {!rows && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {rows?.length === 0 && <p className={muted}>No contract templates yet.</p>}
+      <ul className="space-y-2">
+        {rows?.map((t) => (
+          <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+            <span><strong>{t.name}</strong>{t.isDefault ? <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100">Default</span> : null}{!t.active ? <span className={`ml-2 ${muted}`}>switched off</span> : null}</span>
+            {may && <span className="flex gap-2"><button type="button" className={btn} onClick={() => { setErr(''); setEdit({ id: t.id, name: t.name, body: t.body, isDefault: t.isDefault, active: t.active }) }}>Edit</button><button type="button" className={btn} aria-label={`Delete ${t.name}`} onClick={() => remove(t)}><Trash2 className="w-4 h-4" /></button></span>}
+          </li>
+        ))}
+      </ul>
+      {edit && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center overflow-y-auto p-4" role="dialog" aria-label={edit.id ? 'Edit contract' : 'New contract'}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-3xl p-6 space-y-3 mt-8">
+            <h3 className="text-lg font-semibold">{edit.id ? 'Edit contract' : 'New contract'}</h3>
+            <div><label className={label} htmlFor="ct-name">Name</label><input id="ct-name" className={input} value={edit.name} placeholder="Wedding contract" onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
+            <div><label className={label} htmlFor="ct-body">Contract text</label><textarea id="ct-body" className={`${input} font-mono text-xs`} rows={14} value={edit.body} onChange={(e) => setEdit({ ...edit, body: e.target.value })} /></div>
+            <div>
+              <p className={`${label} mb-1`}>Fields — click to add one at the end</p>
+              <div className="flex flex-wrap gap-1">{fields.map((f) => <button key={f.id} type="button" title={`For example: ${f.example}`} className="px-2 py-0.5 rounded-full border border-gray-300 dark:border-slate-600 text-xs hover:bg-gray-50 dark:hover:bg-slate-800" onClick={() => setEdit({ ...edit, body: `${edit.body}${edit.body && !edit.body.endsWith('\n') ? ' ' : ''}{{${f.id}}}` })}>{f.label}</button>)}</div>
+            </div>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={edit.isDefault} onChange={(e) => setEdit({ ...edit, isDefault: e.target.checked })} />Use this for proposals that do not name a contract</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />Offer it when building a proposal</label>
+            {err && <p role="alert" className="text-red-700 dark:text-red-300">{err}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setEdit(null)}>Cancel</button><button type="button" className={primary} onClick={save}>Save</button></div>
+          </div>
+        </div>
       )}
     </section>
   )
@@ -286,22 +449,37 @@ export function MinimumNote({ minimum }: { minimum?: { required: number | null; 
 
 // ── The room calendar ────────────────────────────────────────────────────────────────────────────────────────────────
 interface CalSpace { id: string; name: string }
-interface CalEvent { id: string; name: string; status: string; eventDate: string; startTime: string | null; endTime: string | null; spaceId: string | null; guestCount: number | null }
+interface CalEvent { id: string; name: string; status: string; eventDate: string; startTime: string | null; endTime: string | null; spaceId: string | null; guestCount: number | null; holdUntil?: string | null }
 interface Wait { id: string; spaceId: string; eventDate: string; startTime: string | null; endTime: string | null; name: string; status: string }
+interface MoveCheck { ok: boolean; blocked: { code: string; message: string } | null; warnings: string[]; notes: string[] }
+interface MoveDraft { ev: CalEvent; eventDate: string; spaceId: string; startTime: string; endTime: string }
 const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
 const mondayOf = (d: string) => { const dow = new Date(d + 'T12:00:00Z').getUTCDay(); return addDays(d, -((dow + 6) % 7)) }
+const dayWords = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+const shortDay = (d: string) => new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
 const STATUS_TONE: Record<string, string> = { enquiry: 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-100', tentative: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100', confirmed: 'bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-100', completed: 'bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100' }
+const STATUS_WORDS: Record<string, string> = { enquiry: 'Enquiry', tentative: 'Hold', confirmed: 'Confirmed', completed: 'Completed' }
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6)
+const hhmm = (mins: number) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+const minsOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+const hourLabel = (h: number) => new Date(Date.UTC(2000, 0, 1, h)).toLocaleTimeString(undefined, { hour: 'numeric', timeZone: 'UTC' })
+/** Dropping on an hour: the event starts then and keeps its length (three hours when it had no times). */
+function shiftedTimes(ev: CalEvent, hour: number): { startTime: string; endTime: string } {
+  const len = ev.startTime && ev.endTime ? minsOf(ev.endTime) - minsOf(ev.startTime) : 180
+  const start = hour * 60
+  return { startTime: hhmm(start), endTime: hhmm(Math.min(start + len, 24 * 60 - 1)) }
+}
 
 export function EventCalendarPage() {
   const { hasFeature, can } = useAuth()
   const toast = useToast()
   const ask = useConfirm()
-  const [mode, setMode] = useState<'week' | 'month'>('week')
+  const [mode, setMode] = useState<'day' | 'week' | 'month'>('week')
   const [start, setStart] = useState(() => mondayOf(companyTodayKey()))
   const [data, setData] = useState<{ spaces: CalSpace[]; events: CalEvent[]; waitlist: Wait[] } | null>(null)
   const [feeds, setFeeds] = useState<Array<{ spaceId: string; name: string; path: string }> | null>(null)
   const [waitList, setWaitList] = useState<Wait[]>([])
-  const days = useMemo(() => Array.from({ length: mode === 'week' ? 7 : 35 }, (_, i) => addDays(mode === 'week' ? start : mondayOf(start.slice(0, 8) + '01'), i)), [mode, start])
+  const days = useMemo(() => mode === 'day' ? [start] : Array.from({ length: mode === 'week' ? 7 : 35 }, (_, i) => addDays(mode === 'week' ? start : mondayOf(start.slice(0, 8) + '01'), i)), [mode, start])
   const first = days[0], last = days[days.length - 1]
   const load = useCallback(async () => {
     try { setData(await client.get('/api/event-calendar', { from: first, to: last })) } catch (e) { toast.error(errorText(e, 'Could not load the calendar')) }
@@ -311,8 +489,26 @@ export function EventCalendarPage() {
   const mayFeeds = can('contacts:update')
   useEffect(() => { if (mayFeeds) client.get('/api/event-calendar/feeds').then((r: any) => setFeeds(r.data)).catch(() => setFeeds([])) }, [mayFeeds])
   const [wait, setWait] = useState<{ spaceId: string; eventDate: string; name: string; email: string; startTime: string; endTime: string } | null>(null)
+  // Moving an event: dragged onto another day, hour or room, or chosen with the Move button (which works by keyboard and on a phone,
+  // where dragging does not). Either way the same box opens; it asks the server what the move would do and the edit makes it.
+  const mayMove = hasFeature('event_calendar') && can('contacts:update')
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [move, setMove] = useState<MoveDraft | null>(null)
+  const [check, setCheck] = useState<MoveCheck | null>(null)
+  const [moveErr, setMoveErr] = useState('')
+  const [saving, setSaving] = useState(false)
+  const asked = move ? `${move.ev.id}|${move.eventDate}|${move.spaceId}|${move.startTime}|${move.endTime}` : ''
+  useEffect(() => {
+    if (!move) { setCheck(null); return }
+    let live = true
+    setCheck(null)
+    client.post('/api/event-calendar/move-check', { eventId: move.ev.id, eventDate: move.eventDate, spaceId: move.spaceId || null, startTime: move.startTime || null, endTime: move.endTime || null })
+      .then((r: MoveCheck) => { if (live) setCheck(r) }).catch((e: unknown) => { if (live) setCheck({ ok: false, blocked: { code: 'error', message: errorText(e, 'Could not check the move') }, warnings: [], notes: [] }) })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asked])
   if (!hasFeature('event_calendar')) return <p className="text-gray-600 dark:text-slate-400">The room calendar is not switched on for this business.</p>
-  const step = mode === 'week' ? 7 : 28
+  const step = mode === 'day' ? 1 : mode === 'week' ? 7 : 28
   const submitWait = async () => {
     if (!wait) return
     try { await client.post('/api/event-waitlist', { ...wait, email: wait.email || undefined, startTime: wait.startTime || undefined, endTime: wait.endTime || undefined }); toast.success('Added to the waitlist'); setWait(null); await load() } catch (e) { toast.error(errorText(e, 'Could not add them')) }
@@ -321,33 +517,88 @@ export function EventCalendarPage() {
     if (!(await ask('The old link stops working; anyone subscribed needs the new one.', { title: 'Make a new calendar link?', confirmText: 'Make a new link' }))) return
     try { const r = await client.post(`/api/event-calendar/feeds/${spaceId}/reset`); setFeeds((f) => (f || []).map((x) => (x.spaceId === spaceId ? r : x))) } catch (e) { toast.error(errorText(e, 'Could not reset it')) }
   }
+  const openMove = (ev: CalEvent, patch: Partial<Omit<MoveDraft, 'ev'>> = {}) => { setMoveErr(''); setMove({ ev, eventDate: ev.eventDate, spaceId: ev.spaceId || '', startTime: ev.startTime || '', endTime: ev.endTime || '', ...patch }) }
+  const dropped = (id: string | null, patch: Partial<Omit<MoveDraft, 'ev'>>) => {
+    setDragId(null)
+    const ev = data?.events.find((e) => e.id === id)
+    if (ev && mayMove) openMove(ev, patch)
+  }
+  const doMove = async () => {
+    if (!move) return
+    setSaving(true); setMoveErr('')
+    try {
+      const r = await client.put(`/api/events/${move.ev.id}`, { eventDate: move.eventDate, spaceId: move.spaceId || null, startTime: move.startTime || null, endTime: move.endTime || null })
+      setMove(null)
+      toast.success(r?.warnings?.length ? `Moved. ${r.warnings.join(' ')}` : 'Moved')
+      await load()
+    } catch (e) { setMoveErr(errorText(e, 'Could not move it')) } finally { setSaving(false) }
+  }
+  const chip = (e: CalEvent) => (
+    <div key={e.id} data-testid="cal-event" draggable={mayMove} onDragStart={(ev) => { ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'move'; setTimeout(() => setDragId(e.id), 0) }} onDragEnd={() => setDragId(null)}
+      className={`rounded px-1.5 py-1 mb-1 ${STATUS_TONE[e.status] || STATUS_TONE.enquiry} ${mayMove ? 'cursor-grab' : ''} ${dragId === e.id ? 'opacity-50' : ''}`}>
+      <Link to={`/crm/events/${e.id}`} draggable={false} className="block"><span className="font-medium">{e.startTime ? `${e.startTime}${e.endTime ? '–' + e.endTime : ''} ` : ''}</span>{e.name}</Link>
+      {e.status === 'tentative' && e.holdUntil && hasFeature('event_hold_expiry') && <span className="block text-[11px]">Hold ends {shortDay(e.holdUntil)}</span>}
+      {mayMove && <button type="button" className="text-[11px] underline" aria-label={`Move ${e.name}`} onClick={() => openMove(e)}>Move</button>}
+    </div>
+  )
+  const target = (patch: Partial<Omit<MoveDraft, 'ev'>>) => mayMove ? {
+    onDragOver: (e: ReactDragEvent) => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } },
+    onDrop: (e: ReactDragEvent) => { e.preventDefault(); dropped(e.dataTransfer.getData('text/plain') || dragId, patch) },
+  } : {}
+  const unplaced = data ? data.events.filter((e) => !e.spaceId) : []
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold flex items-center gap-2 text-gray-900 dark:text-slate-100"><CalendarDays className="w-6 h-6 text-orange-600 dark:text-orange-200" />Room calendar</h1>
         <div className="flex gap-2">
           <button type="button" className={btn} onClick={() => setStart(addDays(start, -step))}>Earlier</button>
-          <button type="button" className={btn} onClick={() => setStart(mondayOf(companyTodayKey()))}>Today</button>
+          <button type="button" className={btn} onClick={() => setStart(mode === 'day' ? companyTodayKey() : mondayOf(companyTodayKey()))}>Today</button>
           <button type="button" className={btn} onClick={() => setStart(addDays(start, step))}>Later</button>
-          <select className={`${input} w-28`} value={mode} onChange={(e) => setMode(e.target.value as 'week' | 'month')} aria-label="Show"><option value="week">Week</option><option value="month">Month</option></select>
+          <select className={`${input} w-28`} value={mode} onChange={(e) => { const m = e.target.value as 'day' | 'week' | 'month'; setMode(m); if (m !== 'day') setStart(mondayOf(start)) }} aria-label="Show"><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select>
         </div>
       </div>
-      {!data ? <Loader2 className="w-5 h-5 animate-spin text-gray-400" /> : (
+      {mayMove && <p className={muted}>Drag an event to another {mode === 'day' ? 'hour or room' : 'day or room'} to move it, or use its Move button. You are asked to confirm before anything changes.</p>}
+      {!data ? <Loader2 className="w-5 h-5 animate-spin text-gray-400" /> : mode === 'day' ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-xs bg-white dark:bg-slate-900" data-testid="room-grid">
+            <caption className="text-left font-medium p-2">{dayWords(first)}</caption>
+            <thead><tr><th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">Time</th>{data.spaces.map((s) => <th key={s.id} className="border p-2 min-w-[9rem] font-medium">{s.name}</th>)}{unplaced.length > 0 && <th className="border p-2 min-w-[9rem] font-medium">No room yet</th>}</tr></thead>
+            <tbody>
+              <tr>
+                <th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">No hours set</th>
+                {[...data.spaces.map((s) => s.id), ...(unplaced.length > 0 ? [''] : [])].map((sid) => (
+                  <td key={sid || 'none'} className="border p-1 align-top" {...target({ eventDate: first, spaceId: sid, startTime: '', endTime: '' })}>{data.events.filter((e) => (e.spaceId || '') === sid && e.eventDate === first && !e.startTime).map(chip)}</td>
+                ))}
+              </tr>
+              {HOURS.map((h) => (
+                <tr key={h}>
+                  <th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900 font-normal">{hourLabel(h)}</th>
+                  {[...data.spaces.map((s) => s.id), ...(unplaced.length > 0 ? [''] : [])].map((sid) => (
+                    <td key={sid || 'none'} className="border p-1 align-top h-10" {...(dragId ? target({ eventDate: first, spaceId: sid, ...shiftedTimes(data.events.find((e) => e.id === dragId)!, h) }) : {})}>
+                      {data.events.filter((e) => (e.spaceId || '') === sid && e.eventDate === first && e.startTime && Math.max(HOURS[0], Number(e.startTime.slice(0, 2))) === h).map(chip)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-xs bg-white dark:bg-slate-900" data-testid="room-grid">
             <thead><tr><th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">Room</th>{days.map((d) => <th key={d} className="border p-2 min-w-[7rem] font-medium">{new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}</th>)}</tr></thead>
             <tbody>
-              {data.spaces.map((s) => (
-                <tr key={s.id}>
+              {[...data.spaces.map((s) => ({ id: s.id, name: s.name })), ...(unplaced.length > 0 ? [{ id: '', name: 'No room yet' }] : [])].map((s) => (
+                <tr key={s.id || 'none'}>
                   <th className="border p-2 text-left sticky left-0 bg-white dark:bg-slate-900">{s.name}</th>
                   {days.map((d) => {
-                    const here = data.events.filter((e) => e.spaceId === s.id && e.eventDate === d)
-                    const waiting = data.waitlist.filter((w) => w.spaceId === s.id && w.eventDate === d)
+                    const here = data.events.filter((e) => (e.spaceId || '') === s.id && e.eventDate === d)
+                    const waiting = s.id ? data.waitlist.filter((w) => w.spaceId === s.id && w.eventDate === d) : []
                     return (
-                      <td key={d} className="border p-1 align-top">
-                        {here.map((e) => <Link key={e.id} to={`/crm/events/${e.id}`} className={`block rounded px-1.5 py-1 mb-1 ${STATUS_TONE[e.status] || STATUS_TONE.enquiry}`}><span className="font-medium">{e.startTime ? `${e.startTime}${e.endTime ? '–' + e.endTime : ''} ` : ''}</span>{e.name}</Link>)}
+                      <td key={d} className="border p-1 align-top" {...target({ eventDate: d, spaceId: s.id })}>
+                        {here.map(chip)}
                         {waiting.length > 0 && <p className="text-[11px] text-purple-800 dark:text-purple-300">{waiting.length} waiting</p>}
-                        {here.length > 0 && can('contacts:create') && <button type="button" className="text-[11px] underline text-gray-600 dark:text-slate-400" onClick={() => setWait({ spaceId: s.id, eventDate: d, name: '', email: '', startTime: '', endTime: '' })}>+ waitlist</button>}
+                        {here.length > 0 && s.id && can('contacts:create') && <button type="button" className="text-[11px] underline text-gray-600 dark:text-slate-400" onClick={() => setWait({ spaceId: s.id, eventDate: d, name: '', email: '', startTime: '', endTime: '' })}>+ waitlist</button>}
                       </td>
                     )
                   })}
@@ -373,6 +624,29 @@ export function EventCalendarPage() {
           )}
         </section>
       )}
+      {move && data && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label="Move event" data-testid="move-dialog">
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-lg p-5 space-y-3 text-gray-900 dark:text-slate-100">
+            <h3 className="font-semibold">Move “{move.ev.name}”?</h3>
+            <p className={muted}>{STATUS_WORDS[move.ev.status] || 'Event'} · now {dayWords(move.ev.eventDate)}{move.ev.startTime ? `, ${move.ev.startTime}${move.ev.endTime ? '–' + move.ev.endTime : ''}` : ''}, {data.spaces.find((s) => s.id === move.ev.spaceId)?.name || 'no room yet'}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={label} htmlFor="mv-date">Day</label><input id="mv-date" type="date" className={input} value={move.eventDate} onChange={(e) => setMove({ ...move, eventDate: e.target.value })} /></div>
+              <div><label className={label} htmlFor="mv-room">Room</label><select id="mv-room" className={input} value={move.spaceId} onChange={(e) => setMove({ ...move, spaceId: e.target.value })}><option value="">No room yet</option>{data.spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label className={label} htmlFor="mv-start">From</label><input id="mv-start" type="time" className={input} value={move.startTime} onChange={(e) => setMove({ ...move, startTime: e.target.value })} /></div>
+              <div><label className={label} htmlFor="mv-end">To</label><input id="mv-end" type="time" className={input} value={move.endTime} onChange={(e) => setMove({ ...move, endTime: e.target.value })} /></div>
+            </div>
+            <div aria-live="polite" className="space-y-1" data-testid="move-check">
+              {!check && <p className={muted}><Loader2 className="inline w-4 h-4 animate-spin mr-1" />Checking…</p>}
+              {check?.blocked && <p role="alert" className="text-red-700 dark:text-red-300">{check.blocked.message}</p>}
+              {check?.warnings.map((w) => <p key={w} className="text-amber-800 dark:text-amber-300">{w}</p>)}
+              {check?.notes.map((n) => <p key={n} className={muted}>{n}</p>)}
+              {check?.ok && !check.warnings.length && !check.notes.length && <p className={muted}>That slot is free.</p>}
+            </div>
+            {moveErr && <p role="alert" className="text-red-700 dark:text-red-300">{moveErr}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setMove(null)}>Cancel</button><button type="button" className={primary} onClick={doMove} disabled={!check?.ok || saving}>{saving ? 'Moving…' : 'Move it'}</button></div>
+          </div>
+        </div>
+      )}
       {wait && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label="Add to the waitlist">
           <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-5 space-y-3">
@@ -388,11 +662,247 @@ export function EventCalendarPage() {
   )
 }
 
+/** On a tentative event: the last day the hold is kept, changeable for this hold alone (event_hold_expiry; PUT /api/events asks contacts:update). */
+export function HoldExpiryNote({ event, onChanged }: { event: { id: string; status?: string; eventDate?: string; holdUntil?: string | null; holdReleasedAt?: string | null }; onChanged: () => void }) {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const [day, setDay] = useState(event.holdUntil || '')
+  useEffect(() => { setDay(event.holdUntil || '') }, [event.holdUntil])
+  if (!hasFeature('event_hold_expiry')) return null
+  const may = can('contacts:update')
+  const save = async (value: string | null) => {
+    try { await client.put(`/api/events/${event.id}`, { holdUntil: value }); toast.success(value ? 'Hold end day saved' : 'This hold will not lapse by itself'); onChanged() } catch (e) { toast.error(errorText(e, 'Could not save the hold’s end day')) }
+  }
+  if (event.status !== 'tentative') {
+    return event.status === 'enquiry' && event.holdReleasedAt
+      ? <p className={`mt-3 text-sm ${muted}`} data-testid="hold-released">The hold lapsed on {whenDateTime(event.holdReleasedAt)} and the room was released.</p>
+      : null
+  }
+  return (
+    <div className="mt-3 text-sm rounded-lg border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 p-3" data-testid="hold-expiry">
+      <p>{event.holdUntil ? <>This hold is kept through <strong>{dayWords(event.holdUntil)}</strong>. If it is not confirmed by then the room is released and offered to the waitlist.</> : <>This hold does not lapse by itself.</>}</p>
+      {may && (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <div><label className={label} htmlFor="hold-day">Keep it through</label><input id="hold-day" type="date" className={`${input} w-44`} value={day} max={event.eventDate} onChange={(e) => setDay(e.target.value)} /></div>
+          <button type="button" className={btn} disabled={!day || day === event.holdUntil} onClick={() => save(day)}>Save</button>
+          {event.holdUntil && <button type="button" className={btn} onClick={() => save(null)}>Never lapse</button>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Website form campaigns (restaurant-bar parity #4) ───────────────────────────────────────────────────────────────────
+interface Campaign { id: string; name: string; source: string; sourceLabel: string; active: boolean; token: string; path: string; embedScriptPath: string; enquiries: number }
+/** The website's own address: the admin may be open at app.<domain>, which hands the website to the domain itself. */
+const siteOrigin = () => window.location.origin.replace('://app.', '://')
+const embedCode = (c: Campaign) => `<div class="twomiah-event-form" data-campaign="${c.token}"></div>\n<script src="${siteOrigin()}${c.embedScriptPath}" async></script>`
+
+export function CampaignFormsPanel() {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const ask = useConfirm()
+  const show = hasFeature('event_form_campaigns') && can('contacts:read')
+  const may = can('settings:update')
+  const [rows, setRows] = useState<Campaign[] | null>(null)
+  const [edit, setEdit] = useState<{ id?: string; name: string; source: string; active: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    try { setRows(((await client.get('/api/event-campaigns')) as { data: Campaign[] }).data) } catch (e) { toast.error(errorText(e, 'Could not load the campaigns')) }
+  }, [toast])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async () => {
+    if (!edit) return
+    setErr('')
+    try {
+      if (edit.id) await client.put(`/api/event-campaigns/${edit.id}`, { name: edit.name, source: edit.source, active: edit.active })
+      else await client.post('/api/event-campaigns', { name: edit.name, source: edit.source })
+      setEdit(null); await load(); toast.success('Campaign saved')
+    } catch (e) { setErr(errorText(e, 'Could not save the campaign')) }
+  }
+  const remove = async (c: Campaign) => {
+    if (!(await ask('Its link and embed stop working. Enquiries it already brought keep their lead source.', { title: `Delete “${c.name}”?`, confirmText: 'Delete' }))) return
+    try { await client.delete('/api/event-campaigns', c.id); await load() } catch (e) { toast.error(errorText(e, 'Could not delete it')) }
+  }
+  return (
+    <section className={card} data-testid="campaign-forms">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="font-semibold flex items-center gap-2"><Link2 className="w-4 h-4" />Enquiry form for each campaign</h2>
+        {may && <button type="button" className={primary} onClick={() => { setErr(''); setEdit({ name: '', source: 'website', active: true }) }}><Plus className="w-4 h-4" />New campaign</button>}
+      </div>
+      <p className={`${muted} mb-3`}>One form per place you advertise. Every enquiry that comes through a campaign’s link or embed is marked with its lead source for you, so the report counts it. The form offers your rooms and says whether each looks free on the date; it holds nothing.</p>
+      {!rows && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {rows?.length === 0 && <p className={muted}>No campaigns yet.</p>}
+      <ul className="space-y-3">
+        {rows?.map((c) => (
+          <li key={c.id} className="border-b border-gray-100 dark:border-slate-800 pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span><strong>{c.name}</strong> <span className={muted}>· tagged “{c.sourceLabel}” · {c.enquiries} enquir{c.enquiries === 1 ? 'y' : 'ies'}</span>{!c.active ? <span className={`ml-2 ${muted}`}>switched off</span> : null}</span>
+              <span className="flex flex-wrap gap-2">
+                <button type="button" className={btn} onClick={() => copy(toast, `${siteOrigin()}${c.path}`)}><Copy className="w-4 h-4" />Copy link</button>
+                <button type="button" className={btn} onClick={async () => { try { await navigator.clipboard.writeText(embedCode(c)); toast.success('Embed code copied') } catch { toast.error('Could not copy — select the code and copy it') } }}><Copy className="w-4 h-4" />Copy embed code</button>
+                {may && <button type="button" className={btn} onClick={() => { setErr(''); setEdit({ id: c.id, name: c.name, source: c.source, active: c.active }) }}>Edit</button>}
+                {may && <button type="button" className={btn} aria-label={`Delete ${c.name}`} onClick={() => remove(c)}><Trash2 className="w-4 h-4" /></button>}
+              </span>
+            </div>
+            <textarea readOnly aria-label={`Embed code for ${c.name}`} rows={2} className={`${input} mt-2 font-mono text-xs`} value={embedCode(c)} />
+          </li>
+        ))}
+      </ul>
+      {edit && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label={edit.id ? 'Edit campaign' : 'New campaign'}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-5 space-y-3">
+            <h3 className="font-semibold">{edit.id ? 'Edit campaign' : 'New campaign'}</h3>
+            <div><label className={label} htmlFor="cf-name">Name</label><input id="cf-name" className={input} value={edit.name} placeholder="Instagram bio link" onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
+            <SourcePicker value={edit.source} onChange={(v) => setEdit({ ...edit, source: v })} />
+            {edit.id && <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />The form is on</label>}
+            {err && <p role="alert" className="text-red-700 dark:text-red-300">{err}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setEdit(null)}>Cancel</button><button type="button" className={primary} onClick={save} disabled={!edit.name.trim() || !edit.source}>Save</button></div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+
+// ── Marketing spend and reports by email (restaurant-bar parity #6) ───────────────────────────────────────────────────────
+/** What was spent advertising to each lead source in a month: typed in dollars here, kept as whole cents. */
+export function MarketingSpendPanel({ onSaved }: { onSaved: () => void }) {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const show = hasFeature('event_marketing_spend') && can('invoices:read')
+  const may = can('invoices:update')
+  const [month, setMonth] = useState(() => companyTodayKey().slice(0, 7))
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(false)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const rows = ((await client.get('/api/event-spend', { from: month, to: month })) as { data: Array<{ source: string; amountCents: number }> }).data
+      setSaved(Object.fromEntries(rows.map((r) => [r.source, r.amountCents])))
+      setDraft(Object.fromEntries(rows.map((r) => [r.source, (r.amountCents / 100).toFixed(2)])))
+    } catch (e) { toast.error(errorText(e, 'Could not load the spend')) } finally { setLoading(false) }
+  }, [month, toast])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async (source: string) => {
+    const text = (draft[source] ?? '').trim()
+    const dollars = text === '' ? 0 : Number(text.replace(/[$,]/g, ''))
+    if (!Number.isFinite(dollars) || dollars < 0) { toast.error('Type the amount as dollars, like 250 or 250.50'); return }
+    try { await client.put('/api/event-spend', { source, month, amountCents: Math.round(dollars * 100) }); toast.success('Spend saved'); await load(); onSaved() } catch (e) { toast.error(errorText(e, 'Could not save the spend')) }
+  }
+  return (
+    <section className={card} data-testid="marketing-spend">
+      <div className="flex flex-wrap items-end justify-between gap-2 mb-2">
+        <h2 className="font-semibold">What you spend to get enquiries</h2>
+        <div><label className={label} htmlFor="spend-month">Month</label><input id="spend-month" type="month" className={`${input} w-44`} value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></div>
+      </div>
+      <p className={`${muted} mb-3`}>Type what you paid for ads or listings on each source this month. The report above then shows what each enquiry and each booked event cost, and the value booked for every dollar spent. A month’s spend is spread evenly over its days, so a week’s report takes its share.</p>
+      {loading ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : (
+        <ul className="space-y-2">
+          {EVENT_SOURCES.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor={`spend-${s.id}`} className="min-w-[12rem]">{s.label}</label>
+              <span className="flex items-center gap-2">
+                <span aria-hidden="true">$</span>
+                <input id={`spend-${s.id}`} inputMode="decimal" className={`${input} w-32`} placeholder="0.00" disabled={!may} value={draft[s.id] ?? ''} onChange={(e) => setDraft({ ...draft, [s.id]: e.target.value })} />
+                {may && <button type="button" className={btn} disabled={(draft[s.id] ?? '') === (saved[s.id] != null ? (saved[s.id] / 100).toFixed(2) : '')} onClick={() => save(s.id)}>Save</button>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!may && <p className={`mt-3 ${muted}`}>Only a manager or the owner enters spend.</p>}
+    </section>
+  )
+}
+
+interface ReportSchedule { id: string; report: string; reportLabel: string; frequency: 'weekly' | 'monthly'; weekday: number | null; monthDay: number | null; when: string; active: boolean; recipients: Array<{ id: string; name: string; email: string | null; current: boolean }>; lastSentFor: string | null }
+interface ScheduleOptions { reports: Array<{ id: string; label: string }>; weekdays: Array<{ id: number; label: string }>; seats: Array<{ id: string; name: string; email: string; roleLabel: string }> }
+
+/** A report emailed every week or month to the people chosen. */
+export function ReportSchedulesPanel() {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const ask = useConfirm()
+  const show = hasFeature('event_report_schedules') && hasFeature('event_reports') && can('reports:read')
+  const may = can('settings:update')
+  const [rows, setRows] = useState<ReportSchedule[] | null>(null)
+  const [opts, setOpts] = useState<ScheduleOptions | null>(null)
+  const [edit, setEdit] = useState<{ id?: string; report: string; frequency: 'weekly' | 'monthly'; weekday: number; monthDay: number; recipients: string[]; active: boolean } | null>(null)
+  const [err, setErr] = useState('')
+  const load = useCallback(async () => {
+    try { setRows(((await client.get('/api/event-report-schedules')) as { data: ReportSchedule[] }).data) } catch (e) { toast.error(errorText(e, 'Could not load the schedules')) }
+    if (may) { try { setOpts(await client.get('/api/event-report-schedules/options')) } catch { /* the form is not offered */ } }
+  }, [toast, may])
+  useEffect(() => { if (show) load() }, [show, load])
+  if (!show) return null
+  const save = async () => {
+    if (!edit) return
+    setErr('')
+    const body = { report: edit.report, frequency: edit.frequency, ...(edit.frequency === 'weekly' ? { weekday: edit.weekday } : { monthDay: edit.monthDay }), recipients: edit.recipients, active: edit.active }
+    try {
+      if (edit.id) await client.put(`/api/event-report-schedules/${edit.id}`, body); else await client.post('/api/event-report-schedules', body)
+      setEdit(null); await load(); toast.success('Schedule saved')
+    } catch (e) { setErr(errorText(e, 'Could not save the schedule')) }
+  }
+  const remove = async (r: ReportSchedule) => {
+    if (!(await ask('It stops being emailed.', { title: `Stop emailing “${r.reportLabel}”?`, confirmText: 'Stop emailing' }))) return
+    try { await client.delete('/api/event-report-schedules', r.id); await load() } catch (e) { toast.error(errorText(e, 'Could not remove it')) }
+  }
+  const sendNow = async (r: ReportSchedule) => {
+    try { const res = await client.post(`/api/event-report-schedules/${r.id}/send-now`); toast.success(res?.message || 'Sent') } catch (e) { toast.error(errorText(e, 'Could not send it')) }
+  }
+  const toggle = (id: string) => edit && setEdit({ ...edit, recipients: edit.recipients.includes(id) ? edit.recipients.filter((x) => x !== id) : [...edit.recipients, id] })
+  return (
+    <section className={card} data-testid="report-schedules">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="font-semibold flex items-center gap-2"><Send className="w-4 h-4" />Reports by email</h2>
+        {may && opts && <button type="button" className={primary} onClick={() => { setErr(''); setEdit({ report: opts.reports[0]?.id || 'sources', frequency: 'weekly', weekday: 1, monthDay: 1, recipients: [], active: true }) }}><Plus className="w-4 h-4" />New schedule</button>}
+      </div>
+      <p className={`${muted} mb-3`}>Have a report sent to the people you choose, every week or every month, at 8 in the morning on your clock. A weekly report covers the seven days before; a monthly one the month before. Each person sees only the figures they are allowed to see.</p>
+      {!rows && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {rows?.length === 0 && <p className={muted}>Nothing is emailed yet.</p>}
+      <ul className="space-y-2">
+        {rows?.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
+            <span><strong>{r.reportLabel}</strong> · {r.when} · to {r.recipients.map((x) => x.name).join(', ') || 'no one'}{!r.active ? <span className={`ml-2 ${muted}`}>paused</span> : null}{r.lastSentFor ? <span className={`ml-2 ${muted}`}>last sent for {shortDay(r.lastSentFor)}</span> : null}</span>
+            {may && <span className="flex gap-2"><button type="button" className={btn} onClick={() => sendNow(r)}>Send now</button><button type="button" className={btn} onClick={() => { setErr(''); setEdit({ id: r.id, report: r.report, frequency: r.frequency, weekday: r.weekday ?? 1, monthDay: r.monthDay ?? 1, recipients: r.recipients.filter((x) => x.current).map((x) => x.id), active: r.active }) }}>Edit</button><button type="button" className={btn} aria-label={`Stop emailing ${r.reportLabel}`} onClick={() => remove(r)}><Trash2 className="w-4 h-4" /></button></span>}
+          </li>
+        ))}
+      </ul>
+      {edit && opts && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-label={edit.id ? 'Edit schedule' : 'New schedule'}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-5 space-y-3 max-h-[90vh] overflow-y-auto">
+            <h3 className="font-semibold">{edit.id ? 'Edit schedule' : 'New schedule'}</h3>
+            <div><label className={label} htmlFor="rs-report">Report</label><select id="rs-report" className={input} value={edit.report} onChange={(e) => setEdit({ ...edit, report: e.target.value })}>{opts.reports.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className={label} htmlFor="rs-freq">How often</label><select id="rs-freq" className={input} value={edit.frequency} onChange={(e) => setEdit({ ...edit, frequency: e.target.value as 'weekly' | 'monthly' })}><option value="weekly">Every week</option><option value="monthly">Every month</option></select></div>
+              {edit.frequency === 'weekly'
+                ? <div><label className={label} htmlFor="rs-day">On</label><select id="rs-day" className={input} value={edit.weekday} onChange={(e) => setEdit({ ...edit, weekday: Number(e.target.value) })}>{opts.weekdays.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}</select></div>
+                : <div><label className={label} htmlFor="rs-dom">On day</label><select id="rs-dom" className={input} value={edit.monthDay} onChange={(e) => setEdit({ ...edit, monthDay: Number(e.target.value) })}>{Array.from({ length: 28 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select></div>}
+            </div>
+            <fieldset><legend className={label}>Send it to</legend>
+              <ul className="space-y-1">{opts.seats.map((s) => <li key={s.id}><label className="flex items-center gap-2"><input type="checkbox" checked={edit.recipients.includes(s.id)} onChange={() => toggle(s.id)} />{s.name} <span className={muted}>· {s.roleLabel} · {s.email}</span></label></li>)}</ul>
+            </fieldset>
+            {edit.id && <label className="flex items-center gap-2"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />Keep sending it</label>}
+            {err && <p role="alert" className="text-red-700 dark:text-red-300">{err}</p>}
+            <div className="flex justify-end gap-2"><button type="button" className={btn} onClick={() => setEdit(null)}>Cancel</button><button type="button" className={primary} onClick={save} disabled={edit.recipients.length === 0}>Save</button></div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Reports and the venue's event settings ───────────────────────────────────────────────────────────────────────────
-interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number }
+interface SourceRow { source: string; label: string; enquiries: number; booked: number; lost: number; open: number; conversion: number; bookedValue?: number; spendCents?: number; costPerEnquiryCents?: number | null; costPerBookingCents?: number | null; returnOnSpend?: number | null }
 interface YearMonth { month: number; booked: number; lastYearBooked: number; value?: number; lastYearValue?: number }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string }
+interface Settings { guaranteeDays: number; guaranteeReminderDays: number; shortfallTaxed: boolean; payRemindBeforeDays: number; payRemindOnDue: boolean; payRemindOverdueDays: number; proposalValidDays: number; proposalTerms: string; payAtSigning: boolean; holdDays: number; holdReminderDays: number; holdRemindClient: boolean }
 
 export function EventInsightsPage() {
   const { hasFeature, can } = useAuth()
@@ -405,7 +915,9 @@ export function EventInsightsPage() {
   const [yrs, setYrs] = useState<{ months: YearMonth[]; totals: { booked: number; lastYearBooked: number; value?: number; lastYearValue?: number } } | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const reports = hasFeature('event_reports') && can('reports:read')
-  useEffect(() => { if (reports) client.get('/api/event-reports/sources', { from, to }).then(setSrc).catch((e: unknown) => toast.error(errorText(e, 'Could not load the report'))) }, [reports, from, to, toast])
+  const [rev, setRev] = useState(0)
+  useEffect(() => { if (reports) client.get('/api/event-reports/sources', { from, to }).then(setSrc).catch((e: unknown) => toast.error(errorText(e, 'Could not load the report'))) }, [reports, from, to, toast, rev])
+  const withSpend = src?.totals.spendCents !== undefined
   useEffect(() => { if (reports) client.get('/api/event-reports/years', { year }).then(setYrs).catch((e: unknown) => toast.error(errorText(e, 'Could not load the report'))) }, [reports, year, toast])
   const showSettings = hasFeature('event_bookings') && can('contacts:read')
   useEffect(() => { if (showSettings) client.get('/api/event-settings').then(setSettings).catch(() => setSettings(null)) }, [showSettings])
@@ -424,9 +936,9 @@ export function EventInsightsPage() {
           <h2 className="font-semibold mb-2">Where enquiries come from</h2>
           <div className="flex flex-wrap gap-3 mb-3"><div><label className={label}>From</label><input type="date" className={input} value={from} onChange={(e) => setFrom(e.target.value)} /></div><div><label className={label}>To</label><input type="date" className={input} value={to} onChange={(e) => setTo(e.target.value)} /></div></div>
           {!src ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : src.sources.length === 0 ? <p className={muted}>No enquiries in those dates.</p> : (
-            <div className="overflow-x-auto"><table className="min-w-full text-left"><thead><tr className="border-b"><th className="py-1 pr-4">Source</th><th className="pr-4">Enquiries</th><th className="pr-4">Booked</th><th className="pr-4">Lost</th><th className="pr-4">Still open</th><th className="pr-4">Booked %</th>{src.totals.bookedValue !== undefined && <th>Booked value</th>}</tr></thead>
-              <tbody>{src.sources.map((r) => <tr key={r.source} className="border-b border-gray-100 dark:border-slate-800"><td className="py-1 pr-4">{r.label}</td><td>{r.enquiries}</td><td>{r.booked}</td><td>{r.lost}</td><td>{r.open}</td><td>{r.conversion}%</td>{r.bookedValue !== undefined && <td>{money(r.bookedValue)}</td>}</tr>)}
-                <tr className="font-semibold"><td className="py-1 pr-4">All</td><td>{src.totals.enquiries}</td><td>{src.totals.booked}</td><td>{src.totals.lost}</td><td /><td>{src.totals.conversion}%</td>{src.totals.bookedValue !== undefined && <td>{money(src.totals.bookedValue)}</td>}</tr></tbody></table></div>
+            <div className="overflow-x-auto"><table className="min-w-full text-left"><thead><tr className="border-b"><th className="py-1 pr-4">Source</th><th className="pr-4">Enquiries</th><th className="pr-4">Booked</th><th className="pr-4">Lost</th><th className="pr-4">Still open</th><th className="pr-4">Booked %</th>{src.totals.bookedValue !== undefined && <th className="pr-4">Booked value</th>}{withSpend && <><th className="pr-4">Spent</th><th className="pr-4">Per enquiry</th><th className="pr-4">Per booked event</th><th>Return</th></>}</tr></thead>
+              <tbody>{src.sources.map((r) => <tr key={r.source} className="border-b border-gray-100 dark:border-slate-800"><td className="py-1 pr-4">{r.label}</td><td>{r.enquiries}</td><td>{r.booked}</td><td>{r.lost}</td><td>{r.open}</td><td>{r.conversion}%</td>{r.bookedValue !== undefined && <td>{money(r.bookedValue)}</td>}{withSpend && <><td>{moneyCents(r.spendCents)}</td><td>{r.costPerEnquiryCents == null ? '—' : moneyCents(r.costPerEnquiryCents)}</td><td>{r.costPerBookingCents == null ? '—' : moneyCents(r.costPerBookingCents)}</td><td>{r.returnOnSpend == null ? '—' : `${money(r.returnOnSpend)} per $1`}</td></>}</tr>)}
+                <tr className="font-semibold"><td className="py-1 pr-4">All</td><td>{src.totals.enquiries}</td><td>{src.totals.booked}</td><td>{src.totals.lost}</td><td /><td>{src.totals.conversion}%</td>{src.totals.bookedValue !== undefined && <td>{money(src.totals.bookedValue)}</td>}{withSpend && <><td>{moneyCents(src.totals.spendCents)}</td><td>{src.totals.costPerEnquiryCents == null ? '—' : moneyCents(src.totals.costPerEnquiryCents)}</td><td>{src.totals.costPerBookingCents == null ? '—' : moneyCents(src.totals.costPerBookingCents)}</td><td>{src.totals.returnOnSpend == null ? '—' : `${money(src.totals.returnOnSpend)} per $1`}</td></>}</tr></tbody></table></div>
           )}
         </section>
       )}
@@ -443,6 +955,10 @@ export function EventInsightsPage() {
           )}
         </section>
       )}
+      {reports && <MarketingSpendPanel onSaved={() => setRev((n) => n + 1)} />}
+      <ReportSchedulesPanel />
+      <CampaignFormsPanel />
+      <ContractTemplatesPanel />
       {showSettings && settings && (
         <section className={card} data-testid="event-settings">
           <h2 className="font-semibold mb-3 flex items-center gap-2"><Settings2 className="w-4 h-4" />Event settings</h2>
@@ -451,10 +967,14 @@ export function EventInsightsPage() {
             {hasFeature('event_guarantee') && num('guaranteeReminderDays', 'Remind the client (days before the cutoff)', '0 means no reminder.')}
             {hasFeature('event_payment_automation') && num('payRemindBeforeDays', 'Remind before a payment is due (days)', '0 means no reminder before.')}
             {hasFeature('event_payment_automation') && num('payRemindOverdueDays', 'Remind after it was due (days)', '0 means no reminder after.')}
+            {hasFeature('event_hold_expiry') && num('holdDays', 'A new hold is kept for (days)', '0 means a hold never lapses by itself. You can set a different day on any one hold.')}
+            {hasFeature('event_hold_expiry') && num('holdReminderDays', 'Remind your team before a hold lapses (days)', '0 means no reminder.')}
             {hasFeature('event_proposals') && num('proposalValidDays', 'A proposal stays open (days)', 'After that the client’s link says it has expired.')}
           </div>
           <div className="mt-3 space-y-2">
             {hasFeature('event_payment_automation') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.payRemindOnDue} onChange={(e) => set('payRemindOnDue', e.target.checked)} />Remind on the day a payment is due</label>}
+            {hasFeature('event_payment_automation') && hasFeature('event_proposals') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.payAtSigning} onChange={(e) => set('payAtSigning', e.target.checked)} />After the client signs, take the first payment on the same page</label>}
+            {hasFeature('event_hold_expiry') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.holdRemindClient} onChange={(e) => set('holdRemindClient', e.target.checked)} />Also remind the client that their date is held until then</label>}
             {hasFeature('event_minimums') && <label className="flex items-center gap-2"><input type="checkbox" disabled={!maySave} checked={settings.shortfallTaxed} onChange={(e) => set('shortfallTaxed', e.target.checked)} />Charge sales tax on a minimum-spend shortfall</label>}
             {hasFeature('event_proposals') && <div><label className={label}>Terms printed on every proposal</label><textarea className={input} rows={4} disabled={!maySave} value={settings.proposalTerms} onChange={(e) => set('proposalTerms', e.target.value)} /></div>}
           </div>

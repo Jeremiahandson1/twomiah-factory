@@ -3,6 +3,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
+import { createCommissionViewerGrants } from './crm/roof/commissionViewers.ts'
 import { asc } from 'drizzle-orm'
 import {
   createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes,
@@ -71,8 +72,11 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
 
   const audit = createAudit({ db })
   const email = createEmailService({ db, logger })
-  const permissions = createPermissions({
+  // Roofing: the company chooses which roles see commissions (crm/roof/commissionViewers.ts), read through the shared permissions.
+  const viewerGrants = vertical.crm?.roof ? createCommissionViewerGrants(db, (role: string) => permissions.normalizeRole(role)) : undefined
+  const permissions: ReturnType<typeof createPermissions> = createPermissions({
     db, tables: { user },
+    ...(viewerGrants ? { companyGrants: viewerGrants } : {}),
     roleLabels: vertical.roleLabels,
     extraRolePermissions: vertical.extraRolePermissions,
     withheldRolePermissions: vertical.withheldRolePermissions,
@@ -104,8 +108,10 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // Card deposits on the business's own Stripe account (booking/deposits.ts), paid deposits back to the booking engine;
   // people's own calendars are the module's (booking/calendars.ts).
   // Texts to the customer (confirmation, reminder, review request) through the CRM's own texting (booking/texts.ts).
-  const bookings = createBookingModule({ db, vertical, email, logger, permissions, isFeatureEnabled: features.isFeatureEnabled, deposits: createStripeDeposits(crm.stripeService), texts: createBookingTexts(crm.sms, (co, phone) => hasConsent(db, co, phone)), bookingCard: crm.bookingCard })
+  const bookings = createBookingModule({ db, vertical, email, logger, permissions, isFeatureEnabled: features.isFeatureEnabled, deposits: createStripeDeposits(crm.stripeService), texts: createBookingTexts(crm.sms, (co, phone) => hasConsent(db, co, phone)), bookingCard: crm.bookingCard, storage: crm.storage, bookingForms: crm.bookingForms })
   crm.bookingCard.confirm = (co, token) => bookings.engine.cardSaved(co, token)
+  crm.bookingForms.released = (co, contactId) => bookings.engine.formsReleased(co, contactId)
+  crm.bookingEngine.current = bookings.engine
   crm.useBookingDeposits({
     paid: (p) => bookings.engine.depositPaid(p.companyId, p.bookingId, p.paymentIntentId),
     refunded: (p) => bookings.engine.depositRefunded(p.companyId, p.bookingId, p.paymentIntentId),

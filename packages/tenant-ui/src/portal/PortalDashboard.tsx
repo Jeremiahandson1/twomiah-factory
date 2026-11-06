@@ -20,6 +20,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   myJobs: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'View' },
   pets: { color: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40', value: 'View' },
   appointments: { color: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40', value: 'View' },
+  account: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'View' },
   lienWaivers: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'Review & Sign' },
   submittals: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'Review' },
   rfis: { color: 'bg-indigo-100 text-indigo-600 dark:text-indigo-300 dark:bg-indigo-950/40', value: 'Respond' },
@@ -28,6 +29,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   agreements: { color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'View' },
   serviceRequest: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'Request' },
   visits: { color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'View' },
+  upcomingVisits: { color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'Confirm' },
   jobFiles: { color: 'bg-sky-100 text-sky-700 dark:text-sky-300 dark:bg-sky-950/40', value: 'View' },
 }
 

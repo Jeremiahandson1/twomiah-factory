@@ -14,7 +14,7 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, isNotNull, notExists } from 'drizzle-orm'
-import { addDays, businessHoursOf, businessHoursWindows, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
+import { addDays, businessHoursOf, businessHoursWindows, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork, orderTeam } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
@@ -38,7 +38,7 @@ export interface DepositProvider {
    * can't (no card account, or the provider refused); a new booking then stands without one. `reference` is kept on the
    * booking (payment_intent_id) until the payment's own id replaces it.
    */
-  checkout(args: { companyId: string; bookingId: string; token: string; amount: number; customerEmail: string; customerName: string; description: string; expiresAt: Date }): Promise<{ url: string; reference: string } | null>
+  checkout(args: { companyId: string; bookingId: string; token: string; amount: number; customerEmail: string; customerName: string; description: string; expiresAt: Date; keepCard?: { contactRow: any } }): Promise<{ url: string; reference: string } | null>
 }
 
 /** What a deposit payment came to: confirmed (or recorded), to be refunded, or no booking of ours. */
@@ -63,8 +63,15 @@ export interface BookingQuestion {
 /** What an add-on's record links back onto the booking. */
 export type BookingLinks = Partial<Pick<BookingRow, 'appointmentId'>>
 
+/** A form as a client is offered it (the salon's intake and consent forms). */
+export interface IntakeFormOffer { id: string; name: string; kind: string; intro: string | null; questions: any[]; signature: 'typed' | 'drawn'; beforeConfirm: boolean; /** answered before, and that answer has run out */ expired: boolean }
+/** What a form carries beyond text: a drawn signature (a data: image URL) and the files for its file / photo questions, by question id. */
+export interface FormExtra { signature?: string | null; files?: Record<string, { name: string; type: string; bytes: Uint8Array }> }
+
 export interface BookingAddOn {
   questions: BookingQuestion[]
+  /** A sentence the vertical adds to a customer's confirmation and reminder (the salon: this service needs a patch test you do not hold). Null = nothing to add. */
+  note?(b: BookingRow, svc: ServiceRow | null): Promise<string | null>
   /** Inside the booking's transaction, after its row is written: throwing undoes the booking. */
   booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string>; /** Who made it: a customer on the public page, or staff (a desk booking, which may carry its own override). */ by?: 'customer' | 'staff' }): Promise<BookingLinks | void>
   /** After the booking was moved ('moved') or its status changed ('status'), in the same transaction: keep the add-on's record in step. */
@@ -91,14 +98,19 @@ export interface BookingAddOn {
    * Customers may pick the person they book with (the salon's "choose your stylist" option). `enabled` says whether this business offers it;
    * the people are those with hours of their own (Settings › Booking hours) who can be given work. Absent, or not enabled: bookings go to whoever is free, as before.
    */
-  people?: { enabled(companyId: string): Promise<boolean> }
+  people?: { enabled(companyId: string): Promise<boolean>; /** The customer must choose a named person: "anyone" is not offered. Absent = optional. */ required?(companyId: string): Promise<boolean>; /** The business's own order for its people (ids, first to last); absent = by name. */ order?(companyId: string): Promise<string[]> }
   /**
    * Forms the business asks a client to fill in for a booking (the salon's intake and consent forms), offered on the booking's own page.
    * `pending` is what applies to this booking and has not been answered; `submit` keeps the answers and returns the sentence to show if they are not acceptable.
    */
   forms?: {
-    pending(a: { companyId: string; contactId: string; serviceMenuId: string | null }): Promise<Array<{ id: string; name: string; kind: string; intro: string | null; questions: any[] }>>
-    submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string): Promise<string | null>
+    pending(a: { companyId: string; contactId: string; serviceMenuId: string | null }): Promise<IntakeFormOffer[]>
+    submit(a: { companyId: string; contactId: string; serviceMenuId: string | null; token: string }, formId: string, answers: Record<string, unknown>, signedName: string, extra?: FormExtra): Promise<string | null>
+    /** How many forms this client must still complete before an online booking of this service may be confirmed (`exec`: inside the booking's transaction, where a new client exists). */
+    blocking(a: { companyId: string; contactId: string; serviceMenuId: string | null }, exec?: any): Promise<number>
+    /** A form sent to a client by link (the salon's "send a form"): what it shows, and keeping the answers. Null / problem sentence as for the booking's own forms. */
+    request(a: { companyId: string; token: string }): Promise<{ form: IntakeFormOffer; clientName: string; state: 'open' | 'done' } | null>
+    answerRequest(a: { companyId: string; token: string }, answers: Record<string, unknown>, signedName: string, extra?: FormExtra): Promise<string | null>
   }
   card?: {
     /** Before the booking's transaction (it reads the business's own settings and payment link): does THIS customer, by email, have to leave a card? False when the option is off or cards can't be taken. */
@@ -185,6 +197,7 @@ export function createBookingEngine(deps: EngineDeps) {
   const now = deps.now ?? (() => Date.now())
   /** The vertical's own questions on the booking form (none for most). */
   const questions: BookingQuestion[] = deps.addOn?.questions ?? []
+  const noteFor = async (b: BookingRow, svc: ServiceRow | null): Promise<string | null> => (deps.addOn?.note ? deps.addOn.note(b, svc).catch(() => null) : null)
 
   /** The add-on's record follows the booking (a practice's appointment): moved with it, its status with it. */
   async function mirror(exec: any, b: BookingRow, change: 'moved' | 'status') {
@@ -410,9 +423,11 @@ export function createBookingEngine(deps: EngineDeps) {
       db.select({ id: user.id, first: user.firstName, last: user.lastName }).from(user).where(eq(user.companyId, companyId)),
     ])
     const withHours = new Set(week.windows.filter((w: any) => w.userId && bookable.has(w.userId)).map((w: any) => w.userId))
-    return rows.filter((r: any) => withHours.has(r.id))
+    const list = rows.filter((r: any) => withHours.has(r.id))
       .map((r: any) => ({ id: r.id as string, name: [r.first, String(r.last || '').trim().slice(0, 1) && String(r.last).trim().slice(0, 1) + '.'].filter(Boolean).join(' ') || 'Stylist' }))
       .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    // then the salon's own team order, where it has saved one (the stylists it names first, in its order)
+    return deps.addOn.people.order ? orderTeam(list, await deps.addOn.people.order(companyId).catch(() => [])) : list
   }
   /** The forms this booking still asks its client to fill in (empty: none, or the booking is over). */
   async function formsPending(b: BookingRow) {
@@ -420,14 +435,63 @@ export function createBookingEngine(deps: EngineDeps) {
     const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
     return deps.addOn.forms.pending({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null })
   }
-  async function formSubmit(b: BookingRow, formId: string, answers: Record<string, unknown>, signedName: string): Promise<string | null> {
+  async function formSubmit(b: BookingRow, formId: string, answers: Record<string, unknown>, signedName: string, extra?: FormExtra): Promise<string | null> {
     if (!deps.addOn?.forms || !b.contactId) return 'Forms are not available for this booking.'
     const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
-    return deps.addOn.forms.submit({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null, token: b.token }, formId, answers, signedName)
+    const problem = await deps.addOn.forms.submit({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null, token: b.token }, formId, answers, signedName, extra)
+    if (!problem) await formsReleased(b.companyId, b.contactId)
+    return problem
+  }
+
+  /** A form sent to a client by link (the salon's "send a form"): what it shows, and keeping what they answer. */
+  const formRequest = async (companyId: string, token: string) => (deps.addOn?.forms ? deps.addOn.forms.request({ companyId, token }) : null)
+  const formAnswerRequest = async (companyId: string, token: string, answers: Record<string, unknown>, signedName: string, extra?: FormExtra) =>
+    deps.addOn?.forms ? deps.addOn.forms.answerRequest({ companyId, token }, answers, signedName, extra) : 'Forms are not available.'
+
+  /** When the current hold began: the deposit or card step opens after the forms, so its window starts then (hold_from), else at the booking. */
+  const holdStart = (b: Pick<BookingRow, 'createdAt' | 'holdFrom'>) => b.holdFrom ?? b.createdAt
+
+  /**
+   * A client has answered a form (on their booking's page, by a link we sent, or at the desk): their online bookings that waited for the
+   * forms move on — to the deposit or card step if one is owed (its hold starts now), else they are confirmed. Told twice, once.
+   */
+  async function formsReleased(companyId: string, contactId: string): Promise<number> {
+    if (!deps.addOn?.forms) return 0
+    const s = await settingsOf(companyId)
+    await expireHolds(companyId, s)
+    const held: BookingRow[] = await db.select().from(booking).where(and(eq(booking.companyId, companyId), eq(booking.contactId, contactId), eq(booking.status, 'pending'), eq(booking.depositStatus, 'forms')))
+    let moved = 0
+    for (const b of held) {
+      const svc = b.serviceId ? await serviceById(companyId, b.serviceId) : null
+      if (!svc) continue
+      if ((await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (svc as any).serviceMenuId ?? null })) > 0) continue
+      const owesDeposit = b.depositAmount != null && !!deps.deposits
+      const owesCard = !owesDeposit && !!deps.addOn.card && await deps.addOn.card.needed({ companyId, email: b.customerEmail, service: svc })
+      const set = owesDeposit || owesCard
+        ? { depositStatus: 'pending', holdFrom: new Date(now()), ...(owesDeposit ? {} : { depositAmount: null, keepCard: false }), updatedAt: new Date(now()) }
+        : { status: 'confirmed', depositStatus: 'none', depositAmount: null, keepCard: false, updatedAt: new Date(now()) }
+      const [u]: BookingRow[] = await db.update(booking).set(set).where(and(eq(booking.id, b.id), eq(booking.status, 'pending'), eq(booking.depositStatus, 'forms'))).returning()
+      if (!u) continue
+      moved++
+      await mirror(db, u, 'status')
+      if (u.status === 'confirmed') await emit({ event: 'booking.created', booking: u, service: svc, settings: s, by: 'customer' })
+    }
+    return moved
+  }
+
+  /** A booking held until its forms are done (not a deposit or card wait). */
+  const waitingForForms = (b: Pick<BookingRow, 'status' | 'depositStatus'>) => b.status === 'pending' && b.depositStatus === 'forms'
+  /** Must the customer choose a named person? Only where choosing is offered, someone can be chosen, and the business said so. */
+  async function peopleRequired(companyId: string): Promise<boolean> {
+    if (!deps.addOn?.people?.required || !(await deps.addOn.people.required(companyId))) return false
+    return (await people(companyId)).length > 0
   }
   /** The chosen person, if the business offers choosing and they are one of the people offered; else a refusal. */
-  async function chosenPerson(companyId: string, who: string | null | undefined): Promise<string | null> {
-    if (!who) return null
+  async function chosenPerson(companyId: string, who: string | null | undefined, forBooking = false): Promise<string | null> {
+    if (!who) {
+      if (forBooking && await peopleRequired(companyId)) throw new BookingError('Please choose your stylist.', 400, 'person')
+      return null
+    }
     if (!(await people(companyId)).some((p) => p.id === who)) throw new BookingError('That person can’t be booked online.', 400, 'person')
     return who
   }
@@ -587,10 +651,18 @@ export function createBookingEngine(deps: EngineDeps) {
   /** An unpaid deposit past its hold releases its time. Run before any question about free times. */
   async function expireHolds(companyId: string, s: SettingsRow) {
     const cutoff = new Date(now() - s.depositHoldMinutes * 60_000)
+    // The hold is measured from when it began: the booking, or (a deposit / card step that opened after the forms) hold_from.
+    const ranOut = or(and(isNull(booking.holdFrom), lt(booking.createdAt, cutoff)), lt(booking.holdFrom, cutoff))
     const expired: BookingRow[] = await db.update(booking)
       .set({ status: 'cancelled', depositStatus: 'expired', cancelledAt: new Date(now()), cancelledReason: 'deposit_not_paid', updatedAt: new Date(now()) })
-      .where(and(eq(booking.companyId, companyId), eq(booking.status, 'pending'), eq(booking.depositStatus, 'pending'), lt(booking.createdAt, cutoff)))
+      .where(and(eq(booking.companyId, companyId), eq(booking.status, 'pending'), eq(booking.depositStatus, 'pending'), ranOut))
       .returning()
+    // Forms asked for before confirming and not filled in by then: the time goes back (nothing was paid).
+    const unformed: BookingRow[] = await db.update(booking)
+      .set({ status: 'cancelled', depositStatus: 'expired', cancelledAt: new Date(now()), cancelledReason: 'forms_not_done', updatedAt: new Date(now()) })
+      .where(and(eq(booking.companyId, companyId), eq(booking.status, 'pending'), eq(booking.depositStatus, 'forms'), ranOut))
+      .returning()
+    expired.push(...unformed)
     for (const b of expired) await mirror(db, b, 'status')
     for (const b of expired) await emit({ event: 'booking.cancelled', booking: b, service: b.serviceId ? await serviceById(companyId, b.serviceId) : null, settings: s, by: 'system' })
   }
@@ -721,6 +793,8 @@ export function createBookingEngine(deps: EngineDeps) {
     const svc = await activeService(companyId, slug)
     const w = window(s)
     const person = await chosenPerson(companyId, who)
+    // Where a named stylist is required, no day is offered until one is chosen.
+    if (!person && await peopleRequired(companyId)) return []
     const range = await loadRange(companyId, s, w.first, w.last, db)
     const out: string[] = []
     for (let d = w.first; d <= w.last; d = addDays(d, 1)) if (dayTimes(range, svc, s, d, zip, person).bookable.length) out.push(d)
@@ -738,6 +812,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const w = window(s)
     if (date < w.first || date > w.last) return []
     const person = await chosenPerson(companyId, who)
+    if (!person && await peopleRequired(companyId)) return []
     const range = await loadRange(companyId, s, date, date, db, except)
     return dayTimes(range, svc, s, date, zip, person).bookable.map(slotOut(date, range.tz))
   }
@@ -831,35 +906,44 @@ export function createBookingEngine(deps: EngineDeps) {
       if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) throw new BookingError('That time has already passed.')
     }
     // A customer's own choice of person (only where the business offers it), checked before the day is locked.
-    const chosen = customer ? await chosenPerson(companyId, input.who) : null
+    const chosen = customer ? await chosenPerson(companyId, input.who, true) : null
     const assignedUserId = opts.assignedUserId ?? chosen
     if (assignedUserId && !(await companyUserIds(companyId)).has(assignedUserId)) throw new BookingError(NOT_BOOKABLE)
 
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(input.date, input.time, tz)
     const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
-    const depositOwed = svc.depositAmount != null ? dollars(svc.depositAmount) : svc.depositPercent != null ? dollars(svc.price) * svc.depositPercent / 100 : 0
+    // "Take the full price online" (a salon service's prepay) wins over any deposit: the whole price is the deposit.
+    const depositOwed = svc.prepay && svc.price != null && dollars(svc.price) > 0 ? dollars(svc.price)
+      : svc.depositAmount != null ? dollars(svc.depositAmount) : svc.depositPercent != null ? dollars(svc.price) * svc.depositPercent / 100 : 0
     const takeDeposit = customer && depositOwed > 0 && !!deps.deposits
-    const cardHold = customer && !takeDeposit && !!deps.addOn?.card && await deps.addOn.card.needed({ companyId, email, service: svc })
+    const cardNeeded = customer && !!deps.addOn?.card && await deps.addOn.card.needed({ companyId, email, service: svc })
+    // A deposit and a card to keep ride ONE Stripe page (salon parity row 5): the client agrees to the policy on the booking's page,
+    // then pays and the paying card is kept. Only a booking with no deposit waits on a card page of its own.
+    const depositCard = takeDeposit && cardNeeded
+    const cardHold = cardNeeded && !takeDeposit
     const tipPercent = input.tipPercent != null && Array.isArray(svc.tipPresets) && (svc.tipPresets as number[]).includes(Number(input.tipPercent)) ? Number(input.tipPercent) : null
     const tip = tipPercent && svc.price != null ? dollars(svc.price) * tipPercent / 100 : null
 
     // People's calendars are read before the day is locked: an outside call never holds the lock.
     const external = opts.override ? [] : await externalFor(companyId, s, input.date, input.date)
+    let formsFirst = false
     const row: BookingRow = await db.transaction(async (tx: any) => {
       const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override, external })
       if (assignedUserId && !opts.override && !who.includes(assignedUserId) && (chosen || !who.includes(null))) throw new BookingError(chosen ? 'That time has just been taken — please pick another.' : "That person isn't free then.", 409, 'taken')
       const contactId = await contactFor(tx, companyId, { name, email, phone, address, zip })
+      // Forms the salon wants done before this is confirmed: the booking is held (before any deposit or card step) until they are.
+      formsFirst = customer && !!deps.addOn?.forms && (await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (svc as any).serviceMenuId ?? null }, tx)) > 0
       const [made] = await tx.insert(booking).values({
         companyId, serviceId: svc.id, contactId, seriesId: opts.seriesId ?? null, seriesIndex: opts.seriesIndex ?? null,
         startAt, endAt, customerName: name, customerEmail: email, customerPhone: phone, customerAddress: address, customerZip: zip,
         customerNotes: String(input.notes || '').trim().slice(0, 2000) || null,
-        status: takeDeposit || cardHold ? 'pending' : 'confirmed',
+        status: formsFirst || takeDeposit || cardHold ? 'pending' : 'confirmed',
         assignedUserId: assignedUserId ?? pickWho(who),
         source: opts.source ?? (customer ? 'public' : 'staff'),
         sourcePath: text(input.sourcePath, 500) ?? null, sourceReferrer: text(input.sourceReferrer, 1000) ?? null, sourceVariant: text(input.sourceVariant, 60) ?? null,
         token: newToken(),
-        depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: takeDeposit || cardHold ? 'pending' : 'none',
+        depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: formsFirst ? 'forms' : takeDeposit || cardHold ? 'pending' : 'none', keepCard: depositCard,
         tipAmount: tip ? money(tip) : null,
         ...overrideMark(opts),
         // The engine's clock, not the database's: the deposit hold is measured from it.
@@ -877,7 +961,8 @@ export function createBookingEngine(deps: EngineDeps) {
     if (customer && input.smsConsent && phone) await recordConsent(db, companyId, { phone, source: 'booking', topic: 'booking', page: text(input.sourcePath, 500) ?? null })
     let final = row
     let deposit: { amount: number; url: string } | null = null
-    if (takeDeposit) {
+    // The client has the policy to agree to first: their booking's page shows it with the deposit button (see depositTerms), so no page is opened here.
+    if (takeDeposit && !depositCard && !formsFirst) {
       const page = await openDeposit(row, svc, s)
       if (page) {
         ;[final] = await db.update(booking).set({ paymentIntentId: page.reference, updatedAt: new Date(now()) }).where(eq(booking.id, row.id)).returning()
@@ -888,16 +973,22 @@ export function createBookingEngine(deps: EngineDeps) {
       }
     }
     if (final.status === 'confirmed') await emit({ event: 'booking.created', booking: final, service: svc, settings: s, by: opts.by })
-    return { booking: final, service: svc, deposit, card: cardHold }
+    return { booking: final, service: svc, deposit, card: !formsFirst && (cardHold || depositCard), forms: formsFirst }
   }
 
   /** The provider's page for a booking's deposit (its amount and tip as booked), open until the hold runs out. */
   async function openDeposit(b: BookingRow, svc: ServiceRow, s: SettingsRow) {
     if (!deps.deposits || !b.depositAmount) return null
     const amount = dollars(b.depositAmount) + (b.tipAmount ? dollars(b.tipAmount) : 0)
+    let keepCard: { contactRow: any } | undefined
+    if (b.keepCard && b.contactId) {
+      const [c] = await db.select().from(contact).where(and(eq(contact.id, b.contactId), eq(contact.companyId, b.companyId))).limit(1)
+      if (c) keepCard = { contactRow: c }
+    }
     return deps.deposits.checkout({
       companyId: b.companyId, bookingId: b.id, token: b.token, amount, customerEmail: b.customerEmail, customerName: b.customerName,
-      description: `Deposit for ${svc.name}`, expiresAt: new Date(b.createdAt.getTime() + s.depositHoldMinutes * 60_000),
+      description: `${svc.prepay ? 'Payment' : 'Deposit'} for ${svc.name}`, expiresAt: new Date(holdStart(b).getTime() + s.depositHoldMinutes * 60_000),
+      ...(keepCard ? { keepCard } : {}),
     }).catch(() => null)
   }
 
@@ -905,11 +996,13 @@ export function createBookingEngine(deps: EngineDeps) {
    * The deposit page again, for a booking still waiting on it (the customer's own page, "Pay the deposit"): a new page
    * each time, since the provider's page closes; the hold itself is not extended. Null when nothing is owed now.
    */
-  async function depositPage(companyId: string, b: BookingRow): Promise<string | null> {
+  async function depositPage(companyId: string, b: BookingRow, opts: { agreed?: boolean } = {}): Promise<string | null> {
     const s = await settingsOf(companyId)
     await expireHolds(companyId, s)
     const [cur]: BookingRow[] = await db.select().from(booking).where(and(eq(booking.id, b.id), eq(booking.companyId, companyId))).limit(1)
     if (!cur || cur.status !== 'pending' || cur.depositStatus !== 'pending' || !cur.serviceId) return null
+    // A deposit that also keeps the card is never opened without the client's yes to the policy (the server's own rule, not the page's).
+    if (cur.keepCard && !opts.agreed) return null
     const svc = await serviceById(companyId, cur.serviceId)
     const page = svc ? await openDeposit(cur, svc, s) : null
     if (!page) return null
@@ -961,6 +1054,12 @@ export function createBookingEngine(deps: EngineDeps) {
     return 'done'
   }
 
+  /** The policy words a client agrees to on the deposit button, when this booking's deposit page also keeps their card; else null. */
+  async function depositTerms(b: BookingRow): Promise<string | null> {
+    if (!b.keepCard || b.status !== 'pending' || b.depositStatus !== 'pending' || b.depositAmount == null || !deps.addOn?.card) return null
+    return deps.addOn.card.terms(b.companyId)
+  }
+
   /** A booking waiting for a card (not a deposit): pending, deposit pending, no amount. */
   const waitingForCard = (b: BookingRow) => b.status === 'pending' && b.depositStatus === 'pending' && b.depositAmount == null
 
@@ -980,20 +1079,64 @@ export function createBookingEngine(deps: EngineDeps) {
 
   /**
    * The card was saved (the payment provider's event, told by the vertical): a booking waiting for it stands. Told twice, once.
-   * A hold that ran out first is not brought back — the card stays kept on the customer, the time was offered to others.
+   * A hold that ran out first comes back only when its time is still free and still ahead (the same rule as a late deposit,
+   * depositPaid); otherwise the card stays kept on the customer and the booking stays released ('released'), which the
+   * booking's page tells them in words with times to choose from (lateNote).
    */
-  async function cardSaved(companyId: string, token: string): Promise<'confirmed' | 'already' | 'gone'> {
+  async function cardSaved(companyId: string, token: string): Promise<'confirmed' | 'already' | 'gone' | 'released'> {
     const b = await byToken(companyId, token)
     if (!b) return 'gone'
     if (b.status === 'confirmed' || b.status === 'completed') return 'already'
-    if (!waitingForCard(b)) return 'gone'
     const s = await settingsOf(b.companyId)
     const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
+    if (b.status === 'cancelled') {
+      // Only a card hold that ran out is a candidate (never a booking someone cancelled, never a deposit's).
+      if (b.depositStatus !== 'expired' || b.cancelledReason !== 'deposit_not_paid' || b.depositAmount != null || !svc) return 'gone'
+      if (b.startAt.getTime() <= now()) return 'released'
+      const at = tzParts(b.startAt, tzOf(s))
+      const external = await externalFor(b.companyId, s, at.date, at.date)
+      try {
+        const back: BookingRow = await db.transaction(async (tx: any) => {
+          await claim(tx, b.companyId, s, svc, at.date, minutesToHm(at.minutes), b.customerZip, { except: b.id, customer: false, external })
+          const [u] = await tx.update(booking).set({ status: 'confirmed', depositStatus: 'none', cancelledAt: null, cancelledReason: null, updatedAt: new Date(now()) }).where(and(eq(booking.id, b.id), eq(booking.status, 'cancelled'))).returning()
+          if (!u) throw new BookingError('changed', 409)
+          await mirror(tx, u, 'status')
+          return u
+        })
+        await emit({ event: 'booking.created', booking: back, service: svc, settings: s, by: 'customer' })
+        return 'confirmed'
+      } catch (e) {
+        if (e instanceof BookingError) return 'released'
+        throw e
+      }
+    }
+    if (!waitingForCard(b)) return 'gone'
     const [u]: BookingRow[] = await db.update(booking).set({ status: 'confirmed', depositStatus: 'none', updatedAt: new Date(now()) }).where(and(eq(booking.id, b.id), eq(booking.status, 'pending'))).returning()
     if (!u) return 'gone'
     await mirror(db, u, 'status')
     await emit({ event: 'booking.created', booking: u, service: svc, settings: s, by: 'customer' })
     return 'confirmed'
+  }
+
+  /**
+   * What to tell a customer whose card or payment arrived after the hold ran out and the time could not come back: the
+   * card is kept (or the payment refunded), the time went to someone else, and the next openings of the same service are offered.
+   * Null when the booking is not in that state.
+   */
+  async function lateNote(b: BookingRow): Promise<{ kind: 'card' | 'refunded'; slug: string; times: Array<{ date: string; time: string }> } | null> {
+    if (b.status !== 'cancelled' || b.cancelledReason !== 'deposit_not_paid' || !b.serviceId) return null
+    const kind = b.depositStatus === 'refunded' ? 'refunded' : null
+    const svc = await serviceById(b.companyId, b.serviceId)
+    if (!svc) return null
+    const out: Array<{ date: string; time: string }> = []
+    try {
+      for (const date of (await availableDates(b.companyId, svc.slug)).slice(0, 4)) {
+        const times = await availableTimes(b.companyId, svc.slug, date)
+        for (const t of times.slice(0, 2)) { out.push({ date, time: t.time }); if (out.length >= 5) break }
+        if (out.length >= 5) break
+      }
+    } catch { /* the times are a courtesy: the link to the service's page stands without them */ }
+    return { kind: kind ?? 'card', slug: svc.slug, times: out }
   }
 
   /** The refund depositPaid asked for, made: recorded on the booking. */
@@ -1053,7 +1196,7 @@ export function createBookingEngine(deps: EngineDeps) {
       const [row] = await tx.update(booking).set({
         status: 'cancelled', cancelledAt: new Date(now()), cancelledReason: text(opts.reason, 300) ?? (opts.by === 'customer' ? 'customer' : 'staff'),
         // An unpaid hold is released; a paid deposit stays recorded as paid — refunding it is a decision.
-        depositStatus: b.depositStatus === 'pending' ? 'expired' : b.depositStatus, updatedAt: new Date(now()),
+        depositStatus: b.depositStatus === 'pending' || b.depositStatus === 'forms' ? 'expired' : b.depositStatus, updatedAt: new Date(now()),
       }).where(eq(booking.id, b.id)).returning()
       await mirror(tx, row, 'status')
       return row
@@ -1077,7 +1220,7 @@ export function createBookingEngine(deps: EngineDeps) {
     if (status === 'confirmed' && b.status === 'cancelled') throw new BookingError('A cancelled booking can’t be brought back — book the time again.', 409)
     const s = await settingsOf(companyId)
     const u: BookingRow = await db.transaction(async (tx: any) => {
-      const [row] = await tx.update(booking).set({ status, ...(status === 'confirmed' && b.depositStatus === 'pending' ? { depositStatus: 'none' } : {}), updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
+      const [row] = await tx.update(booking).set({ status, ...(status === 'confirmed' && (b.depositStatus === 'pending' || b.depositStatus === 'forms') ? { depositStatus: 'none' } : {}), updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
       await mirror(tx, row, 'status')
       return row
     })
@@ -1196,11 +1339,12 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   return {
+    noteFor,
     settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
     getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
-    availableDates, availableTimes, expireHolds, people, formsPending, formSubmit,
-    book, depositPaid, depositRefunded, depositPage, cardTerms, cardPage, cardSaved, waitingForCard, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
+    availableDates, availableTimes, expireHolds, people, peopleRequired, formsPending, formSubmit, formsReleased, waitingForForms, holdStart, formRequest, formAnswerRequest,
+    book, depositTerms, depositPaid, depositRefunded, depositPage, cardTerms, cardPage, cardSaved, lateNote, waitingForCard, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     convertToJob, jobOf,
     isBanned, emit,
   }

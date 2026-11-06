@@ -11,7 +11,11 @@
   var minLoan = parseInt(data.minLoanAmount, 10) || 3000
   var maxLoan = parseInt(data.maxLoanAmount, 10) || 35000
   var ctaLabel = data.ctaLabel || 'Get my estimate'
+  // A monthly payment, an APR and a term are the lender's "trigger terms": they are shown only with the lender's own full
+  // disclosure (crm/financing/lender.ts DISCLOSURE, passed in by server/site/render.ts). Without it the section shows nothing.
+  var lenderDisclosure = typeof disclosure === 'string' ? disclosure : ''
 %>
+<% if (lenderDisclosure) { %>
 <section id="financing" class="financing">
   <div class="container">
     <div class="financing__card">
@@ -39,6 +43,7 @@
         </div>
         <a class="btn btn--xl btn--primary financing__cta" id="fin-cta" href="#contact"><%= ctaLabel %></a>
       </div>
+      <p class="financing__disclosure" data-financing-disclosure style="margin:1rem 0 0;font-size:.75rem;opacity:.8"><%= lenderDisclosure %></p>
     </div>
     <% if (data.delightRain !== false) { %><div class="financing__rain" aria-hidden="true"></div><% } %>
   </div>
@@ -68,3 +73,4 @@
   calc();
 })();
 </script>
+<% } %>

@@ -414,6 +414,48 @@
       "when": 1793473373867,
       "tag": "0058_marketing_automation_segments",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793903009484,
+      "tag": "0059_contractor_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793903461185,
+      "tag": "0060_homecare_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793903937280,
+      "tag": "0061_restaurant_bar_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793904340690,
+      "tag": "0062_salon_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793904913589,
+      "tag": "0063_roofing_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793908620563,
+      "tag": "0064_fieldservice_parity",
+      "breakpoints": true
     }
   ]
 }

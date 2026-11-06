@@ -40,8 +40,11 @@ import { PhotoGallery } from '../../../src/components/PhotoGallery'
 import { useOfflineQueue } from '../../../src/offline/OfflineContext'
 import { useOfflineApi } from '../../../src/offline/useOfflineApi'
 import { JobFlowCard } from '../../../src/jobflow/JobFlowCard'
+import { JobInspections } from '../../../src/inspections/JobInspections'
+import { showsInspections } from '../../../src/inspections/rules'
 import { useJobFlowData } from '../../../src/jobflow/useJobFlowData'
-import { effectiveStatus, jobKey } from '../../../src/jobflow/flow'
+import { effectiveStatus, jobKey, moveBody } from '../../../src/jobflow/flow'
+import { getSaved, savedCopyNote } from '../../../src/offline/readThrough'
 
 const STATUS_STEPS = ['scheduled', 'dispatched', 'in_progress', 'completed']
 /** Roofing's pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES — Advance steps along it). */
@@ -59,7 +62,7 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const t = useTheme()
-  const { vertical } = useVertical()
+  const { vertical, hasFeature } = useVertical()
   const { stageName } = useStageName()
   const { can } = useAuth()
   const isRoof = vertical === 'roofing'
@@ -83,8 +86,11 @@ export default function JobDetailScreen() {
   const [showInspection, setShowInspection] = useState<null | 'date' | 'time'>(null)
   const [inspectionAt, setInspectionAt] = useState(() => { const d = new Date(); d.setHours(10, 0, 0, 0); return d })
 
+  const [savedCopy, setSavedCopy] = useState<string | null>(null)
   const load = useCallback(async () => {
-    const res = await get(`/api/jobs/${id}`)
+    // A job opened before can be read again with no signal: the last good copy, said to be one.
+    const res = await getSaved(`/api/jobs/${id}`)
+    setSavedCopy(res.ok && res.fromCache ? savedCopyNote(res.savedAt) : null)
     if (res.ok) {
       setJob(res.data)
       // The shared job's notes are one text: the box edits it in place.
@@ -99,10 +105,11 @@ export default function JobDetailScreen() {
   useEffect(() => { void flowData.reload(); void load() }, [queueSignature]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** On my way / arrived / complete: sent now with signal, kept on the phone without — never lost, never shown as done early. */
-  const moveJob = async (m: 'dispatch' | 'start' | 'complete') => {
+  const moveJob = async (m: 'dispatch' | 'start' | 'complete' | 'hold' | 'pause' | 'resume') => {
     setMoving(true)
-    const words = { dispatch: 'On my way', start: 'Arrived', complete: 'Completed' }[m]
-    const r = await offline.post(`/api/jobs/${id}/${m}`, undefined, { recordKey: jobKey(String(id)), label: `${job?.number || 'Job'} \u00b7 ${words.toLowerCase()}` })
+    const words = { dispatch: 'On my way', start: job?.status === 'on_hold' ? 'Resumed' : 'Arrived', complete: 'Completed', hold: 'On hold', pause: 'Paused', resume: 'Resumed' }[m]
+    // The body says when the tech tapped, so a move kept until signal returns still records the real time (flow.ts moveBody).
+    const r = await offline.post(`/api/jobs/${id}/${m}`, moveBody(), { recordKey: jobKey(String(id)), label: `${job?.number || 'Job'} \u00b7 ${words.toLowerCase()}` })
     setMoving(false)
     if (r.queued) { haptics.success(); toast.success('Saved on the phone \u2014 waiting to send') }
     else if (r.ok) { haptics.success(); toast.success(words); load(); void flowData.reload() }
@@ -192,6 +199,7 @@ export default function JobDetailScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}
       >
+        {savedCopy ? <Text accessibilityRole="alert" style={{ color: t.textSecondary, fontSize: 13, marginBottom: 8 }}>{savedCopy}</Text> : null}
         {/* Header */}
         <AnimatedCard index={0}>
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
@@ -334,6 +342,12 @@ export default function JobDetailScreen() {
               {job.claimNumber ? <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Claim #: {job.claimNumber}</Text> : null}
               {job.adjusterName ? <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Adjuster: {job.adjusterName}{job.adjusterPhone ? ` • ${job.adjusterPhone}` : ''}</Text> : null}
               {!job.insuranceCompany && !job.claimNumber ? <Text style={{ color: t.textMuted, fontSize: 13 }}>No claim details yet</Text> : null}
+              {/* The claim itself — supplements, the mortgage company's checks, held depreciation (app/(details)/job/claim.tsx) */}
+              {hasFeature('insurance_workflow') ? (
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open the claim" style={{ marginTop: 12, minHeight: 44, justifyContent: 'center' }} onPress={() => router.push(`/(details)/job/claim?id=${id}` as any)}>
+                  <Text style={{ color: t.primaryText, fontSize: 15, fontWeight: '600' }}>Open the claim</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </AnimatedCard>
         ) : null}
@@ -344,6 +358,13 @@ export default function JobDetailScreen() {
             <PhotoGallery jobId={id!} canAdd={canAddPhotos} />
           </View>
         </AnimatedCard>
+
+        {/* The project's inspections — Inspections on the Phone */}
+        {job.projectId && showsInspections(hasFeature, can) ? (
+          <AnimatedCard index={5}>
+            <JobInspections jobId={String(id)} projectId={String(job.projectId)} />
+          </AnimatedCard>
+        ) : null}
 
         {/* Notes */}
         <AnimatedCard index={6}>
@@ -387,7 +408,7 @@ export default function JobDetailScreen() {
               {!isRoof && (
                 <JobFlowCard
                   jobId={String(id)} status={job.status} queue={queue} checklists={flowData.checklists} photoCount={flowData.photoCount}
-                  busy={moving} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
+                  busy={moving} startedAt={job.startedAt} pausedAt={job.pausedAt} onMove={(m) => { void moveJob(m) }} onComplete={() => setShowComplete(true)}
                 />
               )}
 

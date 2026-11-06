@@ -6,6 +6,8 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { companyTimeZone } from '@twomiah/tenant-backend'
 import { company, contact, job, jobPhoto, user } from '../../../db/schema/index.ts'
+import { layoutOf, type ReportLayout } from './layout.ts'
+import { reportTimeline, type TimelineEntry } from './timeline.ts'
 
 export interface ReportSection { title: string; notes: string; photoIds: string[] }
 export interface ReportPhoto {
@@ -32,6 +34,10 @@ export interface ReportView {
   brand: { name: string; color: string; logo: string | null; phone: string | null; email: string | null; address: string | null; license: string | null }
   job: { number: string; title: string; address: string; homeowner: string | null; claimNumber: string | null; insuranceCompany: string | null; dateOfLoss: string | null; inspectionDate: string | null }
   sections: Array<{ title: string; notes: string; photos: ReportPhoto[] }>
+  /** How the page and the PDF are laid out (./layout.ts). */
+  layout: ReportLayout
+  /** The job's story, oldest first: only when the layout asks for it (./timeline.ts). */
+  timeline: TimelineEntry[]
 }
 
 const COLOR = /^#[0-9a-fA-F]{6}$/
@@ -72,18 +78,22 @@ export async function buildReportView(db: any, report: any): Promise<ReportView>
     id: r.id, caption: r.caption || null, photoType: r.photoType || 'general', takenAt: iso(r.takenAt),
     latitude: num(r.latitude), longitude: num(r.longitude), by: r.uploadedById ? byName.get(r.uploadedById) ?? null : null, url: r.url,
   })
+  const layout = layoutOf(report.layout)
+  const timeZone = await companyTimeZone(db, report.companyId)
   const color = COLOR.test(String(co?.primaryColor || '')) ? String(co.primaryColor) : DEFAULT_BRAND_COLOR
   const address = [jb?.address, [jb?.city, jb?.state].filter(Boolean).join(', '), jb?.zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   const companyAddress = [co?.address, [co?.city, co?.state].filter(Boolean).join(', '), co?.zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   return {
     id: report.id, jobId: report.jobId, title: report.title, intro: report.intro || '', updatedAt: iso(report.updatedAt) || new Date().toISOString(),
-    timeZone: await companyTimeZone(db, report.companyId),
+    timeZone,
     brand: { name: co?.name || 'Your roofer', color, logo: co?.logo || null, phone: co?.phone || null, email: co?.email || null, address: companyAddress || null, license: co?.licenseNumber || null },
     job: {
       number: jb?.number || '', title: jb?.title || '', address, homeowner, claimNumber: jb?.claimNumber || null, insuranceCompany: jb?.insuranceCompany || null,
       dateOfLoss: iso(jb?.dateOfLoss), inspectionDate: iso(jb?.inspectionDate),
     },
     sections: sections.map((s) => ({ title: s.title, notes: s.notes, photos: s.photoIds.map((id) => byId.get(id)).filter(Boolean).map(photoOf) })),
+    layout,
+    timeline: layout.timeline ? await reportTimeline(db, report.companyId, report.jobId, timeZone) : [],
   }
 }
 

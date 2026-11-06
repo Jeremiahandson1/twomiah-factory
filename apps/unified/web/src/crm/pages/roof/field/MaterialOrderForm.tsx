@@ -8,9 +8,8 @@ import { api } from '../../../../api'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { errorText, useToast } from '../../../../shared'
 import { listOf } from './http'
+import { SETTABLE_ORDER_STATUSES, orderStatusLabel } from '../lib/supplier'
 
-const STATUSES = ['not_ordered', 'ordered', 'partial', 'delivered', 'cancelled'] as const
-const label = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
 /** The supply houses a roofer names most (lib/supplier.ts KNOWN), offered as they type; anything typed is kept. */
 export const SUPPLIERS = ['ABC Supply', 'Beacon Building Products', 'SRS Distribution', 'Allied Building Products', 'Home Depot', "Lowe's", 'Bradco Supply', 'Gulfeagle Supply', 'Roofers Supply']
@@ -32,6 +31,7 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
   const [form, setForm] = useState({
     jobId: jobId || '', supplier: '', orderStatus: 'not_ordered', orderDate: '', deliveryDate: '',
     supplierOrderNumber: '', deliveryAddress: jobAddress || '', notes: '',
+    poNumber: '', contactName: '', contactPhone: '', contactEmail: '',
   })
   const [lines, setLines] = useState<Line[]>([blankLine()])
   const [saving, setSaving] = useState(false)
@@ -74,6 +74,7 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
         ...(form.supplierOrderNumber.trim() ? { supplierOrderNumber: form.supplierOrderNumber.trim() } : {}),
         ...(form.deliveryAddress.trim() ? { deliveryAddress: form.deliveryAddress.trim() } : {}),
         ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
+        ...Object.fromEntries((['poNumber', 'contactName', 'contactPhone', 'contactEmail'] as const).filter((k) => form[k].trim()).map((k) => [k, form[k].trim()])),
         lineItems: filled.map((l) => ({ description: l.description.trim(), qty: Number(l.qty), unit: l.unit.trim() || 'ea', unitPrice: Number(l.unitPrice) || 0 })),
       })
       toast.success('Material order added')
@@ -115,7 +116,7 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
           <div>
             <label htmlFor="mo-status" className={lab}>Status</label>
             <select id="mo-status" value={form.orderStatus} onChange={(e) => set('orderStatus', e.target.value)} className={input}>
-              {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+              {SETTABLE_ORDER_STATUSES.map((s) => <option key={s} value={s}>{orderStatusLabel(s)}</option>)}
             </select>
           </div>
           <div>
@@ -127,12 +128,28 @@ export default function MaterialOrderForm({ jobId, jobAddress, onClose, onSaved 
             <input id="mo-delivery" type="date" value={form.deliveryDate} onChange={(e) => set('deliveryDate', e.target.value)} className={input} />
           </div>
           <div>
+            <label htmlFor="mo-po" className={lab}>PO number</label>
+            <input id="mo-po" value={form.poNumber} onChange={(e) => set('poNumber', e.target.value)} className={input} />
+          </div>
+          <div>
             <label htmlFor="mo-ref" className={lab}>Supplier order #</label>
             <input id="mo-ref" value={form.supplierOrderNumber} onChange={(e) => set('supplierOrderNumber', e.target.value)} className={input} />
           </div>
           <div>
             <label htmlFor="mo-address" className={lab}>Deliver to</label>
             <input id="mo-address" value={form.deliveryAddress} onChange={(e) => set('deliveryAddress', e.target.value)} className={input} />
+          </div>
+          <div>
+            <label htmlFor="mo-contact" className={lab}>Point of contact</label>
+            <input id="mo-contact" value={form.contactName} onChange={(e) => set('contactName', e.target.value)} className={input} />
+          </div>
+          <div>
+            <label htmlFor="mo-contact-phone" className={lab}>Contact phone</label>
+            <input id="mo-contact-phone" type="tel" value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} className={input} />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="mo-contact-email" className={lab}>Contact email</label>
+            <input id="mo-contact-email" type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} className={input} />
           </div>
         </div>
 

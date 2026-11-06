@@ -14,6 +14,11 @@ import { bootTenant, seedOwner } from './harness.ts'
 /** The writes a caregiver may make, each narrowed to themselves (or to a client they serve). */
 const SELF: Record<string, string> = {
   'PUT /api/care-tasks/time-entry/:timeEntryId/:taskId': 'a checklist task on my own visit, for a client I serve',
+  'PUT /api/visit-items/visit/:timeEntryId/:itemId': 'a form, intervention, goal or task on my own visit, for a client I serve (care_visit_items)',
+  'POST /api/visit-items/visit/:timeEntryId/:itemId/form': 'a form filled in on my own visit, for a client I serve (care_visit_items)',
+  'PUT /api/visit-signature/visit/:timeEntryId': 'the client\'s signature on my own visit, for a client I serve (care_visit_signature)',
+  'PUT /api/visit-meals/visit/:timeEntryId/:meal': 'a meal on my own visit, for a client I serve (care_family_content)',
+  'DELETE /api/visit-meals/visit/:timeEntryId/:meal': 'take a meal off my own visit, for a client I serve (care_family_content)',
   'POST /api/medications/log': 'a MAR dose for a client I serve (careWriteRefusal)',
   'POST /api/medications/vitals': 'vitals for a client I serve',
   'POST /api/adl/log': 'an ADL for a client I serve',
@@ -24,6 +29,10 @@ const SELF: Record<string, string> = {
   'POST /api/emergency/client-unavailable': 'I cancel only my own visit (client refused / not home)',
   'POST /api/scheduling/time-off': 'I file my own time-off request, always pending',
   'POST /api/open-shifts/:id/claim': 'I claim an offered shift for myself',
+  'POST /api/care-rewards/redeem': 'I ask for a reward with my own points (care_pickup_rewards)',
+  'POST /api/open-shift-offers/:id/decline': 'I turn an open shift down, with a reason (care_open_shift_offers)',
+  'POST /api/open-shift-offers/:id/hide': 'I hide an open shift from my own list (care_open_shift_offers)',
+  'POST /api/caregiver-surveys/me/:requestId/answer': 'I answer a satisfaction survey asked of me (care_caregiver_surveys)',
   'POST /api/shift-swaps': 'I ask to swap my own shift',
   'PUT /api/shift-swaps/:id/respond': 'only the caregiver asked answers',
   'PUT /api/shift-swaps/:id/cancel': 'only the caregiver who asked withdraws',

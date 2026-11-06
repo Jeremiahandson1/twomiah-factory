@@ -10,6 +10,8 @@ import { useConfirm } from '../ui/ConfirmProvider'
 import { JobPartsPanel } from '../inventory/JobPartsPanel'
 import { JobNotesPanel } from './JobNotesPanel'
 import { JobPhotosPanel } from './JobPhotosPanel'
+import { JobRemindersPanel } from './JobRemindersPanel'
+import { JobRevenueSplitPanel } from './JobRevenueSplitPanel'
 import { PhotoViewer } from '../files/PhotoViewer'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
@@ -124,6 +126,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
               {job.isOverdue && <StatusBadge status="overdue" />}
+              {job.status === 'in_progress' && (job as any).pausedAt && <span className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Paused</span>}
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${PRIORITY_COLORS[job.priority] || ''}`}>{codeLabel(job.priority)}</span>
             </div>
           </div>
@@ -212,6 +215,9 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
 
         <div className="space-y-6 min-w-0">
           {config?.aside?.(job)}
+          {/* Confirmed or not, Text / Email reminder, and what the customer was sent (Job Reminders). Absent while the feature is off. */}
+          {job.contactId && config?.hasFeature?.('job_reminders') && <JobRemindersPanel api={api as any} toast={toast} jobId={id} mayUpdate={mayUpdate} open={open} />}
+          {(job.assignees?.length || 0) > 1 && config?.hasFeature?.('team_revenue_reports') && <JobRevenueSplitPanel api={api as any} toast={toast} jobId={id} mayUpdate={mayUpdate} crewSize={job.assignees?.length || 0} />}
           <div className={card}>
             <h2 className="font-semibold mb-4 text-gray-900 dark:text-slate-100">Related</h2>
             <div className="space-y-3">

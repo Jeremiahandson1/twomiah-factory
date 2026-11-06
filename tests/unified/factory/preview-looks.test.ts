@@ -16,7 +16,13 @@ const { Hono } = createRequire(path.resolve(import.meta.dir, '../../../apps/api/
 let app: any
 let n = 0
 
+// The env this file sets is put back when it ends: every Factory test file shares one process, and a later one that reads
+// UNIFIED_SIGNUPS / UNIFIED_LIVE_VERTICALS (factory.test.ts engineForSignup, alerts.test.ts /public/preview) must not see
+// these (11/05: with one more file the order changed on CI and both failed).
+const ENV_KEYS = ['UNIFIED_SIGNUPS', 'UNIFIED_LIVE_VERTICALS', 'SIGNUP_WEBSITE_ENGINE'] as const
+const savedEnv: Record<string, string | undefined> = {}
 beforeAll(async () => {
+  for (const k of ENV_KEYS) savedEnv[k] = process.env[k]
   Object.assign(process.env, {
     UNIFIED_SIGNUPS: 'test', UNIFIED_LIVE_VERTICALS: 'contractor,fieldservice,landscaping,roofing,homecare,restaurant,bar,salon,basic',
     SIGNUP_WEBSITE_ENGINE: 'premium',
@@ -27,6 +33,7 @@ beforeAll(async () => {
   registerIntakeRoutes(app as any)
 })
 afterAll(restoreAuth)
+afterAll(() => { for (const k of ENV_KEYS) { if (savedEnv[k] === undefined) delete process.env[k]; else process.env[k] = savedEnv[k] } })
 
 // A fresh address each time: the route's own rate limit (6 per ten minutes per address) is exercised on purpose below.
 const post = (p: string, json: unknown, ip = '10.0.0.' + ++n) =>

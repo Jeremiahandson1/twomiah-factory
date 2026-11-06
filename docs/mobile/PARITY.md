@@ -10,7 +10,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 
 | Trade | Desktop items | Phone has today | A | B | C | D |
 |---|---:|---:|---:|---:|---:|---:|
-| Contractor | 67 | 17 | 12 | 9 | 25 | 21 |
+| Contractor | 67 | 18 | 12 | 9 | 25 | 21 |
 | Basic (general service business) | 48 | 17 | 12 | 3 | 17 | 16 |
 | Field service | 52 | 17 | 12 | 4 | 19 | 17 |
 | Landscaping | 55 | 18 | 13 | 4 | 21 | 17 |
@@ -67,7 +67,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Projects | Change Orders | `/crm/change-orders` | change-orders:read | change_orders (on by default) | owner, admin, manager, viewer | none | B — projects, bids and the price book |
 | Projects | Punch Lists | `/crm/punch-lists` | — | punch_lists (on by default) | all | none | B — projects, bids and the price book |
 | Projects | Daily Logs | `/crm/daily-logs` | — | daily_logs (on by default) | all | none | B — projects, bids and the price book |
-| Projects | Inspections | `/crm/inspections` | — | inspections (on by default) | all | none | B — projects, bids and the price book |
+| Projects | Inspections | `/crm/inspections` | — | inspections (on by default) | all | Inspections on the job (Jobs › job › Inspections, with Inspections on the Phone on): answer the checklist Pass / Fail / Not applicable with a note and photos, and the customer signs; booking a visit, its result and the saved checklists stay on the desktop | B — projects, bids and the price book |
 | Projects | Gantt Chart | `/crm/gantt` | — | gantt_charts (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Field | Field View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Field | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
@@ -620,7 +620,7 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Kitchen & Counter | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Kitchen & Counter | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later; the event already names the client and the room |
 | Kitchen & Counter | Kitchen Stock | `/crm/stock` | bar:update | bar_stock (off by default (add-on or opt-in)) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | C |
-| Kitchen & Counter | Staff Schedule | `/crm/shifts` | bar:read | bar_schedule (off by default (add-on or opt-in)) | all | Shifts (published schedule, ask for a day off; a restaurant opens it from More) | C |
+| Kitchen & Counter | Staff Schedule | `/crm/shifts` | bar:read | bar_schedule (off by default (add-on or opt-in)) | all | Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More) | C |
 | Kitchen & Counter | Menu | `/crm/menu` | bar:read | bar_menu (off by default (add-on or opt-in)) | all | 86 board (put an item out, back on) | A — close the kitchen and 86 an item mid-service (when switched on) |
 | Kitchen & Counter | Taps | `/crm/taps` | bar:read | draft_taps (off by default (add-on or opt-in)) | all | none | C |
 | Kitchen & Counter | What's on | `/crm/whats-on` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | C |
@@ -681,7 +681,7 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | The Bar | Gift Cards | `/crm/gift-cards` | bar:manage | gift_cards (on by default) | owner, admin, manager | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Regulars | `/crm/regulars` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful later, not the bar's nightly loop |
 | The Bar | Stock | `/crm/stock` | bar:update | bar_stock (on by default) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | A — blind count and receiving a delivery in the back room |
-| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts (published schedule, ask for a day off; a restaurant opens it from More) | A — my shifts, time off and the clock |
+| The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More) | A — my shifts, time off and the clock |
 | The Bar | Menu | `/crm/menu` | bar:read | bar_menu (on by default) | all | 86 board (put an item out, back on) | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | Taps | `/crm/taps` | bar:read | bar_menu (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | What's on | `/crm/whats-on` | bar:read | bar_tonight (on by default) | all | none | C |

@@ -115,6 +115,7 @@
   "/api/sms/messages",
   "/api/sms/templates",
   "/api/support/kb",
+  "/api/team/assignable",
   "/api/time-entries/pending-approval",
   "/api/users/admins?limit=200",
   "/api/users/caregivers",

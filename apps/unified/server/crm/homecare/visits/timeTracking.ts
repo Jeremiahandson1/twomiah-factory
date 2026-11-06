@@ -323,6 +323,9 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     if (offline.error) return fail(c, 400, offline.error, offline.code || 'offline_punch_invalid')
     const punchAt = offline.at
     const at = punchAt || new Date()
+    // Questions at clock-in (care_visit_questions): a required one blocks a live clock-in; a punch saved offline is a fact and is kept.
+    const asked = await core.visitQuestions.gate(companyId, 'clock_in', b.answers, !punchAt)
+    if (Object.keys(asked.problems).length) return questionsRefusal(c, asked)
 
     const loc = (src?: string) => latitude && longitude
       ? (punchAt ? { lat: latitude, lng: longitude, source: src || 'offline', captured_at: punchAt.toISOString() } : { lat: latitude, lng: longitude })
@@ -449,6 +452,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
       throw e
     }
     await notify.recordAudit(companyId, caregiverId, 'CREATE', 'time_entries', entry.id, null, entry)
+    try { await core.visitQuestions.record(companyId, entry, 'clock_in', asked.questions, asked.clean, caregiverId) } catch (e: any) { d.logger.error('[clock-in] answers', { error: e?.message }) }
     // EVV: does this visit go to Sandata (weekly EVV allowance)? Decided after the punch is saved and capped, so it never
     // blocks the clock-in; null = no answer, and the app prompts as before.
     const sandataRequired = await core.evvVisits.recordSandataDecision(companyId, entry.id, entry.clientId, entry.startTime.toISOString())
@@ -456,6 +460,12 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     void core.familyTexts.onClockEvent(companyId, entry, 'clock_in', at)
     return one(c, { ...entry, sandataRequired }, 201)
   })
+
+  /** A live punch refused because a question is unanswered or answered badly: 409, with { questionId: sentence } to point at each. */
+  function questionsRefusal(c: any, asked: { questions: { id: string; prompt: string }[]; problems: Record<string, string> }) {
+    const prompts = asked.questions.filter((q) => asked.problems[q.id]).map((q) => `"${q.prompt}"`)
+    return fail(c, 409, `Answer ${prompts.length === 1 ? 'this question' : 'these questions'} first: ${prompts.join(', ')}.`, 'questions_required', asked.problems)
+  }
 
   // The clock-out itself, shared by POST /:id/clock-out and the older POST /clock-out { timeEntryId }.
   async function clockOut(c: any, timeEntryId: string, b: any) {
@@ -492,10 +502,40 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
         'required_tasks_pending', Object.fromEntries(openRequired.map((t) => [t.taskId, t.taskName])))
     }
 
+    // Forms, interventions, goals and tasks for every visit (care_visit_items): a required one waits, like a required task; one that is
+    // still open when a clock-out arrives from the phone's offline queue is recorded and flagged. And the agency's visit-note rule.
+    const openItems = await core.visitItems.pendingFor(companyId, entry)
+    if (openItems.length && !endAt) {
+      const names = openItems.map((i) => i.name)
+      return fail(c, 409, `Finish ${names.length === 1 ? 'this' : 'these'} before clocking out: ${names.join(', ')}. Mark ${names.length === 1 ? 'it' : 'each'} done, or skip it and say why.`,
+        'required_items_pending', Object.fromEntries(openItems.map((i) => [i.id, i.name])))
+    }
+    const noteMissing = !String(notes || entry.notes || '').trim() && await core.visitItems.noteRequired(companyId)
+    if (noteMissing && !endAt) return fail(c, 400, 'This agency needs a visit note to clock out. Please add a short note about the visit.', 'note_required')
+
+    // The client's signature (care_visit_signature). The phone sends it in the clock-out body, so a visit clocked out while offline still
+    // carries it. When the agency requires it, a live clock-out waits for the signature or a reason; an offline one is flagged.
+    if (b.signature && typeof b.signature === 'object' && await core.visitSignature.enabled(companyId)) {
+      const rec = await core.visitSignature.record(companyId, entry, me, b.signature)
+      if (!rec.ok && !endAt) return fail(c, 400, rec.message, rec.code, rec.fields)
+    }
+    const signatureMissing = await core.visitSignature.missingFor(companyId, entry.id)
+    if (signatureMissing && !endAt) return fail(c, 409, 'Have the client sign before clocking out — or pick why they could not sign.', 'signature_required')
+
+    // Questions at clock-out (care_visit_questions): the same rule as at clock-in.
+    const asked = await core.visitQuestions.gate(companyId, 'clock_out', b.answers, !endAt)
+    if (Object.keys(asked.problems).length) return questionsRefusal(c, asked)
+
     const dec = decideBilling({ durationSeconds: (end.getTime() - entry.startTime.getTime()) / 1000, allottedMinutes: entry.allottedMinutes, isPrivatePay: isPrivate(payer) })
     const baseFlag = withOfflineFlag(dec, !!endAt || hasOfflineFlag(entry.approvalReason))
-    const flag = openRequired.length
-      ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}`].filter(Boolean).join(' · ') }
+    const flagged = [
+      openRequired.length ? `Required tasks not recorded: ${openRequired.map((t) => t.taskName).join(', ')}` : '',
+      openItems.length ? `Required items not recorded: ${openItems.map((i) => i.name).join(', ')}` : '',
+      noteMissing ? 'No visit note' : '',
+      signatureMissing ? 'No client signature or reason' : '',
+    ].filter(Boolean)
+    const flag = flagged.length
+      ? { needsApproval: true, approvalReason: [baseFlag.approvalReason, ...flagged].filter(Boolean).join(' · ') }
       : baseFlag
     const outLoc = latitude && longitude
       ? (endAt ? { lat: latitude, lng: longitude, source: 'offline', captured_at: endAt.toISOString() } : { lat: latitude, lng: longitude })
@@ -511,6 +551,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
       return one(c, { ...now, alreadyComplete: true })
     }
     await notify.recordAudit(companyId, me, 'UPDATE', 'time_entries', entry.id, null, updated)
+    try { await core.visitQuestions.record(companyId, entry, 'clock_out', asked.questions, asked.clean, me) } catch (e: any) { d.logger.error('[clock-out] answers', { error: e?.message }) }
 
     // Fill a MISSING clock-in / clock-out location from the visit's GPS breadcrumbs (within 10 minutes of the event),
     // flagged source:'breadcrumb' — presence evidence, distinguishable from a tap fix.

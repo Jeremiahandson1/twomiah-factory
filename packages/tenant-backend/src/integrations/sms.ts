@@ -32,6 +32,11 @@ export interface SmsServiceDeps {
    */
   onConsent?: (companyId: string, phone: string, change: 'given' | 'withdrawn') => Promise<void>
   /**
+   * A customer's text that is not a STOP: the business can answer it itself (the unified app confirms a visit when the customer
+   * replies Y or C to a reminder). Returns the words to text back, or null when the text is for the inbox like any other.
+   */
+  onReply?: (m: { companyId: string; contactId: string | null; body: string }) => Promise<string | null>
+  /**
    * Picture messages (MMS): the pictures a text carries are files in the business's own private store, named by key.
    * `allowed` says a key is this company's; `providerUrl` is the short-lived signed link the carrier fetches it from
    * (null when the app has no public address to give it); `viewUrl` the one the inbox shows it by. Without this, a
@@ -221,6 +226,15 @@ export function createSmsService(deps: SmsServiceDeps) {
       )))
     }
     if (deps.onConsent) await deps.onConsent(comp.id, formattedPhone, optingOut ? 'withdrawn' : 'given').catch((e) => console.error('[sms] consent not recorded:', e?.message))
+    // The business answers it itself (a visit confirmed by "Y"): the thread keeps both texts, and no auto-responder also answers.
+    if (!optingOut && deps.onReply) {
+      const contactId = conversation.contactId || matchedContactId || null
+      const answer = await deps.onReply({ companyId: comp.id, contactId, body: Body || '' }).catch((e) => { console.error('[sms] reply handler failed:', e?.message); return null })
+      if (answer) {
+        await sendSMS(comp.id, { contactId: contactId || undefined, toPhone: formattedPhone, message: answer }).catch((e: any) => console.error('[sms] reply not sent:', e?.message))
+        return msg
+      }
+    }
     if (!optingOut) await processAutoResponders(comp.id, conversation, Body || '')
     return msg
   }

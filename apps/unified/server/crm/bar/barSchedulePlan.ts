@@ -10,7 +10,8 @@
  * past 40 in it are overtime (federal; Wisconsin DWD 274 has no daily overtime). Ported from website-premium-bar's
  * lib/staff/schedule.ts (Amber Inn, 9/29), keyed by login user instead of a staff PIN.
  */
-import { addDays, localToUtc, rangesFor, type HoursConfig } from './barHours.ts'
+import { addDays, localParts, localToUtc, rangesFor, type HoursConfig } from './barHours.ts'
+import { BUSINESS_DAY_STARTS } from './barLive.ts'
 
 export const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/
 export const OVERTIME_AFTER_HOURS = 40
@@ -108,4 +109,118 @@ export function formatClock(t: string): string {
   const [h, m] = t.split(':').map(Number)
   const hr = h % 12 === 0 ? 12 : h % 12
   return m ? `${hr}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` : `${hr} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+// ─── Sales-driven labor forecast (restaurant-bar parity #9, bar_labor_forecast; tests/bar-labor-forecast.test.ts) ─────────────────────
+//
+// SALES by day and hour: for the day being planned, the mean of the same weekday's sales in the same clock hour over the last `weeks`
+// weeks. A past day counts as a sample only when the register took sales that business day (a day it was shut is not a day of zero
+// sales); inside a sample day, an hour with no sales is a real zero. The look-back is the last `weeks` same weekdays that are OVER: the day
+// being planned and today (not over) are never samples, and are not counted against the weeks.
+// With fewer than MIN_FORECAST_WEEKS samples there is NO number: the answer says "not enough history" and how many days it had.
+// Hours are the company's clock (before 4 AM belongs to the night before, as everywhere in the bar). Money is whole cents.
+export const MIN_FORECAST_WEEKS = 2
+export const DEFAULT_FORECAST_WEEKS = 4
+export const MAX_FORECAST_WEEKS = 8
+export const DEFAULT_TARGET_LABOR_PCT = 30
+
+/** Net sales (food and drink, gift cards sold left out) of one paid check, and when it closed. */
+export interface SaleAt { at: Date; cents: number }
+/** Business day → clock hour (0-23) → cents. */
+export type SalesGrid = Map<string, Map<number, number>>
+
+export function salesGrid(sales: SaleAt[], tz: string, dayOf: (at: Date) => string): SalesGrid {
+  const grid: SalesGrid = new Map()
+  for (const s of sales) {
+    const day = dayOf(s.at), hour = localParts(s.at, tz).h
+    const hours = grid.get(day) ?? grid.set(day, new Map()).get(day)!
+    hours.set(hour, (hours.get(hour) || 0) + s.cents)
+  }
+  return grid
+}
+
+export interface HourForecast { hour: number; cents: number }
+export interface DayForecast {
+  day: string
+  /** The past dates that were averaged. */
+  sampleDays: string[]
+  samples: number
+  /** The weeks looked back over (the venue's setting), so "2 of 4" can be said. */
+  weeksLookedBack: number
+  /** The whole day, mean of the sample days' totals (hours are rounded one by one, so they can differ by a few cents). null: not enough history. */
+  totalCents: number | null
+  hours: HourForecast[]
+  notEnoughHistory: boolean
+  reason: string | null
+}
+
+/** The order the bar's hours run in a business day: 4 AM first, 3 AM last. */
+const dayHourOrder = (h: number) => (h < Number(BUSINESS_DAY_STARTS.slice(0, 2)) ? h + 24 : h)
+
+export function forecastDay(grid: SalesGrid, day: string, asOfDay: string, weeks = DEFAULT_FORECAST_WEEKS): DayForecast {
+  // The last `weeks` same weekdays that are over (so planning a week ahead does not use up a week of the look-back on days that have not happened);
+  // of those, the ones the register took sales on.
+  const over: string[] = []
+  for (let k = 1; over.length < weeks && k <= weeks + 60; k++) { const d = addDays(day, -7 * k); if (d < asOfDay) over.push(d) }
+  const sampleDays = over.filter((d) => grid.has(d))
+  const n = sampleDays.length
+  if (n < MIN_FORECAST_WEEKS) {
+    return {
+      day, sampleDays, samples: n, weeksLookedBack: weeks, totalCents: null, hours: [], notEnoughHistory: true,
+      reason: `Not enough history: ${n} of the last ${weeks} same weekdays had sales, and at least ${MIN_FORECAST_WEEKS} are needed.`,
+    }
+  }
+  const seen = new Set<number>()
+  for (const d of sampleDays) for (const h of grid.get(d)!.keys()) seen.add(h)
+  const ordered = [...seen].sort((a, b) => dayHourOrder(a) - dayHourOrder(b))
+  // Every hour between the first and the last that sold anything, so a quiet hour in the middle reads as a low number, not as a gap.
+  const first = dayHourOrder(ordered[0]), last = dayHourOrder(ordered[ordered.length - 1])
+  const hours: HourForecast[] = []
+  for (let o = first; o <= last; o++) {
+    const h = o % 24
+    hours.push({ hour: h, cents: Math.round(sampleDays.reduce((s, d) => s + (grid.get(d)!.get(h) || 0), 0) / n) })
+  }
+  const totals = sampleDays.map((d) => [...grid.get(d)!.values()].reduce((s, c) => s + c, 0))
+  return { day, sampleDays, samples: n, weeksLookedBack: weeks, totalCents: Math.round(totals.reduce((s, c) => s + c, 0) / n), hours, notEnoughHistory: false, reason: null }
+}
+
+/** What a position has been scheduled for lately: hours, and the hourly pay of the people who worked it (cents; null where no rate is on file). */
+export interface PositionHistory { position: string; hours: number; avgWageCents: number | null }
+export interface PositionSuggestion { position: string; hours: number }
+export interface StaffingSuggestion {
+  /** Sales × target labor percent, in cents. */
+  budgetCents: number
+  /** The hourly pay of the positions together, weighted by the hours each has been scheduled, in cents. */
+  blendedWageCents: number
+  totalHours: number
+  positions: PositionSuggestion[]
+}
+
+/**
+ * Hours per position that fit the labor budget (forecast sales × the target percent) at the pay of the people who work each position,
+ * split the way the hours have been split lately. A guide to a budget, not a minimum crew: the schedule's coverage warnings stand.
+ * `null` when there is nothing to base it on (no sales number, no position with hours and a rate).
+ */
+export function staffingFor(salesCents: number | null, targetPct: number, history: PositionHistory[]): StaffingSuggestion | null {
+  if (salesCents === null) return null
+  const usable = history.filter((p) => p.hours > 0 && p.avgWageCents !== null && p.avgWageCents > 0)
+  const hoursAll = usable.reduce((s, p) => s + p.hours, 0)
+  if (!usable.length || hoursAll <= 0) return null
+  const budgetCents = Math.round((salesCents * targetPct) / 100)
+  const blended = usable.reduce((s, p) => s + p.hours * (p.avgWageCents as number), 0) / hoursAll
+  const totalHours = budgetCents / blended
+  const quarter = (h: number) => Math.round(h * 4) / 4
+  return {
+    budgetCents, blendedWageCents: Math.round(blended), totalHours: quarter(totalHours),
+    positions: usable.map((p) => ({ position: p.position, hours: quarter((totalHours * p.hours) / hoursAll) })).sort((a, b) => a.position.localeCompare(b.position)),
+  }
+}
+
+/** Is `v` a target labor percent a venue may set (5 to 80, to the half percent)? */
+export function targetPctRefusal(v: unknown): string | null {
+  const n = Number(v)
+  if (typeof v === 'boolean' || v === '' || v === null || !Number.isFinite(n)) return 'The target labor percent is a number, like 30.'
+  if (n < 5 || n > 80) return 'The target labor percent is between 5 and 80.'
+  if (Math.round(n * 2) !== n * 2) return 'The target labor percent is in whole or half percents, like 30 or 27.5.'
+  return null
 }
