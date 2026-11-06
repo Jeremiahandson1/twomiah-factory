@@ -47,6 +47,9 @@ export const recurringRouteStop = pgTable('recurring_route_stop', {
   sortOrder: integer('sort_order').default(0).notNull(),
   estimatedMinutes: integer('estimated_minutes').default(30).notNull(),
   pricePerVisit: decimal('price_per_visit', { precision: 12, scale: 2 }).default('0').notNull(),
+  // Landscaping parity row 26 (Yardbook "Skip Job Completion Notification"; visit_message_tools): this stop's visits never send the
+  // visit-done message.
+  skipVisitMessage: boolean('skip_visit_message').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('recurring_route_stop_route_id_idx').on(t.recurringRouteId),
@@ -211,6 +214,13 @@ export const visitReport = pgTable('visit_report', {
   sendAt: timestamp('send_at'),
   sentAt: timestamp('sent_at'),
   error: text('error'),
+  // Row 26 (visit_message_tools): a copy of what the customer got — the subject (email) and the words, as sent.
+  messageSubject: text('message_subject'),
+  messageText: text('message_text'),
+  // Row 31 (Jobber's feedback survey; visit_survey): the customer's 1–5 rating and comment from the message's link.
+  rating: integer('rating'),
+  ratingComment: text('rating_comment'),
+  ratedAt: timestamp('rated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -279,6 +289,14 @@ export const landscapingSetting = pgTable('landscaping_setting', {
   rainDaySkipSundays: boolean('rain_day_skip_sundays').default(true).notNull(),
   // Row 30: start a storm on its own when the forecast's snowfall reaches a contract's trigger. Off unless the owner turns it on.
   snowAutoStart: boolean('snow_auto_start').default(false).notNull(),
+  // Row 26 (visit_message_tools): the visit-done message's own words, with {placeholders}; null is the built-in wording. Services
+  // (a route stop's service, e.g. "aeration") whose visits are never messaged.
+  visitText: text('visit_text'),
+  visitEmailSubject: text('visit_email_subject'),
+  visitEmailBody: text('visit_email_body'),
+  visitSkipServices: json('visit_skip_services').default([]).notNull(),
+  // Row 31 (visit_survey): a rating under this emails the office.
+  visitAlertBelow: integer('visit_alert_below').default(3).notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('landscaping_setting_company_id_idx').on(t.companyId),

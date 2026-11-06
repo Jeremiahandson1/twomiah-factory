@@ -284,7 +284,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
       // The customer is told the visit is done, with the crew's note and after-photos, where the business has turned that on
       // (feature visit_reports, data/visitReports.ts). Never holds up completing the job.
       if (await isFeatureEnabled(companyId, 'visit_reports').catch(() => false)) {
-        await sendVisitReport(db, visitSendDeps((m) => email.sendRaw(m)), companyId, done.id).catch((err: any) => logger.warn('[jobs] visit message not sent', { error: err?.message }))
+        const tools = await isFeatureEnabled(companyId, 'visit_message_tools').catch(() => false)
+        const survey = await isFeatureEnabled(companyId, 'visit_survey').catch(() => false)
+        await sendVisitReport(db, visitSendDeps((m) => email.sendRaw(m)), companyId, done.id, { tools, survey }).catch((err: any) => logger.warn('[jobs] visit message not sent', { error: err?.message }))
       }
       // A visit of a recurring agreement makes the next one (the screen reads nextServiceDate either way).
       if (!settings.agreements?.recurrence || !(done as any).serviceAgreementId) return { nextServiceDate: null }

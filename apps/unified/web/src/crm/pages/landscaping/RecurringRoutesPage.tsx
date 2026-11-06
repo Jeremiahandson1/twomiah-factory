@@ -4,7 +4,7 @@
 // id, which nothing on the screen showed. It is the property picker Snow Billing and Area Pricing use (T14 M7's fix,
 // never carried to this page).
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle, ArrowUp, ArrowDown, CalendarPlus, GripVertical, Leaf } from 'lucide-react'
+import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle, ArrowUp, ArrowDown, CalendarPlus, GripVertical, Leaf, BellOff, Bell } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { whenDate, companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
@@ -41,6 +41,8 @@ interface Stop {
   serviceType: string;
   estimatedMinutes: number;
   pricePerVisit?: string | number;
+  /** Row 26 (visit_message_tools): this stop's visits never send the visit-done message. */
+  skipVisitMessage?: boolean;
 }
 
 /** GET /api/recurring-routes/:id → billing (only for a seat that may see invoices): how the visits are billed and why. */
@@ -107,6 +109,18 @@ export default function RecurringRoutesPage() {
   const { sites, reloadSites } = useSites()
   // Rows 20 and 21 (route_board_tools, not ready): seasons, drag, a new stop's visits at once, crew clashes.
   const tools = useAuth().hasFeature('route_board_tools')
+  // Row 26 (visit_message_tools, not ready): a stop whose visits never send the visit-done message — the office's call.
+  const { hasFeature } = useAuth()
+  const msgTools = hasFeature('visit_message_tools') && hasFeature('visit_reports')
+  const mayDispatch = useMayWrite('jobs:dispatch')
+  const toggleStopMessage = async (s: Stop) => {
+    if (!detail) return
+    try {
+      await api.put(`/api/visit-reports/stops/${s.id}`, { skip: !s.skipVisitMessage })
+      toast.success(s.skipVisitMessage ? 'This stop’s visits will message the customer again' : 'This stop’s visits will not message the customer')
+      await openRoute(detail.id)
+    } catch (error) { toast.error(serverMessage(error, 'Could not change the visit message for this stop')) }
+  }
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [season, setSeason] = useState({ start: '', end: '' })
 
@@ -346,6 +360,14 @@ export default function RecurringRoutesPage() {
                 onDragOver={(e) => { if (tools && mayEditStops) e.preventDefault() }} onDrop={() => dropStop(i)}>
                 <span>{tools && mayEditStops && <GripVertical className="inline w-4 h-4 mr-1 cursor-grab text-gray-400" aria-hidden="true" />}<span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {codeLabel(s.serviceType)} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
+                  {msgTools && s.skipVisitMessage && <span className="text-xs text-gray-500 dark:text-slate-400">No visit message</span>}
+                  {msgTools && mayDispatch && (
+                    <button aria-label={s.skipVisitMessage ? `Message the customer after ${s.siteName || 'this stop'}’s visits` : `Stop messaging the customer after ${s.siteName || 'this stop'}’s visits`}
+                      title={s.skipVisitMessage ? 'Turn the visit-done message back on' : 'Don’t send the visit-done message for this stop'}
+                      onClick={() => toggleStopMessage(s)} className="p-1 text-gray-500 dark:text-slate-400">
+                      {s.skipVisitMessage ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                    </button>
+                  )}
                   {s.pricePerVisit !== undefined && <span className="font-medium">{money(Number(s.pricePerVisit))}</span>}
                   {mayEditStops && (
                     <span className="flex items-center">
