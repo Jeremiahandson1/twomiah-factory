@@ -38,6 +38,12 @@ beforeAll(async () => {
   const seeded = await seedOwner(t)
   companyId = seeded.company.id
   await t.db.update(t.schema.company).set({ timezone: 'America/Chicago', name: 'Test Care', integrations: { twilioMessagingServiceSid: 'MG' + 'a'.repeat(32), twilioPhoneNumber: '+17155550123' } } as any).where(eq(t.schema.company.id, companyId))
+  // Quiet hours (9 PM–8 AM by default) would hold every text when the suite runs in the evening: the agency's own window, set
+  // well away from now on its clock, keeps these tests about what they test (familyTexts.ts holds a text in quiet hours).
+  const nowMin = (() => { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()); return +p.find((x) => x.type === 'hour')!.value * 60 + +p.find((x) => x.type === 'minute')!.value })()
+  const hhmm = (m: number) => { const x = ((m % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}` }
+  const [co] = await t.db.select({ settings: t.schema.company.settings }).from(t.schema.company).where(eq(t.schema.company.id, companyId))
+  await t.db.update(t.schema.company).set({ settings: { ...((co?.settings as object) || {}), familyTexts: { quietHoursStart: hhmm(nowMin + 600), quietHoursEnd: hhmm(nowMin + 660) } } } as any).where(eq(t.schema.company.id, companyId))
   tokens.owner = await login('owner@test.example', seeded.password)
   core = createHomecareCore({ services: t.services.crm } as any)
   const hash = await Bun.password.hash('Caregiver-pass-1', 'bcrypt')

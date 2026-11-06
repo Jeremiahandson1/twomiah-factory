@@ -1,0 +1,2 @@
+ALTER TABLE "visit_photos" ADD COLUMN "upload_name" text;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "visit_photos_upload_name_idx" ON "visit_photos" USING btree ("company_id","time_entry_id","upload_name");

@@ -110,7 +110,7 @@ function ActiveVisitView() {
       ) : null}
 
       <SectionTitle>Care tasks</SectionTitle>
-      <CareTaskChecklist timeEntryId={a.id} />
+      <CareTaskChecklist timeEntryId={a.id} clientId={a.clientId} />
 
       <VisitItems timeEntryId={a.id} />
       <VisitMeals visitId={a.id} />

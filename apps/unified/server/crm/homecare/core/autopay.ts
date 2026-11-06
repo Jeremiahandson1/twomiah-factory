@@ -35,6 +35,7 @@ import {
   companiesWithAutopay, invoicesDueForCharge, reclaimStaleAttempt, releaseHardDeclines, scheduleRows, schedulesDue,
 } from '../../../data/homecareAutopay.ts'
 import { invoiceForEmail } from '../../../data/homecareBillingRoutes.ts'
+import { BILLING_CONTACTS_FEATURE, recipientsOf } from '../../../data/homecareBillingContacts.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { cardPaymentsFor } from '../../cardPayments.ts'
 import type { AgencyTime } from './agencyTime.ts'
@@ -157,6 +158,20 @@ export function createAutopay(d: CrmDeps, deps: { invoices: Pick<InvoiceEngine, 
   const stripe = () => stripeClientFor(d)
   const accountFor = (companyId: string) => d.services.stripeService.connectedAccountFor(companyId)
   const isOn = (companyId: string) => d.features.isFeatureEnabled(companyId, AUTOPAY_FEATURE)
+
+  /**
+   * Who a payment notice goes to: the client's billing contact — every address (parity row 23, care_billing_contacts) —
+   * else the stored billing contact of the client's private-pay payer, else `fallback` (the portal email, else the client's).
+   * `name` is the payer's name when it is not the client.
+   */
+  async function noticeAddresses(companyId: string, clientId: string, fallback: string | null | undefined): Promise<{ to: string[]; name: string | null }> {
+    const on = !!(await Promise.resolve(d.features.isFeatureEnabled(companyId, BILLING_CONTACTS_FEATURE)).catch(() => false))
+    const own = await recipientsOf(d.db, companyId, clientId, on)
+    if (own) return { to: own.emails, name: own.kind === 'client' ? null : own.name }
+    const billing = await billingContactOf(d.db, companyId, clientId)
+    const to = billing?.email || fallback
+    return { to: to ? [to] : [], name: billing?.email ? billing.name : null }
+  }
 
   async function companyRow(companyId: string) {
     const [row] = await d.db.select({ name: company.name, settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
@@ -391,17 +406,17 @@ export function createAutopay(d: CrmDeps, deps: { invoices: Pick<InvoiceEngine, 
     if (!claimed.length) return
     const inv = await invoiceForEmail(d.db, companyId, invoiceId)
     if (!inv) return
-    const billing = await billingContactOf(d.db, companyId, inv.clientId)
-    const to = billing?.email || inv.clientEmail
-    if (!to || !deps.email.isConfigured) return
+    const dest = await noticeAddresses(companyId, inv.clientId, inv.clientEmail)
+    if (!dest.to.length || !deps.email.isConfigured) return
     const onFile = await rowFor(companyId, inv.clientId)
     const token = await documentLinkToken(d.db, invoices, invoiceId)
     const after = (await d.db.select().from(invoices).where(eq(invoices.id, invoiceId)).limit(1))[0]
-    await deps.email.sendAutopayReceipt(to, {
-      companyName: await agencyName(companyId), contactName: (billing?.email ? billing.name : null) || `${inv.firstName} ${inv.lastName}`.trim(),
+    const data = {
+      companyName: await agencyName(companyId), contactName: dest.name || `${inv.firstName} ${inv.lastName}`.trim(),
       invoiceNumber: String(inv.seqNumber ?? inv.invoiceNumber), amount: (amountCents / 100).toFixed(2), paidOn, paidWith: onFileLabel(onFile),
       stillOwed: after ? owedOf(after).toFixed(2) : '0.00', documentPath: token ? documentLinkPath(token) : null,
-    })
+    }
+    for (const to of dest.to) await deps.email.sendAutopayReceipt(to, data).catch((e: any) => d.logger.error('[autopay] receipt not sent', { error: e?.message }))
   }
 
   /** Close a try that did not take the money: when the next one is, whether this card is finished, and who is told. */
@@ -439,15 +454,15 @@ export function createAutopay(d: CrmDeps, deps: { invoices: Pick<InvoiceEngine, 
     const number = String(inv.seqNumber ?? inv.invoiceNumber)
     const amountDue = (attempt.amountCents / 100).toFixed(2)
     const retryOn = nextAt ? ymdIn(nextAt, tz) : null
-    // The stored billing contact first (the person who pays), else the portal email, else the client's own email.
-    const billing = await billingContactOf(d.db, attempt.companyId, inv.clientId)
-    const to = billing?.email || inv.clientEmail
-    if (to && deps.email.isConfigured) {
+    // The person who pays first (the client's billing contact, else the payer's), else the portal email, else the client's own.
+    const dest = await noticeAddresses(attempt.companyId, inv.clientId, inv.clientEmail)
+    if (dest.to.length && deps.email.isConfigured) {
       const token = await documentLinkToken(d.db, invoices, attempt.invoiceId)
-      await deps.email.sendAutopayFailed(to, {
-        companyName: await agencyName(attempt.companyId), contactName: (billing?.email ? billing.name : null) || `${inv.firstName} ${inv.lastName}`.trim(),
+      const data = {
+        companyName: await agencyName(attempt.companyId), contactName: dest.name || `${inv.firstName} ${inv.lastName}`.trim(),
         invoiceNumber: number, amountDue, reason, retryOn, documentPath: token ? documentLinkPath(token) : null, bank: isBank(method), reminder,
-      }).catch((e: any) => d.logger.error('[autopay] email not sent', { error: e?.message }))
+      }
+      for (const to of dest.to) await deps.email.sendAutopayFailed(to, data).catch((e: any) => d.logger.error('[autopay] email not sent', { error: e?.message }))
     }
     if (!reminder) {
       await deps.notify.notifyAdmins(attempt.companyId, 'autopay_failed',
@@ -636,15 +651,15 @@ export function createAutopay(d: CrmDeps, deps: { invoices: Pick<InvoiceEngine, 
         const claimed = await d.db.update(clientAutopay).set({ expiryWarnedFor: monthKey, updatedAt: new Date() })
           .where(and(eq(clientAutopay.id, card.id), eq(clientAutopay.status, 'active'), or(isNull(clientAutopay.expiryWarnedFor), ne(clientAutopay.expiryWarnedFor, monthKey)))).returning({ id: clientAutopay.id })
         if (!claimed.length) continue
-        const billing = await billingContactOf(d.db, card.companyId, card.clientId)
         const [client] = await d.db.select({ email: clients.email, portalEmail: clients.portalEmail }).from(clients).where(eq(clients.id, card.clientId)).limit(1)
-        const to = billing?.email || client?.portalEmail || client?.email
+        const dest = await noticeAddresses(card.companyId, card.clientId, client?.portalEmail || client?.email)
         const expires = `${String(card.expMonth).padStart(2, '0')}/${card.expYear}`
-        if (to && deps.email.isConfigured) {
-          await deps.email.sendCardExpiring(to, {
-            companyName: await agencyName(card.companyId), contactName: (billing?.email ? billing.name : null) || `${card.firstName} ${card.lastName}`.trim(),
+        if (dest.to.length && deps.email.isConfigured) {
+          const data = {
+            companyName: await agencyName(card.companyId), contactName: dest.name || `${card.firstName} ${card.lastName}`.trim(),
             cardLabel: onFileLabel(card), expires, portalUrl: `${process.env.FRONTEND_URL || ''}/family`,
-          }).catch((e: any) => d.logger.error('[autopay] expiry email not sent', { error: e?.message }))
+          }
+          for (const to of dest.to) await deps.email.sendCardExpiring(to, data).catch((e: any) => d.logger.error('[autopay] expiry email not sent', { error: e?.message }))
         }
         await deps.notify.notifyAdmins(card.companyId, 'autopay_card_expiring', 'A card on file expires soon',
           `${card.firstName} ${card.lastName}: ${onFileLabel(card)} expires ${expires}. Ask the family to save a new card before then.`)

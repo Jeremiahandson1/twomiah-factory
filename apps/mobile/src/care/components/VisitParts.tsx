@@ -5,7 +5,9 @@
  *                        POST /api/medications/log   (shown only when the client has active medications)
  *   · VitalsForm         POST /api/medications/vitals, GET /api/medications/vitals/latest/:clientId
  *   · VisitPhotos        POST /api/time-entries/:id/photos (via CareContext)
- * A visit saved offline has no server id yet, so these say so instead of failing.
+ * A visit saved offline has no server id yet. Row 16 (care_offline_saves): the whole visit can still be documented: the reads come
+ * from the copies kept on the phone (../../offline/readThrough.ts, filled by CareContext's "ready for no signal"), and each save is
+ * held until the clock-in has gone through, then sent with the real id (../visitHold.ts). Without the feature they say so instead.
  */
 import React, { useCallback, useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native'
@@ -16,7 +18,7 @@ import { ACTION_INK, OVERLAY_INK } from '../../theme/actions'
 import { useToast } from '../../components/ToastProvider'
 import { useCare } from '../CareContext'
 import { careGet, carePost, carePut, asList } from '../careApi'
-import { useOfflineApi } from '../../offline/useOfflineApi'
+import { getSaved, savedCopyNote } from '../../offline/readThrough'
 import { isOfflineId } from '../offlinePunches'
 import { formatClock } from '../time'
 import { Banner, Button, Card, Field, SectionTitle, useTone } from '../ui'
@@ -75,18 +77,26 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
   )
 }
 
-export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
+export function CareTaskChecklist({ timeEntryId, clientId }: { timeEntryId: string; clientId?: string }) {
   const t = useTheme()
   const toast = useToast()
+  const care = useCare()
   const [items, setItems] = useState<any[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const [copy, setCopy] = useState<string | null>(null)
   const offline = isOfflineId(timeEntryId)
+  // On a visit the office does not know yet, the client's own task list (kept on the phone) stands in for the visit's.
+  const fromClient = offline && care.offlineSaves && !!clientId
 
   const load = useCallback(async () => {
-    if (offline) return
-    const r = await careGet(`/api/care-tasks/time-entry/${timeEntryId}`)
-    if (r.ok) { setItems(asList(r.data)); setFailed(false) } else setFailed(true)
-  }, [timeEntryId, offline])
+    if (offline && !fromClient) return
+    const r = fromClient ? await getSaved(`/api/care-tasks/client/${clientId}`) : await getSaved(`/api/care-tasks/time-entry/${timeEntryId}`)
+    if (r.ok) {
+      const rows = asList(r.data)
+      setItems(fromClient ? rows.map((x: any) => ({ taskId: x.id, taskName: x.taskName, description: x.description, category: x.category, allottedMinutes: x.allottedMinutes, cadence: x.cadence, isRequired: x.isRequired, status: 'pending', notes: null })) : rows)
+      setCopy(r.fromCache ? savedCopyNote(r.savedAt) : null); setFailed(false)
+    } else setFailed(true)
+  }, [timeEntryId, offline, fromClient, clientId])
   useEffect(() => { load() }, [load])
   // What the Clock out button waits for: the REQUIRED tasks still open (a Tuesday task is not open on a Wednesday visit).
   useEffect(() => {
@@ -96,18 +106,17 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
 
   // A tick made with no signal is kept on the phone and sent later (src/offline), with the time it was tapped; the server's
   // Idempotency-Key guard makes a resend harmless. Shown as waiting, never as done (10/30, home care PR #172 item 4).
-  const queue = useOfflineApi()
   const setStatus = async (taskId: string, status: string, notes?: string | null) => {
     const task = (items || []).find((x) => x.taskId === taskId)
-    const r = await queue.put(`/api/care-tasks/time-entry/${timeEntryId}/${taskId}`, { status, notes: notes ?? null, savedAt: new Date().toISOString() },
-      { recordKey: `visit:${timeEntryId}`, label: `${task?.taskName || 'Task'} · ${status.replace('_', ' ')}` })
+    const r = await care.saveForVisit(timeEntryId, { method: 'PUT', path: `/api/care-tasks/time-entry/${timeEntryId}/${taskId}`, body: { status, notes: notes ?? null, savedAt: new Date().toISOString() },
+      recordKey: `visit:${timeEntryId}`, label: `${task?.taskName || 'Task'} · ${status.replace('_', ' ')}` })
     if (r.ok) {
       setItems((prev) => (prev || []).map((x) => (x.taskId === taskId ? { ...x, status, notes: notes ?? x.notes } : x)))
       if (r.queued) toast.info('Saved on your phone. It will be sent when you have signal.')
     } else toast.error(r.error || 'Could not save that task.')
   }
 
-  if (offline) return <Banner tone="neutral" icon="cloud-offline-outline">The task checklist opens once this visit reaches the office (it is saved on your phone for now).</Banner>
+  if (offline && !fromClient) return <Banner tone="neutral" icon="cloud-offline-outline">The task checklist opens once this visit reaches the office (it is saved on your phone for now).</Banner>
   if (items === null) {
     return failed
       ? <Banner tone="warning" icon="alert-circle" title="Tasks didn't load" onPress={load}>Tap to try again.</Banner>
@@ -125,6 +134,7 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
         <View style={[styles.progressFill, { backgroundColor: t.primary, width: `${Math.round((done / here.length) * 100)}%` }]} />
       </View>
       <Text style={[styles.progressText, { color: t.textSecondary }]}>{done} of {here.length} done</Text>
+      {copy ? <Text style={[styles.empty, { color: t.textSecondary, marginTop: 0 }]}>{copy}</Text> : null}
       {daily.map((task) => <TaskRow key={task.taskId} task={task} onSet={(s, n) => setStatus(task.taskId, s, n)} />)}
       {weekly.length > 0 && <Text style={[styles.subhead, { color: t.textSecondary }]}>Weekly tasks</Text>}
       {weekly.map((task) => <TaskRow key={task.taskId} task={task} onSet={(s, n) => setStatus(task.taskId, s, n)} />)}
@@ -146,7 +156,7 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
   const t = useTheme()
   const okTone = useTone('success')
   const toast = useToast()
-  const queue = useOfflineApi()
+  const care = useCare()
   const [meds, setMeds] = useState<any[] | null>(null)
   const [logs, setLogs] = useState<any[]>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -154,8 +164,8 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
 
   const load = useCallback(async () => {
     const [m, l] = await Promise.all([
-      careGet(`/api/medications/due/${clientId}`),
-      offline ? Promise.resolve({ ok: true, data: [] } as any) : careGet(`/api/medications/logs/time-entry/${timeEntryId}`),
+      getSaved(`/api/medications/due/${clientId}`),
+      offline ? Promise.resolve({ ok: true, data: [] } as any) : getSaved(`/api/medications/logs/time-entry/${timeEntryId}`),
     ])
     setMeds(m.ok ? asList(m.data) : [])
     if (l.ok) setLogs(asList(l.data))
@@ -164,13 +174,16 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
 
   if (!meds || !meds.length) return null // only when the client has medications
   const record = async (med: any, status: string) => {
-    if (offline) { toast.warning('No signal — medications can be recorded once this visit reaches the office.'); return }
+    if (offline && !care.offlineSaves) { toast.warning('No signal — medications can be recorded once this visit reaches the office.'); return }
     setBusy(med.id)
     const name = med.medicationName || med.name
-    const r = await queue.post('/api/medications/log', { medicationId: med.id, clientId, timeEntryId, status, savedAt: new Date().toISOString() },
-      { recordKey: `visit:${timeEntryId}`, label: `${name} · ${status.replace('_', ' ')}` })
+    const r = await care.saveForVisit(timeEntryId, { method: 'POST', path: '/api/medications/log', body: { medicationId: med.id, clientId, timeEntryId, status, savedAt: new Date().toISOString() },
+      recordKey: `visit:${timeEntryId}`, label: `${name} · ${status.replace('_', ' ')}` })
     setBusy(null)
-    if (r.ok && r.queued) toast.info(`${name}: saved on your phone. It will be sent when you have signal.`)
+    if (r.ok && r.queued) {
+      toast.info(`${name}: saved on your phone. It will be sent when you have signal.`)
+      setLogs((prev) => [...prev, { medicationId: med.id, status, administeredAt: new Date().toISOString() }])
+    }
     else if (r.ok) { toast.success(`${name}: ${status.replace('_', ' ')}`); load() }
     else toast.error(r.error || 'Could not record that.')
   }
@@ -222,21 +235,26 @@ export function VitalsForm({ clientId, timeEntryId }: { clientId: string; timeEn
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [latest, setLatest] = useState<any>(null)
+  const care = useCare()
   const offline = isOfflineId(timeEntryId)
 
   useEffect(() => {
-    careGet(`/api/medications/vitals/latest/${clientId}`).then((r) => { if (r.ok) setLatest(r.data) })
+    getSaved(`/api/medications/vitals/latest/${clientId}`).then((r) => { if (r.ok) setLatest(r.data) })
   }, [clientId])
 
   const save = async () => {
-    if (offline) { toast.warning('No signal — vitals can be recorded once this visit reaches the office.'); return }
+    if (offline && !care.offlineSaves) { toast.warning('No signal — vitals can be recorded once this visit reaches the office.'); return }
     const body: Record<string, unknown> = { clientId, timeEntryId, notes: notes.trim() || null }
     for (const f of VITAL_FIELDS) if (vals[f.key]?.trim()) body[f.key] = vals[f.key].trim()
     if (Object.keys(body).length <= 3) { toast.warning('Enter at least one reading.'); return }
     setSaving(true)
-    const r = await carePost('/api/medications/vitals', body)
+    // Row 16: kept on the phone with no signal, with the time the readings were taken (savedAt).
+    const r: { ok: boolean; queued?: boolean; data?: any; error?: string } = care.offlineSaves
+      ? await care.saveForVisit(timeEntryId, { method: 'POST', path: '/api/medications/vitals', body: { ...body, savedAt: new Date().toISOString() }, recordKey: `visit:${timeEntryId}`, label: 'Vitals' })
+      : await carePost('/api/medications/vitals', body)
     setSaving(false)
-    if (r.ok) { toast.success('Vitals saved.'); setLatest(r.data); setVals({}); setNotes(''); setOpen(false) }
+    if (r.ok && r.queued) { toast.info('Vitals saved on your phone. They will be sent when you have signal.'); setVals({}); setNotes(''); setOpen(false) }
+    else if (r.ok) { toast.success('Vitals saved.'); setLatest(r.data); setVals({}); setNotes(''); setOpen(false) }
     else Alert.alert('Vitals not saved', r.error || 'Please check the numbers.')
   }
 
@@ -272,7 +290,7 @@ export function VitalsForm({ clientId, timeEntryId }: { clientId: string; timeEn
 export function VisitPhotos() {
   const t = useTheme()
   const toast = useToast()
-  const { active, photos, addPhoto, retryPhoto, removePhoto } = useCare()
+  const { active, photos, addPhoto, retryPhoto, removePhoto, offlineSaves } = useCare()
   const [taking, setTaking] = useState(false)
   if (!active) return null
 
@@ -293,7 +311,7 @@ export function VisitPhotos() {
   return (
     <View>
       <SectionTitle>Visit photos</SectionTitle>
-      {isOfflineId(active.id) && <Banner tone="warning" icon="cloud-offline-outline">No signal: photos can't be sent until this visit reaches the office, and can't be saved for later.</Banner>}
+      {isOfflineId(active.id) && !offlineSaves && <Banner tone="warning" icon="cloud-offline-outline">No signal: photos can't be sent until this visit reaches the office, and can't be saved for later.</Banner>}
       <View style={styles.photoRow}>
         {photos.map((p) => (
           <View key={p.localId} style={[styles.photo, { borderColor: t.border }]}>
@@ -307,7 +325,7 @@ export function VisitPhotos() {
                 <Text style={styles.photoRetryText}>Retry</Text>
               </TouchableOpacity>
             )}
-            {p.status !== 'sent' && p.status !== 'sending' && (
+            {p.status !== 'sent' && p.status !== 'sending' && !(offlineSaves && p.status === 'waiting') && (
               <TouchableOpacity style={styles.photoRemove} onPress={() => removePhoto(p.localId)} accessibilityLabel="Remove photo">
                 <Ionicons name="close" size={14} color={OVERLAY_INK} />
               </TouchableOpacity>

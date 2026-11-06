@@ -21,8 +21,13 @@ import { createVisitInvoiceStripeRoutes } from './stripe.ts'
 import { createAutopayRoutes } from './autopayRoutes.ts'
 import { createLtcRoutes } from './ltcRoutes.ts'
 import { createSplitBillingRoutes } from './splitRoutes.ts'
+import { createBillingContactRoutes } from './billingContactRoutes.ts'
+import { createCareBooks } from './books.ts'
 
 export function billingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
+  // Parity row 23 (care_quickbooks, not ready): sent invoices, their payments and write-offs go into QuickBooks on the shared
+  // QuickBooks sync (crm/office/quickbooksAutoSync.ts) — the pass does nothing for an agency without the feature.
+  d.services.quickbooksSync.addPass('homecare', createCareBooks(core, d).pass)
   // /api/billing: the visit invoicing, and at the same root the Factory subscription's three doors — as the template's
   // billing router composed them (modules/company.ts leaves /api/billing to this mount for home care).
   const billing = new Hono()
@@ -43,6 +48,8 @@ export function billingMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/care-ltc', access: 'user', feature: 'care_ltc_billing', router: createLtcRoutes(core, d) },
     // Split billing (care_split_billing, not ready): payers in priority order share each visit; the family pays the rest.
     { path: '/api/care-split', access: 'user', feature: 'care_split_billing', router: createSplitBillingRoutes(core, d) },
+    // Parity row 23 (care_billing_contacts, not ready): who pays each client's invoices, and up to five addresses they go to.
+    { path: '/api/care-billing-contacts', access: 'user', feature: 'care_billing_contacts', router: createBillingContactRoutes(core, d) },
     // Public: the family's pay page and Stripe's webhook answer without a session; the router signs people in itself
     // for the rest (modules/crm.ts leaves /api/stripe to this mount for home care).
     { path: '/api/stripe', access: 'public', router: createVisitInvoiceStripeRoutes(core, d) },
