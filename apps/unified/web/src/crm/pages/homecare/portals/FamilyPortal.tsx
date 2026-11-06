@@ -777,13 +777,11 @@ export interface FamilyPortalProps {
 /** Link the app manifest and register the notices' service worker, once per page. Quietly does nothing where the browser or agency can't. */
 function installFamilyApp() {
   if (typeof document === 'undefined' || document.querySelector('link[rel="manifest"][data-family]')) return
-  fetch('/api/family-app/manifest.webmanifest', { method: 'HEAD' }).then((r) => {
-    if (!r.ok) return
-    const link = document.createElement('link')
-    link.rel = 'manifest'; link.href = '/api/family-app/manifest.webmanifest'; link.setAttribute('data-family', '1')
-    document.head.appendChild(link)
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/api/family-app/sw.js', { scope: '/family' }).catch(() => { /* notices stay off */ })
-  }).catch(() => { /* offline or not offered */ })
+  // For an agency without care_family_comms both files answer 404: the link does nothing and the registration fails quietly.
+  const link = document.createElement('link')
+  link.rel = 'manifest'; link.href = '/api/family-app/manifest.webmanifest'; link.setAttribute('data-family', '1')
+  document.head.appendChild(link)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/api/family-app/sw.js', { scope: '/family' }).catch(() => { /* notices stay off */ })
 }
 
 export default function FamilyPortal({ user, token, onLogout, onPaused }: FamilyPortalProps) {
