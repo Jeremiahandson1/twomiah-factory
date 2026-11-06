@@ -9,12 +9,14 @@ import { ActionSheet } from './ActionSheet'
 import { useAuth } from '../auth/AuthContext'
 import { useVertical } from '../vertical/VerticalContext'
 import { specFor } from './specs'
-import { unwrap, rowCache, mayUse, type Action } from './kit'
+import { unwrap, rowCache, mayUse, isWaiting, type Action } from './kit'
+import { useOfflineQueue } from '../offline/OfflineContext'
 
 export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: string; tab?: boolean }) {
   const router = useRouter()
   const { can } = useAuth()
   const { hasFeature } = useVertical()
+  const { queue } = useOfflineQueue()
   const spec = specFor(id)
   const [d, setD] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
@@ -42,8 +44,10 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
       {error ? <EmptyState icon="alert-circle" title="Could not load this" body={error} action="Try again" onAction={load} />
         : !d ? <SkeletonRows count={4} /> : (
           <View style={{ gap: space[4] }}>
-            {det.badge?.(d) ? <DText variant="bodyStrong" tone="textSecondary">{det.badge(d)}</DText> : null}
-            {det.sections.filter((s) => !s.feature || hasFeature(s.feature)).map((s, si) => {
+            {spec.waitingKey && isWaiting(queue, spec.waitingKey(d))
+              ? <DText variant="bodyStrong" tone="warning">Saved on your phone — waiting to send. It goes when you have signal.</DText>
+              : det.badge?.(d) ? <DText variant="bodyStrong" tone="textSecondary">{det.badge(d)}</DText> : null}
+            {det.sections.filter((s) => (!s.feature || hasFeature(s.feature)) && (!s.unlessFeature || !hasFeature(s.unlessFeature))).map((s, si) => {
               const fields = (s.fields || []).map((f) => ({ f, v: f.get(d) })).filter((x) => x.v != null && x.v !== '')
               const rows = s.rows?.(d) || []
               const links = s.links?.(d) || []
