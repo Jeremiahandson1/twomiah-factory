@@ -41,6 +41,11 @@ export interface PortalContextValue {
    * document it opens. `token` is then that link's token, and every fetch goes to /api/portal/d/<token>. (2026-10-22)
    */
   link?: { kind: 'quote' | 'invoice'; id: string } | null
+  /**
+   * The office's preview of a quote (/v/<token>): the customer's page, read only. Every control that would sign, tick, choose
+   * or decline is disabled — and the server's preview door has no such routes at all.
+   */
+  preview?: boolean
 }
 
 const PortalContext = createContext<PortalContextValue | null>(null)
@@ -103,11 +108,11 @@ export function PortalProvider({ config, children }: { config?: PortalConfig; ch
  * The customer needs no portal — every quote and invoice email carries this link (2026-10-22). The pages it shows are
  * the portal's own quote and invoice pages, so what the customer sees and does is the same either way.
  */
-export function PortalLinkProvider({ token, children }: { token: string | undefined; children: React.ReactNode }) {
+export function PortalLinkProvider({ token, children, door = 'd' }: { token: string | undefined; children: React.ReactNode; /** 'v': the office's read-only preview of a quote. */ door?: 'd' | 'v' }) {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const base = `${API_URL}/api/portal/d/${token}`
+  const base = `${API_URL}/api/portal/${door}/${token}`
   const load = useCallback(async () => {
     if (!token) { setLoading(false); setError('This link is not valid.'); return }
     try {
@@ -138,6 +143,7 @@ export function PortalLinkProvider({ token, children }: { token: string | undefi
     company: data?.company, summary: undefined, sections: {},
     config: resolved, loading, error, fetch: linkFetch, refresh: load, url,
     link: data?.document ? { kind: data.document.kind, id: data.document.id } : null,
+    preview: door === 'v',
   }
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>
 }

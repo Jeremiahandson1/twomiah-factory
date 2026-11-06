@@ -10,7 +10,7 @@ import { Spinner } from './common'
 import { useTheme } from '../shell/hooks'
 
 function DocumentPage({ below }: { below?: (link: { token: string; kind: 'quote' | 'invoice'; id: string }) => React.ReactNode }) {
-  const { company, loading, error, link } = usePortal()
+  const { company, loading, error, link, preview } = usePortal()
   const { token } = useParams<{ token: string }>()
   useTheme()
   // The tab names the document for the customer — "<Business> — Invoice" — not the admin's "<Business> · Admin".
@@ -41,9 +41,14 @@ function DocumentPage({ below }: { below?: (link: { token: string; kind: 'quote'
           <h1 className="font-bold text-gray-900 truncate dark:text-slate-100">{company?.name}</h1>
         </div>
       </header>
+      {preview && (
+        <div role="status" className="bg-amber-50 border-b border-amber-200 text-amber-900 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-100">
+          <p className="max-w-4xl mx-auto px-4 py-2 text-sm"><strong>Preview.</strong> This is the page your customer will see. Nothing here can be signed, ticked or declined, and nothing has been sent.</p>
+        </div>
+      )}
       <main className="max-w-4xl w-full mx-auto px-4 py-8 flex-1">
         {link.kind === 'quote' ? <PortalQuoteDetail quoteId={link.id} /> : <PortalInvoiceDetail invoiceId={link.id} />}
-        {below?.({ token: token || '', kind: link.kind, id: link.id })}
+        {!preview && below?.({ token: token || '', kind: link.kind, id: link.id })}
       </main>
       {(company?.email || company?.phone) && (
         <footer className="border-t bg-white dark:bg-slate-900 dark:border-slate-800">
@@ -58,4 +63,10 @@ function DocumentPage({ below }: { below?: (link: { token: string; kind: 'quote'
 export function PortalDocumentLink({ below }: { below?: (link: { token: string; kind: 'quote' | 'invoice'; id: string }) => React.ReactNode } = {}) {
   const { token } = useParams<{ token: string }>()
   return <PortalLinkProvider token={token}><DocumentPage below={below} /></PortalLinkProvider>
+}
+
+/** Mounted at /v/:token: the office's read-only preview of a quote as its customer will see it (feature quote_preview). */
+export function PortalQuotePreview() {
+  const { token } = useParams<{ token: string }>()
+  return <PortalLinkProvider token={token} door="v"><DocumentPage /></PortalLinkProvider>
 }

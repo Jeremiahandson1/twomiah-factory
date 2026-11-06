@@ -192,14 +192,20 @@ for (const vertical of ['fieldservice', 'basic', 'contractor', 'landscaping'] as
       expect((await choose('owner', optionId(quote, 'Best'))).status).toBe(400)
     })
 
-    test('the PDF before a choice prints the shared lines and every option; an optional line nobody ticked is not printed', async () => {
+    test('the PDF before a choice prints the shared lines and every option; an optional line nobody ticked is printed only as "Not included"', async () => {
       const q = await make()
       await as('owner', `/api/quotes/${q.id}`, { method: 'PUT', json: { lineItems: [...SHARED, { description: 'Duct cleaning add-on', quantity: 1, unitPrice: 200, optional: true }] } })
       const r = await as('owner', `/api/quotes/${q.id}/pdf`)
       expect(r.status).toBe(200)
       const text = pdfText(new Uint8Array(await r.arrayBuffer()))
       for (const s of ['Service call', 'Options', 'Good', 'Better', 'Best', 'Better warranty', 'Total: from']) expect(text).toContain(s)
-      expect(text).not.toContain('Duct cleaning')
+      // Landscaping parity row 5 (owner 10/31, as Jobber prints them): the unticked add-on is listed apart, marked, never as bought.
+      const notIn = text.indexOf('not included')
+      expect(notIn).toBeGreaterThan(-1)
+      expect(text.slice(0, notIn)).not.toContain('Duct cleaning')
+      expect(text.slice(notIn)).toMatch(/Duct cleaning add-on[\s\S]*Not included/)
+      // It is not one of the options' lines either.
+      expect(text.slice(text.indexOf('Options'))).not.toContain('Duct cleaning')
     })
 
     test('a quote with no options is exactly as before', async () => {

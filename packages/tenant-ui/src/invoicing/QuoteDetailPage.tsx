@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { TextButton } from '../text/TextButton'
 import { documentLink } from '../text/textMessages'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned, Copy, BookmarkPlus } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase, Wrench, MapPinned, Copy, BookmarkPlus, Eye } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -31,6 +31,15 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   const mayJob = useMayWrite('jobs:create')
   const mayCreate = useMayWrite('quotes:create')
   const templatesOn = useQuoteFeature('quote_templates')
+  const previewOn = useQuoteFeature('quote_preview')
+  /** Preview as client: the customer's own page for this quote, read only, in a new tab (opened inside the click so it is not blocked). */
+  const previewAsClient = async () => {
+    const tab = window.open('', '_blank')
+    try {
+      const r: any = await api.post(`/api/quote-preview/${id}`, {})
+      if (tab) tab.location.href = r.path
+    } catch (e) { tab?.close(); toast.error(errMsg(e, 'Could not open the preview')) }
+  }
   const [saveAs, setSaveAs] = useState<{ id: string; name: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -76,6 +85,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           {/* One invoice per quote: the server refuses a second (convert-to-invoice), so a billed quote links its invoice instead. */}
           {quote.status === 'approved' && mayInvoice && !quote.invoiced && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
+          {previewOn && <Button variant="secondary" onClick={previewAsClient}><Eye className="w-4 h-4" /> Preview as client</Button>}
           {templatesOn && mayCreate && <NavLink to={`/crm/quotes?similar=${id}`} className={secondary}><Copy className="w-4 h-4" /> Create similar</NavLink>}
           {templatesOn && mayCreate && <Button variant="secondary" onClick={() => setSaveAs({ id, name: quote.name })}><BookmarkPlus className="w-4 h-4" /> Save as template</Button>}
           {editable && mayUpdate && <NavLink to={`/crm/quotes?edit=${id}`} className={secondary}><Edit className="w-4 h-4" /> Edit</NavLink>}

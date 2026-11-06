@@ -35,6 +35,13 @@ export const isIncluded = (line: { optional?: boolean | null; selected?: boolean
 /** The lines a quote's price, its job and its invoice are made of. */
 export const includedLines = <T extends { optional?: boolean | null; selected?: boolean | null }>(lines: T[]): T[] => (lines || []).filter(isIncluded)
 
+/**
+ * The optional lines nobody ticked, printed on the quote's PDF as "Not included" (Jobber: what is not in the price matters as
+ * much as what is). A Good / Better / Best option's lines and upgrades are not among them: the options section prints those.
+ */
+export const notIncludedLines = <T extends { optional?: boolean | null; selected?: boolean | null; proposalOptionId?: string | null }>(lines: T[]): T[] =>
+  (lines || []).filter((l) => !isIncluded(l) && !l.proposalOptionId)
+
 export type DepositType = 'percent' | 'fixed'
 
 /** The deposit a quote asks, in dollars: a percent of its total, or the fixed amount (never more than the total). */

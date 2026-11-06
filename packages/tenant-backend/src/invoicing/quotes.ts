@@ -18,7 +18,7 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
-import { includedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, proposalsLive, isPhotoAddress, optionBasis, UPGRADE, hasOptionDiscounts, lowestPrice, offersOptions, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_PROPOSAL_SETS, MAX_OPTION_PHOTOS, MAX_OPTION_UPGRADES, SET_KINDS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
+import { includedLines, notIncludedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, proposalsLive, isPhotoAddress, optionBasis, UPGRADE, hasOptionDiscounts, lowestPrice, offersOptions, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_PROPOSAL_SETS, MAX_OPTION_PHOTOS, MAX_OPTION_UPGRADES, SET_KINDS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
 import { hasDocumentTables, documentSchema, attachmentsSchema, loadDocument, saveDocument, loadMarks, documentForOffice, storeProposalFile, attachedPdfBytes, cosignerRequired, cosignStatus, pdfExtras } from './quoteDocument'
 import { applyMarkups, sectionSummary } from './quoteSections'
@@ -1269,13 +1269,15 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       lineRows(id).then((rows: any[]) => customerLines(db, cid, billable(rows))),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
+    // The optional lines left unticked, printed apart and labelled "Not included" (they are not in the total).
+    const notIncluded = hasOptional ? await customerLines(db, cid, notIncludedLines<any>(await lineRows(id))) : []
     // Same strip for the PDF payload. The renderer does not print a token today, but handing it
     // one is how it ends up in a file somebody emails.
     // A quote whose customer has yet to choose prints the lines every option shares and each option at its whole price.
     const view = hasProposal ? await proposalView(db, t as any, found) : null
     const options = offersOptions(view, found.status) ? await Promise.all(view!.options.map(async (op) => ({ ...op, lines: await customerLines(db, cid, op.lines), upgrades: await customerLines(db, cid, op.upgrades) }))) : undefined
     const extras = hasProposal ? await pdfExtras(db, t as any, deps.storage, id, view?.options ?? null, !!options) : {}
-    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}), ...extras }, co)
+    const pdfBuffer = await generateQuotePDF({ ...found, contact: withoutPortalCredential(ct[0]) || null, lineItems: options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems, notIncluded, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}), ...extras }, co)
     return new Response(pdfBuffer, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   })
 
