@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CloudLightning, Circle as CircleIcon, MapPinned, Pentagon, Undo2, Trash2, Zap } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useMayWrite, useToast } from '../../../../shared'
+import { errorText, useMayWrite, useToast, useAuth } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { whenDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { listOf } from './http'
@@ -105,6 +105,13 @@ export default function StormMapPage() {
       toast.success('Territory made — open Territories to give it to your reps')
     } catch (e) { toast.error(errorText(e, 'Could not make the territory')) } finally { setBusy(false) }
   }
+  // Row 25 (storm_data_tools, not ready): swaths from a hail-data provider — none connected yet; the server says so.
+  const swathsOn = useAuth().hasFeature('storm_data_tools')
+  const getSwaths = async () => {
+    setBusy(true)
+    try { const r = (await api.post('/api/storm-map/swaths', { days: Number(days) })) as { fetched: number; provider: string }; toast.success(`${r.fetched} swath${r.fetched === 1 ? '' : 's'} from ${r.provider} added`); await loadEvents() }
+    catch (e) { toast.error(errorText(e, 'Could not get the swaths')) } finally { setBusy(false) }
+  }
   const checkNoaa = async () => {
     setBusy(true)
     try {
@@ -133,6 +140,7 @@ export default function StormMapPage() {
               {['1', '2', '3', '7', '14'].map((d) => <option key={d} value={d}>Last {d} day{d === '1' ? '' : 's'}</option>)}
             </select>
             <button onClick={checkNoaa} disabled={busy} className="px-3 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Check NOAA now</button>
+            {swathsOn && <button onClick={getSwaths} disabled={busy} className="px-3 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50">Get hail swaths</button>}
           </div>
         )}
       </div>

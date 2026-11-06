@@ -4,7 +4,7 @@
 //     pin first, then the contact's — and a customer with no pin only by zip, marked as such; a customer in the storm's
 //     zip but outside the drawn path is NOT hit; the storm board's generate-leads reads the same path;
 //   · "check NOAA now" is the owner's, an admin's or a manager's action (storms:update, owner decision 10/30): a crew seat
-//     and the read-only seat are refused on the server; it reads a hand-written sample (tests/fixtures/roof-noaa-sample.csv)
+//     and the read-only seat are refused on the server; it reads NOAA's daily report files in their real shape (tests/fixtures/spc-250520-*.csv)
 //     through a stubbed fetch — no test reaches NOAA — and no request is made until the action is asked for or the DAILY
 //     check runs: that is one hourly timer (started only at boot) that does anything only for a company with the hidden
 //     storm_customer_map switch on, at 5 am on its own clock, and never twice for the same report;
@@ -30,7 +30,14 @@ const tokens: Record<string, string> = {}
 const ids: Record<string, string> = {}
 const PASS = 'Seat-pass-1'
 const FEATURES = ['jobs', 'contacts', 'storm_lead_gen', 'canvassing_tool', 'storm_customer_map', 'canvass_territories']
-const FIXTURE = readFileSync(join(import.meta.dir, 'fixtures/roof-noaa-sample.csv'), 'utf8')
+// NOAA's daily report files in their REAL shape (tests/fixtures/spc-250520-*.csv, recorded 11/06): each file one far-away real line
+// and one near the business (Eau Claire) — only the near reports may land on its board.
+const REAL = (kind: string) => readFileSync(join(import.meta.dir, `fixtures/spc-250520-${kind}.csv`), 'utf8').split(/\r?\n/)
+const FEED: Record<string, string> = {
+  hail: [REAL('hail')[0], REAL('hail')[1], '1915,175,2 N Eau Claire,Eau Claire,WI,44.84,-91.50,Golf ball hail. (MPX)'].join('\n'),
+  wind: [REAL('wind')[0], REAL('wind')[1], '2010,62,Chippewa Falls,Chippewa,WI,44.94,-91.39,(MPX)'].join('\n'),
+  torn: [REAL('torn')[0], REAL('torn')[1], '2105,EF0,Altoona,Eau Claire,WI,44.80,-91.44,(MPX)'].join('\n'),
+}
 
 /** Every outside request the server makes in this file. NOAA's is answered from the fixture; anything else is a failure. */
 const outside: string[] = []
@@ -39,10 +46,11 @@ const realFetch = globalThis.fetch
 globalThis.fetch = (async (input: any, init?: any) => {
   const url = String(input?.url ?? input)
   outside.push(url)
-  if (url.includes('ncdc.noaa.gov/stormevents/csv')) return new Response(noaaStatus === 200 ? FIXTURE : 'busy', { status: noaaStatus })
+  const m = /spc\.noaa\.gov\/climo\/reports\/\d{6}_rpts_(hail|wind|torn)\.csv$/.exec(url)
+  if (m) return new Response(noaaStatus === 200 ? FEED[m[1]] : 'busy', { status: noaaStatus })
   throw new Error(`test reached outside: ${url}`)
 }) as any
-const noaaCalls = () => outside.filter((u) => u.includes('ncdc.noaa.gov')).length
+const noaaCalls = () => outside.filter((u) => u.includes('spc.noaa.gov')).length
 
 const login = async (email: string, password: string) =>
   (await (await t.call('/api/auth/login', { method: 'POST', json: { email, password } })).json()).accessToken as string
@@ -246,18 +254,22 @@ describe('check NOAA now: on demand for the owner, an admin and a manager; the d
     const before = (await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, companyId))).length
     const r = await call('admin', 'POST', '/api/storm-map/noaa-check', { days: 3 })
     expect(r.status).toBe(200)
-    expect(noaaCalls()).toBe(1)
-    expect(outside[0]).toContain('ncdc.noaa.gov/stormevents/csv')
+    expect(noaaCalls()).toBe(12) // 4 days × hail, wind, tornado
+    expect(outside[0]).toMatch(/spc\.noaa\.gov\/climo\/reports\/\d{6}_rpts_hail\.csv$/)
     expect(r.body).toMatchObject({ fetched: 3, days: 3 })
-    expect(r.body.message).toContain('Draw each storm')
+    expect(r.body.message).toContain('3-mile circle around where it was reported')
     const rows = await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, companyId))
     expect(rows.length).toBe(before + 3)
     const hail = rows.find((e: any) => e.source === 'noaa' && e.eventType === 'hail')
-    expect(hail).toMatchObject({ hailSizeInches: '1.75', affectedZipCodes: ['54701'], status: 'detected', leadCount: 0 })
+    expect(hail).toMatchObject({ hailSizeInches: '1.75', affectedZipCodes: [], status: 'detected', leadCount: 0, path: { kind: 'circle', lat: 44.84, lng: -91.5, radiusMiles: 3 } })
+    expect(hail?.description).toBe('1.75 in hail at 2 N Eau Claire, Eau Claire County, WI (NOAA report 1915)')
+    // The real far-away reports (Illinois, Mississippi, Alabama) are not this business's.
+    expect(rows.some((e: any) => /, (IL|MS|AL) \(/.test(e.description || ''))).toBe(false)
     expect(rows.filter((e: any) => e.source === 'noaa').map((e: any) => e.eventType).sort()).toEqual(['hail', 'tornado', 'wind'])
     // The owner may too.
+    const asked = noaaCalls()
     expect((await call('owner', 'POST', '/api/storm-map/noaa-check', {})).status).toBe(200)
-    expect(noaaCalls()).toBe(2)
+    expect(noaaCalls()).toBe(asked + 9) // the default 2 days: 3 day files × 3 kinds
   })
 
   test('a manager may ask too: one request, and a report the board already has is not added a second time', async () => {
@@ -265,7 +277,7 @@ describe('check NOAA now: on demand for the owner, an admin and a manager; the d
     const before = await rowsNow(), asked = noaaCalls()
     const r = await call('mgr', 'POST', '/api/storm-map/noaa-check', {})
     expect(r.status).toBe(200)
-    expect(noaaCalls()).toBe(asked + 1)
+    expect(noaaCalls()).toBe(asked + 9)
     // The admin's and the owner's checks above already put these three reports on the board.
     expect([r.body.fetched, await rowsNow()]).toEqual([0, before])
   })
@@ -285,7 +297,7 @@ describe('check NOAA now: on demand for the owner, an admin and a manager; the d
     await new Promise((res) => setTimeout(res, 150))
     await call('owner', 'GET', '/api/storms/events')
     expect(noaaCalls()).toBe(asked)
-    expect(outside.every((u) => u.includes('ncdc.noaa.gov'))).toBe(true) // and nothing else went out (Google included)
+    expect(outside.every((u) => u.includes('spc.noaa.gov'))).toBe(true) // and nothing else went out (Google included)
   })
 
   test('the only timer is the scheduled check: one hourly job, registered through the CRM\'s job list in the roofing field group, and the template\'s own sweep stays unstarted', () => {
@@ -360,7 +372,7 @@ describe('the daily NOAA check: only behind the hidden switch, at 5 am on the co
     const asked = noaaCalls(), leadsBefore = await leads(companyId)
     const ran = await storms.runScheduledNoaaCheck(FIVE_AM)
     expect(ran).toEqual([{ companyId, fetched: 3, reached: true }])
-    expect(noaaCalls()).toBe(asked + 1)
+    expect(noaaCalls()).toBe(asked + 9)
     expect(await board(companyId)).toBe(3)
     expect(await leads(companyId)).toBe(leadsBefore)
     // The other company (no switch) was not asked about; the pass made exactly one request for the one company.
@@ -371,7 +383,7 @@ describe('the daily NOAA check: only behind the hidden switch, at 5 am on the co
     const asked = noaaCalls()
     const ran = await storms.runScheduledNoaaCheck(new Date(FIVE_AM.getTime() + 86_400_000))
     expect(ran).toEqual([{ companyId, fetched: 0, reached: true }])
-    expect([noaaCalls(), await board(companyId)]).toEqual([asked + 1, 3])
+    expect([noaaCalls(), await board(companyId)]).toEqual([asked + 9, 3])
   })
 
   test('a feed that does not answer adds nothing and is not an error', async () => {

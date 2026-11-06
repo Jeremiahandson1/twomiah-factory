@@ -9,6 +9,7 @@ import { MapPinned, Pentagon, Circle as CircleIcon, Plus, Trash2, Undo2 } from '
 import { api } from '../../../../api'
 import { errorText, useConfirm, useMayWrite, useToast, useAuth } from '../../../../shared'
 import { listOf } from './http'
+import { whenDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import ShapeMap, { type DrawnArea, type LatLng, type Shape } from './ShapeMap'
 
 interface Rep { id: string; name: string }
@@ -71,11 +72,18 @@ export default function TerritoriesPage() {
     if (!mayManage) return
     api.get('/api/territories/reps').then((r) => setTeam(listOf<Person>(r))).catch(() => setTeam([]))
   }, [mayManage])
+  // Row 25 (SalesRabbit; territory_tools): who worked the open territory and when.
+  const [worked, setWorked] = useState<Array<{ userId: string; name: string; doors: number; first: string; last: string }> | null>(null)
   useEffect(() => {
-    setStats(null)
+    setStats(null); setWorked(null)
     if (!openId) return
-    api.get(`/api/territories/${encodeURIComponent(openId)}`).then((r: { stats: Stats }) => setStats(r.stats)).catch(() => setStats(null))
+    api.get(`/api/territories/${encodeURIComponent(openId)}`).then((r: { stats: Stats; worked?: any[] }) => { setStats(r.stats); setWorked(r.worked ?? null) }).catch(() => setStats(null))
   }, [openId])
+  const [cap, setCap] = useState('')
+  const saveCap = async () => {
+    try { await api.put('/api/territories/settings/cap', { maxTerritoriesPerRep: cap.trim() === '' ? null : Number(cap) }); toast.success(cap.trim() ? `A rep may hold ${cap} territories at most` : 'No limit on territories per rep') }
+    catch (e) { toast.error(errorText(e, 'Could not save the limit')) }
+  }
 
   const draft: Shape | null = mode === 'polygon' ? { kind: 'polygon', points: corners }
     : mode === 'circle' && centre ? { kind: 'circle', lat: centre[0], lng: centre[1], radiusMiles: Math.max(0.1, Number(radius) || 0.1) } : null
@@ -213,6 +221,12 @@ export default function TerritoriesPage() {
       )}
       <ShapeMap areas={redrawId ? areas.filter((a) => a.id !== redrawId) : areas} draft={draft} drawing={(creating || !!redrawId) && mode !== 'off'} onPick={pick} onAreaClick={(id) => setOpenId(id)} fit={mode === 'off'} className="h-96" />
 
+      {mayManage && tools && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <label className="inline-flex items-center gap-1">Most territories per rep<input value={cap} onChange={(e) => setCap(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="no limit" className="border rounded px-2 py-1 w-20 bg-white dark:bg-slate-900" /></label>
+          <button onClick={saveCap} className="px-3 py-1.5 rounded-lg border">Save</button>
+        </div>
+      )}
       {loading ? <p className="text-gray-500">Loading…</p> : rows.length === 0 ? (
         <p className="text-gray-500 dark:text-slate-400">{mayManage ? 'No territories yet. Draw one around a storm or a neighbourhood.' : 'You have not been given a territory yet.'}</p>
       ) : (
@@ -235,6 +249,12 @@ export default function TerritoriesPage() {
                       {stats.pastCustomers !== null && <span><strong>{stats.pastCustomers}</strong> past customers inside</span>}
                     </div>
                   ) : <span className="text-gray-500">Counting…</span>}
+                  {worked && worked.length > 0 && (
+                    <div className="text-xs text-gray-600 dark:text-slate-300" data-testid="territory-worked">
+                      <p className="font-medium">Worked by</p>
+                      <ul>{worked.map((w) => <li key={w.userId}>{w.name}: {w.doors} door{w.doors === 1 ? '' : 's'}, {whenDate(w.first, { month: 'short', day: 'numeric' })}{w.first.slice(0, 10) !== w.last.slice(0, 10) ? ` – ${whenDate(w.last, { month: 'short', day: 'numeric' })}` : ''}</li>)}</ul>
+                    </div>
+                  )}
                   {open && mayManage && (
                     <>
                       <div className="flex flex-wrap gap-3">

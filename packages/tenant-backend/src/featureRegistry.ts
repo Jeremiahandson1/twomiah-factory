@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY, and swaths need a hail-data provider account first: storm data tools (roofing parity row 25; apps/unified server/data/hailSwaths.ts).
+  { id: 'storm_data_tools', name: 'Hail swaths and storm lead scores', description: 'Bring in hail swaths from a hail-data provider (date, severity, hail, wind, rainfall) and score each storm lead by the storm, where they are, their roof’s age and whether they are a past customer', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: territories from Census boundaries (roofing parity row 24; apps/unified server/data/censusBoundary.ts).
   { id: 'territory_boundaries', name: 'Territories from ZIP, city, county or state', description: 'Make a territory from a ZIP, city, county or state boundary (US Census outlines), shown on the map before you save it', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: territories finished (roofing parity row 23; apps/unified server/crm/roof/field/territories.ts).

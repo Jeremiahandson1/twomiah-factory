@@ -596,6 +596,13 @@
       "when": 1794004651266,
       "tag": "0084_roof_territory_parent",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1794005798795,
+      "tag": "0085_roof_storm_swaths",
+      "breakpoints": true
     }
   ]
 }

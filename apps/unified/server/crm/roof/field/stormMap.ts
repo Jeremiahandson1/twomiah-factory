@@ -18,7 +18,9 @@ import { allPagination, fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { customersInArea } from './customerGeo.ts'
 import { parsePath, pathOf, zipSet } from './geo.ts'
-import { createStormData, type StormData } from './stormData.ts'
+import { createStormData, DEFAULT_STORM_RADIUS_MILES, type StormData } from './stormData.ts'
+import { STORM_DATA_FEATURE, swathProviderFor } from '../../../data/hailSwaths.ts'
+import { businessPoint } from '../../../data/weatherForecast.ts'
 
 const SHOWN = 500
 
@@ -92,9 +94,40 @@ export function createStormMapRoutes(d: CrmDeps, storms: StormData = createStorm
     return one(c, {
       fetched: r.events.length, events: r.events.map(eventView), days,
       message: r.events.length
-        ? `${r.events.length} storm${r.events.length === 1 ? '' : 's'} added to the storm board, each for your whole service area. Draw each storm’s path to narrow it to where it fell.`
+        ? `${r.events.length} storm report${r.events.length === 1 ? '' : 's'} near you added to the storm board, each as a 3-mile circle around where it was reported. Draw each storm’s path if the damage spread further.`
         : 'The feed answered and had no hail, wind or tornado reports for those days.',
     })
+  })
+
+  // POST /swaths { days } — row 25 (storm_data_tools, not ready): storms from a hail-data provider, each its swath with date,
+  // severity, hail, wind and rainfall. No provider is connected yet (data/hailSwaths.ts): the answer says so (NO_PROVIDER).
+  app.post('/swaths', requirePermission('storms:update'), async (c) => {
+    const { companyId } = c.get('user')
+    if (!(await d.features.isFeatureEnabled(companyId, STORM_DATA_FEATURE).catch(() => false))) return fail(c, 404, 'Not found')
+    const b = ((await c.req.json().catch(() => null)) ?? {}) as any
+    const days = b.days === undefined ? 7 : Number(b.days)
+    if (!Number.isInteger(days) || days < 1 || days > 60) return fail(c, 400, 'days is a whole number from 1 to 60.', 'validation_failed', { days: 'Pick 1 to 60 days.' })
+    const provider = swathProviderFor()
+    if (!provider) return fail(c, 501, 'Hail swaths need a hail-data provider account (HailTrace, Interactive Hail Maps or similar), and none is connected yet. NOAA’s free storm reports work today: Check NOAA now.', 'NO_PROVIDER')
+    const here = await businessPoint(db, companyId).catch(() => null)
+    if (!here) return fail(c, 400, 'Add your business address (or a job with a pin) first — the swaths are looked up around it.', 'no_location')
+    const to = new Date(), from = new Date(Date.now() - days * 86_400_000)
+    let got: any
+    try { got = await provider.swaths({ ...here, radiusMiles: DEFAULT_STORM_RADIUS_MILES }, from, to) } catch (err: any) { got = { error: String(err?.message || 'no answer') } }
+    if ('error' in got) return fail(c, 502, `${provider.name} did not answer: ${got.error}`, 'provider_failed')
+    const made: any[] = []
+    for (const sw of (got.swaths || []).slice(0, 50)) {
+      const p = parsePath(sw.path)
+      if ('error' in p) continue
+      const [row] = await db.insert(stormEvent).values({
+        companyId, eventDate: new Date(sw.date), eventType: sw.hailInches ? 'hail' : sw.windMph ? 'wind' : 'other',
+        hailSizeInches: sw.hailInches ? String(sw.hailInches) : null, windSpeedMph: sw.windMph ? Math.round(sw.windMph) : null,
+        rainfallInches: sw.rainfallInches != null ? String(sw.rainfallInches) : null, severity: sw.severity ?? null,
+        description: `${provider.name} swath${sw.severity ? ` (${sw.severity})` : ''}`, affectedZipCodes: [], path: p.path, status: 'detected', source: 'provider',
+      } as any).returning()
+      made.push(row)
+    }
+    return one(c, { fetched: made.length, events: made.map(eventView), provider: provider.name })
   })
 
   return app

@@ -352,6 +352,9 @@ export const stormEvent = pgTable('storm_event', {
   source: text('source').default('manual').notNull(),
   /** Where the storm fell, drawn on the map (field/geo.ts StormPath: a polygon or a circle). Null: by zip only. */
   path: json('path'),
+  // Roofing parity row 25 (storm_data_tools): what a hail-data provider's swath carries besides the shape and the sizes.
+  severity: text('severity'),
+  rainfallInches: decimal('rainfall_inches', { precision: 5, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('storm_event_company_id_idx').on(t.companyId),

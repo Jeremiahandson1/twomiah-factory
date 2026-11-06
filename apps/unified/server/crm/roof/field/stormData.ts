@@ -15,8 +15,9 @@
 //   · Owner, 2026-10-30: a DAILY check of the same kind as "check NOAA now" — events onto the storm board, no leads — runs at
 //     5 am on each company's clock (runScheduledNoaaCheck, started by startNoaaSchedule through the CRM's addJob, so never in
 //     tests), but ONLY for a company that has the hidden `storm_customer_map` switch on. That switch is not ready and no plan,
-//     owner or Factory save can turn it on, so today it checks nobody; it is lifted only after the check has been run
-//     against the real NOAA feed (the CSV shape is verified by fixture only).
+//     owner or Factory save can turn it on, so today it checks nobody. Row 25 (11/06): the feed is now NOAA's SPC daily report
+//     files, parsed and tested on REAL recorded files (tests/fixtures/spc-250520-*.csv), so the daily check can be offered —
+//     the owner turns the switch on after a live look.
 //   · A report the feed gave on an earlier check is not added again (a two-day window means a daily check sees each report
 //     twice): same company, source, type, place and size, within the window.
 import { and, count, eq, gte, inArray, or } from 'drizzle-orm'
@@ -26,9 +27,15 @@ import { company, contact, job, stormEvent, stormLead } from '../../../db/schema
 import type { CrmDeps } from '../../deps.ts'
 import { customersInArea } from './customerGeo.ts'
 import { pathOf, zipSet, type StormPath } from './geo.ts'
+import { parseSpc, spcDay, spcUrl, milesBetween, type SpcKind, type SpcReport } from '../../../data/spcReports.ts'
+import { businessPoint } from '../../../data/weatherForecast.ts'
 
-// NOAA Storm Events CSV endpoint (free, public, no API key)
-const NOAA_BASE = 'https://www.ncdc.noaa.gov/stormevents/csv'
+// NOAA's storm reports: the Storm Prediction Center's daily CSVs (data/spcReports.ts — free, public, no key). The old Storm Events
+// address (www.ncdc.noaa.gov/stormevents/csv) answers an HTML page now (checked 11/06, roofing parity row 25), so it is not used.
+/** How far from the business a report may be and still be put on its storm board (miles; a company may set its own). */
+export const DEFAULT_STORM_RADIUS_MILES = 30
+/** The circle drawn around a report so customers are matched by where they are (miles). */
+export const REPORT_CIRCLE_MILES = 3
 
 /** The hour of the company's day (24-hour clock) the scheduled check runs in. */
 export const NOAA_CHECK_HOUR = 5
@@ -57,41 +64,49 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
   const { db, logger } = d
   const fetchFn = opts.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
 
+  /**
+   * The storm reports near this business over [dateFrom, dateTo], from NOAA's daily report files (hail, wind, tornado), as storm
+   * events: each report a small circle around where it was made (REPORT_CIRCLE_MILES), so the storm's customers are the ones there,
+   * not the whole service area. "Near" is within the company's storm radius of its own place (its newest pinned job, else its
+   * address); with no place known, reports in its own state. A file that does not answer (no reports that day is a 404 too) is
+   * skipped; `reached` says whether any answered.
+   */
   async function fetchStormEvents(companyId: string, zipCodes: string[], dateFrom: Date, dateTo: Date, onStatus?: (s: { reached: boolean; status: number | null }) => void) {
+    void zipCodes
     const events: any[] = []
-    try {
-      const url = `${NOAA_BASE}?beginDate_mm=${String(dateFrom.getMonth() + 1).padStart(2, '0')}&beginDate_dd=${String(dateFrom.getDate()).padStart(2, '0')}&beginDate_yyyy=${dateFrom.getFullYear()}&endDate_mm=${String(dateTo.getMonth() + 1).padStart(2, '0')}&endDate_dd=${String(dateTo.getDate()).padStart(2, '0')}&endDate_yyyy=${dateTo.getFullYear()}&eventType=Hail&eventType=Thunderstorm+Wind&eventType=Tornado`
-      const res = await fetchFn(url, { signal: AbortSignal.timeout(15000) }).catch(() => null)
-      onStatus?.({ reached: !!res?.ok, status: res ? res.status : null })
-      if (res?.ok) {
-        const text = await res.text()
-        const lines = text.split('\n').slice(1) // skip header
-        for (const line of lines) {
-          if (!line.trim()) continue
-          const parts = line.split(',')
-          const eventType = (parts[0] || '').toLowerCase()
-          const magnitude = parseFloat(parts[1] || '0')
-          const location = parts[2] || ''
-          let type = 'other'
-          if (eventType.includes('hail')) type = 'hail'
-          else if (eventType.includes('wind') || eventType.includes('thunderstorm')) type = 'wind'
-          else if (eventType.includes('tornado')) type = 'tornado'
-          events.push({
-            companyId,
-            eventDate: dateFrom,
-            eventType: type,
-            hailSizeInches: type === 'hail' ? String(magnitude || 1.0) : null,
-            windSpeedMph: type === 'wind' ? Math.round(magnitude) : null,
-            description: `${eventType} event near ${location}`.trim(),
-            affectedZipCodes: zipCodes,
-            status: 'detected',
-            source: 'noaa',
-          })
+    const [co] = await db.select({ state: company.state, settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+    const radius = Number((co?.settings as any)?.stormRadiusMiles) > 0 ? Number((co?.settings as any).stormRadiusMiles) : DEFAULT_STORM_RADIUS_MILES
+    const here = await businessPoint(db, companyId).catch(() => null)
+    const state = String(co?.state || '').trim().toUpperCase()
+    const near = (r: SpcReport) => (here ? milesBetween(here, r) <= radius : !!state && r.state === state)
+    let reached = false, lastStatus: number | null = null
+    const days: string[] = []
+    for (let t = Date.UTC(dateFrom.getUTCFullYear(), dateFrom.getUTCMonth(), dateFrom.getUTCDate()); t <= dateTo.getTime(); t += 86_400_000) days.push(spcDay(new Date(t)))
+    for (const day of days) {
+      for (const kind of ['hail', 'wind', 'torn'] as SpcKind[]) {
+        try {
+          const res = await fetchFn(spcUrl(day, kind), { signal: AbortSignal.timeout(15000) }).catch(() => null)
+          lastStatus = res ? res.status : lastStatus
+          if (!res?.ok) continue
+          reached = true
+          const at = new Date(Date.UTC(2000 + Number(day.slice(0, 2)), Number(day.slice(2, 4)) - 1, Number(day.slice(4, 6)), 12))
+          for (const r of parseSpc(kind, await res.text()).filter(near)) {
+            const size = r.kind === 'hail' && r.hailInches ? `${r.hailInches.toFixed(2)} in hail` : r.kind === 'wind' ? (r.windMph ? `${r.windMph} mph wind` : 'damaging wind') : `tornado${r.rating ? ` (${r.rating})` : ''}`
+            events.push({
+              companyId, eventDate: at, eventType: r.kind,
+              hailSizeInches: r.kind === 'hail' && r.hailInches ? String(r.hailInches) : null,
+              windSpeedMph: r.kind === 'wind' ? r.windMph : null,
+              description: `${size} at ${r.location}, ${r.county} County, ${r.state} (NOAA report ${r.time})`,
+              affectedZipCodes: [], path: { kind: 'circle', lat: r.lat, lng: r.lng, radiusMiles: REPORT_CIRCLE_MILES },
+              status: 'detected', source: 'noaa',
+            })
+          }
+        } catch (err) {
+          logger.warn('NOAA report file not read', { day, kind, error: (err as Error).message })
         }
       }
-    } catch (err) {
-      logger.warn('NOAA fetch failed, using manual entry fallback', { error: (err as Error).message })
     }
+    onStatus?.({ reached, status: reached ? 200 : lastStatus })
     if (events.length === 0) return []
     // Reports an earlier check already put on this board (created since the window began) are not added a second time.
     const known = await db.select({ eventType: stormEvent.eventType, description: stormEvent.description, hailSizeInches: stormEvent.hailSizeInches, windSpeedMph: stormEvent.windSpeedMph })
@@ -99,7 +114,7 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
     const keyOf = (e: any) => [e.eventType, e.description, e.hailSizeInches ?? '', e.windSpeedMph ?? ''].join('|')
     const seen = new Set<string>((known as any[]).map(keyOf))
     const created: any[] = []
-    for (const evt of events.filter((e) => { const k = keyOf(e); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 10)) { // max 10 events per check
+    for (const evt of events.filter((e) => { const k = keyOf(e); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 25)) { // at most 25 a check
       const [record] = await db.insert(stormEvent).values(evt).returning()
       created.push(record)
     }
