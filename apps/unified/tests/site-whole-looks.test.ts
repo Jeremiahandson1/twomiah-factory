@@ -5,7 +5,7 @@
 import { describe, test, expect } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { SITE_DESIGNS, SITE_DESIGN_SPECS } from '../server/core/vertical.ts'
+import { frameOptionsOf, SITE_DESIGNS, SITE_DESIGN_SPECS } from '../server/core/vertical.ts'
 import { siteStylesheet } from '../server/site/routes.ts'
 import { renderSections } from '../server/site/render.ts'
 
@@ -18,14 +18,15 @@ const ctx = (design: string, brand = '#b45309'): any => {
   return {
     companyId: 'c', slug: 's', design, features: [], words: { contactAddressLabel: 'Office', contactMessageLabel: 'Message', contactMessageRequired: 'x' },
     settings: { companyName: 'Westridge', phone: '608-555-0142', email: 'a@b.example', nav: [{ label: 'Contact', href: 'contact' }], contactCtaLabel: 'Go', accentColor: '#0e7490' },
-    options: { textSizeToggle: false, shop: false, cover: spec.frame === 'book', fonts: spec.fonts, schemes: !!spec.schemes, ctaHref: '/contact' },
+    options: { textSizeToggle: false, shop: false, cover: spec.frame === 'book', fonts: spec.fonts, schemes: !!spec.schemes, ctaHref: '/contact', ...frameOptionsOf(spec) },
     colours: { primary: brand, accent: '#0e7490', secondary: '#1e3a5f' },
   }
 }
 
 describe('a whole look and the book frame are two separate settings', () => {
-  test('only the bar has the book frame; every whole look has a stylesheet of its own', () => {
-    expect(SITE_DESIGNS.filter((d) => SITE_DESIGN_SPECS[d].frame === 'book')).toEqual(['bar'])
+  test('only the bar\'s two looks have the book frame; every whole look has a stylesheet of its own', () => {
+    // The bar's frame: the speakeasy book (bar) and the bar as its building stands (sign, the reference bar's owner 2026-11-05).
+    expect(SITE_DESIGNS.filter((d) => SITE_DESIGN_SPECS[d].frame === 'book')).toEqual(['bar', 'sign'])
     for (const d of WHOLE) expect([d, fs.existsSync(path.join(DESIGNS_DIR, d + '.css'))]).toEqual([d, true])
     for (const d of SITE_DESIGNS) expect(SITE_DESIGN_SPECS[d].label.length).toBeGreaterThan(2)
   })
@@ -57,6 +58,40 @@ describe('a whole look and the book frame are two separate settings', () => {
   test('the bar still wears its frame', async () => {
     const html = await renderSections(ctx('bar'), [{ type: 'hero', variant: 'centered-stats', data: { title: 'T' } }], { title: 'Home' }, { currentPath: '/', origin: 'https://x.example', facts: null })
     expect(html).toContain('class="cover"')
+    // …in its own type, with its name as text and no motion: the painted sign's additions are that design's alone
+    expect(html).toContain("--font-display: 'Cinzel Decorative'")
+    expect(html).not.toContain('class="sign')
+    expect(html).not.toContain('--font-sign')
+    expect(html).not.toContain('html.motion')
+    expect(html).not.toContain("classList.add('motion')")
+  })
+
+  test('the painted sign: the bar\'s frame in its own faces, the name drawn as the sign, light motion', async () => {
+    const c = ctx('sign')
+    c.settings = { ...c.settings, companyName: 'Amber Inn Bar & Grill', logoUrl: '/media/photos/storefront.jpg' }
+    const html = await renderSections(c, [{ type: 'hero', variant: 'centered-stats', data: { title: 'T' } }], { title: 'Home' }, { currentPath: '/', origin: 'https://x.example', facts: null })
+    expect(html).toContain('class="cover"')
+    expect(html).toContain("--font-display: 'Oswald', 'Oswald Fallback'")
+    expect(html).toContain("--font-body: 'Libre Franklin', 'Libre Franklin Fallback'")
+    expect(html).toContain("--font-sign: 'Alfa Slab One', 'Alfa Slab One Fallback'")
+    for (const f of ['Oswald-400', 'LibreFranklin-400', 'AlfaSlabOne-400']) expect(html).toContain('href="/fonts/' + f + '.woff2"')
+    expect(html).not.toContain('fonts.googleapis.com/css2')
+    // the company logo is the social card's picture here, not the header: the header is the sign
+    expect(html).toContain('<span class="sign__name">Amber Inn</span><span class="sign__band"><span class="sign__kind">Bar &amp; Grill</span>')
+    expect(html).not.toMatch(/class="brand[^"]*"[^>]*><img/)
+    expect(html).toContain("classList.add('motion')")
+    expect(html).toContain('prefers-reduced-motion: reduce')
+    expect(html).toContain('<meta name="theme-color" content="#1B1C18"')
+    // an uploaded header lettering still wins over the drawn sign
+    c.settings = { ...c.settings, headerLogoUrl: '/media/photos/lettering.png' }
+    const withLogo = await renderSections(c, [{ type: 'hero', variant: 'centered-stats', data: { title: 'T' } }], { title: 'Home' }, { currentPath: '/', origin: 'https://x.example', facts: null })
+    expect(withLogo).toContain('<img src="/media/photos/lettering.png"')
+    expect(withLogo).not.toContain('class="sign__name"')
+  })
+
+  test('the painted sign follows reduced motion: no transition is left to hold a hidden page (designs/sign.css)', () => {
+    const raw = fs.readFileSync(path.join(DESIGNS_DIR, 'sign.css'), 'utf8')
+    expect(raw).toMatch(/prefers-reduced-motion: reduce\)\s*\{[\s\S]*?transition: none !important/)
   })
 })
 

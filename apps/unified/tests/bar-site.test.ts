@@ -244,6 +244,60 @@ describe('the bar\'s files and the board\'s live answers', () => {
   })
 })
 
+describe('the painted sign (design sign) and its picks (menu/bento)', () => {
+  test('the picks read the menu and the taps live; an item that is not on the menu draws no tile', async () => {
+    await t.db.insert(t.schema.page).values({ companyId, slug: 'picks', title: 'Picks', isPublished: true, sections: [
+      { type: 'menu', variant: 'bento', data: { heading: 'Off the grill', tiles: [
+        { item: 'peanut-butter-bacon-burger', size: 'lg', tone: 'red', eyebrow: 'Tuesdays', stamp: '½ lb' },
+        { item: 'gone-from-the-menu', tone: 'paper' },
+        { kind: 'taps', size: 'wide', tone: 'dark' },
+        { kind: 'link', tone: 'yellow', title: 'Burgers, sandwiches, platters', href: '/menu' },
+      ] } },
+    ] })
+    const { status, html } = await page('/picks')
+    expect(status).toBe(200)
+    const words = text(html)
+    // the item's name and price are the menu's, and a signature item links to its own page
+    expect(html).toContain('<a href="/burgers/peanut-butter-bacon-burger">Peanut Butter Bacon Burger</a>')
+    expect(words).toContain('$13')
+    expect(words).toContain('The one people drive for.')
+    expect(html).toContain('bento__tile--red bento__tile--lg')
+    expect(html.match(/class="bento__tile /g)!.length).toBe(3)
+    // the taps tile is the board's count and names
+    expect(words).toContain('1 line pouring')
+    expect(words).toContain('Leinenkugel Honey Weiss')
+    expect(html).toContain('<a href="/menu">Burgers, sandwiches, platters</a>')
+  })
+
+  test('the design: the sign in the header, its own sheet and faces, the board\'s sign heading', async () => {
+    await t.db.update(t.schema.website).set({ design: 'sign' }).where(eq(t.schema.website.companyId, companyId))
+    const [home] = await t.db.select().from(t.schema.page).where(and(eq(t.schema.page.companyId, companyId), eq(t.schema.page.slug, 'home')))
+    const was = home.sections
+    await t.db.update(t.schema.page).set({ sections: [{ type: 'tonight', variant: 'board', data: { sign: { name: 'The Amber Tap', band: 'Bar & Grill', est: 'Est. 1881' }, eyebrow: '12 River St' } }] })
+      .where(eq(t.schema.page.id, home.id))
+    try {
+      const { status, html } = await page('/')
+      expect(status).toBe(200)
+      expect(html).toContain('class="brand brand--sign"')
+      expect(html).toContain('<h1 class="board__title board__title--sign">')
+      expect(text(html)).toContain('The Amber Tap Bar & Grill Est. 1881')
+      expect(html).not.toContain('frame-ornate')
+      expect(html).toContain('href="/fonts/Oswald-400.woff2"')
+      // still the live board
+      expect(text(html)).toContain('Walleye basket, $14')
+      const css = await (await t.call('/styles/main.css')).text()
+      expect(css).toContain('THE BENTO')
+      expect(css).not.toContain('THE COVER')
+      expect(css).not.toContain('{{')
+      expect(await (await t.call('/styles/fonts.css')).text()).toContain("font-family: 'Alfa Slab One'")
+      expect((await t.call('/fonts/AlfaSlabOne-400.woff2')).headers.get('content-type')).toBe('font/woff2')
+    } finally {
+      await t.db.update(t.schema.page).set({ sections: was }).where(eq(t.schema.page.id, home.id))
+      await t.db.update(t.schema.website).set({ design: null }).where(eq(t.schema.website.companyId, companyId))
+    }
+  })
+})
+
 describe('no section failed', () => {
   test('every section on every page above rendered', () => expect(sectionFailures).toEqual([]))
 })

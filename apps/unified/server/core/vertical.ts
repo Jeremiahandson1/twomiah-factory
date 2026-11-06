@@ -326,7 +326,7 @@ export interface CrmSettings {
  * first eight are the premium template families' looks; 'classic' is the base alone. The rest are whole looks of their
  * own (SITE_DESIGN_SPECS: build 'whole').
  */
-export const SITE_DESIGNS = ['classic', 'bar', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market'] as const
+export const SITE_DESIGNS = ['classic', 'bar', 'sign', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market'] as const
 export type SiteDesign = typeof SITE_DESIGNS[number]
 
 /**
@@ -364,11 +364,31 @@ export interface SiteDesignSpec {
   headerDark?: boolean
   /** A visitor may pick this look for the site they sign up for (the free preview on twomiah.com, POST /public/signup). */
   choosable?: boolean
+  /**
+   * The frame's own type when the look is not the book's (base.ejs): display, eyebrow, body and live-board faces, and the
+   * face the sign wordmark is set in. Each is self-hosted (site/public/fonts, styles/fonts.css). Absent: the book's faces.
+   */
+  faces?: { display: string; eyebrow: string; body: string; mono: string; sign?: string }
+  /**
+   * 'sign': with no uploaded header lettering, the header's name is drawn as the sign over the door (name on the red,
+   * the kind of place on the band below it: "Amber Inn" / "Bar & Grill"). Absent: the name as text.
+   */
+  wordmark?: 'sign'
+  /** Sections fade in as they come on screen and the live board's values turn over when they change (base.ejs). Never under reduced motion. */
+  motion?: boolean
+  /** The browser's own bar colour on a phone (base.ejs theme-color, dark). Absent: the book's leather. */
+  themeColor?: string
 }
 
 export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   classic: { label: 'Classic', build: 'overrides' },
   bar: { label: 'Bar & tavern', build: 'whole', frame: 'book', tokens: 'bar' },
+  // The bar as its building stands (the reference bar's owner, 2026-11-05): black ribbed siding, the painted yellow
+  // lettering as the brand, and the sign over the door as the wordmark. The bar's frame and sections; its own faces.
+  sign: {
+    label: 'Bar & grill — the painted sign', build: 'whole', frame: 'book', tokens: 'bar', wordmark: 'sign', motion: true, themeColor: '#1B1C18',
+    faces: { display: 'Oswald', eyebrow: 'Oswald', body: 'Libre Franklin', mono: 'Oswald', sign: 'Alfa Slab One' },
+  },
   dispensary: { label: 'Dispensary', build: 'overrides' },
   fieldservice: { label: 'Field service', build: 'overrides' },
   homecare: { label: 'Home care', build: 'overrides' },
@@ -393,6 +413,11 @@ export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
     label: 'Studio', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--panel', headAlign: 'left',
     fonts: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap',
   },
+}
+
+/** What the page around the sections (base.ejs siteOptions) reads of a design's row besides its frame and type. */
+export function frameOptionsOf(spec: SiteDesignSpec): { faces?: SiteDesignSpec['faces']; wordmark?: 'sign'; motion?: boolean; themeColor?: string } {
+  return { faces: spec.faces, wordmark: spec.wordmark, motion: !!spec.motion, themeColor: spec.themeColor }
 }
 
 /** The looks a visitor chooses between before they sign up: the designs whose row says `choosable`. */
