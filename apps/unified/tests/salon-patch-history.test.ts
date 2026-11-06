@@ -131,7 +131,7 @@ describe('salon: patch-test history', () => {
     const a = await appt(patchSvc.id)
     const done = await as('owner', `/api/appointments/${a.id}`, 'PUT', { status: 'completed' })
     expect(done.status).toBe(200)
-    expect(done.body.patchTest).toMatchObject({ status: 'pending', title: 'Patch Test', testedAt: today(), ranByName: 'Ana Tester', appointmentId: a.id })
+    expect(done.body.patchTest).toMatchObject({ status: 'pending', title: 'Patch Test', testedAt: tzParts(new Date(a.startTime), TZ).date /* the appointment's day: 3 hours ago is yesterday just after midnight */, ranByName: 'Ana Tester', appointmentId: a.id })
     // pending is not a pass: the colour is still held
     expect((await chart(c)).state).toBe('none')
     // the prompt's answer

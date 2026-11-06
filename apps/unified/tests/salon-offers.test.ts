@@ -103,6 +103,7 @@ describe('salon: offers and more automatic messages', () => {
       expect([r.status, JSON.stringify(bad)]).toEqual([400, JSON.stringify(bad)])
     }
     const ok = await settings({
+      quietStart: '00:00', quietEnd: '00:00',      // no quiet hours: the suite may run in the evening (retention.ts waits them out)
       birthday: true, winBack: true, winBackDays: 90, milestone: true, milestoneVisits: [10, 5, 5], anniversary: true, tierUp: true,
       offers: { birthday: { type: 'amount', value: 1000, validDays: 30 }, win_back: { type: 'percent', value: 15, validDays: 14 }, milestone: { type: 'percent', value: 10, validDays: 14 } },
       templates: { tier_up: 'Congrats {firstName}, welcome to {tier}! {offer}' },
