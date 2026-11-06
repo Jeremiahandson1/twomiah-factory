@@ -1011,3 +1011,14 @@ export async function caregiverUtilization(q: Q, companyId: string, today: strin
     GROUP BY u.id, u.first_name, u.last_name
     ORDER BY weekly_hours DESC NULLS LAST`))
 }
+
+/** Row 15 (visit optimizer): every caregiver's visits over a range, with where each is — the day plans the optimizer adds to. */
+export async function dayPlansInRange(q: Q, companyId: string, from: string, to: string): Promise<{ caregiverId: string; date: string; start: string; end: string; lat: string | null; lng: string | null }[]> {
+  return camelRows(await q.execute(sql`WITH ${occurrencesCte(companyId, from, to)}
+    SELECT occ.caregiver_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS date,
+           to_char(occ.start_time, 'HH24:MI') AS start, to_char(occ.end_time, 'HH24:MI') AS "end",
+           cl.latitude AS lat, cl.longitude AS lng
+      FROM occ LEFT JOIN clients cl ON cl.id = occ.client_id AND cl.company_id = ${companyId}
+     WHERE occ.caregiver_id IS NOT NULL
+     ORDER BY occ.caregiver_id, occ.occ_date, occ.start_time`)) as any
+}

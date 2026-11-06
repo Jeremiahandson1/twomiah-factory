@@ -20,6 +20,8 @@ const NoShowAlerts = page(() => import('./NoShowAlerts'))
 const ShiftApprovals = page(() => import('./ShiftApprovals'))
 const RouteOptimizer = page(() => import('./RouteOptimizer'))
 const CompanyOptimizer = page(() => import('./CompanyOptimizer'))
+// Row 15 (care_visit_optimizer, hidden): fill many open visits at once.
+const VisitOptimizer = page(() => import('./VisitOptimizer'))
 const ClientWeekHours = page(() => import('./ClientWeekHours'))
 const PtoPage = page(() => import('./PtoPage'))
 
@@ -30,6 +32,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-shift-approvals" path="shift-approvals" element={<ShiftApprovals />} />,
   <Route key="hc-route-optimizer" path="route-optimizer" element={<RouteOptimizer />} />,
   <Route key="hc-company-optimizer" path="company-optimizer" element={<CompanyOptimizer />} />,
+  <Route key="hc-visit-optimizer" path="visit-optimizer" element={<VisitOptimizer />} />,
   <Route key="hc-client-week" path="client-week" element={<ClientWeekHours />} />,
   <Route key="hc-pto" path="pto" element={<PtoPage />} />,
   <Route key="hc-no-show" path="no-show" element={<Navigate to="/crm/no-show-alerts" replace />} />,
@@ -48,6 +51,7 @@ export const routePermissions: Record<string, string> = {
   '/crm/shift-approvals': 'evv:delete',
   '/crm/route-optimizer': 'care-schedule:update',
   '/crm/company-optimizer': 'care-schedule:update',
+  '/crm/visit-optimizer': 'care-schedule:update',
   '/crm/client-week': 'care-billing:read',
   '/crm/pto': 'care-payroll:read',
   '/crm/no-show': 'care-schedule:update',
@@ -61,5 +65,6 @@ export const nav: NavItem[] = [
   { to: '/crm/shift-approvals', icon: CheckSquare, label: 'Shift Approvals', permission: routePermissions['/crm/shift-approvals'] },
   { to: '/crm/route-optimizer', icon: MapIcon, label: 'Route Optimizer', permission: routePermissions['/crm/route-optimizer'] },
   { to: '/crm/company-optimizer', icon: Sparkles, label: 'Company Optimizer', permission: routePermissions['/crm/company-optimizer'] },
+  { to: '/crm/visit-optimizer', icon: Sparkles, label: 'Visit optimizer', permission: routePermissions['/crm/visit-optimizer'], features: ['care_visit_optimizer'] },
   { to: '/crm/client-week', icon: CalendarRange, label: 'Client Hours by Week', permission: routePermissions['/crm/client-week'] },
 ]
