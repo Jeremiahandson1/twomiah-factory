@@ -253,6 +253,31 @@ export const landscapingSetting = pgTable('landscaping_setting', {
   uniqueIndex('landscaping_setting_company_id_idx').on(t.companyId),
 ])
 
+// One rain day as it was pushed (landscaping parity rows 16 and 29): what moved from where to where, the texts it queued, and
+// whether it ran in the background (a big push: Yardbook runs it and emails when done). Kept so the office can UNDO it: each
+// visit still where the push put it goes back, and texts not yet sent are cancelled (data/routeRainDay.ts undoRainDay).
+export const rainDayRun = pgTable('rain_day_run', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  status: text('status').default('done').notNull(), // running, done, failed, undone
+  fromDate: text('from_date').notNull(),
+  toDate: text('to_date'),
+  throughDate: text('through_date'),
+  shiftDays: integer('shift_days'),
+  routeId: text('route_id'),
+  moves: json('moves').notNull(), // [{ jobId, number, title, from, to, fromAt, toAt, fromEndAt, toEndAt }]
+  textIds: json('text_ids'), // scheduled_text ids it queued
+  moved: integer('moved').default(0).notNull(),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  finishedAt: timestamp('finished_at'),
+  undoneAt: timestamp('undone_at'),
+  undoneById: text('undone_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('rain_day_run_company_id_idx').on(t.companyId),
+])
+
 // "Couldn't do it" on a visit (landscaping parity row 12; LMN crew lead): the crew skipped it with a reason from a list and said
 // whether it needs rebooking. The visit is put on hold; the office sees the open ones on the Route Board and rebooks them to a day
 // or closes them (data/crewDay.ts). One open skip per visit: a second report from the phone (its queue sends twice) is the same.
