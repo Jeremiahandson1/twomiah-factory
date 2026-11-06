@@ -7,7 +7,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { insertInvoice, defaultTaxRateFrom, dueDateFromTerms, nextNumber } from '@twomiah/tenant-backend'
 import {
   job, site, contact, company, invoice, invoiceLineItem,
-  recurringRoute, recurringRouteStop, snowContract, snowEvent, snowStorm, snowStormStop,
+  recurringRoute, recurringRouteStop, snowContract, snowEvent, snowStorm, snowStormStop, jobPhoto,
 } from '../db/schema/index.ts'
 import {
   computeSnowEventCharge, isBelowTrigger, snowEventChargeError, snowEventInputError, snowEventLine,
@@ -84,8 +84,8 @@ export async function stormContracts(db: any, companyId: string, target: StormTa
   }
 }
 
-export async function startStorm(db: any, companyId: string, userId: string | null, input: { name: string; notes?: string | null }) {
-  const [row] = await db.insert(snowStorm).values({ companyId, name: input.name, notes: input.notes ?? null, createdById: userId }).returning()
+export async function startStorm(db: any, companyId: string, userId: string | null, input: { name: string; notes?: string | null; source?: string | null; expectedInches?: number | null }) {
+  const [row] = await db.insert(snowStorm).values({ companyId, name: input.name, notes: input.notes ?? null, createdById: userId, source: input.source ?? null, expectedInches: input.expectedInches != null ? String(input.expectedInches) : null }).returning()
   return row
 }
 
@@ -101,7 +101,7 @@ export async function getStorm(db: any, companyId: string, stormId: string) {
  */
 export async function dispatchStorm(
   db: any, companyId: string, userId: string | null, storm: { id: string },
-  target: StormTarget, opts: { date: string; assignedToId?: string | null },
+  target: StormTarget, opts: { date: string; assignedToId?: string | null; /** Row 25: the snowfall expected, which scales each stop's expected time. */ expectedInches?: number | null },
 ): Promise<{ made: Array<{ stopId: string; jobId: string; contractId: string; siteName: string | null }>; alreadyThere: number; error?: string }> {
   const picked = await stormContracts(db, companyId, target)
   if ('error' in picked) return { made: [], alreadyThere: 0, error: picked.error }
@@ -128,6 +128,9 @@ export async function dispatchStorm(
         siteId: r.contract.siteId,
         address: r.siteAddress, city: r.siteCity, state: r.siteState, zip: r.siteZip,
         assignedToId: crewId ?? null,
+        // Row 25 (LMN production rates): the stop's expected time — the contract's base minutes plus its minutes per inch of
+        // the snowfall expected — on the crew's visit, where the contract sets them.
+        ...(expectedMinutes(r.contract, opts.expectedInches) != null ? { estimatedHours: String(Math.round((expectedMinutes(r.contract, opts.expectedInches)! / 60) * 100) / 100) } : {}),
       }).returning()
       const [stop] = await tx.insert(snowStormStop).values({
         companyId, stormId: storm.id, snowContractId: r.contract.id, siteId: r.contract.siteId, jobId: j.id,
@@ -173,6 +176,21 @@ export async function startStormStop(db: any, companyId: string, stopId: string,
 
 export interface LogFigures {
   pushes?: unknown; snowfallInches?: unknown; saltApplied?: unknown; billBelowTrigger?: unknown; hours?: unknown; notes?: unknown; servicedAt?: unknown
+  /** Row 24: salt put down by amount, in the contract's unit. */
+  saltQuantity?: unknown
+}
+
+/** Row 25: a stop's expected minutes — base plus per inch of the snowfall expected — or null where the contract sets no base. */
+export function expectedMinutes(contract: { baseMinutes?: number | null; minutesPerInch?: string | number | null }, inches: number | null | undefined): number | null {
+  if (contract?.baseMinutes == null) return null
+  return Math.round(Number(contract.baseMinutes) + (Number(contract.minutesPerInch) || 0) * Math.max(0, Number(inches) || 0))
+}
+
+/** Row 24: does the stop's visit have a before and an after photo (Service Autopilot before/after)? */
+export async function stopHasPhotos(db: any, companyId: string, jobId: string | null): Promise<boolean> {
+  if (!jobId) return false
+  const rows: any[] = await db.select({ kind: jobPhoto.photoType }).from(jobPhoto).where(and(eq(jobPhoto.companyId, companyId), eq(jobPhoto.jobId, jobId)))
+  return rows.some((r) => r.kind === 'before') && rows.some((r) => r.kind === 'after')
 }
 
 /**
@@ -181,7 +199,7 @@ export interface LogFigures {
  * (`alreadyLogged`) and changes nothing: a request replayed after a dropped connection must never bill a push twice.
  */
 export async function logStormStop(
-  db: any, companyId: string, userId: string | null, stopId: string, fig: LogFigures, now = new Date(),
+  db: any, companyId: string, userId: string | null, stopId: string, fig: LogFigures, now = new Date(), opts: { tools?: boolean } = {},
 ): Promise<
   | { error: string; status: 400 | 404 | 409 }
   | { stop: any; event: any; job: any | null; belowTrigger: boolean; alreadyLogged: boolean }
@@ -201,16 +219,22 @@ export async function logStormStop(
 
   const bad = snowEventInputError(fig)
   if (bad) return { error: bad, status: 400 }
+  // Row 24: a contract that requires photos is logged only once the stop's visit has a before and an after photo — phone or office.
+  if (opts.tools && contract.requirePhotos && !(await stopHasPhotos(db, companyId, stop.jobId))) {
+    return { error: 'This contract needs a before photo and an after photo of the site before the visit is logged.', status: 409 }
+  }
   const blank = (v: unknown) => v === undefined || v === null || String(v).trim() === ''
   let hours = blank(fig.hours) ? 0 : Number(fig.hours)
   // An hourly visit with no typed hours is the clock: from the crew's Start to now, to the hundredth of an hour.
   if (contract.billingMode === 'hourly' && !(hours > 0) && stop.startedAt) {
     hours = Math.min(48, Math.round(((now.getTime() - new Date(stop.startedAt).getTime()) / 3_600_000) * 100) / 100)
   }
+  const saltQuantity = opts.tools && !blank(fig.saltQuantity) ? Number(fig.saltQuantity) : null
   const ev = {
     pushes: blank(fig.pushes) ? 1 : Number(fig.pushes),
     snowfallInches: blank(fig.snowfallInches) ? 0 : Number(fig.snowfallInches),
-    saltApplied: !!fig.saltApplied,
+    saltApplied: !!fig.saltApplied || (saltQuantity ?? 0) > 0,
+    saltQuantity,
     billBelowTrigger: !!fig.billBelowTrigger,
     hours,
   }
@@ -233,6 +257,7 @@ export async function logStormStop(
       servicedAt: blank(fig.servicedAt) ? now : new Date(String(fig.servicedAt)),
       pushes: ev.pushes, snowfallInches: String(ev.snowfallInches), saltApplied: ev.saltApplied, billBelowTrigger: ev.billBelowTrigger,
       hours: String(ev.hours), stormId: stop.stormId, billableAmount: String(billableAmount), billingMode: contract.billingMode,
+      ...(saltQuantity != null ? { saltQuantity: String(saltQuantity) } : {}),
       assignedToId: stop.assignedToId ?? userId, notes: blank(fig.notes) ? null : String(fig.notes),
     }).returning()
     const [done] = await tx.update(snowStormStop).set({ eventId: event.id }).where(eq(snowStormStop.id, stopId)).returning()
@@ -251,13 +276,13 @@ export async function logStormStop(
  * Log every open stop of a storm with the same figures ("1 push, 3 inches, no salt" for the whole route). A stop that cannot be
  * logged with them (an hourly contract with no clock, say) is reported with the reason and left open; the rest are logged.
  */
-export async function logAllStormStops(db: any, companyId: string, userId: string | null, stormId: string, fig: LogFigures, only?: string[]) {
+export async function logAllStormStops(db: any, companyId: string, userId: string | null, stormId: string, fig: LogFigures, only?: string[], opts: { tools?: boolean } = {}) {
   const stops = (await stormStops(db, companyId, stormId)).filter((s) => (s.status === 'open' || s.status === 'working') && (!only || only.includes(s.id)))
   const logged: Array<{ stopId: string; eventId: string; jobId: string | null; amount: number }> = []
   const failed: Array<{ stopId: string; siteName: string | null; reason: string }> = []
   const jobs: any[] = []
   for (const s of stops) {
-    const r = await logStormStop(db, companyId, userId, s.id, fig)
+    const r = await logStormStop(db, companyId, userId, s.id, fig, new Date(), opts)
     if ('error' in r) { failed.push({ stopId: s.id, siteName: s.siteName, reason: r.error }); continue }
     logged.push({ stopId: s.id, eventId: r.event.id, jobId: s.jobId ?? null, amount: Number(r.event.billableAmount) })
     if (r.job) jobs.push(r.job)

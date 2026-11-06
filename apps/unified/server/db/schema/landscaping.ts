@@ -85,6 +85,19 @@ export const snowContract = pgTable('snow_contract', {
   saltRate: decimal('salt_rate', { precision: 12, scale: 2 }).default('0').notNull(),
   // The rate an 'hourly' contract is billed by: the crew's hours on site, times this (storm mode's clock, data/snowStorm.ts).
   hourlyRate: decimal('hourly_rate', { precision: 12, scale: 2 }).default('0').notNull(),
+  // Landscaping parity rows 22–25 (snow_tools, not ready). depthBands: the 'depth_band' mode's rate table (Aspire) —
+  // [{ from, to, amount }] in inches and dollars, `to` null for "and over". requirePhotos: a stop is logged only with a before and
+  // an after photo (Service Autopilot). Salt by quantity: saltUnit (tons, bags, lbs, yards) at saltPerUnitRate, or — hourly (time
+  // and materials) — our saltUnitCost marked up by materialMarkupPct (Aspire T&M). baseMinutes + minutesPerInch: a stop's
+  // expected time scaled by the storm's snowfall (LMN production rates).
+  depthBands: json('depth_bands'),
+  requirePhotos: boolean('require_photos').default(false).notNull(),
+  saltUnit: text('salt_unit'),
+  saltPerUnitRate: decimal('salt_per_unit_rate', { precision: 12, scale: 2 }).default('0').notNull(),
+  saltUnitCost: decimal('salt_unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  materialMarkupPct: decimal('material_markup_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  baseMinutes: integer('base_minutes'),
+  minutesPerInch: decimal('minutes_per_inch', { precision: 6, scale: 2 }),
   status: text('status').default('active').notNull(), // active, paused, ended
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -102,6 +115,10 @@ export const snowStorm = pgTable('snow_storm', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   status: text('status').default('active').notNull(), // active, ended
+  // Row 30: 'forecast' when started from the weather forecast (by a tap on its proposal, or on its own where turned on), with the
+  // snowfall it expected; the stops' expected time is scaled by it (row 25).
+  source: text('source'),
+  expectedInches: decimal('expected_inches', { precision: 5, scale: 2 }),
   startedAt: timestamp('started_at').defaultNow().notNull(),
   endedAt: timestamp('ended_at'),
   notes: text('notes'),
@@ -131,6 +148,14 @@ export const snowEvent = pgTable('snow_event', {
   billBelowTrigger: boolean('bill_below_trigger').default(false).notNull(),
   // The crew's hours on site, for an 'hourly' contract (from the stop's Start to the crew logging it, or typed).
   hours: decimal('hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  // Salt put down by amount, in the contract's unit (row 24).
+  saltQuantity: decimal('salt_quantity', { precision: 10, scale: 2 }),
+  // The office's change to what this visit bills, before it is billed (row 23; Aspire): what the contract worked out, the reason,
+  // who and when. billableAmount holds the amount billed.
+  computedAmount: decimal('computed_amount', { precision: 12, scale: 2 }),
+  overrideReason: text('override_reason'),
+  overriddenById: text('overridden_by_id').references(() => user.id, { onDelete: 'set null' }),
+  overriddenAt: timestamp('overridden_at'),
   // The storm this visit was logged in, if it was logged through storm mode.
   stormId: text('storm_id').references(() => snowStorm.id, { onDelete: 'set null' }),
   billableAmount: decimal('billable_amount', { precision: 12, scale: 2 }).default('0').notNull(),
@@ -252,6 +277,8 @@ export const landscapingSetting = pgTable('landscaping_setting', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   rainDaySkipSundays: boolean('rain_day_skip_sundays').default(true).notNull(),
+  // Row 30: start a storm on its own when the forecast's snowfall reaches a contract's trigger. Off unless the owner turns it on.
+  snowAutoStart: boolean('snow_auto_start').default(false).notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('landscaping_setting_company_id_idx').on(t.companyId),

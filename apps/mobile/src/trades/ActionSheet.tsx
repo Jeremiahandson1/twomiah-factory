@@ -6,6 +6,7 @@ import { api, get } from '../api/client'
 import { useToast } from '../components/ToastProvider'
 import { useOfflineApi } from '../offline/useOfflineApi'
 import { unwrap, type Action } from './kit'
+import { useVertical } from '../vertical/VerticalContext'
 
 /** A 'levels' value is a JSON list of percents; anything else reads as none. */
 export const levelsOf = (v: unknown): number[] => { try { const a = JSON.parse(String(v ?? '[]')); return Array.isArray(a) ? a.map(Number).filter((n) => Number.isFinite(n)).map((n) => Math.min(100, Math.max(0, Math.round(n)))) : [] } catch { return [] } }
@@ -47,6 +48,7 @@ const Wrap = ({ children }: { children: React.ReactNode }) => <View style={{ fle
 
 export function ActionSheet({ action, row, onClose, onDone }: { action: Action | null; row: any; onClose: () => void; onDone: () => void }) {
   const toast = useToast()
+  const { hasFeature } = useVertical()
   const offline = useOfflineApi()
   const [values, setValues] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
@@ -94,7 +96,7 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
       {action ? (
         <View style={{ gap: space[3] }}>
           {action.confirm ? <DText variant="body">{action.confirm.body(row)}</DText> : null}
-          {(action.inputs || []).map((inp) => inp.options ? (
+          {(action.inputs || []).filter((inp) => !inp.feature || hasFeature(inp.feature)).map((inp) => inp.options ? (
             <View key={inp.id} style={{ gap: space[1] }}><DText variant="bodyStrong">{inp.label}</DText>
               {!offered[inp.id] ? <DText variant="callout" tone="textSecondary">{inp.options.loading ?? 'Getting prices…'}</DText>
                 : offered[inp.id].none ? <DText variant="callout" tone="textSecondary">{offered[inp.id].none}</DText>

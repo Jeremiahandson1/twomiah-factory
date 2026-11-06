@@ -116,6 +116,8 @@ export const LANDSCAPING: ScreenSpec[] = [
       path: () => null, title: (d) => d.siteName || 'Snow stop', subtitle: (d) => join(d.stormName, d.address), badge: (d) => words(d.status === 'working' ? 'in progress' : d.status),
       sections: [
         { links: (d) => (d.address ? [{ label: `Directions to ${d.address}`, url: maps(join(d.address, d.city)), icon: 'navigate', directions: join(d.address, d.city) }] : []) },
+        // Row 24: before and after photos of the site (a contract may require both before the visit is logged) — the stop's own job.
+        { feature: 'photo_capture', links: (d) => (d.jobId && d.status !== 'skipped' ? [{ label: 'Photos — before and after', url: '', icon: 'camera', route: `/(details)/visit-photos?jobId=${d.jobId}` }] : []) },
         { fields: [
           { label: 'Site', get: (d) => d.siteName }, { label: 'Address', get: (d) => join(d.address, d.city) }, { label: 'Storm', get: (d) => d.stormName },
           { label: 'Plow at', get: (d) => (d.triggerDepthInches ? `${d.triggerDepthInches} inches` : undefined) }, { label: 'Billed', get: (d) => (d.billingMode ? words(d.billingMode) : undefined) },
@@ -132,11 +134,13 @@ export const LANDSCAPING: ScreenSpec[] = [
           inputs: [
             { id: 'pushes', label: 'Pushes', kind: 'number', initial: () => '1' }, { id: 'snowfall', label: 'Snowfall (inches)', kind: 'number' },
             { id: 'salt', label: 'Salt put down?', kind: 'choice', choices: ['no', 'yes'], initial: () => 'no' },
+            // Row 24 (snow_tools): salt by amount, in the contract's unit — billed per unit where the contract prices it so.
+            { id: 'saltQuantity', label: 'Salt put down (amount: tons, bags…)', kind: 'number', feature: 'snow_tools' },
             { id: 'hours', label: 'Hours (leave empty to use your Start time)', kind: 'number' }, { id: 'notes', label: 'Note', kind: 'multiline' },
           ],
           offline: (d) => ({ key: `storm-stop:${d.id}`, label: `${d.siteName || 'Snow stop'} · logged` }),
           request: (d, v) => ({ method: 'POST', path: `/api/snow/storms/stops/${d.id}/log`, body: {
-            pushes: num(v.pushes), snowfallInches: num(v.snowfall), saltApplied: v.salt === 'yes', ...(num(v.hours) !== undefined ? { hours: num(v.hours) } : {}), ...(v.notes?.trim() ? { notes: v.notes.trim() } : {}),
+            pushes: num(v.pushes), snowfallInches: num(v.snowfall), saltApplied: v.salt === 'yes', ...(num(v.saltQuantity) !== undefined ? { saltQuantity: num(v.saltQuantity) } : {}), ...(num(v.hours) !== undefined ? { hours: num(v.hours) } : {}), ...(v.notes?.trim() ? { notes: v.notes.trim() } : {}),
           } }), done: 'Visit logged' },
         { id: 'skip', label: 'Skip this stop', icon: 'close-circle', any: ['jobs:dispatch'], when: (d) => d.status === 'open' || d.status === 'working',
           confirm: { title: 'Skip this stop?', body: () => 'It stays on the storm as not served and is not billed.', button: 'Skip' },

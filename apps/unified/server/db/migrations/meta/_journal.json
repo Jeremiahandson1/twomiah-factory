@@ -526,6 +526,13 @@
       "when": 1793991073559,
       "tag": "0074_job_series_patterns",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1793992910640,
+      "tag": "0075_landscaping_snow_tools",
+      "breakpoints": true
     }
   ]
 }
