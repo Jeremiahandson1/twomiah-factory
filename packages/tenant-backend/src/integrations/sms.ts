@@ -52,6 +52,23 @@ export const MAX_TEXT_PICTURES = 10
 const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
 const OPT_IN_WORDS = new Set(['START', 'UNSTOP'])
 
+/**
+ * The words of a job's text to its customer, before the variables are filled in. "On my way" says the minutes the crew picked
+ * (`etaMinutes`, landscaping parity row 10 — Jobber's ETA picker), else the usual 15–20. Null for a kind with no text.
+ */
+export function jobUpdateTemplate(updateType: string, opts: { etaMinutes?: number | null } = {}): string | null {
+  const templates: Record<string, string> = {
+    scheduled: `Hi {{first_name}}, your appointment with {{company_name}} is confirmed for {{job_date}} at {{job_time}}. Reply CONFIRM to confirm or RESCHEDULE to change.`,
+    on_way: `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in approximately 15-20 minutes.`,
+    on_my_way: opts.etaMinutes ? `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in about ${opts.etaMinutes} minute${opts.etaMinutes === 1 ? '' : 's'}.` : `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in approximately 15-20 minutes.`,
+    started: `{{tech_name}} has arrived and started work on your {{job_title}}. We'll notify you when complete.`,
+    on_site: `{{tech_name}} has arrived and started work on your {{job_title}}. We'll notify you when complete.`,
+    completed: `Your service is complete! Thank you for choosing {{company_name}}. We'd love your feedback: {{link}}`,
+    reminder: `Reminder: Your appointment with {{company_name}} is tomorrow at {{job_time}}. Reply CONFIRM or RESCHEDULE.`,
+  }
+  return templates[updateType] ?? null
+}
+
 export function createSmsService(deps: SmsServiceDeps) {
   const { db, tables: t } = deps
   const usage: SmsUsage = deps.usage || { reportSmsUsage: () => {}, walletSufficient: async () => true }
@@ -419,7 +436,8 @@ export function createSmsService(deps: SmsServiceDeps) {
     return results
   }
 
-  async function sendJobUpdate(companyId: string, jobId: string, updateType: string) {
+  /** `etaMinutes`: "on my way" with the minutes the crew picked (Jobber's ETA picker), instead of the usual 15–20. */
+  async function sendJobUpdate(companyId: string, jobId: string, updateType: string, opts: { etaMinutes?: number | null } = {}) {
     const [jobRow] = await db.select().from(t.job).where(and(eq(t.job.id, jobId), eq(t.job.companyId, companyId)))
     if (!jobRow?.contactId) return null
     const [contactRow] = await db.select().from(t.contact).where(eq(t.contact.id, jobRow.contactId))
@@ -437,16 +455,7 @@ export function createSmsService(deps: SmsServiceDeps) {
       const first = String(member?.name || '').trim().split(' ')[0]
       if (first) techName = first
     }
-    const templates: Record<string, string> = {
-      scheduled: `Hi {{first_name}}, your appointment with {{company_name}} is confirmed for {{job_date}} at {{job_time}}. Reply CONFIRM to confirm or RESCHEDULE to change.`,
-      on_way: `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in approximately 15-20 minutes.`,
-      on_my_way: `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in approximately 15-20 minutes.`,
-      started: `{{tech_name}} has arrived and started work on your {{job_title}}. We'll notify you when complete.`,
-      on_site: `{{tech_name}} has arrived and started work on your {{job_title}}. We'll notify you when complete.`,
-      completed: `Your service is complete! Thank you for choosing {{company_name}}. We'd love your feedback: {{link}}`,
-      reminder: `Reminder: Your appointment with {{company_name}} is tomorrow at {{job_time}}. Reply CONFIRM or RESCHEDULE.`,
-    }
-    const template = templates[updateType]
+    const template = jobUpdateTemplate(updateType, opts)
     if (!template) return null
     const msg = applyTemplateVariables(template, {
       firstName: String(contactRow.name || '').split(' ')[0] || 'there',

@@ -17,7 +17,7 @@ export const FORBIDDEN = /(refund|charge|checkout|\/pos\b|register|kiosk|gift-?c
 export const rowCache = new Map<string, any>()
 export interface Row { open?: { spec: string; id: string }; key: string; title: string; subtitle?: string; meta?: string; badge?: string; tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
-export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string }
+export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string; /** Driving directions to this address in the crew's chosen maps app (./directions.ts). */ directions?: string }
 export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** …and only while this one is OFF (a section another switch replaces). */ unlessFeature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
 /**
  * kind 'level' is a fill level: a number of percent from 0 to 100 (empty = not used) — the phone's draggable slider.
