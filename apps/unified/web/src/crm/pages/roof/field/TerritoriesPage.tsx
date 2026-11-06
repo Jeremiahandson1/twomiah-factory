@@ -7,12 +7,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapPinned, Pentagon, Circle as CircleIcon, Plus, Trash2, Undo2 } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
+import { errorText, useConfirm, useMayWrite, useToast, useAuth } from '../../../../shared'
 import { listOf } from './http'
 import ShapeMap, { type DrawnArea, type LatLng, type Shape } from './ShapeMap'
 
 interface Rep { id: string; name: string }
-interface Territory { id: string; name: string; color: string; boundary: Shape | null; zips: string[]; notes: string | null; reps: Rep[]; stormEventId: string | null }
+interface Territory { id: string; name: string; color: string; boundary: Shape | null; zips: string[]; notes: string | null; reps: Rep[]; stormEventId: string | null; parentId?: string | null }
 interface Stats { doorsKnocked: number; leads: number; byOutcome: Record<string, number>; pastCustomers: number | null }
 interface Person { id: string; name: string; role: string }
 
@@ -42,6 +42,9 @@ export default function TerritoriesPage() {
   const [centre, setCentre] = useState<LatLng | null>(null)
   const [radius, setRadius] = useState('1')
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  // Row 23 (territory_tools, not ready; Spotio): redraw a boundary, Belongs To, import from KML.
+  const tools = useAuth().hasFeature('territory_tools')
+  const [redrawId, setRedrawId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try { setRows(listOf<Territory>(await api.get('/api/territories'))) }
@@ -66,7 +69,27 @@ export default function TerritoriesPage() {
 
   const areas: DrawnArea[] = useMemo(() => rows.filter((t) => t.boundary).map((t) => ({ id: t.id, shape: t.boundary as Shape, color: t.color, label: t.name })), [rows])
 
-  const reset = () => { setCreating(false); setName(''); setZips(''); setMode('off'); setCorners([]); setCentre(null); setPicked(new Set()) }
+  const reset = () => { setCreating(false); setRedrawId(null); setName(''); setZips(''); setMode('off'); setCorners([]); setCentre(null); setPicked(new Set()) }
+  const saveRedraw = async () => {
+    if (!redrawId || !drawn) return
+    setBusy(true)
+    try { await api.put(`/api/territories/${encodeURIComponent(redrawId)}`, { boundary: drawn }); toast.success('Boundary redrawn'); reset(); await load() }
+    catch (e) { toast.error(errorText(e, 'Could not save the boundary')) } finally { setBusy(false) }
+  }
+  const setParent = async (t: Territory, parentId: string) => {
+    try { await api.put(`/api/territories/${encodeURIComponent(t.id)}/parent`, { parentId: parentId || null }); await load() }
+    catch (e) { toast.error(errorText(e, 'Could not change what it belongs to')) }
+  }
+  const importKml = async (file: File | undefined) => {
+    if (!file) return
+    setBusy(true)
+    try {
+      const fd = new FormData(); fd.set('file', file)
+      const r: any = await api.upload('/api/territories/import', fd)
+      toast.success(`${r?.created ?? 0} territories added, ${r?.updated ?? 0} reshaped${r?.skipped?.length ? ` — ${r.skipped.length} not imported: ${r.skipped.map((x: any) => `${x.name} (${x.reason})`).join('; ')}` : ''}`)
+      await load()
+    } catch (e) { toast.error(errorText(e, 'Could not import the file')) } finally { setBusy(false) }
+  }
   const pick = (lat: number, lng: number) => {
     if (mode === 'polygon') setCorners((c) => [...c, [lat, lng]])
     else if (mode === 'circle') setCentre([lat, lng])
@@ -101,7 +124,14 @@ export default function TerritoriesPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><MapPinned size={24} /> Canvass Territories</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">{mayManage ? 'Draw an area, give it to the reps who knock it. Nobody is fenced in — a door outside is still logged.' : 'The areas you are sent to knock.'}</p>
         </div>
-        {mayManage && !creating && <button onClick={() => setCreating(true)} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm inline-flex items-center gap-1"><Plus size={16} /> New territory</button>}
+        <span className="flex flex-wrap gap-2">
+          {mayManage && tools && !creating && !redrawId && (
+            <label className="px-3 py-2 rounded-lg border text-sm cursor-pointer">Import KML
+              <input type="file" accept=".kml,application/vnd.google-earth.kml+xml" className="sr-only" disabled={busy} onChange={(e) => { void importKml(e.target.files?.[0]); e.currentTarget.value = '' }} />
+            </label>
+          )}
+          {mayManage && !creating && !redrawId && <button onClick={() => setCreating(true)} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm inline-flex items-center gap-1"><Plus size={16} /> New territory</button>}
+        </span>
       </div>
 
       {creating && (
@@ -144,7 +174,18 @@ export default function TerritoriesPage() {
         </div>
       )}
 
-      <ShapeMap areas={areas} draft={draft} drawing={creating && mode !== 'off'} onPick={pick} onAreaClick={(id) => setOpenId(id)} fit={mode === 'off'} className="h-96" />
+      {redrawId && (
+        <div className="rounded-lg border p-3 flex flex-wrap items-center gap-2 text-sm" data-testid="redraw-bar">
+          <span>Redraw {rows.find((t) => t.id === redrawId)?.name}: {mode === 'polygon' ? `click the new corners (${corners.length} so far).` : mode === 'circle' ? (centre ? 'centre set.' : 'click the centre.') : 'pick a shape.'}</span>
+          <button onClick={() => { setMode('polygon'); setCorners([]); setCentre(null) }} className="px-3 py-1.5 rounded-lg border">Area</button>
+          <button onClick={() => { setMode('circle'); setCorners([]) }} className="px-3 py-1.5 rounded-lg border">Circle</button>
+          {mode === 'circle' && <label className="inline-flex items-center gap-1">Radius<input value={radius} onChange={(e) => setRadius(e.target.value)} inputMode="decimal" className="border rounded px-2 py-1 w-16 bg-white dark:bg-slate-900" /> miles</label>}
+          {mode === 'polygon' && <button onClick={() => setCorners((c) => c.slice(0, -1))} disabled={!corners.length} className="px-3 py-1.5 rounded-lg border">Undo</button>}
+          <button onClick={saveRedraw} disabled={busy || !drawn} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-50">Save boundary</button>
+          <button onClick={reset} className="px-3 py-1.5 rounded-lg border">Cancel</button>
+        </div>
+      )}
+      <ShapeMap areas={redrawId ? areas.filter((a) => a.id !== redrawId) : areas} draft={draft} drawing={(creating || !!redrawId) && mode !== 'off'} onPick={pick} onAreaClick={(id) => setOpenId(id)} fit={mode === 'off'} className="h-96" />
 
       {loading ? <p className="text-gray-500">Loading…</p> : rows.length === 0 ? (
         <p className="text-gray-500 dark:text-slate-400">{mayManage ? 'No territories yet. Draw one around a storm or a neighbourhood.' : 'You have not been given a territory yet.'}</p>
@@ -153,7 +194,7 @@ export default function TerritoriesPage() {
           {rows.map((t) => (
             <li key={t.id} className={`rounded-lg border p-3 ${openId === t.id ? 'ring-2 ring-blue-500' : ''}`}>
               <button className="w-full text-left" onClick={() => setOpenId(openId === t.id ? null : t.id)} aria-expanded={openId === t.id}>
-                <div className="flex items-center gap-2 font-medium"><span className="w-3 h-3 rounded-full" style={{ background: t.color }} /> {t.name}</div>
+                <div className="flex items-center gap-2 font-medium"><span className="w-3 h-3 rounded-full" style={{ background: t.color }} /> {t.name}{t.parentId && rows.find((p) => p.id === t.parentId) ? <span className="text-xs font-normal text-gray-500 dark:text-slate-400">in {rows.find((p) => p.id === t.parentId)!.name}</span> : null}</div>
                 <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                   {t.boundary ? (t.boundary.kind === 'circle' ? `Circle, ${t.boundary.radiusMiles} mi` : `Drawn, ${t.boundary.points.length} corners`) : ''}{t.boundary && t.zips.length ? ' · ' : ''}{t.zips.length ? `Zips ${t.zips.join(', ')}` : ''}
                 </div>
@@ -175,6 +216,17 @@ export default function TerritoriesPage() {
                           <label key={p.id} className="inline-flex items-center gap-1"><input type="checkbox" checked={open.reps.some((r) => r.id === p.id)} onChange={(e) => setReps(open, p.id, e.target.checked)} /> {p.name}</label>
                         ))}
                       </div>
+                      {tools && (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <label className="inline-flex items-center gap-1">Belongs to
+                            <select className="border rounded px-2 py-1 bg-white dark:bg-slate-900" value={open.parentId ?? ''} onChange={(e) => setParent(open, e.target.value)}>
+                              <option value="">Nothing</option>
+                              {rows.filter((p) => p.id !== open.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          </label>
+                          <button onClick={() => { setOpenId(null); setRedrawId(open.id); setMode('polygon'); setCorners([]); setCentre(null) }} className="px-3 py-1.5 rounded-lg border">Redraw boundary</button>
+                        </div>
+                      )}
                       <button onClick={() => remove(open)} className="inline-flex items-center gap-1 text-red-600 text-sm"><Trash2 size={14} /> Delete territory</button>
                     </>
                   )}

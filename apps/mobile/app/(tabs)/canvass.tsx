@@ -30,6 +30,7 @@ import { get } from '../../src/api/client'
 import { useAuth } from '../../src/auth/AuthContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { useLocation } from '../../src/hooks/useLocation'
+import { territoryNotice } from '../../src/canvass/territoryNotice'
 import { useCamera } from '../../src/hooks/useCamera'
 import { useHaptics } from '../../src/hooks/useHaptics'
 import { useToast } from '../../src/components/ToastProvider'
@@ -65,6 +66,12 @@ export default function CanvassScreen() {
   const enabled = hasFeature('canvassing_tool')
   const canLog = can('canvassing:create')
   const { requestLocation, loading: locLoading } = useLocation()
+  // Row 23 (territory_tools, not ready): told when knocking outside their own territory (never blocked).
+  const [outside, setOutside] = useState<string | null>(null)
+  const checkTerritory = useCallback(async (loc: { latitude: number; longitude: number } | null) => {
+    if (!loc || !hasFeature('territory_tools')) return
+    try { setOutside(territoryNotice((await get(`/api/territories/locate?lat=${loc.latitude}&lng=${loc.longitude}`)).data)) } catch { /* no notice without an answer */ }
+  }, [hasFeature])
   const { takePhoto, loading: camLoading } = useCamera()
   const offline = useOfflineApi()
   const { queue, syncNow, isSyncing } = useOfflineQueue()
@@ -130,6 +137,7 @@ export default function CanvassScreen() {
 
   const startSession = async () => {
     const loc = await requestLocation()
+    void checkTerritory(loc)
     if (!loc) { toast.error('Location needed for canvassing'); return }
     setBusy(true)
     const id = newSessionId()
@@ -176,6 +184,7 @@ export default function CanvassScreen() {
     haptics.light()
     setBusy(true)
     const loc = await requestLocation()
+    void checkTerritory(loc)
     const visitedAt = new Date()
     const req = doorRequest(session.id, {
       outcome, address, homeownerName: homeowner, phone, email, notes, photoUris: photos,
@@ -215,6 +224,11 @@ export default function CanvassScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: t.background }]}>
+      {outside && session && (
+        <View style={{ backgroundColor: '#fef3c7', padding: 10 }} accessibilityRole="alert">
+          <Text style={{ color: '#92400e', fontWeight: '600' }}>{outside}</Text>
+        </View>
+      )}
       {!session ? (
         <View style={styles.startContainer}>
           <View style={[styles.startCircle, { backgroundColor: t.primaryLight }]}>

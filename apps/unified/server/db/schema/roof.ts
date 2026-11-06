@@ -459,6 +459,8 @@ export const canvassTerritory = pgTable('canvass_territory', {
   zips: json('zips').default([]).notNull(),
   stormEventId: text('storm_event_id').references(() => stormEvent.id, { onDelete: 'set null' }),
   notes: text('notes'),
+  // Roofing parity row 23 (territory_tools): the territory it belongs to (Spotio "Belongs To") — a hierarchy, not a shape rule.
+  parentId: text('parent_id').references((): AnyPgColumn => canvassTerritory.id, { onDelete: 'set null' }),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

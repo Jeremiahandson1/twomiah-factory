@@ -589,6 +589,13 @@
       "when": 1794003350552,
       "tag": "0083_roof_portal_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1794004651266,
+      "tag": "0084_roof_territory_parent",
+      "breakpoints": true
     }
   ]
 }

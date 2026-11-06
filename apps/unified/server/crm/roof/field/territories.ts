@@ -9,6 +9,7 @@
 //   · canvassing:manage (owner, admin, manager) — create, change, delete, assign reps, and see every territory;
 //   · canvassing:read (the read-only seat) — sees every territory, changes none;
 //   · anyone else (the field rung) — sees only the territories they are on. Another territory answers 404.
+import { readKml, makesLoop, MAX_KML_BYTES } from '../../../data/territoryImport.ts'
 import { Hono } from 'hono'
 import { and, eq, inArray } from 'drizzle-orm'
 import { canvassTerritory, canvassTerritoryRep, canvassingStop, stormEvent, user } from '../../../db/schema/index.ts'
@@ -64,6 +65,9 @@ export function territoryInputError(input: any, partial = false): { error: strin
   return { fields: out }
 }
 
+/** Roofing parity row 23 (not ready): KML import, Belongs To, the phone's outside-your-territory notice, redrawing a boundary. */
+export const TERRITORY_TOOLS = 'territory_tools'
+
 export function createTerritoryRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
@@ -85,7 +89,7 @@ export function createTerritoryRoutes(d: CrmDeps) {
     return by
   }
   const view = (t: any, reps: { id: string; name: string }[]) => ({
-    id: t.id, name: t.name, color: t.color, boundary: pathOf(t.boundary), zips: Array.isArray(t.zips) ? t.zips : [],
+    id: t.id, name: t.name, color: t.color, boundary: pathOf(t.boundary), zips: Array.isArray(t.zips) ? t.zips : [], parentId: t.parentId ?? null,
     stormEventId: t.stormEventId, notes: t.notes, reps, createdAt: t.createdAt, updatedAt: t.updatedAt,
   })
 
@@ -135,6 +139,52 @@ export function createTerritoryRoutes(d: CrmDeps) {
     const rows = await db.select({ id: user.id, first: user.firstName, last: user.lastName, role: user.role }).from(user)
       .where(and(eq(user.companyId, c.get('user').companyId), eq(user.isActive, true))).orderBy(user.firstName, user.lastName)
     return listAll(c, (rows as any[]).map((r) => ({ id: r.id, name: `${r.first} ${r.last}`.trim(), role: r.role })))
+  })
+
+  // ---- Row 23 (territory_tools, not ready; Spotio): import from KML, and "Belongs To" ----
+  const toolsOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, TERRITORY_TOOLS).catch(() => false)
+  app.post('/import', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const u = c.get('user')
+    const form = await c.req.formData().catch(() => null)
+    const file = form?.get('file')
+    if (!file || typeof file === 'string') return fail(c, 400, 'Choose the KML file.')
+    if (file.size > MAX_KML_BYTES) return fail(c, 400, 'That file is over 5 MB.')
+    const read = readKml(await file.text())
+    if ('error' in read) return fail(c, 400, read.error)
+    const have: any[] = await db.select().from(canvassTerritory).where(eq(canvassTerritory.companyId, u.companyId))
+    const byName = new Map(have.map((t) => [String(t.name).trim().toLowerCase(), t]))
+    let created = 0, updated = 0
+    const skipped = [...read.skipped]
+    for (const s of read.shapes) {
+      const p = parsePath({ kind: 'polygon', points: s.points })
+      if ('error' in p) { skipped.push({ name: s.name, reason: p.error }); continue }
+      const same = byName.get(s.name.trim().toLowerCase())
+      if (same) {
+        await db.update(canvassTerritory).set({ boundary: p.path, updatedAt: new Date() } as any).where(eq(canvassTerritory.id, same.id))
+        updated++
+      } else {
+        const [row] = await db.insert(canvassTerritory).values({ companyId: u.companyId, name: s.name, boundary: p.path, zips: [], createdById: u.userId } as any).returning()
+        byName.set(s.name.trim().toLowerCase(), row)
+        created++
+      }
+    }
+    return one(c, { created, updated, skipped })
+  })
+  app.put('/:id/parent', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const u = c.get('user')
+    const id = c.req.param('id')
+    const b: any = await c.req.json().catch(() => ({}))
+    const parentId = b?.parentId ? String(b.parentId) : null
+    const all: any[] = await db.select({ id: canvassTerritory.id, parentId: canvassTerritory.parentId }).from(canvassTerritory).where(eq(canvassTerritory.companyId, u.companyId))
+    if (!all.some((t) => t.id === id)) return fail(c, 404, 'Territory not found')
+    if (parentId) {
+      if (!all.some((t) => t.id === parentId)) return fail(c, 400, 'Pick a territory it belongs to.', 'validation_failed', { parentId: 'Not found' })
+      if (makesLoop(id, parentId, new Map(all.map((t) => [t.id, t.parentId ?? null])))) return fail(c, 400, 'A territory cannot belong to itself or to one that belongs to it.', 'validation_failed', { parentId: 'Would loop' })
+    }
+    await db.update(canvassTerritory).set({ parentId, updatedAt: new Date() } as any).where(and(eq(canvassTerritory.id, id), eq(canvassTerritory.companyId, u.companyId)))
+    return one(c, { id, parentId })
   })
 
   app.get('/:id', async (c) => {
