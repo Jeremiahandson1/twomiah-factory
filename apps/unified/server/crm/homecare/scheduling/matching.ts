@@ -23,7 +23,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
-import { MATCH_PREFS_FEATURE, normGender, splitList } from '../core/matchTraits.ts'
+import { MATCH_PREFS_FEATURE, MUST_HAVE_FACTORS, normGender, normMustHave, splitList } from '../core/matchTraits.ts'
 import { who } from './shared.ts'
 
 const asList = (c: any, rows: any[]) => listAll(c, rows)
@@ -158,12 +158,14 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /api/matching/caregiver/:id/traits
   app.get('/caregiver/:id/traits', perm('care-schedule:read'), async (c) => {
     const { companyId } = who(c)
-    const [row] = await db.select({ gender: caregiverProfiles.gender, languages: caregiverProfiles.languages, capabilities: caregiverProfiles.capabilities })
+    const [row] = await db.select({ gender: caregiverProfiles.gender, languages: caregiverProfiles.languages, capabilities: caregiverProfiles.capabilities,
+      maxTravelMiles: caregiverProfiles.maxTravelMiles, avoidAttributes: caregiverProfiles.avoidAttributes })
       .from(caregiverProfiles).where(and(eq(caregiverProfiles.caregiverId, c.req.param('id')!), eq(caregiverProfiles.companyId, companyId))).limit(1)
-    return one(c, { caregiverId: c.req.param('id'), gender: row?.gender ?? null, languages: splitList(row?.languages), skills: splitList(row?.capabilities) })
+    return one(c, { caregiverId: c.req.param('id'), gender: row?.gender ?? null, languages: splitList(row?.languages), skills: splitList(row?.capabilities),
+      maxTravelMiles: row?.maxTravelMiles ?? null, avoid: splitList(row?.avoidAttributes) })
   })
 
-  // PUT /api/matching/caregiver/:id/traits { gender?: 'female'|'male'|'', languages?: string[]|string }
+  // PUT /api/matching/caregiver/:id/traits { gender?: 'female'|'male'|'', languages?: string[]|string, maxTravelMiles?: number|null, avoid?: string[]|string }
   app.put('/caregiver/:id/traits', perm('care-schedule:update'), async (c) => {
     const { companyId } = who(c)
     if (!(await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE))) return notOn(c)
@@ -178,6 +180,17 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
       set.gender = g
     }
     if (b.languages !== undefined) set.languages = splitList(b.languages).join(', ') || null
+    // Row 14: the caregiver's own preferences — how far they will travel, and what they would rather not work with in a home.
+    if (b.maxTravelMiles !== undefined) {
+      const raw = b.maxTravelMiles
+      if (raw === null || raw === '') set.maxTravelMiles = null
+      else {
+        const n = Number(raw)
+        if (!Number.isInteger(n) || n < 1 || n > 500) return fail(c, 400, 'How far they will travel must be a whole number of miles from 1 to 500, or blank for no limit.', 'bad_travel')
+        set.maxTravelMiles = n
+      }
+    }
+    if (b.avoid !== undefined) set.avoidAttributes = splitList(b.avoid).map((x) => x.slice(0, 60)).slice(0, 20).join(', ') || null
     const [existing] = await db.select({ id: caregiverProfiles.id }).from(caregiverProfiles)
       .where(and(eq(caregiverProfiles.caregiverId, caregiverId), eq(caregiverProfiles.companyId, companyId))).limit(1)
     if (existing) await db.update(caregiverProfiles).set(set).where(eq(caregiverProfiles.id, existing.id))
@@ -188,13 +201,15 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /api/matching/client/:id/match-prefs
   app.get('/client/:id/match-prefs', ...clientRead, async (c) => {
     const { companyId } = who(c)
-    const [row] = await db.select({ id: clients.id, requiredSkills: clients.requiredSkills, preferredCaregiverGender: clients.preferredCaregiverGender, preferredLanguage: clients.preferredLanguage })
+    const [row] = await db.select({ id: clients.id, requiredSkills: clients.requiredSkills, preferredCaregiverGender: clients.preferredCaregiverGender, preferredLanguage: clients.preferredLanguage,
+      requiredCertifications: clients.requiredCertifications, homeAttributes: clients.homeAttributes, matchMustHave: clients.matchMustHave })
       .from(clients).where(and(eq(clients.id, c.req.param('id')!), eq(clients.companyId, companyId))).limit(1)
     if (!row) return fail(c, 404, 'Client not found')
-    return one(c, { clientId: row.id, requiredSkills: splitList(row.requiredSkills), caregiverGender: row.preferredCaregiverGender ?? null, language: row.preferredLanguage ?? null })
+    return one(c, { clientId: row.id, requiredSkills: splitList(row.requiredSkills), caregiverGender: row.preferredCaregiverGender ?? null, language: row.preferredLanguage ?? null,
+      requiredCertifications: splitList(row.requiredCertifications), homeAttributes: splitList(row.homeAttributes), mustHave: normMustHave(row.matchMustHave), mustHaveChoices: MUST_HAVE_FACTORS })
   })
 
-  // PUT /api/matching/client/:id/match-prefs { requiredSkills?: string[]|string, caregiverGender?: 'female'|'male'|'', language?: string }
+  // PUT /api/matching/client/:id/match-prefs { requiredSkills?, caregiverGender?, language?, requiredCertifications?, homeAttributes?, mustHave?: string[] }
   app.put('/client/:id/match-prefs', perm('care-clients:update'), async (c) => {
     const { companyId } = who(c)
     if (!(await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE))) return notOn(c)
@@ -207,6 +222,15 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
       set.preferredCaregiverGender = g
     }
     if (b.language !== undefined) set.preferredLanguage = String(b.language ?? '').trim().slice(0, 60) || null
+    // Row 14: certifications the caregiver must hold, things about the home, and which needs are must-haves.
+    if (b.requiredCertifications !== undefined) set.requiredCertifications = splitList(b.requiredCertifications).map((x) => x.slice(0, 80)).slice(0, 20).join(', ') || null
+    if (b.homeAttributes !== undefined) set.homeAttributes = splitList(b.homeAttributes).map((x) => x.slice(0, 60)).slice(0, 20).join(', ') || null
+    if (b.mustHave !== undefined) {
+      if (!Array.isArray(b.mustHave) || b.mustHave.some((x: unknown) => !(MUST_HAVE_FACTORS as readonly string[]).includes(String(x)))) {
+        return fail(c, 400, `Must-haves are any of: ${MUST_HAVE_FACTORS.join(', ')}.`, 'bad_must_have')
+      }
+      set.matchMustHave = normMustHave(b.mustHave)
+    }
     const [row] = await db.update(clients).set(set as any)
       .where(and(eq(clients.id, c.req.param('id')!), eq(clients.companyId, companyId))).returning({ id: clients.id })
     if (!row) return fail(c, 404, 'Client not found')

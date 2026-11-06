@@ -17,7 +17,15 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
-import { MATCH_PREFS_FEATURE, matchTraits, splitList } from '../core/matchTraits.ts'
+import { MATCH_PREFS_FEATURE, matchTraits, normMustHave, splitList } from '../core/matchTraits.ts'
+
+/** Whole years since the hire date, on `onDay`; null when no hire date is recorded. */
+const seniorityYears = (hire: unknown, onDay: string): number | null => {
+  const h = typeof hire === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(hire) ? hire : null
+  if (!h) return null
+  const [y1, m1, d1] = h.split('-').map(Number), [y2, m2, d2] = onDay.split('-').map(Number)
+  return Math.max(0, y2 - y1 - (m2 < m1 || (m2 === m1 && d2 < d1) ? 1 : 0))
+}
 import { caregiverFit, doNotUseOf } from '../core/caregiverFit.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -31,7 +39,8 @@ import {
 } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, weekStartOf, who, type SchedulingShared } from './shared.ts'
 
-function distanceMiles(lat1: any, lon1: any, lat2: any, lon2: any): number | null {
+/** Straight-line miles between two saved points, or null when either is missing. */
+export function distanceMiles(lat1: any, lon1: any, lat2: any, lon2: any): number | null {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null
   const [a1, o1, a2, o2] = [lat1, lon1, lat2, lon2].map(Number)
   const R = 3959, dLat = (a2 - a1) * Math.PI / 180, dLon = (o2 - o1) * Math.PI / 180
@@ -195,7 +204,9 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       remainingHours: Math.max(0, maxHours - total).toFixed(2), approachingOvertime: total > 35 })
   })
 
-  // GET /suggest-caregivers?clientId&date&startTime&endTime — ranked candidates for a slot
+  // GET /suggest-caregivers?clientId&date&startTime&endTime[&department&sort=seniority&includeBlocked=true] — ranked candidates for a slot.
+  // Row 14 (care_match_prefs): a caregiver who misses one of the client's must-haves is left out like do-not-use (shown with
+  // includeBlocked); the list can be narrowed to a department and ordered by seniority (AlayaCare's Employee Finder).
   app.get('/suggest-caregivers', perm('care-schedule:update'), async (c) => {
     const { companyId } = who(c)
     const { clientId, date, startTime, endTime } = c.req.query()
@@ -217,7 +228,8 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
     const preferred = new Set((Array.isArray(client.preferredCaregivers) ? client.preferredCaregivers : []).map(String))
     const dnu = doNotUseOf(client)
     // A caregiver whose credential has expired by that day is flagged (never hidden): the office decides.
-    const expired = await core.certReminders.expiredFor(companyId, cgs.map((cg) => String(cg.id)), validDate || await core.time.today(companyId))
+    const today = await core.time.today(companyId)
+    const expired = await core.certReminders.expiredFor(companyId, cgs.map((cg) => String(cg.id)), validDate || today)
     // What the client needs (skills, a gender, a language) against what each caregiver has — only for an agency with care_match_prefs.
     const matchPrefs = await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE)
 
@@ -245,12 +257,15 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       if (approachingOvertime) score -= 10
       const expiredCertifications = expired[String(cg.id)] || []
       if (expiredCertifications.length) score -= 150
-      const traits = matchPrefs ? matchTraits(client, cg) : null
+      const traits = matchPrefs ? matchTraits(client, cg, distance) : null
       if (traits) score += traits.scoreDelta
+      const hardMisses = traits ? traits.hardMisses : []
+      if (hardMisses.length) score -= 1000
       if (distance !== null) { if (distance <= 5) score += 20; else if (distance <= 10) score += 10; else if (distance <= 20) score += 5; else if (distance > 30) score -= 15 }
       if (dayCol) { if (fit.notThatDay) score -= 50; else if (timeFits === true) score += 15; else if (timeFits === false) score -= 20 }
       const reasons: string[] = []
       if (isDnu) reasons.push('🚫 Client do-not-use list')
+      for (const m of hardMisses) reasons.push(`🚫 ${m}`)
       if (isBlackedOut) reasons.push('🚫 PTO/blackout on this date')
       if (isPreferred) reasons.push('⭐ Preferred caregiver')
       if (visitCount > 5) reasons.push(`✓ Familiar (${visitCount} visits)`)
@@ -275,10 +290,23 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
         wouldExceedHours, approachingOvertime, distance: distance !== null ? distance.toFixed(1) : null, estimatedDriveTime: distance !== null ? Math.round(distance * 2) : null,
         hasRequiredSkills: traits ? traits.hasRequiredSkills : true, missingSkills: traits ? traits.missingSkills : [],
         genderOk: traits ? traits.genderOk : null, languageOk: traits ? traits.languageOk : null,
-        missingCertifications: [], expiredCertifications, score: Math.round(score), tier, reasons }
+        missingCertifications: traits ? traits.missingCertifications : [], expiredCertifications, avoided: traits ? traits.avoided : [],
+        beyondTravel: traits ? traits.beyondTravel : false, hardMisses, isRequirementMiss: hardMisses.length > 0,
+        department: cg.department ?? null, seniorityYears: seniorityYears(cg.hireDate, validDate || today),
+        score: Math.round(score), tier, reasons }
     })
-    const out = (c.req.query('includeBlocked') === 'true' ? ranked : ranked.filter((x) => !x.isDnu && !x.isBlackedOut)).sort((a, b) => b.score - a.score)
-    return one(c, { client, suggestions: out, shiftHours: hours, requiredCertifications: [], requiredSkills: matchPrefs ? splitList(client.requiredSkills) : [] })
+    const department = (c.req.query('department') || '').trim().toLowerCase()
+    const out = (c.req.query('includeBlocked') === 'true' ? ranked : ranked.filter((x) => !x.isDnu && !x.isBlackedOut && !x.isRequirementMiss))
+      .filter((x) => !department || String(x.department || '').trim().toLowerCase() === department)
+      .sort(c.req.query('sort') === 'seniority'
+        ? (a, b) => (b.seniorityYears ?? -1) - (a.seniorityYears ?? -1) || b.score - a.score
+        : (a, b) => b.score - a.score)
+    return one(c, {
+      client, suggestions: out, shiftHours: hours,
+      requiredCertifications: matchPrefs ? splitList(client.requiredCertifications) : [], requiredSkills: matchPrefs ? splitList(client.requiredSkills) : [],
+      mustHave: matchPrefs ? normMustHave(client.matchMustHave) : [],
+      departments: [...new Set(ranked.map((x) => x.department).filter(Boolean))].sort(),
+    })
   })
 
   // POST /bulk-create { caregiverId, clientId, template: [{dayOfWeek,startTime,endTime}], weeks, startDate, notes }
@@ -326,10 +354,14 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       if (!byDay.has(date)) byDay.set(date, await caregiversForSuggestions(db, companyId, dayMap[new Date(`${date}T12:00:00Z`).getUTCDay()], date))
       return byDay.get(date)!
     }
-    const dnuOf = async (clientId: string) => {
-      if (!clientCache.has(clientId)) clientCache.set(clientId, doNotUseOf(await clientForSuggestions(db, companyId, clientId)))
-      return clientCache.get(clientId)!
+    const clientOf = async (clientId: string) => {
+      if (!clientCache.has(clientId)) clientCache.set(clientId, await clientForSuggestions(db, companyId, clientId))
+      return clientCache.get(clientId)
     }
+    const dnuOf = async (clientId: string) => doNotUseOf(await clientOf(clientId))
+    // Row 14 (care_match_prefs): auto-fill weighs what the client needs like the suggestion list, and — with no one to decide — never
+    // places a caregiver who misses a must-have or is beyond their own travel limit.
+    const matchPrefs = await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE)
     const ws = weekStartOf(start)
     const weekly = await hoursByCaregiver(db, companyId, ws, addDays(ws, 6))
     const hist = await visitCountsByClient(db, companyId)
@@ -341,6 +373,7 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const busy = new Set(await busyCaregiverIds(db, companyId, sh.shiftDate, sh.startTime, sh.endTime))
       const auth = await shared.checkAuthorizationBalance(companyId, sh.clientId, h)
       const dnu = await dnuOf(sh.clientId)
+      const client = await clientOf(sh.clientId)
       const candidates = await caregiversOn(sh.shiftDate)
       // An agency that blocks expired credentials never has auto-fill choose one.
       const noCert = await core.certReminders.blockedFor(companyId, candidates.map((cg) => String(cg.id)), sh.shiftDate)
@@ -356,6 +389,10 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
         let score = 100 + Math.min(visits * 3, 30) - (projected / max) * 20
         if (projected + h > 40) score -= 15
         const dist = distanceMiles(cg.latitude, cg.longitude, sh.clientLat, sh.clientLng)
+        const traits = matchPrefs && client ? matchTraits(client, cg, dist) : null
+        if (traits?.hardMisses.length) return { ...cg, score: -1000, disqualified: true, reason: traits.hardMisses[0] }
+        if (traits?.beyondTravel) return { ...cg, score: -1000, disqualified: true, reason: 'Beyond their travel limit' }
+        if (traits) score += traits.scoreDelta
         if (dist !== null) { if (dist <= 5) score += 20; else if (dist <= 10) score += 10; else if (dist <= 20) score += 5; else if (dist > 30) score -= 15 }
         return { ...cg, score, disqualified: false, distance: dist, visitCount: visits }
       }).sort((a: any, b2: any) => b2.score - a.score)

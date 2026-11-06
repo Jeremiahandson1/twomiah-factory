@@ -24,7 +24,8 @@ import {
   markNotified, claimsForShift, caregiversForSuggestions, clientForSuggestions,
 } from '../../../data/homecareScheduling.ts'
 import { seriesPostings } from '../../../data/homecareOpenOffers.ts'
-import { eligibleToTell } from './openShiftEligibility.ts'
+import { eligibleToTell, mustHaveMiss } from './openShiftEligibility.ts'
+import { MATCH_PREFS_FEATURE } from '../core/matchTraits.ts'
 import { caregiverFit, doNotUseOf } from '../core/caregiverFit.ts'
 import { HttpError, isCaregiver, who, type SchedulingShared } from './shared.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
@@ -105,7 +106,14 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
   app.get('/available', perm('care-schedule:read'), async (c) => {
     const { user, companyId, me } = who(c)
     const today = await core.time.today(companyId)
-    const rows = await availableOpenShifts(db, companyId, today, me, !isCaregiver(d, user))
+    let rows = await availableOpenShifts(db, companyId, today, me, !isCaregiver(d, user))
+    // Row 14 (care_match_prefs): a caregiver sees only the shifts they qualify for — not one whose client has a must-have they miss
+    // (WellSky). The same rule decides who the broadcast tells (openShiftEligibility.ts).
+    if (isCaregiver(d, user) && await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE)) {
+      const keep: any[] = []
+      for (const r of rows) if (!(await mustHaveMiss(d, companyId, r, me))) keep.push(r)
+      rows = keep
+    }
     // care_open_shift_offers: what the agency lets caregivers see, how far ahead, and not what they declined or hid or let expire.
     if (isCaregiver(d, user) && await core.openShiftOffers.enabled(companyId)) return asList(c, await core.openShiftOffers.visibleFor(companyId, me, rows))
     return asList(c, rows)
@@ -177,6 +185,10 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     const os = await openShiftById(db, companyId, id, true)
     if (!os) return fail(c, 400, 'Shift is no longer available')
     if (Array.isArray(os.visibleTo) && !os.visibleTo.includes(caregiverId)) return fail(c, 403, 'This shift was not offered to you')
+    // Row 14 (care_match_prefs): a caregiver who misses one of this client's must-haves cannot take it.
+    if (await d.features.isFeatureEnabled(companyId, MATCH_PREFS_FEATURE) && await mustHaveMiss(d, companyId, os, caregiverId)) {
+      return fail(c, 403, 'This client needs something you do not have on file, so you cannot take this shift. Ask the office.', 'not_qualified')
+    }
 
     // care_open_shift_offers: the answer-by time has passed; and a series offered together is taken together.
     const offers = await core.openShiftOffers.enabled(companyId)

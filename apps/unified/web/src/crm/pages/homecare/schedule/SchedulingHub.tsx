@@ -61,7 +61,7 @@ interface Coverage {
   summary: { totalCaregivers: number; totalScheduledHours: string; underScheduledClientCount: number; totalShortfallUnits: number; totalShortfallHours: string }
 }
 interface Heatmap { weekStart: string; caregivers: Array<{ id: string; firstName: string; lastName: string; maxHoursPerWeek: number; total: number; days: Array<{ date: string; hours: number; shifts: number }> }> }
-interface Suggestion { id: string; firstName: string; lastName: string; score: number; tier: string; reasons?: string[] }
+interface Suggestion { id: string; firstName: string; lastName: string; score: number; tier: string; reasons?: string[]; department?: string | null; seniorityYears?: number | null }
 interface OtCheck { currentWeeklyHours: number; proposedHours: number; projectedHours: number; overtimeHours: number; warnings: string[] }
 interface TravelCheck { hasTravelConflict: boolean; adjacentShifts: Array<{ clientName: string; distanceMiles: number; estimatedDriveMinutes: number; gapMinutes: number; isInsufficient: boolean }> }
 interface Patterns { overallReliability: number; periodMonths: number; riskDays: Array<{ day: string; reliabilityPct: number; absences: number; noShows: number; lateArrivals: number }> }
@@ -238,6 +238,10 @@ const SchedulingHub = () => {
   // ── Caregiver suggestions (create form) ──
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  // Row 14: narrow the suggestions to a department, or order them by seniority (AlayaCare's Employee Finder).
+  const [suggestDept, setSuggestDept] = useState('')
+  const [suggestSort, setSuggestSort] = useState<'score' | 'seniority'>('score')
+  const [suggestDepts, setSuggestDepts] = useState<string[]>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
 
   // ── Conflict heatmap ──
@@ -359,16 +363,20 @@ const SchedulingHub = () => {
     finally { setCoverageLoading(false) }
   }
 
-  const loadSuggestions = async () => {
+  const loadSuggestions = async (opts: { dept?: string; sort?: 'score' | 'seniority' } = {}) => {
     if (!formData.clientId) { showMsg('Pick a client first', 'error'); return }
     setSuggestLoading(true)
     try {
       const params: Record<string, string> = { clientId: formData.clientId }
+      const dept = opts.dept ?? suggestDept, sort = opts.sort ?? suggestSort
+      if (dept) params.department = dept
+      if (sort === 'seniority') params.sort = 'seniority'
       if (formData.date) params.date = formData.date
       if (formData.startTime) params.startTime = formData.startTime
       if (formData.endTime) params.endTime = formData.endTime
-      const data = await api.get('/api/scheduling/suggest-caregivers', params) as { suggestions?: Suggestion[] }
+      const data = await api.get('/api/scheduling/suggest-caregivers', params) as { suggestions?: Suggestion[]; departments?: string[] }
       setSuggestions(data?.suggestions || [])
+      if (!dept) setSuggestDepts(data?.departments || [])
       setShowSuggestions(true)
     } catch (e) { showMsg('Suggest failed: ' + errorMessage(e), 'error') }
     finally { setSuggestLoading(false) }
@@ -1885,7 +1893,7 @@ const SchedulingHub = () => {
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                 <label style={{ fontWeight: 600, fontSize: '0.9rem', margin: 0 }}>Caregiver *</label>
-                <button type="button" onClick={loadSuggestions} disabled={suggestLoading || !formData.clientId}
+                <button type="button" onClick={() => loadSuggestions()} disabled={suggestLoading || !formData.clientId}
                   title={formData.clientId ? 'Rank caregivers by fit (preferences, availability, distance, certs, OT)' : 'Pick a client first'}
                   style={{ background: 'none', border: `1px solid ${C.brandLine}`, color: C.brandInk, borderRadius: 6, padding: '0.2rem 0.55rem', fontSize: '0.78rem', fontWeight: 700, cursor: formData.clientId ? 'pointer' : 'not-allowed', opacity: formData.clientId ? 1 : 0.5 }}>
                   {suggestLoading ? '…' : '✨ Suggest'}
@@ -1902,6 +1910,16 @@ const SchedulingHub = () => {
                     <strong style={{ fontSize: '0.82rem', color: C.ink }}>Ranked suggestions ({suggestions.length})</strong>
                     <button type="button" onClick={() => setShowSuggestions(false)} aria-label="Close suggestions" style={{ background: 'none', border: 'none', color: C.inkSoft, cursor: 'pointer', fontSize: '0.85rem' }}>✕</button>
                   </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: 6 }}>
+                    {suggestDepts.length > 0 && (
+                      <select aria-label="Department" value={suggestDept} onChange={(e) => { setSuggestDept(e.target.value); loadSuggestions({ dept: e.target.value }) }} style={{ fontSize: '0.78rem', padding: '2px 6px', background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+                        <option value="">All departments</option>{suggestDepts.map((d) => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    )}
+                    <select aria-label="Order" value={suggestSort} onChange={(e) => { const v = e.target.value as 'score' | 'seniority'; setSuggestSort(v); loadSuggestions({ sort: v }) }} style={{ fontSize: '0.78rem', padding: '2px 6px', background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+                      <option value="score">Best match first</option><option value="seniority">Most senior first</option>
+                    </select>
+                  </div>
                   {suggestions.length === 0 && <div style={{ padding: '0.5rem', fontSize: '0.82rem', color: C.inkSoft }}>No matches found. Try a different time or date.</div>}
                   {suggestions.slice(0, 12).map((sg, idx) => {
                     const t = tierStyle(sg.tier)
@@ -1909,7 +1927,7 @@ const SchedulingHub = () => {
                       <button key={sg.id} type="button" onClick={() => { handleCaregiverSelectCreate(sg.id); setShowSuggestions(false) }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.55rem 0.6rem', marginBottom: 4, background: C.surface, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 700 }}>{idx + 1}. {sg.firstName} {sg.lastName}</span>
+                          <span style={{ fontWeight: 700 }}>{idx + 1}. {sg.firstName} {sg.lastName}{sg.department ? ` · ${sg.department}` : ''}{suggestSort === 'seniority' && sg.seniorityYears != null ? ` · ${sg.seniorityYears} yr` : ''}</span>
                           <span style={{ background: tint(t.tone).bg, color: tint(t.tone).ink, fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{t.label} · {sg.score}</span>
                         </div>
                         {sg.reasons && sg.reasons.length > 0 && <div style={{ marginTop: 3, fontSize: '0.72rem', color: C.muted }}>{sg.reasons.join(' · ')}</div>}

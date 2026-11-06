@@ -19,6 +19,10 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   // Item 5 (care_match_prefs): what the matcher compares to a client's gender and language preferences.
   gender: text('gender'),
   languages: text('languages'),
+  // Row 14 (care_match_prefs): the caregiver's own preferences (AxisCare) — how far they will travel to a client (miles, straight
+  // line) and what they would rather not work with in a home (a comma list matched to the client's home attributes).
+  maxTravelMiles: integer('max_travel_miles'),
+  avoidAttributes: text('avoid_attributes'),
   limitations: text('limitations'),
   preferredHours: text('preferred_hours'),
   availableMon: boolean('available_mon').default(true).notNull(),
@@ -206,6 +210,13 @@ export const clients = pgTable('clients', {
   requiredSkills: text('required_skills'),
   preferredCaregiverGender: text('preferred_caregiver_gender'),
   preferredLanguage: text('preferred_language'),
+  // Row 14 (care_match_prefs): certifications the caregiver must hold (a comma list, matched to their unexpired certification
+  // records), things about the home a caregiver may not want (pets, smoking — a comma list matched to the caregiver's
+  // avoid list), and which needs are MUST-HAVES ('skills' | 'certifications' | 'gender' | 'language' | 'home'): a caregiver who
+  // misses one is not suggested, not auto-filled and not offered the open shift (AxisCare: client requirements as hard filters).
+  requiredCertifications: text('required_certifications'),
+  homeAttributes: text('home_attributes'),
+  matchMustHave: json('match_must_have').$type<string[]>().default([]).notNull(),
   // Item 11 (care_supervisory_visits): this client's own days between supervisory visits; NULL = the agency's rule, 0 = none needed.
   supervisoryIntervalDays: integer('supervisory_interval_days'),
   address: text('address'),
