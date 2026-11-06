@@ -21,6 +21,7 @@ import { createCommissionDisclaimerRoutes } from './commissionDisclaimer.ts'
 import { createJobBooksRoutes } from './jobBooks.ts'
 import { createWorksheetRoutes } from './worksheetRoutes.ts'
 import { createInvoiceRequestRoutes } from './invoiceRequests.ts'
+import { createCardPaymentRoutes } from './cardSurcharge.ts'
 import { REQUESTS_FEATURE, cancelWhenPaid, sendReceipts } from '../../data/invoiceRequests.ts'
 import { invoice as invoiceTable } from '../../db/schema/index.ts'
 
@@ -64,6 +65,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
     // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.
     // Row 17: text an invoice now or on a schedule (invoice_text_requests, read per request).
     { path: '/api/invoice-requests', access: 'user', router: createInvoiceRequestRoutes(d) },
+    // Row 18: the card surcharge setting and the payouts view (card_surcharge / payments_overview, read per request).
+    { path: '/api/card-payments', access: 'user', router: createCardPaymentRoutes(d) },
     { path: '/api/roof-pipeline', access: 'user', feature: 'pipeline_boards', router: createPipelineRoutes(d) },
     ...inspectionMounts(d),
     ...photoMarkupMounts(d),

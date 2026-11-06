@@ -52,6 +52,11 @@ export interface StripeServiceOptions {
    * fails the delivery, so the Factory answers Stripe with an error and Stripe sends the event again. Absent: unchanged.
    */
   claimConnectedEvent?: (event: Stripe.Event, stripeAccount: string) => Promise<Record<string, unknown> | null>
+  /**
+   * Roofing parity row 18 (the unified app's card_surcharge): a surcharged card payment arrived — the app adds the surcharge to the
+   * invoice as its own line before the payment is recorded, so the payment settles exactly what was owed. Absent: unchanged.
+   */
+  onSurcharge?: (p: { invoiceId: string; cents: number; pct: number; reference: string }) => Promise<unknown>
 }
 
 export interface StripeServiceDeps {
@@ -216,6 +221,56 @@ export function createStripeService(deps: StripeServiceDeps) {
       amount: paymentIntent.amount,
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
       stripeAccount,
+    }
+  }
+
+  /**
+   * Roofing parity row 18: what a card entered on the pay page is — credit, debit, prepaid — read from the payment method on the
+   * business's account (never trusted from the browser).
+   */
+  async function cardFunding(companyId: string, paymentMethodId: string): Promise<string | null> {
+    const stripeAccount = await connectedAccountFor(companyId)
+    const pm: any = await stripe!.paymentMethods.retrieve(paymentMethodId, requestOpts(stripeAccount) as any)
+    return pm?.type === 'card' ? String(pm.card?.funding || 'unknown') : null
+  }
+
+  /**
+   * Row 18: charge `amount` (dollars) on the invoice with the card the customer entered, plus `surchargeCents`, confirmed now. The
+   * surcharge rides in the metadata so the paid event adds it to the invoice as its own line (options.onSurcharge).
+   */
+  async function createSurchargedIntent(invoiceRow: any, contactRow: any, amount: number, paymentMethodId: string, surchargeCents: number, pct: number) {
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
+    const customer = await getOrCreateCustomer(contactRow, stripeAccount)
+    const base = Math.round(amount * 100)
+    const pi = await stripe!.paymentIntents.create({
+      amount: base + surchargeCents,
+      currency: 'usd',
+      customer: customer.id,
+      payment_method: paymentMethodId,
+      confirm: true,
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      description: `Invoice ${invoiceRow.number}${surchargeCents ? ' (card surcharge included)' : ''}`,
+      metadata: {
+        invoice_id: invoiceRow.id, invoice_number: invoiceRow.number, company_id: invoiceRow.companyId, contact_id: contactRow.id,
+        ...(base < Math.round(invoiceOwed(invoiceRow) * 100) ? { partial_payment: 'true' } : {}),
+        ...(surchargeCents > 0 ? { surcharge_cents: String(surchargeCents), surcharge_pct: String(pct) } : {}),
+      },
+    }, requestOpts(stripeAccount))
+    return { clientSecret: pi.client_secret, paymentIntentId: pi.id, status: pi.status, amount: pi.amount, stripeAccount }
+  }
+
+  /** Row 18: the business's payouts and what is on its way, from its own Stripe account (the in-CRM payments view). */
+  async function payoutsFor(companyId: string) {
+    const stripeAccount = await connectedAccountFor(companyId)
+    if (!stripeAccount) return null
+    const [balance, payouts] = await Promise.all([
+      stripe!.balance.retrieve(requestOpts(stripeAccount) as any),
+      stripe!.payouts.list({ limit: 20 }, requestOpts(stripeAccount) as any),
+    ])
+    const sum = (rows: any[]) => round2((rows || []).filter((r) => r.currency === 'usd').reduce((t, r) => t + Number(r.amount || 0), 0) / 100)
+    return {
+      available: sum((balance as any).available), pending: sum((balance as any).pending),
+      payouts: ((payouts as any).data || []).map((p: any) => ({ id: p.id, amount: round2(Number(p.amount) / 100), status: p.status, arrivalDate: p.arrival_date ? new Date(p.arrival_date * 1000).toISOString() : null, failureMessage: p.failure_message ?? null })),
     }
   }
 
@@ -806,6 +861,11 @@ export function createStripeService(deps: StripeServiceDeps) {
     }
 
     const amount = round2(paymentIntent.amount / 100)
+    // A surcharged card payment (row 18): the surcharge becomes the invoice's own line first.
+    const surchargeCents = Number(paymentIntent.metadata?.surcharge_cents || 0)
+    if (surchargeCents > 0 && options.onSurcharge) {
+      await options.onSurcharge({ invoiceId: invoice_id, cents: surchargeCents, pct: Number(paymentIntent.metadata?.surcharge_pct || 0), reference: paymentIntent.id })
+    }
 
     // Recorded through the same locked, refund-aware write as POST /api/invoices/:id/payments — once per
     // PaymentIntent (Stripe retries deliveries), at Stripe's timestamp, and for what Stripe actually
@@ -1180,6 +1240,9 @@ export function createStripeService(deps: StripeServiceDeps) {
     updateCustomer,
     createPaymentIntent,
     createPartialPaymentIntent,
+    cardFunding,
+    createSurchargedIntent,
+    payoutsFor,
     getPaymentIntent,
     createCheckoutSession,
     handleWebhook,
@@ -1228,6 +1291,11 @@ export interface StripeRoutesDeps {
   requireFeature?: (c: any, next: any) => any
   /** Tap to Pay on the phone's gate (the unified app: tap_to_pay). Absent: the tap-to-pay routes are not mounted. */
   requireTapToPay?: (c: any, next: any) => any
+  /**
+   * Roofing parity row 18 (card_surcharge): the percent this business adds to a CREDIT card payment, or null. Given and not null, the
+   * customer's pay page enters the card first, is shown the surcharge (credit cards only), then pays. Absent: unchanged.
+   */
+  surchargeFor?: (companyId: string) => Promise<number | null>
 }
 
 export function createStripeRoutes(deps: StripeRoutesDeps) {
@@ -1499,8 +1567,8 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
   // ============================================
 
   // Create payment intent for portal
-  app.post('/portal/payment-intent', async (c) => {
-    const { invoiceId, portalToken, linkToken, amount } = await c.req.json().catch(() => ({} as any))
+  /** Who may pay this invoice from the customer's side (portal token or the invoice's own link) — the invoice and its customer, or an answer. */
+  const portalPayer = async (c: any, invoiceId: unknown, portalToken: unknown, linkToken: unknown): Promise<{ inv: any; contactRow: any } | { res: Response }> => {
 
     // Who may pay: the customer through their portal (portalToken), or whoever holds the invoice's own link (linkToken —
     // portal/documentLinks.ts, the link every invoice email carries). Either way, only an invoice of that customer.
@@ -1508,26 +1576,34 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     let inv: any = null
     if (typeof linkToken === 'string' && linkToken && invoice.publicToken) {
       ;[inv] = await db.select().from(invoice).where(and(eq(invoice.publicToken, linkToken), eq(invoice.id, String(invoiceId || '')))).limit(1)
-      if (!inv) return c.json({ error: 'Invoice not found' }, 404)
+      if (!inv) return { res: c.json({ error: 'Invoice not found' }, 404) }
       if (inv.contactId) [contactRow] = await db.select().from(contact).where(and(eq(contact.id, inv.contactId), eq(contact.companyId, inv.companyId))).limit(1)
-      if (!contactRow) return c.json({ error: 'Invoice not found' }, 404)
+      if (!contactRow) return { res: c.json({ error: 'Invoice not found' }, 404) }
     } else {
       // Verify portal access
       ;[contactRow] = typeof portalToken === 'string' && portalToken
         ? await db.select().from(contact).where(and(eq(contact.portalToken, portalToken), eq(contact.portalEnabled, true))).limit(1)
         : []
       if (!contactRow) {
-        return c.json({ error: 'Invalid portal access' }, 401)
+        return { res: c.json({ error: 'Invalid portal access' }, 401) }
       }
-      ;[inv] = await db.select().from(invoice).where(and(eq(invoice.id, invoiceId), eq(invoice.contactId, contactRow.id))).limit(1)
+      ;[inv] = await db.select().from(invoice).where(and(eq(invoice.id, String(invoiceId || "")), eq(invoice.contactId, contactRow.id))).limit(1)
       if (!inv) {
-        return c.json({ error: 'Invoice not found' }, 404)
+        return { res: c.json({ error: 'Invoice not found' }, 404) }
       }
     }
-    if (['draft', 'void'].includes(inv.status)) return c.json({ error: 'Invoice not found' }, 404)
+    if (['draft', 'void'].includes(inv.status)) return { res: c.json({ error: 'Invoice not found' }, 404) }
     if (deps.canTakeCardPayments && !(await deps.canTakeCardPayments(inv.companyId).catch(() => false))) {
-      return c.json({ error: 'This business does not take card payments online. Please contact them to pay another way.' }, 400)
+      return { res: c.json({ error: 'This business does not take card payments online. Please contact them to pay another way.' }, 400) }
     }
+    return { inv, contactRow }
+  }
+
+  app.post('/portal/payment-intent', async (c) => {
+    const { invoiceId, portalToken, linkToken, amount } = await c.req.json().catch(() => ({} as any))
+    const who = await portalPayer(c, invoiceId, portalToken, linkToken)
+    if ('res' in who) return who.res
+    const { inv, contactRow } = who
     if (invoiceBalance(inv) <= 0) return c.json({ error: 'This invoice has nothing left to pay.' }, 400)
 
     // A part amount (the amount box, roofing parity row 16): a number, at least $1 (Stripe's floor is 50¢), never over the balance.
@@ -1535,6 +1611,14 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       const a = Number(amount)
       if (!Number.isFinite(a) || a < 1) return c.json({ error: 'Enter at least $1.00.' }, 400)
       if (a > invoiceBalance(inv) + 0.005) return c.json({ error: 'That is more than this invoice owes.' }, 400)
+    }
+    // Row 18: a business that surcharges credit cards — the page takes the card first, shows the surcharge, then pays.
+    const surchargePct = deps.surchargeFor ? await deps.surchargeFor(inv.companyId).catch(() => null) : null
+    if (surchargePct && surchargePct > 0) {
+      return c.json({
+        deferred: true, surchargePct, amount: amount ? Number(amount) : invoiceBalance(inv),
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '', stripeAccount: await stripeService.connectedAccountFor(inv.companyId),
+      })
     }
     // inv.balance is not a column (the partial path never ran) — #157
     let result
@@ -1546,6 +1630,35 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
 
     return c.json(result)
   })
+
+  // Row 18: the card the customer entered, priced — a credit card carries the business's surcharge, a debit or prepaid card none.
+  // /portal/surcharge-quote answers what it will be (shown before paying); /portal/surcharge-pay charges it, worked out again here.
+  const surchargeStep = async (c: any, pay: boolean) => {
+    const { invoiceId, portalToken, linkToken, amount, paymentMethodId } = await c.req.json().catch(() => ({} as any))
+    const who = await portalPayer(c, invoiceId, portalToken, linkToken)
+    if ('res' in who) return who.res
+    const { inv, contactRow } = who
+    if (['draft', 'void'].includes(inv.status)) return c.json({ error: 'Invoice not found' }, 404)
+    if (deps.canTakeCardPayments && !(await deps.canTakeCardPayments(inv.companyId).catch(() => false))) return c.json({ error: 'This business does not take card payments online.' }, 400)
+    const owed = invoiceBalance(inv)
+    const base = amount === undefined || amount === null || amount === '' ? owed : Number(amount)
+    if (!Number.isFinite(base) || base < 1 || base > owed + 0.005) return c.json({ error: base > owed ? 'That is more than this invoice owes.' : 'Enter at least $1.00.' }, 400)
+    if (typeof paymentMethodId !== 'string' || !/^pm_[A-Za-z0-9_]+$/.test(paymentMethodId)) return c.json({ error: 'Enter the card again.' }, 400)
+    const pct = deps.surchargeFor ? (await deps.surchargeFor(inv.companyId).catch(() => null)) || 0 : 0
+    let funding: string | null
+    try { funding = await stripeService.cardFunding(inv.companyId, paymentMethodId) } catch { return c.json({ error: 'That card could not be read. Enter it again.' }, 400) }
+    // Credit cards only — never debit, prepaid, or a card Stripe cannot say.
+    const surchargeCents = funding === 'credit' && pct > 0 ? Math.round(round2(base * pct / 100) * 100) : 0
+    if (!pay) return c.json({ funding, surchargePct: surchargeCents ? pct : 0, surcharge: round2(surchargeCents / 100), amount: round2(base), total: round2(base + surchargeCents / 100) })
+    try {
+      const r = await stripeService.createSurchargedIntent(inv, contactRow, round2(base), paymentMethodId, surchargeCents, pct)
+      return c.json({ ...r, surcharge: round2(surchargeCents / 100), publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '' })
+    } catch (err: any) {
+      return c.json({ error: err?.raw?.message || err?.message || 'The card was not charged.' }, 402)
+    }
+  }
+  app.post('/portal/surcharge-quote', (c) => surchargeStep(c, false))
+  app.post('/portal/surcharge-pay', (c) => surchargeStep(c, true))
 
   // ── Saved cards ────────────────────────────────────────────────────────────
   // Same portal-token check as /portal/payment-intent above.

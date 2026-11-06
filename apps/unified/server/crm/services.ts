@@ -43,6 +43,7 @@ import { segmentAudience } from './store/segments/filter.ts'
 import { startLowStockDigest } from './lowStockDigest.ts'
 import { billOnComplete } from '../data/routeBilling.ts'
 import { stampVisitStart, recordVisitTime } from '../data/routeVisits.ts'
+import { addSurchargeLine } from '../data/cardSurcharge.ts'
 import { sendVisitReport, visitSendDeps } from '../data/visitReports.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
@@ -135,6 +136,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
         for (const claim of connectedEvents) { const answer = await claim(event, stripeAccount); if (answer) return answer }
         return null
       },
+      // Roofing parity row 18: a surcharged card payment adds its surcharge to the invoice as its own line first (data/cardSurcharge.ts).
+      onSurcharge: (p: { invoiceId: string; cents: number; pct: number; reference: string }) => addSurchargeLine(db, p.invoiceId, p.cents, p.pct, p.reference),
       afterInvoicePayment: async (invoiceId: string) => {
         await earnCommission(invoiceId)
         await afterInvoicePaid(invoiceId)
