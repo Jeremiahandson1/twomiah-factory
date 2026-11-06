@@ -16,7 +16,7 @@ Jobber's wider "custom" repeat is not all built — see the NOT BUILT rows. Not 
 | 6 | Annual repeat — Jobber custom | **NOT BUILT** (not a landscaping need: seasonal work is a route or an agreement). |
 | 7 | Edit one visit or "this and future visits" — Jobber ([visits](https://help.getjobber.com/en/articles/visits/)) | **NOT BUILT** for series made from the job form. Each visit is an ordinary job and can be edited alone; changing the rest of a series at once needs a series-edit action. (Route visits are re-timed/reassigned as a group from the Route Board — gap 1.) |
 | 8 | "As needed" recurring job with visits added later in bulk (the basis of snow) — Jobber | **covered by gap 5** (storm mode), not by the repeat box. |
-| 9 | Master schedules / season windows with renewal — Service Autopilot | **not doing**: a Route Board route is the weekly pattern and tops itself up (gap 1). |
+| 9 | Master schedules / season windows with renewal — Service Autopilot | **matches** (10/31 parity round, row 20; `route_board_tools`, hidden): a route has a season (start and end day). Visits are made only inside it, by hand or by the top-up; setting or shortening it cancels the visits still just scheduled outside it; near its end the Route Board offers **Renew for next season** (the same days a year on). Test: `landscaping-route-board-parity.test.ts`. |
 
 ## Built, and the test that proves it
 

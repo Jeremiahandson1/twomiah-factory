@@ -71,13 +71,16 @@ const stopsInOrder = (db: any, companyId: string, routeId: string) =>
  */
 export async function makeRouteVisits(
   db: any, companyId: string, userId: string | null,
-  route: { id: string; dayOfWeek: number; startTime: string; assignedToId: string | null },
-  opts: { from: string; weeks: number; until?: string },
+  route: { id: string; dayOfWeek: number; startTime: string; assignedToId: string | null; seasonStart?: string | null; seasonEnd?: string | null },
+  opts: { from: string; weeks: number; until?: string; /** Only these stops' visits (a stop just added: its own, not visits deleted by hand). */ onlyStopIds?: string[] },
 ) {
-  const rows: any[] = await stopsInOrder(db, companyId, route.id)
-  const dates = routeDates(route.dayOfWeek, opts.from, opts.weeks).filter((d) => !opts.until || d <= opts.until)
+  const all: any[] = await stopsInOrder(db, companyId, route.id)
+  // Inside the route's season only (row 20): no visit before it starts or after it ends.
+  const dates = routeDates(route.dayOfWeek, opts.from, opts.weeks).filter((d) => (!opts.until || d <= opts.until) && inSeason(route, d))
+  // The times come from every stop (a new one's time follows the ones before it); the visits only for the stops asked.
+  const rows = opts.onlyStopIds ? all.filter((r) => opts.onlyStopIds!.includes(r.stop.id)) : all
   if (!rows.length || !dates.length) return { made: [] as any[], alreadyThere: 0, dates }
-  const times = stopTimes(route.startTime, rows.map((r) => r.stop))
+  const times = stopTimes(route.startTime, all.map((r) => r.stop))
   const stopIds = rows.map((r) => r.stop.id)
 
   return db.transaction(async (tx: any) => {
@@ -175,6 +178,68 @@ export async function visitsOfRoute(db: any, companyId: string, routeId: string,
 }
 
 /** How far ahead the daily top-up keeps a route's visits on the calendar: four weeks, as Yardbook and Jobber show. */
+/** Is a day inside the route's season (row 20)? A route with no season runs all year. */
+export const inSeason = (route: { seasonStart?: string | null; seasonEnd?: string | null }, day: string) =>
+  (!route.seasonStart || day >= route.seasonStart) && (!route.seasonEnd || day <= route.seasonEnd)
+
+/** The route's last visit day (any status), or null — how far its visits already reach. */
+export async function lastVisitDay(db: any, companyId: string, routeId: string): Promise<string | null> {
+  const [last] = await db.select({ day: sql<Date | null>`max(${job.scheduledDate})` }).from(job)
+    .innerJoin(recurringRouteStop, eq(job.recurringRouteStopId, recurringRouteStop.id))
+    .where(and(eq(recurringRouteStop.recurringRouteId, routeId), eq(job.companyId, companyId)))
+  return last?.day ? new Date(last.day).toISOString().slice(0, 10) : null
+}
+
+/** Cancel the route's visits still just scheduled outside its season (row 20: a season set or shortened). */
+export async function cancelOutOfSeason(db: any, companyId: string, route: { id: string; seasonStart?: string | null; seasonEnd?: string | null }, today: string): Promise<number> {
+  const stopIds: string[] = (await db.select({ id: recurringRouteStop.id }).from(recurringRouteStop).where(and(eq(recurringRouteStop.recurringRouteId, route.id), eq(recurringRouteStop.companyId, companyId)))).map((s: any) => s.id)
+  if (!stopIds.length) return 0
+  const open: any[] = await db.select({ id: job.id, day: job.scheduledDate }).from(job)
+    .where(and(eq(job.companyId, companyId), inArray(job.recurringRouteStopId, stopIds), eq(job.status, 'scheduled'), gte(job.scheduledDate, dayDate(today))))
+  const out = open.filter((j) => !inSeason(route, new Date(j.day).toISOString().slice(0, 10))).map((j) => j.id)
+  if (!out.length) return 0
+  await db.update(job).set({ status: 'cancelled', updatedAt: new Date() }).where(and(eq(job.companyId, companyId), inArray(job.id, out)))
+  return out.length
+}
+
+/**
+ * The route's visits still to do whose crew is already booked at that time on another job (row 21; Jobber warns of the same on
+ * its schedule): each clash with the other job's number and time. Two windows clash when they overlap, each from its start
+ * time for its hours (half an hour when none is set).
+ */
+export async function crewClashes(db: any, companyId: string, routeId: string, today: string) {
+  const stopIds: string[] = (await db.select({ id: recurringRouteStop.id }).from(recurringRouteStop).where(and(eq(recurringRouteStop.recurringRouteId, routeId), eq(recurringRouteStop.companyId, companyId)))).map((s: any) => s.id)
+  if (!stopIds.length) return []
+  const mine: any[] = await db.select({ id: job.id, number: job.number, title: job.title, day: job.scheduledDate, time: job.scheduledTime, hours: job.estimatedHours, who: job.assignedToId }).from(job)
+    .where(and(eq(job.companyId, companyId), inArray(job.recurringRouteStopId, stopIds), inArray(job.status, ['scheduled', 'pending', 'confirmed', 'dispatched']), gte(job.scheduledDate, dayDate(today))))
+  const people = [...new Set(mine.map((m) => m.who).filter(Boolean))] as string[]
+  if (!people.length) return []
+  const days = [...new Set(mine.map((m) => new Date(m.day).toISOString().slice(0, 10)))]
+  const others: any[] = await db.select({ id: job.id, number: job.number, title: job.title, day: job.scheduledDate, time: job.scheduledTime, hours: job.estimatedHours, who: job.assignedToId, stopId: job.recurringRouteStopId }).from(job)
+    .where(and(eq(job.companyId, companyId), inArray(job.assignedToId, people), inArray(job.scheduledDate, days.map(dayDate)), sql`${job.status} NOT IN ('cancelled', 'completed')`))
+  const mins = (hhmm: string | null) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || '')); return m ? +m[1] * 60 + +m[2] : null }
+  const span = (j: any): [number, number] | null => { const s = mins(j.time); return s == null ? null : [s, s + Math.max(1, Math.round((Number(j.hours) || 0.5) * 60))] }
+  const out: Array<{ visitId: string; number: string; day: string; time: string; other: string; otherTitle: string; otherTime: string }> = []
+  const mineIds = new Set(mine.map((m) => m.id))
+  for (const m of mine) {
+    const a = span(m); if (!a) continue
+    const day = new Date(m.day).toISOString().slice(0, 10)
+    const clash = others.find((o) => !mineIds.has(o.id) && o.who === m.who && new Date(o.day).toISOString().slice(0, 10) === day && (() => { const b = span(o); return !!b && a[0] < b[1] && b[0] < a[1] })())
+    if (clash) out.push({ visitId: m.id, number: m.number, day, time: m.time, other: clash.number, otherTitle: clash.title, otherTime: clash.time })
+  }
+  return out
+}
+
+/** The yard: the business's own address in Settings, put on the map (the server's geocoder), or null. */
+export async function yardPoint(db: any, companyId: string): Promise<{ lat: number; lng: number } | null> {
+  const { company } = await import('../db/schema/index.ts')
+  const { googleGeocode } = await import('../crm/field/googleGeocode.ts')
+  const [co] = await db.select({ address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, companyId)).limit(1)
+  if (!co?.address) return null
+  const g = await googleGeocode([co.address, co.city, co.state, co.zip].filter(Boolean).join(', ')).catch(() => null)
+  return g ? { lat: g.lat, lng: g.lng } : null
+}
+
 export const TOP_UP_DAYS = 28
 
 /**

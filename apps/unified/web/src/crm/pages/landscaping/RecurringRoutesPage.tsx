@@ -4,9 +4,10 @@
 // id, which nothing on the screen showed. It is the property picker Snow Billing and Area Pricing use (T14 M7's fix,
 // never carried to this page).
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle, ArrowUp, ArrowDown, CalendarPlus } from 'lucide-react'
+import { Plus, Trash2, MapPin, Loader2, Clock, DollarSign, AlertTriangle, ArrowUp, ArrowDown, CalendarPlus, GripVertical, Leaf } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, useConfirm, useMayWrite } from '../../../shared'
+import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
+import { whenDate, companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 import { SitePicker, useSites } from './SitePicker'
 import RouteBillingPanel from './RouteBillingPanel'
 import RouteInsights from './RouteInsights'
@@ -44,7 +45,12 @@ interface Stop {
 
 /** GET /api/recurring-routes/:id → billing (only for a seat that may see invoices): how the visits are billed and why. */
 interface RouteBilling { mode: string; chosen: boolean; note: string | null; covered: Array<{ name: string }> }
-interface RouteDetail { id: string; name: string; dayName: string; startTime?: string; stops?: Stop[]; billing?: RouteBilling }
+interface RouteDetail {
+  id: string; name: string; dayName: string; startTime?: string; stops?: Stop[]; billing?: RouteBilling
+  /** Rows 20 and 21 (route_board_tools): the season, and the visits whose crew is booked elsewhere at that time. */
+  seasonStart?: string | null; seasonEnd?: string | null
+  clashes?: Array<{ visitId: string; number: string; day: string; time: string; other: string; otherTitle: string; otherTime: string }>
+}
 
 /** A visit of GET /api/recurring-routes/:id/visits — a job the route made. */
 interface Visit { id: string; number: string; title: string; status: string; scheduledDate: string; scheduledTime: string | null; invoice?: { number: string; status: string } | null }
@@ -99,6 +105,10 @@ export default function RecurringRoutesPage() {
   // Choosing how a route is billed, and billing one visit, are the seat that may raise invoices (the server asks the same).
   const mayBill = useMayWrite('invoices:create')
   const { sites, reloadSites } = useSites()
+  // Rows 20 and 21 (route_board_tools, not ready): seasons, drag, a new stop's visits at once, crew clashes.
+  const tools = useAuth().hasFeature('route_board_tools')
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [season, setSeason] = useState({ start: '', end: '' })
 
   const loadBoard = async () => {
     try {
@@ -115,6 +125,7 @@ export default function RecurringRoutesPage() {
     try {
       const res = await api.get(`/api/recurring-routes/${id}`) as RouteDetail
       setSelected(id); setDetail(res)
+      setSeason({ start: res.seasonStart || '', end: res.seasonEnd || '' })
       await loadVisits(id)
     } catch (error) { toast.error(serverMessage(error, 'Failed to load route')) }
   }
@@ -124,6 +135,34 @@ export default function RecurringRoutesPage() {
       const res = await api.get(`/api/recurring-routes/${id}/visits`) as { data?: Visit[] }
       setVisits(Array.isArray(res?.data) ? res.data : [])
     } catch { setVisits([]) }
+  }
+
+  /** A stop dragged to another place (row 21; the arrow buttons still do the same from the keyboard). */
+  const dropStop = async (to: number) => {
+    if (!detail?.stops || dragFrom === null || dragFrom === to) { setDragFrom(null); return }
+    const ids = detail.stops.map((s) => s.id)
+    const [moved] = ids.splice(dragFrom, 1)
+    ids.splice(to, 0, moved)
+    setDragFrom(null)
+    try {
+      await api.put(`/api/recurring-routes/${detail.id}/stops/reorder`, { stopIds: ids })
+      await openRoute(detail.id)
+    } catch (error) { toast.error(serverMessage(error, 'Failed to move the stop')) }
+  }
+  /** The route's season (row 20): saved, and the visits outside it cancelled by the server. */
+  const saveSeason = async () => {
+    if (!detail) return
+    try {
+      const r: any = await api.put(`/api/recurring-routes/${detail.id}`, { seasonStart: season.start || null, seasonEnd: season.end || null })
+      const out = r?.data ?? r
+      toast.success(out?.cancelledOutOfSeason ? `Season saved — ${out.cancelledOutOfSeason} visit${out.cancelledOutOfSeason === 1 ? '' : 's'} outside it cancelled` : 'Season saved')
+      openRoute(detail.id)
+    } catch (error) { toast.error(serverMessage(error, 'Could not save the season')) }
+  }
+  const renewSeason = async () => {
+    if (!detail) return
+    try { await api.post(`/api/recurring-routes/${detail.id}/renew`, {}); toast.success('Renewed for next season'); openRoute(detail.id); loadBoard() }
+    catch (error) { toast.error(serverMessage(error, 'Could not renew it')) }
   }
 
   /** One stop up or down: the order is sent whole, and the server re-times the visits still to do to match. */
@@ -180,8 +219,10 @@ export default function RecurringRoutesPage() {
   const addStop = async () => {
     if (!detail || !stopForm.siteId) { toast.error('Pick the property to add'); return }
     try {
-      await api.post(`/api/recurring-routes/${detail.id}/stops`, stopForm)
-      toast.success('Stop added')
+      const r: any = await api.post(`/api/recurring-routes/${detail.id}/stops`, stopForm)
+      const out = r?.data ?? r
+      toast.success(out?.visitsMade ? `Stop added — ${out.visitsMade} visit${out.visitsMade === 1 ? '' : 's'} made to match the route` : 'Stop added')
+      if (out?.clashes?.length) toast.error(`${out.clashes.length} visit${out.clashes.length === 1 ? ' clashes' : 's clash'} with other work for this crew — see the route`)
       setStopForm(EMPTY_STOP)
       openRoute(detail.id); loadBoard()
     } catch (error) { toast.error(serverMessage(error, 'Failed to add stop')) }
@@ -268,10 +309,42 @@ export default function RecurringRoutesPage() {
             {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete route</button>}
           </div>
 
+          {tools && (
+            <div className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-slate-700">
+              <p className="font-medium flex items-center gap-1"><Leaf className="w-4 h-4" /> Season</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Visits are made only between these days. Leave both empty for all year.</p>
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <label className="text-xs">Starts<input type="date" className="input py-1" value={season.start} onChange={(e) => setSeason((x) => ({ ...x, start: e.target.value }))} /></label>
+                <label className="text-xs">Ends<input type="date" className="input py-1" value={season.end} min={season.start || undefined} onChange={(e) => setSeason((x) => ({ ...x, end: e.target.value }))} /></label>
+                {mayEditStops && <button type="button" className="btn-secondary" onClick={saveSeason}>Save season</button>}
+              </div>
+              {detail.seasonEnd && detail.seasonStart && (() => {
+                const today = companyTodayKey()
+                const soon = new Date(Date.parse(`${detail.seasonEnd}T00:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10)
+                return (
+                  <p className="mt-2 text-xs">
+                    {today > detail.seasonEnd ? `The season ended ${whenDate(detail.seasonEnd)} — no visits are being made.` : today < detail.seasonStart ? `The season starts ${whenDate(detail.seasonStart)}.` : `In season until ${whenDate(detail.seasonEnd)}.`}
+                    {today >= soon && mayEditStops && <button type="button" className="ml-2 text-blue-700 underline dark:text-blue-300" onClick={renewSeason}>Renew for next season</button>}
+                  </p>
+                )
+              })()}
+            </div>
+          )}
+          {tools && detail.clashes && detail.clashes.length > 0 && (
+            <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/30" role="status">
+              <p className="font-medium text-amber-900 dark:text-amber-200 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> The crew is already booked at these times</p>
+              <ul className="mt-1 text-xs text-amber-900 dark:text-amber-200">
+                {detail.clashes.slice(0, 8).map((x) => <li key={x.visitId}>{whenDate(x.day, { weekday: 'short', month: 'short', day: 'numeric' })} {x.time} — {x.number} overlaps {x.other} ({x.otherTitle}, {x.otherTime})</li>)}
+              </ul>
+            </div>
+          )}
+
           <div className="space-y-1 mb-4">
             {(detail.stops || []).map((s, i) => (
-              <div key={s.id} className="flex justify-between items-center text-sm border-b dark:border-slate-700 py-2">
-                <span><span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {codeLabel(s.serviceType)} · {s.estimatedMinutes}min</span></span>
+              <div key={s.id} className={`flex justify-between items-center text-sm border-b dark:border-slate-700 py-2 ${dragFrom === i ? 'opacity-50' : ''}`}
+                draggable={tools && mayEditStops} onDragStart={() => setDragFrom(i)} onDragEnd={() => setDragFrom(null)}
+                onDragOver={(e) => { if (tools && mayEditStops) e.preventDefault() }} onDrop={() => dropStop(i)}>
+                <span>{tools && mayEditStops && <GripVertical className="inline w-4 h-4 mr-1 cursor-grab text-gray-400" aria-hidden="true" />}<span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {codeLabel(s.serviceType)} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
                   {s.pricePerVisit !== undefined && <span className="font-medium">{money(Number(s.pricePerVisit))}</span>}
                   {mayEditStops && (
