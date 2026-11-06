@@ -152,6 +152,8 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
     const today = await core.time.today(companyId)
     const n = await actionItemCounts(d.db, companyId, today)
     const sup = await core.supervisory.counts(companyId)
+    // Row 3 (care_visit_questions): flagged clock-in / clock-out answers nobody has acknowledged yet (AxisCare Care Vision).
+    const answersToAck = await core.visitQuestions.toAcknowledge(companyId)
     const items = [
       { key: 'shift_approvals', label: 'Time entries awaiting approval', count: int(n.pendingApprovals), page: 'shift-approvals', severity: 'high' },
       { key: 'stuck_punches', label: 'Open clock-ins more than 24h old', count: int(n.stuckPunches), page: 'live-board', severity: 'high' },
@@ -164,6 +166,7 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
       // Item 11 (care_supervisory_visits): zero — and so left out — for an agency without it.
       { key: 'supervisory_overdue', label: 'Supervisory visits overdue', count: sup.overdue, page: 'supervisory-visits', severity: 'high' },
       { key: 'supervisory_due_soon', label: 'Supervisory visits due within 14 days', count: sup.dueSoon, page: 'supervisory-visits', severity: 'med' },
+      { key: 'visit_answers_to_acknowledge', label: 'Visit answers that need a look', count: answersToAck, page: 'visit-questions', severity: 'high' },
     ].filter((item) => item.count > 0)
     return one(c, { items, totalCount: items.reduce((s, i) => s + i.count, 0) })
   })

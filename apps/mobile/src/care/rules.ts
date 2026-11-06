@@ -172,7 +172,7 @@ export function docsToSign<T>(prev: T[], res: { ok: boolean; status: number }, l
 // ─── Clock-in / clock-out questions (care_visit_questions) ────────────────────────────────────────
 
 /** A question the agency asks at a clock event (GET /api/visit-questions/active). */
-export interface VisitQuestion { id: string; prompt: string; kind: 'yes_no' | 'text' | 'choice'; options?: string[] | null; required?: boolean }
+export interface VisitQuestion { id: string; prompt: string; kind: 'yes_no' | 'text' | 'choice' | 'number'; options?: string[] | { min?: number | null; max?: number | null } | null; required?: boolean }
 export type VisitAnswers = Record<string, string>
 
 /** The questions still blank that must be answered, in the agency's order. A live punch waits for these. */
@@ -435,4 +435,15 @@ export function readyText(downloadedAt: string | null, now: Date): string {
   const mins = Math.max(0, Math.round((now.getTime() - d.getTime()) / 60000))
   const when = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 24 * 60 ? `${Math.floor(mins / 60)} h ago` : 'over a day ago'
   return `Downloaded ${when}${mins >= 12 * 60 ? ' — tap to download again' : ' — tap to refresh'}`
+}
+
+/** Row 3: what is wrong with a number answer on the phone (the server's words), or null. Blank is for the required check. */
+export function numberAnswerProblem(q: VisitQuestion, raw: string): string | null {
+  if (q.kind !== 'number' || !raw.trim()) return null
+  const n = Number(raw.trim().replace(',', '.'))
+  if (!Number.isFinite(n)) return 'Answer with a number.'
+  const o = q.options && !Array.isArray(q.options) ? q.options : {}
+  if (o.min != null && n < o.min) return `The answer cannot be below ${o.min}.`
+  if (o.max != null && n > o.max) return `The answer cannot be above ${o.max}.`
+  return null
 }

@@ -41,7 +41,12 @@ interface Visit {
   caregiverName: string | null
   scheduleId: string | null
   doc: SavedDoc | null
-  punch: { timeEntryId: string; clockIn: string | null; clockOut: string | null; clockOutNote: string | null; tasks: PunchTask[] } | null
+  punch: {
+    timeEntryId: string; clockIn: string | null; clockOut: string | null; clockOutNote: string | null; tasks: PunchTask[]
+    // Rows 3 and 4 (care_visit_questions / care_visit_items): the clock-in / clock-out answers and the in-visit items, when on.
+    answers?: { prompt: string; phase: string; answer: string; flagged: boolean; acknowledgedAt: string | null }[]
+    items?: { kind: string; name: string; required: boolean; status: string | null; rating: string | null; note: string | null; formSubmissionId: string | null }[]
+  } | null
   invoiced: { invoiceId: string; invoiceNumber: string; byPeriod?: boolean } | null
 }
 interface Invoice { id: string; invoiceNumber: string; start: string; end: string; total: string | number; paymentStatus: string | null }
@@ -333,6 +338,19 @@ const VisitDocumentation = () => {
                               {STATUS_LABEL[t.status] || t.status}: {t.taskName}{t.notes ? ` — ${t.notes}` : ''}
                             </div>
                           ))}
+                          {(v.punch?.answers || []).map((a, i) => (
+                            <div key={`a${i}`} style={{ fontSize: '0.85rem', color: a.flagged ? CAREGIVER_STATUS_INK : undefined }}>
+                              {a.phase === 'clock_in' ? 'At clock-in' : 'At clock-out'}: {a.prompt} — {a.answer}{a.flagged ? (a.acknowledgedAt ? ' (looked at)' : ' (needs a look)') : ''}
+                            </div>
+                          ))}
+                          {(() => {
+                            const forms = (v.punch?.items || []).filter((x) => x.kind === 'form')
+                            const others = (v.punch?.items || []).filter((x) => x.kind !== 'form' && x.status)
+                            return (<>
+                              {forms.length > 0 && <div style={{ fontSize: '0.85rem' }}>Forms: {forms.filter((x) => x.status === 'done').length} of {forms.length} filled in{forms.some((x) => x.status !== 'done') ? ` (missing: ${forms.filter((x) => x.status !== 'done').map((x) => x.name).join(', ')})` : ''}</div>}
+                              {others.map((x, i) => <div key={`i${i}`} style={{ fontSize: '0.85rem' }}>{x.name}: {x.rating ? x.rating.replace('_', ' ') : x.status}{x.note ? ` — ${x.note}` : ''}</div>)}
+                            </>)
+                          })()}
                         </td>
                         <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>{v.invoiced ? v.invoiced.invoiceNumber : '—'}</td>
                         <td style={{ padding: '0.5rem' }}>

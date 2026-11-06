@@ -3,6 +3,7 @@
 //   Office (care-clients:update / create / delete as the action is):
 //     GET    /?clientId=&kind=         the items (a client's own, or all)      POST /     add      PUT /:id   edit     DELETE /:id  remove
 //     GET    /goals/:clientId          how each goal went, visit by visit
+//     POST   /goals/:clientId/from-care-plan   the care plan's goals as goals tracked on every visit (row 4)
 //     GET|PUT /settings { noteRequired }  whether a live clock-out needs a visit note
 //   The visit (the caregiver's own, or the office):
 //     GET    /visit/:timeEntryId                       the items for this visit and what is recorded
@@ -11,7 +12,7 @@
 // Gated by the feature in the mount; replies follow RULEBOOK §3.
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
-import { formSubmissions, formTemplates, timeEntries, user as users, visitItem, visitItemLog } from '../../../db/schema/index.ts'
+import { careTypes, formSubmissions, formTemplates, timeEntries, user as users, visitItem, visitItemLog } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, list, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -45,6 +46,16 @@ export function createVisitItemRoutes(core: HomecareCore, d: CrmDeps, access: Cl
       else values.clientId = clientId
     }
     if ((kind === 'goal' || kind === 'intervention') && !clientId) errors.clientId = 'A goal or intervention belongs to one client.'
+    // Row 4: an agency-wide item can be for one service only (a care type).
+    const careTypeId = 'careTypeId' in b ? (b.careTypeId ? String(b.careTypeId) : null) : (cur?.careTypeId ?? null)
+    if ('careTypeId' in b || creating || 'clientId' in b) {
+      if (careTypeId && clientId) errors.careTypeId = 'An item for one client already applies to that client\u2019s visits; leave the service blank.'
+      else if (careTypeId) {
+        const [ct] = await db.select({ id: careTypes.id }).from(careTypes).where(and(eq(careTypes.id, careTypeId), eq(careTypes.companyId, companyId))).limit(1)
+        if (!ct) errors.careTypeId = 'Pick one of the agency\u2019s services.'
+        else values.careTypeId = ct.id
+      } else values.careTypeId = null
+    }
     let formTemplateId: string | null = 'formTemplateId' in b ? (b.formTemplateId || null) : (cur?.formTemplateId ?? null)
     let tplName: string | null = null
     if (kind === 'form') {
@@ -109,6 +120,17 @@ export function createVisitItemRoutes(core: HomecareCore, d: CrmDeps, access: Cl
   app.delete('/:id', requirePermission('care-clients:delete'), async (c) => {
     const [row] = await db.delete(visitItem).where(and(eq(visitItem.id, c.req.param('id')!), eq(visitItem.companyId, who(c).companyId))).returning({ id: visitItem.id })
     return row ? done(c) : fail(c, 404, 'Item not found')
+  })
+
+  // Row 4: the client's care-plan goals become goals tracked on every visit (one per line of "Care goals"; none added twice).
+  app.post('/goals/:clientId/from-care-plan', requirePermission('care-clients:create'), async (c) => {
+    const { companyId } = who(c)
+    const clientId = c.req.param('clientId')!
+    if (!(await access.clientInCompany(companyId, clientId))) return fail(c, 404, 'Client not found', 'not_found')
+    const r = await core.visitItems.goalsFromCarePlan(companyId, clientId)
+    if (!r) return fail(c, 404, 'This client has no care plan yet.', 'no_care_plan')
+    if (!r.found) return fail(c, 400, 'The care plan has no goals written in it yet.', 'no_goals')
+    return one(c, { added: r.added, found: r.found }, r.added.length ? 201 : 200)
   })
 
   // How each of a client's goals went, visit by visit (newest first).

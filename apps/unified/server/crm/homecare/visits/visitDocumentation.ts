@@ -121,6 +121,21 @@ export function createVisitDocumentationRoutes(core: HomecareCore, d: CrmDeps) {
     const lineByDay = new Map(lines.map((l: any) => [`${l.visitDate}|${l.caregiverId}`, l]))
     const { byVisit, recorded } = await punchesFor(companyId, clientId, from, to, visits)
     const taskName = new Map(tasks.map((t) => [t.id, t.taskName]))
+    // Rows 3 and 4: what the caregiver answered at clock-in / clock-out, and the forms, interventions, goals and tasks of the visit —
+    // read here with the rest of the visit, for an agency that has them.
+    const punchIds = [...byVisit.values()].map((p) => p.id)
+    const answersBy = new Map<string, any[]>()
+    if (punchIds.length && await core.visitQuestions.enabled(companyId)) {
+      for (const a of await core.visitQuestions.answersFor(companyId, punchIds)) {
+        answersBy.set(a.timeEntryId, [...(answersBy.get(a.timeEntryId) || []), { prompt: a.prompt, phase: a.phase, answer: a.answer, flagged: a.flagged, acknowledgedAt: a.acknowledgedAt ?? null }])
+      }
+    }
+    const itemsBy = new Map<string, any[]>()
+    if (punchIds.length && await core.visitItems.enabled(companyId)) {
+      for (const p of byVisit.values()) {
+        itemsBy.set(p.id, (await core.visitItems.forVisit(companyId, { id: p.id, clientId })).map((i) => ({ kind: i.kind, name: i.name, required: i.required, status: i.status, rating: i.rating, note: i.note, formSubmissionId: i.formSubmissionId })))
+      }
+    }
     return one(c, {
       client: { id: client.id, name: `${client.firstName} ${client.lastName}`, payer: client.referralSourceName || (client.isPrivatePay ? 'Private pay' : null) },
       tasks,
@@ -137,6 +152,8 @@ export function createVisitDocumentationRoutes(core: HomecareCore, d: CrmDeps) {
           punch: p ? {
             timeEntryId: p.id, clockIn: p.clockIn, clockOut: p.clockOut, clockOutNote: clockOutNote(p.notes),
             tasks: rec ? [...rec.entries()].map(([taskId, r]) => ({ taskId, taskName: taskName.get(taskId) || null, status: r.status, notes: r.notes })) : [],
+            answers: answersBy.get(p.id) ?? [],
+            items: itemsBy.get(p.id) ?? [],
           } : null,
           invoiced: line ? { invoiceId: line.invoiceId, invoiceNumber: line.invoiceNumber }
             : covering ? { invoiceId: covering.id, invoiceNumber: covering.invoiceNumber, byPeriod: true } : null,

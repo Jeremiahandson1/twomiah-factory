@@ -1,5 +1,5 @@
 /**
- * The agency's clock-in / clock-out questions (care_visit_questions): yes/no, one pick, or a short answer.
+ * The agency's clock-in / clock-out questions (care_visit_questions): yes/no, one pick, a short answer, or a number (row 3).
  * GET /api/visit-questions/active?phase=… — the list is kept on the phone, so a caregiver with no signal at the door is still
  * asked the questions they were last given (their punch is then saved on the phone with the answers).
  * Agency without the feature: the server answers 403/404 and nothing is shown.
@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTheme } from '../../theme/ThemeContext'
 import { careGet } from '../careApi'
 import { Field, SectionTitle, useTone } from '../ui'
-import type { VisitAnswers, VisitQuestion } from '../rules'
+import { numberAnswerProblem, type VisitAnswers, type VisitQuestion } from '../rules'
 
 const KEY = (phase: string) => `twomiah_care_visit_questions_${phase}_v1`
 
@@ -49,10 +49,13 @@ export function VisitQuestionFields({ questions, answers, onChange, title, missi
       <SectionTitle>{title}</SectionTitle>
       {questions.map((q) => {
         const need = missing?.includes(q.id)
-        const choices = q.kind === 'yes_no' ? [['yes', 'Yes'], ['no', 'No']] : (q.options || []).map((o) => [o, o])
+        const choices = q.kind === 'yes_no' ? [['yes', 'Yes'], ['no', 'No']] : (Array.isArray(q.options) ? q.options : []).map((o) => [o, o])
         return (
           <View key={q.id} style={{ marginBottom: 14 }}>
-            {q.kind === 'text' ? (
+            {q.kind === 'number' ? (
+              <Field label={`${q.prompt}${q.required ? ' *' : ''}`} value={answers[q.id] || ''} onChangeText={(v) => set(q.id, v)} keyboardType="decimal-pad"
+                error={need ? 'This question needs an answer.' : numberAnswerProblem(q, answers[q.id] || '')} />
+            ) : q.kind === 'text' ? (
               <Field label={`${q.prompt}${q.required ? ' *' : ''}`} value={answers[q.id] || ''} onChangeText={(v) => set(q.id, v)} multiline maxLength={1000}
                 error={need ? 'This question needs an answer.' : null} />
             ) : (

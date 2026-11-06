@@ -9,8 +9,8 @@
 //   An item may be REQUIRED: a live clock-out waits until it is done, or skipped / refused with a reason. A clock-out saved on the
 //   phone without signal is already a fact: it is recorded and flagged for the office, as for required tasks.
 //   · VISIT NOTE  when the agency switches it on (company.settings.visitNoteRequired), a live clock-out needs a note.
-import { and, asc, eq, isNull, or } from 'drizzle-orm'
-import { company, visitItem, visitItemLog } from '../../../db/schema/index.ts'
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
+import { carePlans, clients, company, visitItem, visitItemLog } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 
 export const VISIT_ITEMS_FEATURE = 'care_visit_items'
@@ -22,6 +22,17 @@ export const KIND_ORDER: Record<string, number> = { form: 0, intervention: 1, go
 export interface ItemState {
   id: string; kind: string; name: string; detail: string | null; goalId: string | null; formTemplateId: string | null; required: boolean; clientId: string | null
   status: string | null; rating: string | null; note: string | null; formSubmissionId: string | null; completedAt: Date | null
+}
+
+/** The care plan's "Care goals" box as goals: one per line (bullets and numbering dropped), at most 30, each up to 200 characters. Pure. */
+export function carePlanGoalLines(text: unknown): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of String(text ?? '').split(/\r?\n|;/)) {
+    const line = raw.replace(/^\s*(?:[-*•·]|\d+[.)])\s*/, '').trim().slice(0, 200)
+    if (line && !seen.has(line.toLowerCase())) { seen.add(line.toLowerCase()); out.push(line) }
+  }
+  return out.slice(0, 30)
 }
 
 /** Is a required item settled? Done, or skipped / refused (the note rule is enforced when it is saved). Pure. */
@@ -41,10 +52,16 @@ export function createVisitItems(d: CrmDeps) {
     return on
   }
 
-  /** The items for this visit — the client's own and the agency-wide ones — with what has been recorded, in screen order. */
+  /**
+   * The items for this visit — the client's own and the agency-wide ones (an agency-wide item for one service only when the
+   * client has that care type, row 4) — with what has been recorded, in screen order.
+   */
   async function forVisit(companyId: string, entry: { id: string; clientId: string }): Promise<ItemState[]> {
+    const [cl] = await d.db.select({ careTypeId: clients.careTypeId }).from(clients).where(and(eq(clients.id, entry.clientId), eq(clients.companyId, companyId))).limit(1)
+    const service = cl?.careTypeId ?? null
     const items = await d.db.select().from(visitItem).where(and(
-      eq(visitItem.companyId, companyId), eq(visitItem.isActive, true), or(eq(visitItem.clientId, entry.clientId), isNull(visitItem.clientId))))
+      eq(visitItem.companyId, companyId), eq(visitItem.isActive, true),
+      or(eq(visitItem.clientId, entry.clientId), and(isNull(visitItem.clientId), service ? or(isNull(visitItem.careTypeId), eq(visitItem.careTypeId, service)) : isNull(visitItem.careTypeId)))))
       .orderBy(asc(visitItem.sortOrder), asc(visitItem.createdAt))
     const logs = await d.db.select().from(visitItemLog).where(and(eq(visitItemLog.companyId, companyId), eq(visitItemLog.timeEntryId, entry.id)))
     const byItem = new Map<string, any>(logs.map((l: any) => [l.itemId, l]))
@@ -63,6 +80,27 @@ export function createVisitItems(d: CrmDeps) {
     return (await forVisit(companyId, entry)).filter((i) => i.required && !isSettled({ status: i.status })).map((i) => ({ id: i.id, name: i.name }))
   }
 
-  return { enabled, noteRequired, setNoteRequired, forVisit, pendingFor }
+  /**
+   * Row 4: the client's care-plan goals as goals tracked on every visit (AlayaCare: goals from the care plan). Each line of the latest
+   * care plan's "Care goals" becomes a goal, unless one with the same words is already there. Returns the goals added.
+   */
+  async function goalsFromCarePlan(companyId: string, clientId: string): Promise<{ added: any[]; found: number } | null> {
+    const [plan] = await d.db.select({ careGoals: carePlans.careGoals }).from(carePlans)
+      .where(and(eq(carePlans.companyId, companyId), eq(carePlans.clientId, clientId))).orderBy(desc(carePlans.updatedAt), desc(carePlans.createdAt)).limit(1)
+    if (!plan) return null
+    const lines = carePlanGoalLines(plan.careGoals)
+    const have = new Set((await d.db.select({ name: visitItem.name }).from(visitItem)
+      .where(and(eq(visitItem.companyId, companyId), eq(visitItem.clientId, clientId), eq(visitItem.kind, 'goal')))).map((g: any) => g.name.trim().toLowerCase()))
+    const added: any[] = []
+    for (const name of lines) {
+      if (have.has(name.toLowerCase())) continue
+      have.add(name.toLowerCase())
+      const [row] = await d.db.insert(visitItem).values({ companyId, clientId, kind: 'goal', name, fromCarePlan: true, required: false } as any).returning()
+      added.push(row)
+    }
+    return { added, found: lines.length }
+  }
+
+  return { enabled, noteRequired, setNoteRequired, forVisit, pendingFor, goalsFromCarePlan }
 }
 export type VisitItems = ReturnType<typeof createVisitItems>

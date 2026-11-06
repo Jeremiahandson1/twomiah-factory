@@ -7,13 +7,17 @@
 //     A punch saved on the phone without signal is already a fact: it is recorded, and what was answered is kept, never refused.
 //   · The prompt is copied onto the answer, so a visit reads the same after the question is edited or deleted.
 //   · An answer equal to the question's "tell the office" answer is flagged on the record and told to the office, once.
-import { and, asc, eq, inArray, or } from 'drizzle-orm'
+//   · Row 3: a NUMBER question (a temperature, a pain score, cups of water) takes a number, optionally between a lowest and highest,
+//     and tells the office when the answer is below or above the levels the agency set (options { min, max, flagBelow, flagAbove }).
+//   · Row 3 (AxisCare Care Vision): a flagged answer stays on the office's dashboard until someone ACKNOWLEDGES it; the record keeps
+//     who and when.
+import { and, asc, count, eq, inArray, isNull, or } from 'drizzle-orm'
 import { clients, user as users, visitAnswer, visitQuestion } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { VisitNotify } from './visitNotify.ts'
 
 export const VISIT_QUESTIONS_FEATURE = 'care_visit_questions'
-export const KINDS = ['yes_no', 'text', 'choice'] as const
+export const KINDS = ['yes_no', 'text', 'choice', 'number'] as const
 export const PHASES = ['clock_in', 'clock_out', 'both'] as const
 export type Phase = 'clock_in' | 'clock_out'
 export const MAX_ANSWER = 1000
@@ -33,6 +37,14 @@ export function tidyAnswer(q: Pick<Question, 'kind' | 'options'>, raw: unknown):
     const opts = Array.isArray(q.options) ? q.options.map(String) : []
     const v = opts.find((o) => o.toLowerCase() === norm(raw).toLowerCase())
     return v ? { answer: v } : { problem: 'Pick one of the choices.' }
+  }
+  if (q.kind === 'number') {
+    const n = typeof raw === 'number' ? raw : Number(norm(raw).replace(',', '.'))
+    if (!norm(raw) || !Number.isFinite(n)) return { problem: 'Answer with a number.' }
+    const o = numberRules(q.options)
+    if (o.min !== null && n < o.min) return { problem: `The answer cannot be below ${o.min}.` }
+    if (o.max !== null && n > o.max) return { problem: `The answer cannot be above ${o.max}.` }
+    return { answer: String(Math.round(n * 100) / 100) }
   }
   const v = norm(raw)
   if (!v) return { problem: 'Write an answer.' }
@@ -59,7 +71,20 @@ export function checkAnswers(questions: Question[], given: unknown, enforce: boo
   return { clean, problems }
 }
 
-export const isFlagged = (q: Pick<Question, 'flagOn'>, answer: string) => !!q.flagOn && q.flagOn.trim().toLowerCase() === answer.trim().toLowerCase()
+/** A number question's limits and flag levels (each null when not set). Pure. */
+export function numberRules(options: unknown): { min: number | null; max: number | null; flagBelow: number | null; flagAbove: number | null } {
+  const o = options && typeof options === 'object' && !Array.isArray(options) ? options as any : {}
+  const n = (v: unknown) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+  return { min: n(o.min), max: n(o.max), flagBelow: n(o.flagBelow), flagAbove: n(o.flagAbove) }
+}
+
+export const isFlagged = (q: Pick<Question, 'flagOn'> & { kind?: string; options?: unknown }, answer: string) => {
+  if (q.kind === 'number') {
+    const n = Number(answer), o = numberRules(q.options)
+    return Number.isFinite(n) && ((o.flagBelow !== null && n < o.flagBelow) || (o.flagAbove !== null && n > o.flagAbove))
+  }
+  return !!q.flagOn && q.flagOn.trim().toLowerCase() === answer.trim().toLowerCase()
+}
 
 export function createVisitQuestions(d: CrmDeps, deps: { notify: VisitNotify }) {
   const enabled = (companyId: string) => d.features.isFeatureEnabled(companyId, VISIT_QUESTIONS_FEATURE)
@@ -102,6 +127,23 @@ export function createVisitQuestions(d: CrmDeps, deps: { notify: VisitNotify }) 
     ? d.db.select().from(visitAnswer).where(and(eq(visitAnswer.companyId, companyId), inArray(visitAnswer.timeEntryId, timeEntryIds)))
     : Promise.resolve([] as any[])
 
-  return { enabled, activeFor, gate, record, answersFor }
+  /** Flagged answers nobody has acknowledged yet (the dashboard's count; 0 without the feature). */
+  async function toAcknowledge(companyId: string): Promise<number> {
+    if (!(await enabled(companyId))) return 0
+    const [row] = await d.db.select({ n: count() }).from(visitAnswer).where(and(eq(visitAnswer.companyId, companyId), eq(visitAnswer.flagged, true), isNull(visitAnswer.acknowledgedAt)))
+    return Number(row?.n || 0)
+  }
+
+  /** Acknowledge a flagged answer: who and when are kept. Null when it is not this agency's flagged answer; an earlier acknowledgement stands. */
+  async function acknowledge(companyId: string, id: string, userId: string) {
+    const [cur] = await d.db.select().from(visitAnswer).where(and(eq(visitAnswer.id, id), eq(visitAnswer.companyId, companyId), eq(visitAnswer.flagged, true))).limit(1)
+    if (!cur) return null
+    if (cur.acknowledgedAt) return cur
+    const [row] = await d.db.update(visitAnswer).set({ acknowledgedAt: new Date(), acknowledgedById: userId } as any)
+      .where(and(eq(visitAnswer.id, id), isNull(visitAnswer.acknowledgedAt))).returning()
+    return row ?? cur
+  }
+
+  return { enabled, activeFor, gate, record, answersFor, toAcknowledge, acknowledge }
 }
 export type VisitQuestions = ReturnType<typeof createVisitQuestions>
