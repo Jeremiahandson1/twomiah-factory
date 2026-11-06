@@ -19,6 +19,14 @@ export function webPresenceOn(env: Record<string, string | undefined> = process.
   return ON.has(String(env.WEB_PRESENCE_ON ?? '').trim().toLowerCase())
 }
 
+/**
+ * "Sell a download" has its OWN switch, WEB_PRESENCE_DOWNLOADS_ON, read the same way (only an explicit yes is on). Off: the editor does
+ * not offer the section, the page does not draw it, and every download path of the Factory answers 404 (downloads.ts requireDownloads).
+ */
+export function downloadsOn(env: Record<string, string | undefined> = process.env): boolean {
+  return ON.has(String(env.WEB_PRESENCE_DOWNLOADS_ON ?? '').trim().toLowerCase())
+}
+
 /** Thrown by every Factory path of the plan while the switch is off. The route layer answers it 404 — as if it did not exist. */
 export class WebPresenceOffError extends Error {
   readonly status = 404

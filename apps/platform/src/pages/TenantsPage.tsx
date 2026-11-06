@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { Plus, Building2, Globe, Server, Search, DollarSign, AlertCircle } from 'lucide-react'
 import NewTenantModal from '../components/NewTenantModal'
+import NewWebPresenceModal from '../components/NewWebPresenceModal'
 import { useNavigate } from 'react-router-dom'
 
 type Tenant = {
@@ -25,6 +26,7 @@ export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [showWp, setShowWp] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterBilling, setFilterBilling] = useState<string>('all')
@@ -80,13 +82,22 @@ export default function TenantsPage() {
           <h1 className="text-2xl font-bold text-white">Customers</h1>
           <p className="text-gray-400 text-sm mt-1">{tenants.length} total accounts</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus size={16} />
-          New Customer
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowWp(true)}
+            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Globe size={16} />
+            New Web presence site
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus size={16} />
+            New Customer
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -221,6 +232,7 @@ export default function TenantsPage() {
       )}
 
       {showModal && <NewTenantModal onClose={() => setShowModal(false)} onCreated={fetchTenants} />}
+      {showWp && <NewWebPresenceModal onClose={() => setShowWp(false)} onCreated={() => { fetchTenants() }} />}
     </div>
   )
 }

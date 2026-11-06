@@ -55,11 +55,26 @@ export function cleanPhone(v) {
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : s
 }
 
+/** A price in dollars ("99", "$99.00", 99) as '99.00', within LIMITS.priceMinCents … priceMaxCents; anything else ''. */
+export function cleanUsd(v) {
+  const s = cleanLine(v, 20).replace(/^\$\s*/, '').replace(/,/g, '')
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(s)) return ''
+  const cents = Math.round(Number(s) * 100)
+  if (!Number.isFinite(cents) || cents < LIMITS.priceMinCents || cents > LIMITS.priceMaxCents) return ''
+  return (cents / 100).toFixed(2)
+}
+/** '99.00' → 9900; '' or anything not cleanUsd's → null. */
+export function usdCents(v) {
+  const s = cleanUsd(v)
+  return s ? Math.round(Number(s) * 100) : null
+}
+
 /** Clean `v` to `shape` (shapes.mjs). Never throws; a wrong type becomes the empty value of the shape. */
 export function cleanShape(shape, v, depth = 0) {
   if (depth > 5) return undefined
   if (typeof shape === 'string') {
     if (shape === 'bool') return v === true
+    if (shape === 'usd') return cleanUsd(v)
     if (shape === 'link') return cleanLink(v)
     if (shape === 'img') return cleanImage(v)
     if (shape === 'date') return cleanDate(v)
@@ -241,6 +256,44 @@ export function checkResume(file, limitMb = LIMITS.resumeMb) {
   }
   return { ok: true, ext }
 }
+
+// ─── Sell a download ─────────────────────────────────────────────────────────
+
+export const DOWNLOAD_TYPES = { zip: 'application/zip', pdf: 'application/pdf' }
+
+/**
+ * The file a site sells: a ZIP or a PDF, by its name AND its first bytes, and its size. Returns { ok, error, ext, mime, name }.
+ * The name kept is cleaned to letters, digits, dots, dashes and underscores (it goes into a download's Content-Disposition).
+ */
+export function checkDownload(bytes, name, limit = LIMITS.downloadBytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 8) return { ok: false, error: 'That file is empty.' }
+  if (bytes.length > limit) return { ok: false, error: 'The file can be at most ' + Math.round(limit / 1_000_000) + ' MB.' }
+  const raw = String(name || '').split(/[\\/]/).pop() || ''
+  const ext = (raw.split('.').pop() || '').toLowerCase()
+  if (!DOWNLOAD_TYPES[ext]) return { ok: false, error: 'The file must be a ZIP or a PDF.' }
+  const b = bytes
+  const zip = b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04                               // PK\3\4
+  const pdf = b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46                               // %PDF
+  if ((ext === 'zip' && !zip) || (ext === 'pdf' && !pdf)) return { ok: false, error: 'That file is not really a ' + ext.toUpperCase() + '.' }
+  const base = raw.slice(0, raw.length - ext.length - 1).replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 80) || 'download'
+  return { ok: true, ext, mime: DOWNLOAD_TYPES[ext], name: base + '.' + ext }
+}
+
+/**
+ * What the page is selling, read from the model the site itself stores (never from the buyer): the shown "download" section with
+ * a name and a price. null when there is none, it is hidden, or its price is not a price.
+ */
+export function downloadOffer(model) {
+  const s = (model && Array.isArray(model.sections) ? model.sections : []).find((x) => x && x.type === 'download' && !x.hidden)
+  if (!s || !s.data) return null
+  const name = cleanLine(s.data.name, 100)
+  const priceCents = usdCents(s.data.price)
+  if (!name || priceCents == null) return null
+  return { name, priceCents, license: cleanBlock(s.data.license, 300) }
+}
+
+/** A buyer's answer to "where will this be used" (Stripe's custom field), kept to one line. */
+export const cleanLocation = (v) => cleanLine(v, 120)
 
 /** A photo upload's type (by its first bytes) and size. Returns { ok, error, mime, ext }. */
 export function checkImage(bytes, limit = LIMITS.imageBytes) {

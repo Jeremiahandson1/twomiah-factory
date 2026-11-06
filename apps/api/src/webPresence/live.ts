@@ -7,8 +7,11 @@ import { raiseAlert } from '../services/alerts'
 import { sendEmail } from '../services/email'
 import factoryStripe, { endSubscriptionAtPeriodEnd } from '../services/factoryStripe'
 import { allocateSlug, signupSlugCandidates, liveSlugLookups } from '../services/resourceOwnership'
+import Stripe from 'stripe'
+import { stripeOAuthConfig, deauthorizeAccount } from '../services/stripeConnectOAuth'
 import type { Deps } from './service'
 import type { UpgradeDeps } from './upgrade'
+import type { DownloadDeps } from './downloads'
 
 const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
 
@@ -38,6 +41,33 @@ export function liveDeps(): Deps {
     alert: async (key, what, detail, tenantId) => { await raiseAlert({ key, what, detail, tenantId }) },
     endSubscriptionAtPeriodEnd,
     cancelSubscriptionNow: async (id) => { await factoryStripe.cancelSubscription(id) },
+  }
+}
+
+/** Selling downloads: Stripe calls ON the owner's connected account (the Stripe-Account header), with the Factory's platform key. */
+let platformStripe: Stripe | null = null
+function stripeClient(): Stripe {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error('Stripe is not configured')
+  return (platformStripe ??= new Stripe(process.env.STRIPE_SECRET_KEY))
+}
+export function liveDownloadDeps(): DownloadDeps {
+  return {
+    db: supabase,
+    env: process.env,
+    now: () => Date.now(),
+    fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(20_000) }),
+    stripe: {
+      createCheckout: async (account, params, idempotencyKey) => {
+        const s = await stripeClient().checkout.sessions.create(params as any, { stripeAccount: account, idempotencyKey })
+        return { id: s.id, url: s.url }
+      },
+      retrieveSession: (account, id) => stripeClient().checkout.sessions.retrieve(id, {}, { stripeAccount: account }),
+      retrievePaymentIntent: (account, id) => stripeClient().paymentIntents.retrieve(id, {}, { stripeAccount: account }),
+    },
+    sendMail: (to, subject, html) => sendEmail(to, subject, html),
+    alert: async (key, what, detail, tenantId) => { await raiseAlert({ key, what, detail, tenantId }) },
+    oauthConfig: () => stripeOAuthConfig(),
+    deauthorize: (accountId, cfg) => deauthorizeAccount(accountId, cfg),
   }
 }
 

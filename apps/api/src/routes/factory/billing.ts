@@ -1,6 +1,7 @@
 import { webPresenceOn, WEB_PRESENCE_PLAN_ID } from '../../webPresence/switch'
 import { removeSite } from '../../webPresence/service'
-import { liveDeps } from '../../webPresence/live'
+import { liveDeps, liveDownloadDeps } from '../../webPresence/live'
+import { handleConnectEvent } from '../../webPresence/downloads'
 import { authenticate, supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
@@ -186,6 +187,16 @@ factory.post('/stripe/connect-webhook', async (c) => {
     return c.json({ error: 'Signature verification failed' }, 400)
   }
   clearAlert('stripe-connect-signature')
+  // A $19 Web presence business has no app to forward to: its account's events (a download sold or refunded, Stripe access
+  // withdrawn) are handled here for its site (webPresence/downloads.ts). Every other business is forwarded as before.
+  if (typeof event?.account === 'string') {
+    const { data: wp } = await supabase.from('tenants').select('id, plan, stripe_connect_account_id').eq('stripe_connect_account_id', event.account).limit(1).maybeSingle()
+    if (wp && wp.plan === WEB_PRESENCE_PLAN_ID) {
+      const out = await handleConnectEvent(liveDownloadDeps(), wp, event)
+      if (out.status >= 300) console.warn('[StripeConnect] web presence', event.type, wp.id, out.result)
+      return c.json({ received: true, webPresence: out.result }, out.status as any)
+    }
+  }
   const result = await forwardConnectEvent(event, {
     findTenantByAccount: async (accountId) => {
       const { data } = await supabase.from('tenants').select('id, slug, render_backend_url, factory_sync_key').eq('stripe_connect_account_id', accountId).limit(1).maybeSingle()
