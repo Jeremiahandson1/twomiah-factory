@@ -257,7 +257,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     onPause: async (ctx) => { await afterJobMoment('paused', ctx) },
     onResume: async (ctx) => { await afterJobMoment('resumed', ctx) },
     onDispatch: async (ctx) => {
-      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way').catch(() => {})
+      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way', { etaMinutes: ctx.etaMinutes ?? null }).catch(() => {})
       await afterJobMoment('dispatched', ctx)
     },
     // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".

@@ -6,6 +6,8 @@ import { useRouter } from 'expo-router'
 import { Screen, Group, ListRow, EmptyState, SkeletonRows, Button, DText, SectionHeader, space } from '../design'
 import { get } from '../api/client'
 import { ActionSheet } from './ActionSheet'
+import { DirectionsSheet, useMapsChoice } from './DirectionsSheet'
+import { appLabel, directionsUrl } from './directions'
 import { useAuth } from '../auth/AuthContext'
 import { useVertical } from '../vertical/VerticalContext'
 import { specFor } from './specs'
@@ -21,6 +23,10 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
   const [d, setD] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<Action | null>(null)
+  // Directions in the crew's own maps app (parity row 11): the remembered one, else asked.
+  const maps = useMapsChoice()
+  const [asking, setAsking] = useState<string | null>(null)
+  const directions = (address: string) => { if (maps.choice) Linking.openURL(directionsUrl(maps.choice, address)); else setAsking(address) }
   const load = useCallback(async () => {
     if (!spec?.detail) return
     const path = spec.detail.path(rowId)
@@ -56,7 +62,8 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
                 <View key={si} style={{ gap: space[2] }}>
                   {s.title ? <SectionHeader title={s.title} /> : null}
                   {fields.length ? <Group>{fields.map(({ f, v }, i) => String(v).length > 26 || String(v).includes('\n') ? <ListRow key={f.label} title={f.label} subtitle={String(v)} divider={i < fields.length - 1} /> : <ListRow key={f.label} title={f.label} meta={String(v)} divider={i < fields.length - 1} />)}</Group> : null}
-                  {links.length ? <Group>{links.map((l, i) => <ListRow key={l.label} title={l.label} icon={l.icon} divider={i < links.length - 1} onPress={() => { if (l.route) router.push(l.route as any); else Linking.openURL(l.url) }} />)}</Group> : null}
+                  {links.length ? <Group>{links.map((l, i) => <ListRow key={l.label} title={l.label} icon={l.icon} meta={l.directions && maps.choice ? appLabel(maps.choice) ?? undefined : undefined} divider={i < links.length - 1 || (!!l.directions && !!maps.choice)} onPress={() => { if (l.directions) directions(l.directions); else if (l.route) router.push(l.route as any); else Linking.openURL(l.url) }} />)}
+                    {links.some((l) => l.directions) && maps.choice ? <ListRow key="change-maps" title="Change maps app" icon="swap-horizontal" onPress={() => { const l = links.find((x) => x.directions); maps.remember(null); if (l?.directions) setAsking(l.directions) }} /> : null}</Group> : null}
                   {rows.length ? <Group>{rows.map((r, i) => { const long = !!r.meta && r.meta.length > 12; return <ListRow key={r.key} title={r.title} subtitle={long ? [r.subtitle, r.meta].filter(Boolean).join(' · ') : r.subtitle} meta={long ? undefined : r.meta} badge={r.badge} badgeTone={r.tone} divider={i < rows.length - 1} /> })}</Group>
                     : !fields.length && !links.length && s.empty ? <DText variant="callout" tone="textSecondary">{s.empty}</DText> : null}
                 </View>
@@ -64,6 +71,7 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
             })}
           </View>
         )}
+      <DirectionsSheet address={asking} onClose={() => setAsking(null)} onChosen={(app, keep) => { if (keep) maps.remember(app) }} />
       <ActionSheet action={open} row={d} onClose={() => setOpen(null)} onDone={() => { if (spec.detail?.path(rowId) === null && !tab) router.back(); else load() }} />
     </Screen>
   )

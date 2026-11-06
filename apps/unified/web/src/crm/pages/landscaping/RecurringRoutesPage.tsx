@@ -11,6 +11,7 @@ import { SitePicker, useSites } from './SitePicker'
 import RouteBillingPanel from './RouteBillingPanel'
 import RouteInsights from './RouteInsights'
 import RainDayPanel from './RainDayPanel'
+import { CouldNotDoPanel, CrewScorePanel } from './CrewDayPanels'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
@@ -354,6 +355,9 @@ export default function RecurringRoutesPage() {
       )}
 
       <RainDayPanel onDone={() => { loadBoard(); if (detail) openRoute(detail.id) }} />
+      {/* The crew's phone day, the office's side (parity rows 12 and 15; each behind its own not-ready switch). */}
+      <CouldNotDoPanel onChanged={() => { loadBoard(); if (detail) openRoute(detail.id) }} />
+      <CrewScorePanel />
       <RouteBillingPanel />
     </div>
   )
