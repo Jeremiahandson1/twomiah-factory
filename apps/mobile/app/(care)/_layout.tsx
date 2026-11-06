@@ -24,6 +24,7 @@ const TITLES: Record<string, string> = {
   payday: 'Confirm your hours',
   'sandata-help': 'Sandata help',
   survey: 'How is it going?',
+  supervisory: 'Supervisory visits',
 }
 
 export default function CareLayout() {

@@ -25,6 +25,18 @@ function codeValues(b: any): Record<string, unknown> {
   return out
 }
 
+/**
+ * Row 24 (care_supervisory_visits): days between supervisory visits for a client authorised for this code — blank for the
+ * agency's rule, else a whole number from 1 to 365. Written only when sent; undefined = not sent, a string = the problem.
+ */
+function supervisoryDays(b: any): { value?: number | null; problem?: string } {
+  const raw = b?.supervisoryIntervalDays
+  if (raw === undefined) return {}
+  if (raw === null || raw === '') return { value: null }
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 1 && n <= 365 ? { value: n } : { problem: 'Days between supervisory visits must be a whole number from 1 to 365, or blank for the agency’s rule.' }
+}
+
 export function createServiceCodeRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const { requirePermission } = d.permissions
@@ -38,18 +50,24 @@ export function createServiceCodeRoutes(d: CrmDeps) {
 
   app.post('/', requirePermission('care-billing:create'), async (c) => {
     const { companyId } = who(c)
-    const [code] = await db.insert(serviceCodes).values({ ...codeValues(await body(c)), companyId } as any).returning()
+    const b = await body(c)
+    const days = supervisoryDays(b)
+    if (days.problem) return fail(c, 400, days.problem, 'validation_failed', { supervisoryIntervalDays: days.problem })
+    const [code] = await db.insert(serviceCodes).values({ ...codeValues(b), ...(days.value !== undefined ? { supervisoryIntervalDays: days.value } : {}), companyId } as any).returning()
     return one(c, code, 201)
   })
 
   app.put('/:id', requirePermission('care-billing:update'), async (c) => {
     const { companyId } = who(c)
-    const values = codeValues(await body(c))
+    const b = await body(c)
+    const days = supervisoryDays(b)
+    if (days.problem) return fail(c, 400, days.problem, 'validation_failed', { supervisoryIntervalDays: days.problem })
+    const values = { ...codeValues(b), ...(days.value !== undefined ? { supervisoryIntervalDays: days.value } : {}) }
     const scope = and(eq(serviceCodes.id, c.req.param('id')), eq(serviceCodes.companyId, companyId))
     const [code] = Object.keys(values).length
       ? await db.update(serviceCodes).set(values).where(scope).returning()
       : await db.select().from(serviceCodes).where(scope).limit(1)
-    return code ? one(c, code) : fail(c, 404, 'Service code not found')
+    return code ? one(c, code) : fail(c, 404, 'Service code not found', 'not_found')
   })
 
   return app

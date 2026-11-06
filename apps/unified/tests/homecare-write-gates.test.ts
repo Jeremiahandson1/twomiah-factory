@@ -19,6 +19,8 @@ const SELF: Record<string, string> = {
   'PUT /api/visit-signature/visit/:timeEntryId': 'the client\'s signature on my own visit, for a client I serve (care_visit_signature)',
   'PUT /api/visit-meals/visit/:timeEntryId/:meal': 'a meal on my own visit, for a client I serve (care_family_content)',
   'DELETE /api/visit-meals/visit/:timeEntryId/:meal': 'take a meal off my own visit, for a client I serve (care_family_content)',
+  'POST /api/supervisory-visits/visits/:id/start': 'I start a supervisory visit the office named me on; anyone else’s is a 404 (care_supervisory_visits)',
+  'POST /api/supervisory-visits/visits/:id/complete': 'I finish a supervisory visit the office named me on; anyone else’s is a 404 (care_supervisory_visits)',
   'POST /api/medications/log': 'a MAR dose for a client I serve (careWriteRefusal)',
   'POST /api/medications/vitals': 'vitals for a client I serve',
   'POST /api/adl/log': 'an ADL for a client I serve',

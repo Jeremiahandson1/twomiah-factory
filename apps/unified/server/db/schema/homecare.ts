@@ -596,6 +596,8 @@ export const serviceCodes = pgTable('service_codes', {
   // showed and sent them and no column kept them.
   revenueCode: text('revenue_code'),
   requiresAuth: boolean('requires_auth').default(false).notNull(),
+  // Row 24: days between supervisory visits for a client authorised for this code (the shortest wins); NULL = the agency's rule.
+  supervisoryIntervalDays: integer('supervisory_interval_days'),
   notes: text('notes'),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -3231,9 +3233,25 @@ export const supervisoryVisit = pgTable('supervisory_visit', {
   caregiverFeedback: text('caregiver_feedback'),
   concerns: text('concerns'),
   followUpNotes: text('follow_up_notes'),
+  // Row 24: a visit is PLANNED first (on the calendar, for the supervisor named in supervisor_id, reminded the day before),
+  // then DONE — from the office or from the supervisor's phone — or CANCELLED. Only a done visit counts towards the cycle.
+  status: text('status').default('done').notNull(),
+  plannedAt: timestamp('planned_at'),
+  /** The agency's own questions as answered: [{ id, label, kind, answer }] (core/supervisory.ts). */
+  answers: json('answers').$type<Array<{ id: string; label: string; kind: string; answer: string | boolean | null }>>().default([]).notNull(),
+  supervisorSignature: text('supervisor_signature'),
+  clientSignature: text('client_signature'),
+  /** Set instead of the client's signature when the client could not sign. */
+  clientSignReason: text('client_sign_reason'),
+  signedAt: timestamp('signed_at'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  recordedFrom: text('recorded_from').default('office').notNull(),
+  reminderSentAt: timestamp('reminder_sent_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('supervisory_visit_company_client_idx').on(t.companyId, t.clientId, t.visitDate),
+  index('supervisory_visit_planned_idx').on(t.companyId, t.status, t.plannedAt),
 ])
 
 // Item 1 (care_import): one CSV import of clients, caregivers or recurring shifts, and the records it created, so the

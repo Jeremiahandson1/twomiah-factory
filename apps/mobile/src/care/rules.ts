@@ -377,3 +377,52 @@ export function surveyBody(questions: SurveyQuestion[], answers: SurveyAnswers):
   }
   return out
 }
+
+// ── Supervisory visits on the phone (row 24, care_supervisory_visits) ───────────────────────────────────────────────────────────
+// The server (apps/unified server/crm/homecare/core/supervisory.ts checkVisitForm) decides; these say the same thing first, so the
+// supervisor is told at the client's door, not after a round trip on weak signal.
+export interface SupervisoryQuestion { id: string; label: string; kind: 'yes_no' | 'text'; required: boolean }
+export interface SupervisoryForm {
+  clientFeedback: string; carePlanFollowed: boolean | null; caregiverFeedback: string; concerns: string; followUpNotes: string
+  answers: Record<string, boolean | string | undefined>
+  supervisorSignature: string | null; clientSignature: string | null; clientSignReason: string
+}
+export const emptySupervisoryForm = (): SupervisoryForm => ({
+  clientFeedback: '', carePlanFollowed: null, caregiverFeedback: '', concerns: '', followUpNotes: '', answers: {},
+  supervisorSignature: null, clientSignature: null, clientSignReason: '',
+})
+
+/** What stops the visit being saved, in the server's words — or null. */
+export function supervisoryProblem(f: SupervisoryForm, questions: SupervisoryQuestion[], requireSignatures: boolean, visitType: string): string | null {
+  for (const q of questions) {
+    const v = f.answers[q.id]
+    const answered = q.kind === 'yes_no' ? typeof v === 'boolean' : typeof v === 'string' && v.trim() !== ''
+    if (q.required && !answered) return `Answer "${q.label}".`
+  }
+  const anyAnswer = questions.some((q) => { const v = f.answers[q.id]; return typeof v === 'boolean' || (typeof v === 'string' && v.trim() !== '') })
+  if (!f.clientFeedback.trim() && !f.caregiverFeedback.trim() && !f.concerns.trim() && !f.followUpNotes.trim() && f.carePlanFollowed === null && !anyAnswer) {
+    return 'Fill in at least one thing from the visit: what the client said, how the caregiver is doing, a concern, or whether the plan is being followed.'
+  }
+  if (requireSignatures) {
+    if (!f.supervisorSignature) return 'Sign the visit before saving it.'
+    if (!f.clientSignature && !f.clientSignReason.trim() && visitType !== 'phone') return 'Have the client sign, or say why they could not.'
+  }
+  return null
+}
+
+/** The body for POST /api/supervisory-visits/visits/:id/complete: empty words left out, a text answer trimmed. */
+export function supervisoryBody(f: SupervisoryForm, questions: SupervisoryQuestion[]): Record<string, unknown> {
+  const answers: Record<string, boolean | string> = {}
+  for (const q of questions) {
+    const v = f.answers[q.id]
+    if (q.kind === 'yes_no' && typeof v === 'boolean') answers[q.id] = v
+    else if (q.kind === 'text' && typeof v === 'string' && v.trim()) answers[q.id] = v.trim()
+  }
+  const out: Record<string, unknown> = { from: 'phone', answers }
+  for (const k of ['clientFeedback', 'caregiverFeedback', 'concerns', 'followUpNotes'] as const) if (f[k].trim()) out[k] = f[k].trim()
+  if (f.carePlanFollowed !== null) out.carePlanFollowed = f.carePlanFollowed
+  if (f.supervisorSignature) out.supervisorSignature = f.supervisorSignature
+  if (f.clientSignature) out.clientSignature = f.clientSignature
+  else if (f.clientSignReason.trim()) out.clientSignReason = f.clientSignReason.trim()
+  return out
+}
