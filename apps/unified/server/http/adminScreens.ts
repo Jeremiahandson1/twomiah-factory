@@ -10,10 +10,11 @@ export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist
 
 /** The paths that open the admin's page (react-router takes it from there). */
 // /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link; /d/<token>
-// is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts).
+// is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts); /v/<token> is the
+// office's 30-minute read-only preview of a quote as its customer will see it (same file).
 // /event-proposal/<token> and /event-pay/<token> are a private event's proposal and one of its payments (crm/restaurant); /w/<token>
 // is a crew's or sub's work order, the link in the text (server/crm/roof/crewLink.ts).
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/c/*', '/event-proposal/*', '/event-pay/*', '/w/*', '/confirm-visit/*']
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*', '/c/*', '/v/*', '/event-proposal/*', '/event-pay/*', '/w/*', '/confirm-visit/*']
 
 /**
  * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client
@@ -34,6 +35,7 @@ export const HOMECARE_PAGES = ['/portal', '/family', '/family/*', '/pay/*', '/pa
 const PUBLIC_TITLES: Array<[RegExp, string]> = [
   [/^\/portal(\/|$)/, 'Customer portal'],
   [/^\/d\//, 'Your quote or invoice'],
+  [/^\/v\//, 'Quote preview'],
   [/^\/vendor\//, 'Vendor portal'],
   [/^\/event-proposal\//, 'Your event proposal'],
   [/^\/event-pay\//, 'Pay for your event'],

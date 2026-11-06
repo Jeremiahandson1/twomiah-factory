@@ -39,6 +39,8 @@ const PortalApp = lazy(() => import('./crm/portal'))
 // A quote's or an invoice's own page, from the link in its email (crm/documentLink.tsx).
 const DocumentLinkApp = lazy(() => import('./crm/documentLink'))
 const CosignLinkApp = lazy(() => import('./crm/cosignLink'))
+// The office's read-only preview of a quote as the customer sees it (crm/quotePreview.tsx).
+const QuotePreviewApp = lazy(() => import('./crm/quotePreview'))
 // A private event's proposal and payment pages, by the link in the client's email (no sign-in; crm/guest.tsx).
 const EventGuestApp = lazy(() => import('./crm/guest'))
 const DomainPage = page(() => import('./crm/pages/DomainPage'))
@@ -280,6 +282,7 @@ export default function App() {
                     {!homecareScreens.isHomecare && <Route path="/d/:token" element={<Suspense fallback={null}><DocumentLinkApp /></Suspense>} />}
                     {/* The cosigner a proposal asks to sign after the customer (the insurance carrier, a spouse): their own link. */}
                     {!homecareScreens.isHomecare && <Route path="/c/:token" element={<Suspense fallback={null}><CosignLinkApp /></Suspense>} />}
+                    {!homecareScreens.isHomecare && <Route path="/v/:token" element={<Suspense fallback={null}><QuotePreviewApp /></Suspense>} />}
 
                     <Route path="/event-proposal/:token" element={<Suspense fallback={null}><EventGuestApp which="proposal" /></Suspense>} />
                     <Route path="/event-pay/:token" element={<Suspense fallback={null}><EventGuestApp which="pay" /></Suspense>} />

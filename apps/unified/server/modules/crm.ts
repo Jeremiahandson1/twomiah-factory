@@ -73,6 +73,7 @@ import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
 import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
 import { createMarkupDefaultsRoutes } from '../crm/billing/markupDefaults.ts'
 import { createQuoteLineImageRoutes } from '../crm/billing/quoteLineImages.ts'
+import { createQuotePreviewRoutes } from '../crm/billing/quotePreview.ts'
 import { createQuoteBilling } from '../crm/billing/quoteBilling.ts'
 import { createQuoteBudget } from '../crm/billing/quoteBudget.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
@@ -445,6 +446,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // The usual markup by kind of line, and a picture on a quote line (crm/billing; both not ready).
     { path: '/api/markup-defaults', access: 'user', feature: 'markup_defaults', router: createMarkupDefaultsRoutes(own) },
     { path: '/api/quote-line-images', access: 'user', feature: 'quote_line_images', router: createQuoteLineImageRoutes(own) },
+    // The office's "Preview as client": a 30-minute read-only link to the customer's page for a quote (crm/billing/quotePreview.ts; not ready).
+    { path: '/api/quote-preview', access: 'user', feature: 'quote_preview', router: createQuotePreviewRoutes(own) },
     // The logins on each roster crew (crm/crewLogins.ts: GET /logins, PUT /:id/logins) ahead of the shared roster routes.
     { path: '/api/team', access: 'user', feature: 'team', router: new Hono().route('/', createTeamLoginRoutes({ db, requirePermission })).route('/', createTeamRoutes({
       db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,

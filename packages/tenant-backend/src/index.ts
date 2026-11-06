@@ -63,7 +63,7 @@ export {
 } from './team/staffBalance'
 export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/staffBalance'
 export { createQuoteRoutes } from './invoicing/quotes'
-export { isIncluded, includedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
+export { isIncluded, includedLines, notIncludedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
 export { priceFromMarkup, applyMarkups, groupBySection, hasStructure, sectionSummary } from './invoicing/quoteSections'
 export { proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'
 export { SIGNING_EVIDENCE, withoutSigningEvidence } from './invoicing/signingEvidence'
@@ -166,7 +166,7 @@ export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'
 
 // Customer portal — token-link routes for customers / collaborators / service customers, one implementation for every CRM.
 export { createPortalRoutes, PORTAL_QUOTE_HIDDEN, PORTAL_INVOICE_HIDDEN } from './portal/portal'
-export { documentLinkToken, documentLinkPath, newDocumentToken, isDocumentToken } from './portal/documentLinks'
+export { documentLinkToken, documentLinkPath, newDocumentToken, isDocumentToken, quotePreviewToken, quotePreviewPath, QUOTE_PREVIEW_FEATURE, PREVIEW_MINUTES } from './portal/documentLinks'
 
 // Integrations — two-way SMS (Twilio, signature-checked webhooks), QuickBooks Online (signed OAuth state), Google review
 // requests, and the messaging-usage wallet gate; one implementation for every CRM.

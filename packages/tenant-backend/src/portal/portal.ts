@@ -16,8 +16,8 @@ import { eq, and, inArray, count, sql, desc, asc, gte, lt, lte, notInArray } fro
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
-import { isDocumentToken } from './documentLinks'
-import { includedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, chosenLabel, offersOptions, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
+import { isDocumentToken, readQuotePreviewToken, QUOTE_PREVIEW_FEATURE } from './documentLinks'
+import { includedLines, notIncludedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, chosenLabel, offersOptions, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { hasDocumentTables, loadDocument, loadMarks, documentForCustomer, cosignerRequired, checkInitials, pdfExtras, INITIAL_FIRST_CODE } from '../invoicing/quoteDocument'
 import { mailFailureReason } from '../integrations/mailError'
@@ -1150,13 +1150,16 @@ export function createPortalRoutes(deps: PortalDeps) {
     const quoteId = found.id
     // What the page shows: the included lines (an optional line nobody ticked is not printed as bought) and, while the
     // customer has yet to choose, the lines every option shares and each option at its whole price.
-    const lineItems = includedLines<any>(await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id)))
+    const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+    const lineItems = includedLines<any>(allLines)
+    // The optional lines left unticked are printed too, apart and labelled "Not included" (Jobber), never in the total.
+    const notIncluded = await customerLines(db, contact.companyId, notIncludedLines<any>(allLines))
     const live = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
     const view = live ? await proposalView(db, t, found) : null
     const options = offersOptions(view, found.status) ? await Promise.all(view!.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines), upgrades: await customerLines(db, contact.companyId, op.upgrades) }))) : undefined
     const generate = await loadQuotePdf()
     const extras = live ? await pdfExtras(db, t, fileService, quoteId, view?.options ?? null, !!options) : {}
-    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), contact, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}), ...extras }, await fullCompany(contact.companyId))
+    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), notIncluded, contact, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}), ...extras }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   }
   const quotePdf = async (c: any) => {
@@ -1249,6 +1252,51 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseProposal)
   app.post('/d/:token/quotes/:quoteId/choose-upgrade', docAuth, onlyLinked('quote', 'quoteId'), chooseUpgrade)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
+  // …and the office's PREVIEW of a quote (/v/:token, documentLinks.ts quotePreviewToken): the customer's own page for it, read
+  // only. Only GETs are mounted here — there is no approve, tick, choose or decline behind this door — and opening it changes
+  // nothing (a sent quote is not marked viewed). A draft is shown as the customer will see it once sent.
+  async function previewAuth(c: any, next: any) {
+    const gone = () => c.json({ error: 'This preview has expired. Open it again from the quote.' }, 404)
+    const named = readQuotePreviewToken(c.req.param('token'))
+    if (!named) return gone()
+    if (!deps.enabledFeaturesFor) return gone()
+    try {
+      const enabled = await deps.enabledFeaturesFor(named.companyId)
+      if (!enabled.includes(QUOTE_PREVIEW_FEATURE) || !enabled.includes('quotes')) return gone()
+    } catch { return gone() }
+    const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, named.quoteId), eq(t.quote.companyId, named.companyId))).limit(1)
+    if (!q) return gone()
+    const [co] = await db.select().from(t.company).where(eq(t.company.id, named.companyId)).limit(1)
+    if (!co) return gone()
+    const [ct] = q.contactId ? await db.select({ id: t.contact.id, type: t.contact.type, name: t.contact.name, email: t.contact.email, companyId: t.contact.companyId }).from(t.contact).where(and(eq(t.contact.id, q.contactId), eq(t.contact.companyId, named.companyId))).limit(1) : []
+    c.set('portal', {
+      contact: ct || { id: null, type: 'client', name: 'Your customer', email: null, companyId: named.companyId },
+      companyId: named.companyId,
+      company: { id: co.id, name: co.name, logo: co.logo, primaryColor: co.primaryColor, email: co.email, phone: co.phone, address: co.address, city: co.city, state: co.state, zip: co.zip, timeZone: await companyTimeZone(db, co.id) },
+      doc: { kind: 'quote', id: q.id },
+    })
+    c.set('previewQuote', q)
+    await next()
+  }
+  /** The quote as its customer sees it: a draft shows as it will once sent; nothing is written. */
+  const previewQuote = (c: any) => { const q = c.get('previewQuote'); return q.status === 'draft' ? { ...q, status: 'sent' } : q }
+  app.get('/v/:token', previewAuth, async (c) => {
+    const { contact, company, doc } = P(c)
+    return c.json({ document: doc, preview: true, contact: { name: contact.name }, company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone, timeZone: company.timeZone } })
+  })
+  app.get('/v/:token/quotes/:quoteId', previewAuth, onlyLinked('quote', 'quoteId'), async (c) => {
+    const { company, companyId } = P(c)
+    const found = previewQuote(c)
+    const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, found.id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+    let projectInfo = null
+    if (found.projectId && t.project) {
+      const [p] = await db.select({ name: t.project.name, number: t.project.number }).from(t.project).where(eq(t.project.id, found.projectId)).limit(1)
+      projectInfo = p || null
+    }
+    return c.json({ ...(await customerQuote(companyId, found, lineItems, company)), project: projectInfo, preview: true })
+  })
+  app.get('/v/:token/quotes/:quoteId/pdf', previewAuth, onlyLinked('quote', 'quoteId'), async (c) => quotePdfFor(previewQuote(c), P(c).contact))
+
   // …and the COSIGNER's own link (/c/:token): the insurance carrier or spouse a proposal asks to sign after the customer. It opens
   // that one proposal and nothing else, and the proposal is approved when this signature is in (quoteDocument.ts).
   async function cosignAuth(c: any, next: any) {
