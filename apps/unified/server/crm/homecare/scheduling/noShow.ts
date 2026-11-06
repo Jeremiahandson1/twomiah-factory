@@ -76,8 +76,9 @@ export function createNoShowRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, config)
   })
 
-  // POST /api/no-show/run-check — a stub (the manual check is not built)
-  app.post('/run-check', (c) => one(c, { checked: 0, alertsCreated: 0 }))
+  // POST /api/no-show/run-check — check now (row 7, care_no_arrival: today's visits past their grace minutes with no clock-in get an
+  // alert and the people the settings name are told; core/noArrival.ts). Without the feature it checks nothing, as before.
+  app.post('/run-check', async (c) => one(c, await core.noArrival.scanCompany(who(c).companyId)))
 
   // PUT /api/no-show/alerts/:id/resolve
   app.put('/alerts/:id/resolve', async (c) => {

@@ -1347,6 +1347,8 @@ export const noshowAlerts = pgTable('noshow_alerts', {
   smsSent: boolean('sms_sent').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
+  // Row 7: the no-arrival scan alerts once per scheduled visit (a schedule's one day), however often it runs or on how many servers.
+  uniqueIndex('noshow_alerts_once_idx').on(t.companyId, t.scheduleId, t.shiftDate),
   index('noshow_alerts_company_id_idx').on(t.companyId),
   index('noshow_alerts_status_date_idx').on(t.status, t.shiftDate),
   index('noshow_alerts_caregiver_id_idx').on(t.caregiverId),

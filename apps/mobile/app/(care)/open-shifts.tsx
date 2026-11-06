@@ -16,6 +16,7 @@ import { useFocusEffect } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useCare } from '../../src/care/CareContext'
 import { careGet, carePost, asList } from '../../src/care/careApi'
+import { pickupPoints } from '../../src/care/rules'
 import { CareScreen } from '../../src/care/screen'
 import { Banner, Button, Card, Choice, Field } from '../../src/care/ui'
 import { EmptyState } from '../../src/components/EmptyState'
@@ -38,10 +39,14 @@ export default function OpenShiftsScreen() {
   const [result, setResult] = useState<{ tone: 'success' | 'danger'; title: string; text: string } | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
 
+  // Row 18 (care_pickup_rewards): the points a picked-up shift earns, shown on each card; the rewards page answers only for an agency
+  // that has the feature, so nothing shows without it.
+  const [shiftPoints, setShiftPoints] = useState(0)
   const load = useCallback(async () => {
-    const [r, why] = await Promise.all([careGet('/api/open-shifts/available'), careGet<any>('/api/open-shift-offers/reasons')])
+    const [r, why, rewards] = await Promise.all([careGet('/api/open-shifts/available'), careGet<any>('/api/open-shift-offers/reasons'), careGet<any>('/api/care-rewards/me')])
     if (r.ok) { setList(asList(r.data)); setFailed(false) } else { setFailed(true); setList((p) => p || []) }
     setReasons(why.ok ? (why.data?.reasons || why.data?.data?.reasons || []) : [])
+    setShiftPoints(pickupPoints(rewards.ok ? rewards.data : null))
   }, [])
   useFocusEffect(useCallback(() => { load() }, [load]))
 
@@ -91,6 +96,7 @@ export default function OpenShiftsScreen() {
             <Text style={[styles.time, { color: t.text }]}>{formatTime12(s.startTime)} – {formatTime12(s.endTime)}</Text>
             <Text style={[styles.meta, { color: t.textSecondary }]}>{`${s.clientFirstName || ''} ${s.clientLastName || ''}`.trim() || 'Client'}</Text>
             {Number(s.bonusAmount) > 0 ? <Text style={[styles.meta, { color: t.text, fontWeight: '700' }]}>Bonus ${Number(s.bonusAmount).toFixed(2)}</Text> : null}
+            {shiftPoints > 0 ? <Text style={[styles.meta, { color: t.text, fontWeight: '700' }]}>+{shiftPoints} point{shiftPoints === 1 ? '' : 's'} when you work it</Text> : null}
             {Number(s.seriesVisits) > 1 ? <Text style={[styles.meta, { color: t.text, fontWeight: '700' }]}>One of {s.seriesVisits} visits offered together</Text> : null}
             {by ? <Text style={[styles.meta, { color: t.textSecondary }]}>{by}</Text> : null}
             {s.notes ? <Text style={[styles.meta, { color: t.textSecondary }]}>{s.notes}</Text> : null}

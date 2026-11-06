@@ -40,6 +40,7 @@ import { createFamilyComms, wordingProblem } from './familyComms.ts'
 import { createAlertRules } from './alertRules.ts'
 import { createRequiredTasks } from './requiredTasks.ts'
 import { createSupervisory } from './supervisory.ts'
+import { createNoArrival } from './noArrival.ts'
 import { createMargin } from './margin.ts'
 import { createCsvImport } from './csvImport.ts'
 import { createImportAttach } from './importAttach.ts'
@@ -149,13 +150,15 @@ function buildHomecareCore(d: CrmDeps) {
   const alertRules = createAlertRules(d, { wordingProblem })
   const requiredTasks = createRequiredTasks(d, { time })
   const supervisory = createSupervisory(d, { time, notify })
+  // Row 7: the caregiver who has not arrived (care_no_arrival) — the No-Show Alerts check.
+  const noArrival = createNoArrival(d, { time, notify, quietHours: familyTexts.quietHours })
   // Caregiver satisfaction surveys and the retention risk (row 13), then reports (row 12): the builder (its retention tile reads
   // the surveys), the dashboards and the scheduled report emails.
   const risk = createRetentionRisk(d, { time })
   const caregiverSurveys = createCaregiverSurveys(d, { time, notify, risk })
   const reportBuilder = createReportBuilder(d, { time, margin, retention: caregiverSurveys })
   const reportSchedules = createReportSchedules(d, { time, margin, reportBuilder })
-  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay, reportSchedules, caregiverSurveys, supervisory })
+  const visitJobs = createVisitJobs(d, { reminders, overtime, certReminders, medicationReminders, autopay, reportSchedules, caregiverSurveys, supervisory, noArrival })
   const worcsPoll = createWorcsPoll(d, { eligibility, staffEmails, profile })
 
   return {
@@ -166,7 +169,7 @@ function buildHomecareCore(d: CrmDeps) {
     sandata, evvWeekly, autoSubmit, evvVisits, portalClaimDays, visitRecord, careTaskMinutes, carePlanSchedule, incidentPdf,
     invoices, claims, payroll, visitMileage, payrollProviders, margin, csvImport, importAttach, migration, autopay, ltc, offlineSaves, reportBuilder, reportSchedules, risk, caregiverSurveys,
     staffEmails, eligibility, onboarding, applications,
-    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, worcsPoll,
+    reminders, overtime, certReminders, medicationReminders, visitQuestions, visitItems, visitSignature, taskReport, familyContent, pickupRewards, openShiftOffers, familyComms, familyTexts, alertRules, requiredTasks, supervisory, noArrival, worcsPoll,
     /** Live updates (the template's services/socket.ts): the app's realtime. */
     live: { emitToCompany: d.realtime.emitToCompany, emitToUser: d.realtime.emitToUser, EVENTS: d.realtime.EVENTS },
     /** The app's audit log (the template's services/audit.ts): log, diff, ACTIONS, ENTITIES. */

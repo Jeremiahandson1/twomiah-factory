@@ -23,6 +23,8 @@ export function createVisitJobs(d: CrmDeps, deps: {
   caregiverSurveys?: { scanCaregiverSurveys: () => Promise<number> }
   /** Supervisory visit reminders (row 24): optional, as above. */
   supervisory?: { scanReminders: () => Promise<number> }
+  /** The caregiver who has not arrived (row 7): optional, as above. */
+  noArrival?: { scanAll: () => Promise<number> }
 }) {
   let started = false
   const timers: ReturnType<typeof setTimeout>[] = []
@@ -63,6 +65,8 @@ export function createVisitJobs(d: CrmDeps, deps: {
     if (deps.caregiverSurveys) every('caregiver-surveys', 270_000, () => deps.caregiverSurveys!.scanCaregiverSurveys())
     // Supervisory visits: the supervisor is reminded once in the 24 hours before a planned visit (the row is claimed first).
     if (deps.supervisory) every('supervisory-reminders', 120_000, () => deps.supervisory!.scanReminders())
+    // No-arrival: one No-Show alert per visit whose caregiver has not clocked in by the grace minutes (a unique row, so never twice).
+    if (deps.noArrival) every('no-arrival', 100_000, () => deps.noArrival!.scanAll())
     d.logger.info('[visit-jobs] shift reminders + overtime alerts + credential reminders every 5 min')
   }
 

@@ -1022,3 +1022,20 @@ export async function dayPlansInRange(q: Q, companyId: string, from: string, to:
      WHERE occ.caregiver_id IS NOT NULL
      ORDER BY occ.caregiver_id, occ.occ_date, occ.start_time`)) as any
 }
+
+/** Row 7 (no-arrival): today's visits with who and where, on the agency's day — what the no-show scan checks for a clock-in. */
+export async function visitsOnDay(q: Q, companyId: string, date: string): Promise<{ scheduleId: string; caregiverId: string; clientId: string; start: string; caregiverFirst: string; caregiverLast: string; caregiverPhone: string | null; clientFirst: string; clientLast: string }[]> {
+  return camelRows(await q.execute(sql`WITH ${occurrencesCte(companyId, date, date)}
+    SELECT occ.schedule_id, occ.caregiver_id, occ.client_id, to_char(occ.start_time, 'HH24:MI') AS start,
+           u.first_name AS caregiver_first, u.last_name AS caregiver_last, u.phone AS caregiver_phone,
+           cl.first_name AS client_first, cl.last_name AS client_last
+      FROM occ JOIN "user" u ON u.id = occ.caregiver_id JOIN clients cl ON cl.id = occ.client_id AND cl.company_id = ${companyId}
+     WHERE occ.caregiver_id IS NOT NULL AND occ.is_training = false
+     ORDER BY occ.start_time`)) as any
+}
+
+/** Row 7: clock-ins since `since` (an instant), for matching a scheduled visit to its arrival. */
+export async function clockInsSince(q: Q, companyId: string, since: Date): Promise<{ caregiverId: string; clientId: string; startTime: Date }[]> {
+  return camelRows(await q.execute(sql`SELECT caregiver_id, client_id, start_time FROM time_entries
+     WHERE company_id = ${companyId} AND start_time >= ${since}`)) as any
+}
