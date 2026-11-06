@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { CloudRain, Loader2, Undo2, CloudSun } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, useMayWrite, useConfirm } from '../../../shared'
+import { useToast, useMayWrite, useConfirm, useAuth } from '../../../shared'
 
 interface Plan {
   dryRun: boolean; background?: boolean; toDate: string; throughDate?: string | null; moved: number; wouldMove: number; skippedSunday?: boolean
@@ -24,6 +24,8 @@ interface ForecastDay { date: string; summary: string; precipChance: number; rai
 export default function RainDayPanel({ onDone }: { onDone: () => void }) {
   const toast = useToast()
   const confirm = useConfirm()
+  // Rows 16, 17 and 29 (rain_day_tools, not ready): without the switch the panel is exactly as before.
+  const tools = useAuth().hasFeature('rain_day_tools')
   const mayPush = useMayWrite('jobs:update') && useMayWrite('jobs:dispatch')
   const mayText = useMayWrite('sms:send')
   const [open, setOpen] = useState(false)
@@ -57,7 +59,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
 
   const loadRuns = () => api.get('/api/recurring-routes/rain-day/runs').then((r: any) => setRuns(Array.isArray(r?.data) ? r.data : [])).catch(() => setRuns([]))
   useEffect(() => {
-    if (!open) return
+    if (!open || !tools) return
     loadRuns()
     if (forecast === null) api.get('/api/recurring-routes/rain-day/forecast').then((r: any) => { setForecast(Array.isArray(r?.data) ? r.data : []); setForecastNote('') }).catch((e) => { setForecast([]); setForecastNote(errorText(e, 'The forecast could not be loaded.')) })
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -105,7 +107,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
       {open && (
         <div className="mt-3 space-y-3">
           <p className="text-xs text-gray-500 dark:text-slate-400">Push a day's open jobs forward and let customers know. Jobs already started or finished stay put; each job keeps its time, so the crew's order does not change.</p>
-          {forecast && forecast.length > 0 && (
+          {tools && forecast && forecast.length > 0 && (
             <div>
               <p className="text-xs font-medium flex items-center gap-1"><CloudSun className="w-4 h-4" /> The week's weather (US Weather Service)</p>
               <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
@@ -121,7 +123,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
               </div>
             </div>
           )}
-          {forecastNote && <p className="text-xs text-gray-500 dark:text-slate-400">{forecastNote}</p>}
+          {tools && forecastNote && <p className="text-xs text-gray-500 dark:text-slate-400">{forecastNote}</p>}
           <div className="grid gap-2 md:grid-cols-3">
             <div><label htmlFor="rain-date" className="block text-xs font-medium">Day it rained</label><input id="rain-date" type="date" className="input" value={date} min={today()} onChange={(e) => { setDate(e.target.value); setPlan(null) }} /></div>
             <div><label htmlFor="rain-route" className="block text-xs font-medium">Which jobs</label>
@@ -131,14 +133,14 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
               </select></div>
             <div><label htmlFor="rain-shift" className="block text-xs font-medium">Push forward</label>
               <select id="rain-shift" className="input" value={shift} onChange={(e) => { setShift(e.target.value); setPlan(null) }}>
-                <option value="day">One day</option><option value="2">Two days</option><option value="3">Three days</option><option value="week">One week</option><option value="date">To a date…</option>
+                <option value="day">One day</option><option value="2">Two days</option><option value="3">Three days</option><option value="week">One week</option>{tools ? <option value="date">To a date…</option> : null}
               </select></div>
           </div>
-          <div className="grid gap-2 md:grid-cols-3">
+          {tools && <div className="grid gap-2 md:grid-cols-3">
             {shift === 'date'
               ? <div><label htmlFor="rain-to" className="block text-xs font-medium">Move them to</label><input id="rain-to" type="date" className="input" value={moveTo} min={date} onChange={(e) => { setMoveTo(e.target.value); setPlan(null) }} /></div>
               : <div><label htmlFor="rain-through" className="block text-xs font-medium">Through (optional)</label><input id="rain-through" type="date" className="input" value={through} min={date} onChange={(e) => { setThrough(e.target.value); setPlan(null) }} /><p className="text-xs text-gray-500 dark:text-slate-400">Push every day up to this one by the same amount — e.g. the rest of the week.</p></div>}
-          </div>
+          </div>}
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={skipSundays !== false} disabled={skipSundays === null} onChange={(e) => changeSkipSundays(e.target.checked)} /> Skip Sundays when moving visits <span className="text-xs text-gray-500 dark:text-slate-400">(a push that would land on a Sunday goes to Monday)</span></label>
           {mayText && (
             <div>
@@ -171,7 +173,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
               )}
             </div>
           )}
-          {runs.length > 0 && (
+          {tools && runs.length > 0 && (
             <div className="border-t pt-2 dark:border-slate-700">
               <p className="text-xs font-medium">Recent rain days</p>
               <ul className="mt-1 space-y-1 text-xs">

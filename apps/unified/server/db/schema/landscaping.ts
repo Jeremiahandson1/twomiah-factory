@@ -276,6 +276,8 @@ export const rainDayRun = pgTable('rain_day_run', {
   undoneById: text('undone_by_id').references(() => user.id, { onDelete: 'set null' }),
 }, (t) => [
   index('rain_day_run_company_id_idx').on(t.companyId),
+])
+
 // "Couldn't do it" on a visit (landscaping parity row 12; LMN crew lead): the crew skipped it with a reason from a list and said
 // whether it needs rebooking. The visit is put on hold; the office sees the open ones on the Route Board and rebooks them to a day
 // or closes them (data/crewDay.ts). One open skip per visit: a second report from the phone (its queue sends twice) is the same.

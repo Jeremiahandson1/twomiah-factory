@@ -27,6 +27,8 @@ import {
 import { businessPoint, forecastAt } from '../../data/weatherForecast.ts'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+/** Rows 16, 17 and 29 — a run of days, a push to a date, the background run, undo and the forecast — behind one not-ready switch. */
+export const RAIN_DAY_TOOLS = 'rain_day_tools'
 const MAX_TEXT = 1600
 const isDay = (v: unknown): v is string => typeof v === 'string' && DAY.test(v) && !Number.isNaN(Date.parse(v))
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
@@ -43,6 +45,8 @@ export function createRainDayRoutes(d: CrmDeps) {
     try { return hasPermission(u?.role, perm, await getExtraPermissions(u?.userId)) } catch { return false }
   }
   const sendRaw = (m: { to: string; subject: string; html: string }) => (d.services as any).emailService?.sendRaw?.(m)
+  const gate = d.features.requireEnabledFeature
+  const toolsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, RAIN_DAY_TOOLS)
 
   // The business's rain day switch: "Skip Sundays when moving visits" (default on). Read by anyone who sees jobs; changed by the
   // seats that may run a rain day (the same two asks).
@@ -74,6 +78,8 @@ export function createRainDayRoutes(d: CrmDeps) {
     const tz = await companyTimeZone(db, u.companyId)
     const today = businessToday(tz).toISOString().slice(0, 10)
     if (date < today) return fail(c, 400, 'Pick today or a day coming up — a day that has passed has nothing left to push.', undefined, { date: 'In the past' })
+    const tools = await toolsOn(u.companyId)
+    if (!tools && (b?.throughDate || b?.toDate || b?.background === true)) return fail(c, 403, 'This module is not enabled for your account.', 'FEATURE_NOT_ENABLED')
     const throughDate = b?.throughDate ? String(b.throughDate) : null
     if (throughDate && (!isDay(throughDate) || throughDate < date)) return fail(c, 400, 'The last day must be on or after the first.', undefined, { throughDate: 'Invalid' })
     if (throughDate && daysBetween(date, throughDate) >= RAIN_RANGE_MAX) return fail(c, 400, `Push at most ${RAIN_RANGE_MAX} days at once.`, undefined, { throughDate: 'Too long' })
@@ -98,7 +104,7 @@ export function createRainDayRoutes(d: CrmDeps) {
 
     // The preview always runs (nothing is written); a real push decides from its size whether to run in the background.
     const preview = await rainDay(db, u.companyId, opts, false)
-    const background = !dryRun && (b?.background === true || preview.moves.length > BACKGROUND_FROM)
+    const background = tools && !dryRun && (b?.background === true || preview.moves.length > BACKGROUND_FROM)
     if (background) {
       const run = await startRun(db, u.companyId, String(u.userId), opts)
       const [me] = await db.select({ email: user.email, firstName: user.firstName }).from(user).where(eq(user.id, u.userId)).limit(1)
@@ -142,12 +148,12 @@ export function createRainDayRoutes(d: CrmDeps) {
   })
 
   // ── Row 29: the recent rain days, and undo ──
-  app.get('/runs', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+  app.get('/runs', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), gate(RAIN_DAY_TOOLS), async (c) => {
     const rows: any[] = await rainDayRuns(db, c.get('user').companyId)
     return listAll(c, rows.map((r) => ({ id: r.id, status: r.status, fromDate: r.fromDate, throughDate: r.throughDate, toDate: r.toDate, shiftDays: r.shiftDays, moved: r.moved, error: r.error, createdAt: r.createdAt, undoneAt: r.undoneAt, canUndo: r.status === 'done' && r.moved > 0 })))
   })
 
-  app.post('/runs/:id/undo', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+  app.post('/runs/:id/undo', requirePermission('jobs:update'), requirePermission(JOB_DISPATCH_PERMISSION), gate(RAIN_DAY_TOOLS), async (c) => {
     const u = c.get('user')
     const r: any = await undoRainDay(db, u.companyId, c.req.param('id'), String(u.userId))
     if (r.error) return fail(c, r.error, r.why)
@@ -156,7 +162,7 @@ export function createRainDayRoutes(d: CrmDeps) {
   })
 
   // ── Row 17: the week's forecast against the route days ──
-  app.get('/forecast', requirePermission('jobs:read'), async (c) => {
+  app.get('/forecast', requirePermission('jobs:read'), gate(RAIN_DAY_TOOLS), async (c) => {
     const u = c.get('user')
     const tz = await companyTimeZone(db, u.companyId)
     const point = await businessPoint(db, u.companyId)
