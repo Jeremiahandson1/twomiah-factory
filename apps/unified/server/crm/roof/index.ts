@@ -20,6 +20,9 @@ import { createCommissionDrawRoutes } from './commissionDraws.ts'
 import { createCommissionDisclaimerRoutes } from './commissionDisclaimer.ts'
 import { createJobBooksRoutes } from './jobBooks.ts'
 import { createWorksheetRoutes } from './worksheetRoutes.ts'
+import { createInvoiceRequestRoutes } from './invoiceRequests.ts'
+import { REQUESTS_FEATURE, cancelWhenPaid, sendReceipts } from '../../data/invoiceRequests.ts'
+import { invoice as invoiceTable } from '../../db/schema/index.ts'
 
 /** The roofing add-on's mounts, for a vertical that has it (CrmSettings.roof), each named as the add-on's. */
 export function roofMounts(d: CrmDeps): Mount[] {
@@ -29,6 +32,15 @@ export function roofMounts(d: CrmDeps): Mount[] {
   // …and the rep who sold it is paid what the company's plans owe, once the job is Collected (./commissions.ts). Runs after the
   // step above, which is what moves the job there.
   d.services.onInvoicePaid?.(createRoofCommissions(d).earnForInvoice)
+  // Row 17 (invoice_text_requests, not ready): a paid invoice's payment-request texts not sent yet are cancelled, and each new payment
+  // is emailed its receipt to the homeowner and the rep (data/invoiceRequests.ts).
+  d.services.onInvoicePaid?.(async (invoiceId: string) => {
+    const { eq } = await import('drizzle-orm')
+    const [inv] = await d.db.select({ companyId: invoiceTable.companyId }).from(invoiceTable).where(eq(invoiceTable.id, invoiceId)).limit(1)
+    if (!inv || !(await d.features.isFeatureEnabled(inv.companyId, REQUESTS_FEATURE).catch(() => false))) return
+    await cancelWhenPaid(d.db, invoiceId)
+    await sendReceipts(d.db, (m) => (d.services as any).emailService.sendRaw(m), invoiceId)
+  })
   return ([
     ...insuranceMounts(d),
     ...reportsMounts(d),
@@ -50,6 +62,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
     // Pre-commission draws — a part of a commission paid in advance when a job is turned in, taken off the commission later (./commissionDraws.ts).
     { path: '/api/commission-draws', access: 'user', feature: 'commission_tracking', router: createCommissionDrawRoutes(d) },
     // What the company calls its stages, and its Retail and Insurance boards (./pipeline.ts): not ready, display names only.
+    // Row 17: text an invoice now or on a schedule (invoice_text_requests, read per request).
+    { path: '/api/invoice-requests', access: 'user', router: createInvoiceRequestRoutes(d) },
     { path: '/api/roof-pipeline', access: 'user', feature: 'pipeline_boards', router: createPipelineRoutes(d) },
     ...inspectionMounts(d),
     ...photoMarkupMounts(d),
