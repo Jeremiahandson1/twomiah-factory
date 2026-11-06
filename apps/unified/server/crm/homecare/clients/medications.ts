@@ -284,9 +284,17 @@ export function createMedicationRoutes(core: HomecareCore, d: CrmDeps, access: C
     const caregiverId = await attributedTo(user, companyId, me, b.caregiverId)
     if (!caregiverId) return fail(c, 404, 'Caregiver not found')
     let recordedAt = new Date()
-    if (b.recordedAt) {
-      recordedAt = new Date(b.recordedAt)
+    // Row 16 (care_offline_saves): readings saved on the phone with no signal keep the time they were taken (savedAt), checked
+    // like a dose's: not in the future, not older than the window.
+    const offlineOn = await core.offlineSaves.enabled(companyId)
+    const takenRaw = b.recordedAt ?? (offlineOn ? b.savedAt : undefined)
+    if (takenRaw) {
+      recordedAt = new Date(takenRaw)
       if (isNaN(recordedAt.getTime())) return fail(c, 400, 'The time taken is not a valid date and time')
+      if (offlineOn && !b.recordedAt) {
+        const t = core.offlineSaves.savedTime(recordedAt)
+        if ('problem' in t) return fail(c, 400, t.problem, 'bad_saved_time')
+      }
     }
     const [row] = await db.insert(clientVitals).values({
       ...values,

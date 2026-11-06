@@ -180,6 +180,8 @@ export function createPunchQueue(kv: KV, key = 'twomiah_care_offline_punches_v1'
     save,
     offlineSession,
     flush,
+    /** The server id a saved clock-in got once it went through (null until then): held visit saves wait on it (visitHold.ts). */
+    syncedIdOf: async (localId: string): Promise<string | null> => (await syncedIds())[localId] ?? null,
     /** For tests. */
     _readAll: readAll,
   }

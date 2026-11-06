@@ -426,3 +426,13 @@ export function supervisoryBody(f: SupervisoryForm, questions: SupervisoryQuesti
   else if (f.clientSignReason.trim()) out.clientSignReason = f.clientSignReason.trim()
   return out
 }
+
+// ── Ready for no signal (row 16, care_offline_saves) ─────────────────────────────────────────────────────────────────────────
+/** The line under "Ready for no signal": when today's visit details were last kept on the phone (AlayaCare shows the time). */
+export function readyText(downloadedAt: string | null, now: Date): string {
+  const d = downloadedAt ? new Date(downloadedAt) : null
+  if (!d || Number.isNaN(d.getTime())) return 'Not downloaded yet — tap to keep today\u2019s visits on your phone'
+  const mins = Math.max(0, Math.round((now.getTime() - d.getTime()) / 60000))
+  const when = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 24 * 60 ? `${Math.floor(mins / 60)} h ago` : 'over a day ago'
+  return `Downloaded ${when}${mins >= 12 * 60 ? ' — tap to download again' : ' — tap to refresh'}`
+}

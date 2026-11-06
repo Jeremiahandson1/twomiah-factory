@@ -16,6 +16,8 @@ import { useCare } from '../../src/care/CareContext'
 import { needsSandata } from '../../src/care/sandata'
 import { careGet } from '../../src/care/careApi'
 import { Badge, SOLID } from '../../src/care/ui'
+import { useOfflineQueue } from '../../src/offline/OfflineContext'
+import { readyText } from '../../src/care/rules'
 
 interface Item { icon: string; label: string; desc: string; to?: string; onPress?: () => void; badge?: number }
 
@@ -26,6 +28,10 @@ export default function MoreHomecareScreen() {
   const haptics = useHaptics()
   const toast = useToast()
   const care = useCare()
+  // Row 16: everything saved on this phone that the office has not got yet — the offline queue, saved punches, held visit saves.
+  const { queue } = useOfflineQueue()
+  const waiting = queue.length + care.pendingPunches + care.heldSaves
+  const [downloading, setDownloading] = useState(false)
   // care_pickup_rewards: the points page answers only for an agency that has it, so the two entries show only then.
   const [points, setPoints] = useState<number | null>(null)
   // care_caregiver_surveys: the survey page answers only for an agency that has it, so "How is it going?" shows only then (with a badge).
@@ -41,6 +47,18 @@ export default function MoreHomecareScreen() {
   const email = (company as any)?.email as string | undefined
   const phone = (company as any)?.phone as string | undefined
   const sections: { title: string; items: Item[] }[] = [
+    ...(care.offlineSaves ? [{
+      title: 'No signal',
+      items: [
+        { icon: 'cloud-download-outline', label: 'Ready for no signal', desc: downloading ? 'Downloading today’s visits…' : readyText(care.downloadedAt, new Date()), onPress: async () => {
+          setDownloading(true)
+          const ok = await care.downloadForOffline()
+          setDownloading(false)
+          if (ok) toast.success('Today\u2019s visits are on your phone.'); else toast.warning('Some of it did not download. Try again when you have signal.')
+        } },
+        { icon: 'cloud-upload-outline', label: 'Waiting to send', desc: waiting ? `${waiting} saved on this phone` : 'Everything has been sent', to: '/(details)/waiting', badge: queue.filter((q) => q.state === 'failed').length },
+      ],
+    }] : []),
     {
       title: 'Shifts',
       items: [
@@ -136,12 +154,12 @@ export default function MoreHomecareScreen() {
         style={[styles.logoutBtn, { borderColor: SOLID.danger }]}
         onPress={() => {
           haptics.medium()
-          if (care.active || care.pendingPunches > 0) {
+          if (care.active || waiting > 0) {
             Alert.alert(
               'Sign out?',
               care.active
                 ? "You're still clocked in. Signing out does not clock you out — the visit stays open until you sign back in and clock out."
-                : 'Some punches are still saved on this phone. They stay here and send the next time you sign in on this phone.',
+                : `${waiting} save${waiting === 1 ? ' is' : 's are'} still on this phone and not sent. They stay here and send the next time you sign in on this phone — not if someone else signs in.`,
               [{ text: 'Stay signed in', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => logout() }],
             )
             return
