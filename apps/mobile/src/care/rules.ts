@@ -425,6 +425,8 @@ export function supervisoryBody(f: SupervisoryForm, questions: SupervisoryQuesti
   if (f.clientSignature) out.clientSignature = f.clientSignature
   else if (f.clientSignReason.trim()) out.clientSignReason = f.clientSignReason.trim()
   return out
+}
+
 // ── Ready for no signal (row 16, care_offline_saves) ─────────────────────────────────────────────────────────────────────────
 /** The line under "Ready for no signal": when today's visit details were last kept on the phone (AlayaCare shows the time). */
 export function readyText(downloadedAt: string | null, now: Date): string {
