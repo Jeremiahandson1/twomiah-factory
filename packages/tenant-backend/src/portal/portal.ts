@@ -239,7 +239,10 @@ const MAX_SIGNATURE_BYTES = 500_000
 const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
 // optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
 // section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
-const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'imageUrl', 'optionRole', 'type'] as const
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'imageUrl', 'optionRole'] as const
+/** A customer's copy of a quote line: the fields above, and — for a text line only — that it is one. A priced line's kind (labour,
+ *  material…) is the business's costing and never goes to the customer. */
+const customerLine = (li: any) => ({ ...pick(li, PORTAL_QUOTE_LINE_FIELDS), ...(li?.type === 'text' ? { type: 'text' } : {}) })
 // What a customer is shown of a proposal option: its whole price and the deposit it would ask; no cost, no item code.
 const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'addPrice', 'deposit', 'discount', 'attachments', 'setIndex', 'setName', 'setKind'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
@@ -950,9 +953,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     // Every option names its set; `sets` groups them (name, pick one or any, what is picked there) for the page to lay out.
     const customerOption = async (op: any) => ({
       ...pick(op, PORTAL_OPTION_FIELDS),
-      lines: (await customerLines(db, companyId, op.lines)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      lines: (await customerLines(db, companyId, op.lines)).map(customerLine),
       // The option's upgrades: offered once the option is picked (the customer ticks the ones they want).
-      upgrades: (await customerLines(db, companyId, op.upgrades || [])).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+      upgrades: (await customerLines(db, companyId, op.upgrades || [])).map(customerLine),
     })
     const proposal = view ? {
       chosenOptionId: view.chosenOptionId, chosenOptionIds: view.chosenOptionIds, needsChoice: view.needsChoice, lowest: view.lowest,
@@ -966,7 +969,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       ...(doc ? { document: doc } : {}),
       lineItems: (await customerLines(db, companyId, view ? lineItems.filter((li: any) => !li.proposalOptionId)
         // Options off: an option nobody chose is not on the page; the lines of one that was chosen are in the total, so they stay.
-        : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)),
+        : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map(customerLine),
       ...(proposal ? { proposal } : {}),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
       company: { name: company.name, email: company.email, phone: company.phone },
