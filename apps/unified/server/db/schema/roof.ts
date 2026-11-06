@@ -595,6 +595,29 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
 ])
 
 /**
+ * A company's own pipeline boards (roofing parity row 19; JobNimbus boards; feature pipeline_custom_boards, not ready): as many as it
+ * likes, each a name and colour over the same stages, showing the jobs that match its filters — job types (none = every type), the
+ * assignee, the sales rep, the location, the subcontractor (each a list; empty = any). Seen by everyone, just its owner, or chosen
+ * roles. Display only: a job's stage, texts and rules never read a board. server/crm/roof/pipeline.ts boardMatches.
+ */
+export const roofPipelineBoard = pgTable('roof_pipeline_board', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  color: text('color').default('#ea580c').notNull(),
+  jobTypes: json('job_types').default([]).notNull(),
+  filters: json('filters').default({}).notNull(),
+  visibility: text('visibility').default('all').notNull(), // all, me, roles
+  roles: json('roles').default([]).notNull(),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_pipeline_board_company_id_idx').on(t.companyId),
+])
+
+/**
  * A roofing company's money rules, one row per company (roofing parity, rows 1-5; docs/parity/roof-commissions-costing.md): the
  * floor under which no commission plan pays (min_profit_kind 'percent' of the contract, or 'amount' in dollars — both null: no
  * floor). The commission disclaimer, who sees commissions and the worksheet approval switch join it as those rows land. Changed only

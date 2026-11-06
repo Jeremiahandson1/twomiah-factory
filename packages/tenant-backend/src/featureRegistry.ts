@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: a company's own pipeline boards (roofing parity row 19; apps/unified server/crm/roof/pipeline.ts).
+  { id: 'pipeline_custom_boards', name: 'Pipeline boards of your own', description: 'Make as many pipeline boards as you like — by job type, assignee, rep, location or subcontractor — each with its colour, seen by everyone, just you, or chosen roles', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: a card surcharge (roofing parity row 18; apps/unified server/data/cardSurcharge.ts — state rules).
   { id: 'card_surcharge', name: 'Card surcharge', description: 'Pass the card fee on to customers who pay by credit card, where your state allows it: capped by state, never on debit or prepaid cards, shown before they pay and on the receipt', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: the payouts view (roofing parity row 18; apps/unified server/crm/roof/cardSurcharge.ts).
