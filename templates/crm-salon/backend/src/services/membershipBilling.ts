@@ -39,22 +39,13 @@ const cycleOf = (plan: any) => String(plan?.billingCycle || 'monthly').toLowerCa
 /** A one-off membership is charged once and never renews. */
 export const isOneTime = (cycle: string) => cycle === 'one_time' || cycle === 'once'
 
-/** `dateIso` (YYYY-MM-DD) plus `n` months, on its day or that month's last day (the shared package's addMonthsClamped). */
-function addMonthsClamped(dateIso: string, n: number): string {
-  const [y, m, d] = dateIso.split('-').map(Number)
-  const first = new Date(Date.UTC(y, m - 1 + n, 1))
-  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate()
-  return new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(d, last))).toISOString().slice(0, 10)
-}
-
-/**
- * The next renewal date after `from`, on the membership's own day of the month (`anchor`, its start date) or that
- * month's last day: joined on the 31st, it renews Nov 30, then Dec 31. Null for a plan that does not renew. Rolling the
- * Date's month turned Oct 31 into Dec 1 (skipping November) and Aug 31 into Oct 1 — the unified app's rule, the same here.
- */
-export function nextRenewal(from: string, cycle: string, anchor: string = from): string | null {
+/** The next renewal date after `from`. Returns null for a plan that does not renew. */
+export function nextRenewal(from: string, cycle: string): string | null {
   if (isOneTime(cycle)) return null
-  return addMonthsClamped(from.slice(0, 8) + anchor.slice(8, 10), cycle === 'annual' || cycle === 'yearly' ? 12 : 1)
+  const d = new Date(`${from}T00:00:00.000Z`)
+  if (cycle === 'annual' || cycle === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1)
+  else d.setUTCMonth(d.getUTCMonth() + 1)
+  return iso(d)
 }
 
 export type BilledOne = { enrollmentId: string; invoiceId: string; number: string; period: string; amount: number }
@@ -79,7 +70,7 @@ async function billPeriod(row: any, period: string): Promise<BilledOne | null> {
     const [plan] = await tx.select().from(membershipPlan).where(eq(membershipPlan.id, row.planId)).limit(1)
     const cycle = cycleOf(plan)
     const price = round2(Number(plan?.price) || 0)
-    const renewsAt = nextRenewal(period, cycle, row.startDate || period)
+    const renewsAt = nextRenewal(period, cycle)
 
     // A new period is a new allowance: a monthly membership that never refilled its credits is spent
     // after the first month and worthless after that.
@@ -165,7 +156,7 @@ async function adoptUnscheduled(companyId?: string): Promise<number> {
     await db.update(membershipEnrollment)
       // last_billed_for is set to today as well: the current period is treated as settled, so the
       // adoption itself never raises a charge.
-      .set({ renewsAt: nextRenewal(from, cycle, row.startDate || from), lastBilledFor: from, updatedAt: new Date() } as any)
+      .set({ renewsAt: nextRenewal(from, cycle), lastBilledFor: from, updatedAt: new Date() } as any)
       .where(and(eq(membershipEnrollment.id, row.id), sql`${membershipEnrollment.renewsAt} IS NULL`))
   }
   return orphans.length
