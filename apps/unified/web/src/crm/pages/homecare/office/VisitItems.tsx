@@ -1,6 +1,7 @@
 // Forms, interventions, goals and tasks inside a visit (care_visit_items): what the agency attaches to a client's visits, tasks that
 // belong to every visit, the rule that a visit note is needed to clock out, and how each goal went.
-//   GET|POST /api/visit-items, PUT|DELETE /api/visit-items/:id, GET /api/visit-items/goals/:clientId, GET|PUT /api/visit-items/settings
+//   GET|POST /api/visit-items, PUT|DELETE /api/visit-items/:id, GET /api/visit-items/goals/:clientId, GET|PUT /api/visit-items/settings,
+//   POST /api/visit-items/goals/:clientId/from-care-plan (row 4: the care plan's goals), GET /api/care-types (row 4: items for one service)
 //   (server/crm/homecare/visits/visitItems.ts), GET /api/clients, GET /api/forms/templates
 import { useCallback, useEffect, useState } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
@@ -9,7 +10,8 @@ import { formatDateTime } from '../lib/datetime'
 import { useMay } from '../lib/useMay'
 
 type Kind = 'form' | 'intervention' | 'goal' | 'general_task'
-interface Item { id: string; kind: Kind; name: string; detail: string | null; clientId: string | null; goalId: string | null; formTemplateId: string | null; required: boolean; isActive: boolean }
+interface Item { id: string; kind: Kind; name: string; detail: string | null; clientId: string | null; goalId: string | null; formTemplateId: string | null; required: boolean; isActive: boolean; careTypeId?: string | null; fromCarePlan?: boolean }
+interface Service { id: string; name: string }
 interface Person { id: string; firstName: string; lastName: string }
 interface Template { id: string; name: string; isActive?: boolean }
 interface GoalNote { id: string; goal: string; rating: string | null; status: string; note: string | null; startTime: string; caregiverFirst: string; caregiverLast: string }
@@ -18,7 +20,7 @@ const inp = 'rounded-md border px-2 py-1.5 text-sm border-gray-300 bg-white text
 const KIND: Record<Kind, string> = { form: 'Form', intervention: 'Intervention', goal: 'Goal', general_task: 'Task' }
 const KIND_PLURAL: Record<Kind, string> = { form: 'Forms', intervention: 'Interventions', goal: 'Goals', general_task: 'Tasks' }
 const RATING: Record<string, string> = { progress: 'Progress', no_change: 'No change', declined: 'Declined' }
-const EMPTY = { kind: 'general_task' as Kind, name: '', detail: '', goalId: '', formTemplateId: '', required: false }
+const EMPTY = { kind: 'general_task' as Kind, name: '', detail: '', goalId: '', formTemplateId: '', required: false, careTypeId: '' }
 type Tab = 'items' | 'goals'
 
 export default function VisitItems() {
@@ -34,11 +36,13 @@ export default function VisitItems() {
   const [editing, setEditing] = useState<string | null>(null)
   const [noteRequired, setNoteRequired] = useState<boolean | null>(null)
   const [goalNotes, setGoalNotes] = useState<GoalNote[] | null>(null)
+  const [services, setServices] = useState<Service[]>([])
 
   useEffect(() => {
     listAll('/api/clients').then((r) => setClients(rows<Person>(r))).catch(() => setClients([]))
     api.get('/api/forms/templates').then((r) => setTemplates(rows<Template>(r).filter((x) => x.isActive !== false))).catch(() => setTemplates([]))
     api.get('/api/visit-items/settings').then((r: any) => setNoteRequired(r?.noteRequired === true)).catch(() => setNoteRequired(null))
+    api.get('/api/care-types').then((r) => setServices(rows<Service>(r))).catch(() => setServices([]))
   }, [])
 
   const load = useCallback(() => {
@@ -56,14 +60,22 @@ export default function VisitItems() {
 
   const save = async () => {
     const body = { kind: form.kind, name: form.name, detail: form.detail || null, clientId: scope || null, required: form.required,
-      goalId: form.kind === 'intervention' ? form.goalId || null : null, formTemplateId: form.kind === 'form' ? form.formTemplateId : null }
+      goalId: form.kind === 'intervention' ? form.goalId || null : null, formTemplateId: form.kind === 'form' ? form.formTemplateId : null,
+      ...(scope ? {} : { careTypeId: form.careTypeId || null }) }
     try {
       if (editing) await api.put(`/api/visit-items/${editing}`, body)
       else await api.post('/api/visit-items', { ...body, sortOrder: (items?.length ?? 0) + 1 })
       setForm(EMPTY); setEditing(null); load(); toast.success('Saved')
     } catch (e) { toast.error(errorMessage(e)) }
   }
-  const edit = (i: Item) => { setEditing(i.id); setForm({ kind: i.kind, name: i.name, detail: i.detail || '', goalId: i.goalId || '', formTemplateId: i.formTemplateId || '', required: i.required }) }
+  const edit = (i: Item) => { setEditing(i.id); setForm({ kind: i.kind, name: i.name, detail: i.detail || '', goalId: i.goalId || '', formTemplateId: i.formTemplateId || '', required: i.required, careTypeId: i.careTypeId || '' }) }
+  const fromCarePlan = async () => {
+    try {
+      const r: any = await api.post(`/api/visit-items/goals/${scope}/from-care-plan`, {})
+      toast.success(r.added?.length ? `${r.added.length} goal${r.added.length === 1 ? '' : 's'} added from the care plan` : 'The care plan\u2019s goals are already here')
+      load()
+    } catch (e) { toast.error(errorMessage(e)) }
+  }
   const patch = async (i: Item, b: Partial<Item>) => { try { await api.put(`/api/visit-items/${i.id}`, b); load() } catch (e) { toast.error(errorMessage(e)) } }
   const remove = async (i: Item) => {
     if (!(await confirm(`Remove “${i.name}”? What caregivers already recorded stays on those visits.`, { danger: true }))) return
@@ -112,7 +124,7 @@ export default function VisitItems() {
                       <div className="flex-1 min-w-[12rem]">
                         <div className="font-medium">{i.name}</div>
                         <div className="text-xs text-gray-600 dark:text-slate-400">
-                          {KIND[i.kind]}{i.required ? ' · Required' : ''}{i.goalId ? ` · For goal “${(items || []).find((g) => g.id === i.goalId)?.name || ''}”` : ''}{i.detail ? ` · ${i.detail}` : ''}{i.isActive ? '' : ' · Switched off'}
+                          {KIND[i.kind]}{i.required ? ' · Required' : ''}{i.careTypeId ? ` · Only for ${services.find((sv) => sv.id === i.careTypeId)?.name ?? 'one service'}` : ''}{i.fromCarePlan ? ' · From the care plan' : ''}{i.goalId ? ` · For goal “${(items || []).find((g) => g.id === i.goalId)?.name || ''}”` : ''}{i.detail ? ` · ${i.detail}` : ''}{i.isActive ? '' : ' · Switched off'}
                         </div>
                       </div>
                       {may.update && (
@@ -129,10 +141,20 @@ export default function VisitItems() {
             )
           })}
 
+          {may.create && scope && (
+            <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary mb-2" onClick={fromCarePlan}>Use the care plan&apos;s goals</button>
+          )}
           {may.create && (
             <div className="rounded-md border border-gray-200 dark:border-slate-700 p-3 mt-3">
               <h2 className="font-semibold mb-2">{editing ? 'Edit' : 'Add'} {scope ? `for ${clients.find((c) => c.id === scope)?.firstName ?? 'this client'}` : 'a task for every visit'}</h2>
               <div className="grid gap-3 sm:grid-cols-2">
+                {!scope && services.length > 0 && (
+                  <label className="text-sm">Only for one service<br />
+                    <select className={inp} value={form.careTypeId} onChange={(e) => setForm({ ...form, careTypeId: e.target.value })}>
+                      <option value="">Every service</option>{services.map((sv) => <option key={sv.id} value={sv.id}>{sv.name}</option>)}
+                    </select>
+                  </label>
+                )}
                 <label className="text-sm">Type<br />
                   <select className={inp} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as Kind })}>
                     {kinds.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}

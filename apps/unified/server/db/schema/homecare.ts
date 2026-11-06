@@ -3550,8 +3550,8 @@ export const visitQuestion = pgTable('visit_question', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   prompt: text('prompt').notNull(),
-  kind: text('kind').notNull(), // 'yes_no' | 'text' | 'choice'
-  options: json('options'), // the list a 'choice' picks from
+  kind: text('kind').notNull(), // 'yes_no' | 'text' | 'choice' | 'number'
+  options: json('options'), // the list a 'choice' picks from; for a 'number' { min, max, flagBelow, flagAbove } (row 3)
   phase: text('phase').notNull(), // 'clock_in' | 'clock_out' | 'both'
   required: boolean('required').default(false).notNull(),
   // The answer that tells the office ("no" to "Was the home safe?"): compared with what was answered, ignoring case.
@@ -3575,6 +3575,9 @@ export const visitAnswer = pgTable('visit_answer', {
   answer: text('answer').notNull(),
   flagged: boolean('flagged').default(false).notNull(),
   answeredById: text('answered_by_id').references(() => user.id),
+  // Row 3 (AxisCare Care Vision): a flagged answer stays on the office's dashboard until someone acknowledges it — who and when.
+  acknowledgedAt: timestamp('acknowledged_at'),
+  acknowledgedById: text('acknowledged_by_id').references(() => user.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('visit_answer_once_idx').on(t.timeEntryId, t.questionId, t.phase),
@@ -3593,6 +3596,10 @@ export const visitItem = pgTable('visit_item', {
   detail: text('detail'),
   goalId: text('goal_id'), // an intervention: the goal it is for
   formTemplateId: text('form_template_id').references(() => formTemplates.id, { onDelete: 'cascade' }),
+  // Row 4: an agency-wide item for one service only — visits of clients with this care type (AlayaCare: items per service).
+  careTypeId: text('care_type_id').references(() => careTypes.id, { onDelete: 'cascade' }),
+  // Row 4: a goal taken from the client's care plan ("Use the care plan's goals"), so it is not added twice.
+  fromCarePlan: boolean('from_care_plan').default(false).notNull(),
   required: boolean('required').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
