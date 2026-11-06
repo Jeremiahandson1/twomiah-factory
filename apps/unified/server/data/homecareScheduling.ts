@@ -491,9 +491,10 @@ export async function caregiversForSuggestions(q: Q, companyId: string, dayCol: 
   if (dayCol && !DAY_COLS.has(dayCol)) throw new Error(`bad day: ${dayCol}`)
   return camelRows(await q.execute(sql`SELECT u.id, u.first_name, u.last_name, u.phone, u.default_pay_rate, u.latitude, u.longitude,
       cp.capabilities, cp.gender, cp.languages, cp.max_travel_miles, cp.avoid_attributes, cp.department, to_char(u.hire_date, 'YYYY-MM-DD') AS hire_date,
+      -- row 14: the certifications valid on the visit's day (the agency's day the caller passes); with no day, every active one
       (SELECT string_agg(DISTINCT cr.certification_type, ', ') FROM certification_records cr
         WHERE cr.company_id = ${companyId} AND cr.caregiver_id = u.id AND cr.status = 'active'
-          AND (cr.expiry_date IS NULL OR cr.expiry_date >= COALESCE(${date}::date, CURRENT_DATE))) AS valid_certifications,
+          AND (${date}::date IS NULL OR cr.expiry_date IS NULL OR cr.expiry_date >= ${date}::date)) AS valid_certifications,
       ca.status AS availability_status, ca.max_hours_per_week,
       ${dayCol ? sql.raw(`ca.${dayCol}_available`) : sql`NULL::boolean`} AS day_available,
       ${dayCol ? sql.raw(`to_char(ca.${dayCol}_start_time, 'HH24:MI')`) : sql`NULL::text`} AS day_start_time,
