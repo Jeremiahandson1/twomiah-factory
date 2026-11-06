@@ -38,9 +38,33 @@ const RATE_FIELDS: Array<[string, string]> = [
  * field named instead of being silently stored as 0 / per_push. (Landscaping T14 N1: "per_banana" was saved as
  * per_push and a rate of "abc" as 0.00, both 201)
  */
-export function snowContractInputError(body: any, existing?: any): string | null {
-  if (body.billingMode !== undefined && body.billingMode !== '' && !BILLING_MODES.includes(body.billingMode)) {
-    return `Billing mode must be one of: ${BILLING_MODES.join(', ')}.`
+/** Rows 22–25 (snow_tools, not ready): the contract fields only that switch offers. */
+export const SNOW_TOOLS = 'snow_tools'
+export const SNOW_TOOL_FIELDS = ['depthBands', 'requirePhotos', 'saltUnit', 'saltPerUnitRate', 'saltUnitCost', 'materialMarkupPct', 'baseMinutes', 'minutesPerInch'] as const
+export const SALT_UNITS = ['tons', 'bags', 'lbs', 'yards'] as const
+
+export function snowContractInputError(body: any, existing?: any, tools = false): string | null {
+  const modes: readonly string[] = tools ? [...BILLING_MODES, 'depth_band'] : BILLING_MODES
+  if (body.billingMode !== undefined && body.billingMode !== '' && !modes.includes(body.billingMode)) {
+    return `Billing mode must be one of: ${modes.join(', ')}.`
+  }
+  if (tools) {
+    if ((body.billingMode ?? existing?.billingMode) === 'depth_band') {
+      const bad = depthBandsError(body.depthBands !== undefined ? body.depthBands : existing?.depthBands)
+      if (bad) return bad
+    }
+    if (body.requirePhotos !== undefined && typeof body.requirePhotos !== 'boolean') return 'Say whether photos are required (yes or no).'
+    if (body.saltUnit !== undefined && body.saltUnit !== null && body.saltUnit !== '' && !(SALT_UNITS as readonly string[]).includes(body.saltUnit)) return `Salt is counted in ${SALT_UNITS.join(', ')}.`
+    for (const [k, label, most] of [['saltPerUnitRate', 'Price per unit of salt', 100_000], ['saltUnitCost', 'Our cost per unit of salt', 100_000], ['materialMarkupPct', 'Material markup', 1000], ['minutesPerInch', 'Minutes per inch', 120]] as const) {
+      const v = body[k]
+      if (v === undefined || v === null || String(v).trim() === '') continue
+      const n = Number(v)
+      if (!Number.isFinite(n) || n < 0 || n > most) return `${label} must be a number from 0 to ${most.toLocaleString('en-US')}.`
+    }
+    if (body.baseMinutes !== undefined && body.baseMinutes !== null && String(body.baseMinutes).trim() !== '') {
+      const n = Number(body.baseMinutes)
+      if (!Number.isInteger(n) || n < 1 || n > 600) return 'Base minutes must be a whole number from 1 to 600.'
+    }
   }
   for (const [key, label] of RATE_FIELDS) {
     const v = body[key]
@@ -73,6 +97,7 @@ export function snowContractInputError(body: any, existing?: any): string | null
     per_inch: ['perInchRate', 'a per-inch rate'],
     seasonal: ['seasonalRate', 'a seasonal fee'],
     hourly: ['hourlyRate', 'an hourly rate'],
+    // depth_band is priced by its table, checked above.
   }
   const mode = body.billingMode ?? existing?.billingMode
   const needed = mode ? MODE_RATE[mode] : undefined
@@ -104,6 +129,10 @@ export function snowEventInputError(body: any): string | null {
     const h = Number(body.hours)
     if (!Number.isFinite(h) || h < 0 || h > 48) return 'Hours must be a number from 0 to 48.'
   }
+  if (body.saltQuantity !== undefined && body.saltQuantity !== null && String(body.saltQuantity).trim() !== '') {
+    const q = Number(body.saltQuantity)
+    if (!Number.isFinite(q) || q < 0 || q > 10_000) return 'Salt put down must be an amount from 0 to 10,000.'
+  }
   if (body.servicedAt !== undefined && body.servicedAt !== null && String(body.servicedAt).trim() !== '' && isNaN(new Date(body.servicedAt).getTime())) {
     return 'Serviced date must be a valid date.'
   }
@@ -120,7 +149,37 @@ interface ContractRates {
   saltRate: string | number
   // Read by isBelowTrigger (T58d); typed here for strict TypeScript, the template left it implicit.
   triggerDepthInches?: string | number | null
+  // Rows 22 and 24–25 (snow_tools): the depth-band table, and salt by quantity.
+  depthBands?: unknown
+  saltPerUnitRate?: string | number | null
+  saltUnitCost?: string | number | null
+  materialMarkupPct?: string | number | null
 }
+
+/** A depth-band table as stored: [{ from, to|null, amount }] in inches and dollars, lowest first; anything else is no table. */
+export function readDepthBands(raw: unknown): Array<{ from: number; to: number | null; amount: number }> {
+  if (!Array.isArray(raw)) return []
+  return raw.map((b: any) => ({ from: Number(b?.from), to: b?.to === null || b?.to === undefined || b?.to === '' ? null : Number(b.to), amount: Number(b?.amount) }))
+    .filter((b) => Number.isFinite(b.from) && b.from >= 0 && Number.isFinite(b.amount) && b.amount >= 0 && (b.to === null || (Number.isFinite(b.to) && b.to > b.from)))
+    .sort((a, b) => a.from - b.from)
+}
+
+/** Why a depth-band table cannot be saved, or null: bands in order, not overlapping, only the last open-ended. */
+export function depthBandsError(raw: unknown): string | null {
+  if (!Array.isArray(raw) || !raw.length) return 'Add at least one depth band: from, to and the price.'
+  if (raw.length > 12) return 'A contract has 12 depth bands at most.'
+  const bands = readDepthBands(raw)
+  if (bands.length !== raw.length) return 'Each band needs a depth from, a depth to (higher, or blank for "and over") and a price of 0 or more.'
+  for (let i = 1; i < bands.length; i++) {
+    if (bands[i - 1].to === null) return 'Only the last band can be "and over".'
+    if (bands[i].from < bands[i - 1].to!) return 'The depth bands overlap.'
+  }
+  return null
+}
+
+/** The band a snowfall falls in (from is included, to is not), or null. */
+export const bandFor = (bands: Array<{ from: number; to: number | null; amount: number }>, inches: number) =>
+  bands.find((b) => inches >= b.from && (b.to === null || inches < b.to)) ?? null
 
 /**
  * Bill a single logged snow event against its contract.
@@ -174,11 +233,13 @@ interface ContractRates {
  */
 export function computeSnowEventCharge(
   contract: ContractRates,
-  ev: { pushes: number; snowfallInches: number; saltApplied: boolean; billBelowTrigger?: boolean; hours?: number },
+  ev: { pushes: number; snowfallInches: number; saltApplied: boolean; billBelowTrigger?: boolean; hours?: number; saltQuantity?: number | null },
 ) {
-  const n = (v: string | number) => Number(v) || 0
+  const n = (v: string | number | null | undefined) => Number(v) || 0
   let base = 0
   switch (contract.billingMode) {
+    // Row 22 (Aspire contract approaches): the price of the band the snowfall falls in.
+    case 'depth_band': base = bandFor(readDepthBands(contract.depthBands), n(ev.snowfallInches))?.amount ?? 0; break
     case 'per_push': base = n(ev.pushes) * n(contract.perPushRate); break
     case 'per_event': base = n(contract.perEventRate); break
     case 'per_inch': base = n(ev.snowfallInches) * n(contract.perInchRate); break
@@ -187,7 +248,12 @@ export function computeSnowEventCharge(
     case 'hourly': base = n(ev.hours ?? 0) * n(contract.hourlyRate ?? 0); break
   }
   if (isBelowTrigger(contract, ev) && !ev.billBelowTrigger) base = 0
-  const salt = ev.saltApplied ? n(contract.saltRate) : 0
+  // Salt by quantity (row 24): the amount put down at the contract's price per unit — or, time and materials (hourly), our cost per
+  // unit marked up (row 25, Aspire T&M). No quantity, or no unit price: the flat salt rate when salt was put down, as before.
+  const qty = n(ev.saltQuantity)
+  const perUnit = n(contract.saltPerUnitRate) > 0 ? n(contract.saltPerUnitRate)
+    : contract.billingMode === 'hourly' && n(contract.saltUnitCost) > 0 ? n(contract.saltUnitCost) * (1 + n(contract.materialMarkupPct) / 100) : 0
+  const salt = qty > 0 && perUnit > 0 ? qty * perUnit : ev.saltApplied || qty > 0 ? n(contract.saltRate) : 0
   return Math.round((base + salt) * 100) / 100
 }
 
@@ -293,16 +359,32 @@ export function createSnowBillingRoutes(d: CrmDeps) {
     return listAll(c, data)
   })
 
+  const toolsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, SNOW_TOOLS)
+  /** The rows 22–25 fields a contract save carries (only with snow_tools on). */
+  const toolFields = (body: any): Record<string, unknown> => {
+    const out: Record<string, unknown> = {}
+    if (body.depthBands !== undefined) out.depthBands = body.depthBands === null ? null : readDepthBands(body.depthBands)
+    if (body.requirePhotos !== undefined) out.requirePhotos = !!body.requirePhotos
+    if (body.saltUnit !== undefined) out.saltUnit = body.saltUnit || null
+    for (const k of ['saltPerUnitRate', 'saltUnitCost', 'materialMarkupPct']) if (body[k] !== undefined) out[k] = rate(body[k])
+    if (body.baseMinutes !== undefined) out.baseMinutes = body.baseMinutes === null || body.baseMinutes === '' ? null : Number(body.baseMinutes)
+    if (body.minutesPerInch !== undefined) out.minutesPerInch = body.minutesPerInch === null || body.minutesPerInch === '' ? null : rate(body.minutesPerInch)
+    return out
+  }
+  const usesTools = (body: any) => SNOW_TOOL_FIELDS.some((k) => body?.[k] !== undefined) || body?.billingMode === 'depth_band'
+
   app.post('/contracts', requirePermission('invoices:create'), async (c) => {
     const u = c.get('user')
     const body = await c.req.json()
     if (!body.siteId) return fail(c, 400, 'Pick the site this contract covers.')
-    const bad = snowContractInputError(body)
+    const tools = await toolsOn(u.companyId)
+    if (!tools && usesTools(body)) return fail(c, 403, 'This module is not enabled for your account.', 'FEATURE_NOT_ENABLED')
+    const bad = snowContractInputError(body, undefined, tools)
     if (bad) return fail(c, 400, bad)
     const [siteRow] = await db.select({ id: site.id, contactId: site.contactId }).from(site)
       .where(and(eq(site.id, String(body.siteId)), eq(site.companyId, u.companyId))).limit(1)
     if (!siteRow) return fail(c, 404, 'Site not found')
-    const billingMode = (BILLING_MODES as readonly string[]).includes(body.billingMode) ? body.billingMode : 'per_push'
+    const billingMode = (BILLING_MODES as readonly string[]).includes(body.billingMode) || (tools && body.billingMode === 'depth_band') ? body.billingMode : 'per_push'
     const [contract] = await db.insert(snowContract).values({
       companyId: u.companyId,
       siteId: String(body.siteId),
@@ -317,6 +399,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       hourlyRate: rate(body.hourlyRate),
       triggerDepthInches: rate(body.triggerDepthInches, '2'),
       saltRate: rate(body.saltRate),
+      ...(tools ? toolFields(body) : {}),
       status: body.status ?? 'active',
       notes: body.notes ?? null,
     }).returning()
@@ -333,13 +416,16 @@ export function createSnowBillingRoutes(d: CrmDeps) {
     const [before] = await db.select().from(snowContract)
       .where(and(eq(snowContract.id, id), eq(snowContract.companyId, u.companyId))).limit(1)
     if (!before) return fail(c, 404, 'Contract not found')
-    const bad = snowContractInputError(body, before)
+    const tools = await toolsOn(u.companyId)
+    if (!tools && usesTools(body)) return fail(c, 403, 'This module is not enabled for your account.', 'FEATURE_NOT_ENABLED')
+    const bad = snowContractInputError(body, before, tools)
     if (bad) return fail(c, 400, bad)
     const patch: Record<string, unknown> = { updatedAt: new Date() }
     for (const k of ['perPushRate', 'perEventRate', 'perInchRate', 'seasonalRate', 'hourlyRate', 'triggerDepthInches', 'saltRate']) {
       if (body[k] !== undefined) patch[k] = rate(body[k], k === 'triggerDepthInches' ? '2' : '0')
     }
-    if (body.billingMode && (BILLING_MODES as readonly string[]).includes(body.billingMode)) patch.billingMode = body.billingMode
+    if (body.billingMode && ((BILLING_MODES as readonly string[]).includes(body.billingMode) || (tools && body.billingMode === 'depth_band'))) patch.billingMode = body.billingMode
+    if (tools) Object.assign(patch, toolFields(body))
     if (body.status) patch.status = body.status
     if (body.notes != null) patch.notes = body.notes
     const [contract] = await db.update(snowContract).set(patch)
@@ -442,6 +528,27 @@ export function createSnowBillingRoutes(d: CrmDeps) {
   })
 
   // A removed visit is money that was going to be charged; it leaves a row saying what it was worth and who removed it.
+  // Row 23 (Aspire; snow_tools): the office changes what a logged visit bills — with a reason, audited — before it is billed, instead
+  // of deleting it and logging it again. The contract's own figure is kept beside it.
+  app.put('/events/:id/price', requirePermission('invoices:update'), async (c) => {
+    const u = c.get('user')
+    if (!(await toolsOn(u.companyId))) return fail(c, 403, 'This module is not enabled for your account.', 'FEATURE_NOT_ENABLED')
+    const b: any = await c.req.json().catch(() => ({}))
+    const amount = Number(b?.amount)
+    if (b?.amount === undefined || b?.amount === null || String(b.amount).trim() === '' || !Number.isFinite(amount) || amount < 0 || amount > 1_000_000) return fail(c, 400, 'Give the amount to bill, 0 or more.', undefined, { amount: 'Required' })
+    const reason = typeof b?.reason === 'string' ? b.reason.trim().slice(0, 300) : ''
+    if (!reason) return fail(c, 400, 'Say why the price is changed (the customer and the next person will ask).', undefined, { reason: 'Required' })
+    const [ev] = await db.select().from(snowEvent).where(and(eq(snowEvent.id, c.req.param('id')), eq(snowEvent.companyId, u.companyId))).limit(1)
+    if (!ev) return fail(c, 404, 'Visit not found')
+    if (ev.invoiceId) return fail(c, 409, 'This visit is billed already. Change the invoice instead.')
+    const [row] = await db.update(snowEvent).set({
+      billableAmount: String(Math.round(amount * 100) / 100), computedAmount: ev.computedAmount ?? ev.billableAmount,
+      overrideReason: reason, overriddenById: u.userId, overriddenAt: new Date(),
+    }).where(and(eq(snowEvent.id, ev.id), eq(snowEvent.companyId, u.companyId))).returning()
+    audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'snow_event', entityId: ev.id, entityName: 'Snow visit price', userId: u.userId, companyId: u.companyId, changes: { billableAmount: { from: ev.billableAmount, to: row.billableAmount } }, metadata: { reason } })
+    return one(c, row)
+  })
+
   app.delete('/events/:id', requirePermission('invoices:delete'), async (c) => {
     const u = c.get('user')
     const [gone] = await db.delete(snowEvent)

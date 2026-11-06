@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { CloudSnow, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, useConfirm, useMayWrite } from '../../../shared'
+import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 interface Storm { id: string; name: string; status: string; stops: number; done: number; open: number; skipped: number; earned?: number; unbilled?: number }
@@ -39,6 +39,38 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
   const [stops, setStops] = useState<Stop[]>([])
   const [fig, setFig] = useState({ pushes: '1', snowfallInches: '', saltApplied: false, hours: '' })
   const [bill, setBill] = useState<{ lines: BillLine[]; invoices: number; total: number } | null>(null)
+  // Rows 25 and 30 (snow_tools, not ready): the snowfall expected, the forecast's proposals, starting on its own, the storm text.
+  const tools = useAuth().hasFeature('snow_tools')
+  const mayText = useMayWrite('sms:send')
+  const [expected, setExpected] = useState('')
+  const [proposals, setProposals] = useState<Array<{ date: string; summary: string; snowInches: number; contracts: number; contractIds: string[] }>>([])
+  const [autoStart, setAutoStart] = useState<boolean | null>(null)
+  const [textPreview, setTextPreview] = useState<null | { stormId: string; willText: number; preview: Array<{ name: string; body: string }>; skipped: Array<{ name: string; reason: string }> }>(null)
+  useEffect(() => {
+    if (!tools || !mayRun) return
+    api.get('/api/snow/storms/forecast').then((r: any) => setProposals(Array.isArray(r?.data) ? r.data.filter((d: any) => d.contracts > 0) : [])).catch(() => setProposals([]))
+    api.get('/api/snow/storms/settings').then((r: any) => setAutoStart(!!(r?.data ?? r)?.autoStart)).catch(() => setAutoStart(null))
+  }, [tools, mayRun])
+  const startFromForecast = async (p: { date: string; snowInches: number; contractIds: string[] }) => {
+    setBusy(true)
+    try {
+      const r = await api.post('/api/snow/storms', { name: `Snow ${p.date}`, target: { contractIds: p.contractIds }, date: p.date, expectedInches: p.snowInches, source: 'forecast' }) as any
+      const out = r?.data ?? r
+      toast.success(`Storm started from the forecast — ${out.made ?? 0} contract${out.made === 1 ? '' : 's'} sent out`)
+      await load(); if (out.storm?.id) await openStorm(out.storm.id)
+    } catch (e) { toast.error(errorText(e, 'Could not start the storm')) } finally { setBusy(false) }
+  }
+  const changeAutoStart = async (on: boolean) => {
+    try { await api.put('/api/snow/storms/settings', { autoStart: on }); setAutoStart(on) } catch (e) { toast.error(errorText(e, 'Could not save that')) }
+  }
+  const previewText = async (stormId: string) => {
+    try { const r = await api.post(`/api/snow/storms/${stormId}/notify`, {}) as any; setTextPreview({ stormId, ...(r?.data ?? r) }) } catch (e) { toast.error(errorText(e, 'Could not get the texts ready')) }
+  }
+  const sendText = async () => {
+    if (!textPreview) return
+    try { const r = await api.post(`/api/snow/storms/${textPreview.stormId}/notify`, { dryRun: false }) as any; toast.success(`${(r?.data ?? r).queued} customer text${(r?.data ?? r).queued === 1 ? '' : 's'} queued`); setTextPreview(null) }
+    catch (e) { toast.error(errorText(e, 'The texts were not sent')) }
+  }
 
   const load = async () => {
     try { const r = await api.get('/api/snow/storms') as any; setStorms(Array.isArray(r?.data) ? r.data : []) }
@@ -64,7 +96,7 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
     if (to === 'tag' && !tag.trim()) { toast.error('Type the customer tag'); return }
     setBusy(true)
     try {
-      const r = await api.post('/api/snow/storms', { name: name.trim(), target, date, assignedToId: crewId || undefined }) as any
+      const r = await api.post('/api/snow/storms', { name: name.trim(), target, date, assignedToId: crewId || undefined, ...(tools && expected !== '' ? { expectedInches: Number(expected) } : {}) }) as any
       const out = r?.data ?? r
       toast.success(out.made ? `Storm started — ${out.made} contract${out.made === 1 ? '' : 's'} sent out` : 'Storm started — no active contracts matched')
       setName(''); await load(); if (out.storm?.id) await openStorm(out.storm.id)
@@ -114,6 +146,17 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
       <h2 className="font-semibold flex items-center gap-2 mb-1"><CloudSnow className="w-5 h-5" /> Storms</h2>
       <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">Start a storm and send every contract on a route (or tag) out at once. Crews see their stops on Today&apos;s route and log pushes, salt and hours from the phone; bill the whole storm when it is done.</p>
 
+      {tools && mayRun && (proposals.length > 0 || autoStart !== null) && (
+        <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950/30" data-testid="snow-forecast">
+          {proposals.map((p) => (
+            <div key={p.date} className="flex flex-wrap items-center justify-between gap-2">
+              <span><strong>{p.snowInches} in</strong> of snow forecast for {p.date} ({p.summary}) — {p.contracts} contract{p.contracts === 1 ? '' : 's'} reach their trigger.</span>
+              <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={() => startFromForecast(p)}>Start this storm</button>
+            </div>
+          ))}
+          {autoStart !== null && <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={autoStart} onChange={(e) => changeAutoStart(e.target.checked)} /> Start a storm on its own when the day's forecast reaches a contract's trigger</label>}
+        </div>
+      )}
       {mayRun && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
           <label className="text-xs text-gray-600 dark:text-slate-400 col-span-2">Storm name
@@ -145,6 +188,9 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
           <label className="text-xs text-gray-600 dark:text-slate-400">Day
             <input className="input w-full mt-1" aria-label="Day" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
+          {tools && <label className="text-xs text-gray-600 dark:text-slate-400">Snow expected (in)
+            <input className="input w-full mt-1" aria-label="Snow expected in inches" type="number" min={0} value={expected} onChange={(e) => setExpected(e.target.value)} />
+          </label>}
           <button onClick={start} disabled={busy} className="btn-primary md:col-span-2 self-end disabled:opacity-50">{busy ? 'Starting…' : 'Start storm and send out'}</button>
         </div>
       )}
@@ -181,6 +227,14 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
                 <div className="mt-3 flex gap-2 flex-wrap">
                   {mayBill && <button className="btn-primary btn-sm" disabled={busy} onClick={() => previewBill(s.id)}>Bill this storm…</button>}
                   {s.status === 'active' && mayRun && <button className="btn-secondary btn-sm" onClick={() => end(s.id)}>End storm</button>}
+                  {tools && mayRun && mayText && <button className="btn-secondary btn-sm" onClick={() => previewText(s.id)}>Text the customers…</button>}
+                  {textPreview?.stormId === s.id && (
+                    <div className="mt-2 w-full rounded border p-2 text-xs dark:border-slate-700">
+                      <p>{textPreview.willText} customer{textPreview.willText === 1 ? '' : 's'} will be texted{textPreview.skipped.length ? `; not: ${textPreview.skipped.map((x) => `${x.name} (${x.reason === 'opted_out' ? 'opted out' : 'no phone'})`).join(', ')}` : ''}.</p>
+                      {textPreview.preview[0] && <p className="mt-1 italic">“{textPreview.preview[0].body}”</p>}
+                      <div className="mt-2 flex gap-2"><button className="btn-primary btn-sm" disabled={!textPreview.willText} onClick={sendText}>Send</button><button className="btn-secondary btn-sm" onClick={() => setTextPreview(null)}>Cancel</button></div>
+                    </div>
+                  )}
                 </div>
                 {bill && (
                   <div className="mt-3 rounded-lg border p-3 text-sm dark:border-slate-700">

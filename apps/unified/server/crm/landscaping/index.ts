@@ -13,6 +13,8 @@ import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
 import { photoMarkupMounts } from '../roof/photoMarkup/index.ts'
 import { createCrewDayRoutes } from './crewDay.ts'
+import { autoStartFromForecast } from '../../data/snowForecast.ts'
+import { landscapingSetting } from '../../db/schema/index.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSnowStormRoutes } from './snowStorm.ts'
 import { createVisitReportRoutes } from './visitReports.ts'
@@ -27,6 +29,21 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
       .then((r) => { if (r.length) d.logger.info('[routes] visits topped up', { routes: r.length, visits: r.reduce((n, x) => n + x.made, 0) }) })
       .catch((err: any) => d.logger.error('[routes] visit top-up failed', { error: err?.message }))
     setTimeout(() => { void tick() }, 60_000)
+    // Row 30: a storm started on its own from the forecast — only for a business that turned it on (and has snow_tools), every three hours.
+    const snowTick = async () => {
+      try {
+        const { eq } = await import('drizzle-orm')
+        const { companyTimeZone, storeDayRange } = await import('@twomiah/tenant-backend')
+        const on: any[] = await d.db.select({ companyId: landscapingSetting.companyId }).from(landscapingSetting).where(eq(landscapingSetting.snowAutoStart, true))
+        for (const r of on) {
+          if (!(await d.features.isFeatureEnabled(r.companyId, 'snow_tools')) || !(await d.features.isFeatureEnabled(r.companyId, 'snow_billing'))) continue
+          const tz = await companyTimeZone(d.db, r.companyId)
+          const out = await autoStartFromForecast(d.db, r.companyId, tz, storeDayRange(tz).date)
+          if (out.started) d.logger.info('[snow] storm started from the forecast', { companyId: r.companyId, stormId: out.started.id, made: (out as any).made })
+        }
+      } catch (err: any) { d.logger.error('[snow] forecast check failed', { error: err?.message }) }
+    }
+    setInterval(() => { void snowTick() }, 3 * 3600_000)
     setInterval(() => { void tick() }, 6 * 3600_000)
   })
   return [

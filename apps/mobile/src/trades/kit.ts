@@ -25,6 +25,8 @@ export interface Section { /** Drawn only while this business switch is on (the 
  */
 export interface Input {
   id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level' | 'levels'; choices?: string[]; required?: boolean; initial?: (d: any) => string
+  /** Asked only while this business switch is on (a box the server reads only then); otherwise left out of the sheet. */
+  feature?: string
   /** Choices the SERVER offers for this row (the carrier's rates): fetched when the sheet opens; the person picks a label, the call gets its value. */
   options?: {
     path: (d: any) => string; label: (r: any) => string; value: (r: any) => string; none: string

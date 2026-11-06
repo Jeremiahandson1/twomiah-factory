@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { formatDate } from '../../date'
 import { Plus, Trash2, Snowflake, Loader2, CloudSnow } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, useConfirm, useMayWrite } from '../../../shared'
+import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { SitePicker, useSites } from './SitePicker'
 import { money } from '@twomiah/tenant-ui/src/money'
 import SnowStormPanel from './SnowStormPanel'
@@ -31,11 +31,27 @@ const MODE_RATE: Record<string, { field: RateField; label: string }> = {
   hourly: { field: 'hourlyRate', label: 'Hourly' },
 }
 
-type ContractForm = Record<RateField, string> & { siteId: string; billingMode: string; triggerDepthInches: string; saltRate: string; notes: string }
+type ContractForm = Record<RateField, string> & {
+  siteId: string; billingMode: string; triggerDepthInches: string; saltRate: string; notes: string
+  // Rows 22–25 (snow_tools, not ready).
+  depthBands: Array<{ from: string; to: string; amount: string }>; requirePhotos: boolean; saltUnit: string; saltPerUnitRate: string; saltUnitCost: string
+  materialMarkupPct: string; baseMinutes: string; minutesPerInch: string
+}
 
 const EMPTY_CONTRACT: ContractForm = {
   siteId: '', billingMode: 'per_push', perPushRate: '', perEventRate: '', perInchRate: '',
   seasonalRate: '', hourlyRate: '', triggerDepthInches: '2', saltRate: '', notes: '',
+  depthBands: [{ from: '1', to: '4', amount: '' }, { from: '4', to: '8', amount: '' }, { from: '8', to: '', amount: '' }],
+  requirePhotos: false, saltUnit: '', saltPerUnitRate: '', saltUnitCost: '', materialMarkupPct: '', baseMinutes: '', minutesPerInch: '',
+}
+/** What the contract form sends: the snow_tools fields only where that switch is on. */
+const contractBody = (f: ContractForm, tools: boolean) => {
+  const { depthBands, requirePhotos, saltUnit, saltPerUnitRate, saltUnitCost, materialMarkupPct, baseMinutes, minutesPerInch, ...rest } = f
+  if (!tools) return rest
+  return {
+    ...rest, requirePhotos, saltUnit: saltUnit || null, saltPerUnitRate, saltUnitCost, materialMarkupPct, baseMinutes: baseMinutes || null, minutesPerInch: minutesPerInch || null,
+    ...(f.billingMode === 'depth_band' ? { depthBands: depthBands.filter((b) => b.from !== '' || b.amount !== '').map((b) => ({ from: Number(b.from), to: b.to === '' ? null : Number(b.to), amount: Number(b.amount) })) } : {}),
+  }
 }
 
 type EventForm = { pushes: string; snowfallInches: string; hours: string; saltApplied: boolean; billBelowTrigger: boolean; notes: string }
@@ -129,6 +145,17 @@ export default function SnowBillingPage() {
   }
 
   const needed = MODE_RATE[form.billingMode]
+  // Rows 22–25 (snow_tools, not ready): depth bands, photos, salt by amount, T&M markup, time by snowfall, the price change.
+  const tools = useAuth().hasFeature('snow_tools')
+  const mayChangePrice = useMayWrite('invoices:update')
+  const [repricing, setRepricing] = useState<null | { id: string; amount: string; reason: string }>(null)
+  const reprice = async () => {
+    if (!repricing) return
+    try {
+      await api.put(`/api/snow/events/${repricing.id}/price`, { amount: Number(repricing.amount), reason: repricing.reason })
+      toast.success('Price changed'); setRepricing(null); if (selected) openContract(selected)
+    } catch (error) { toast.error(serverMessage(error, 'Could not change the price')) }
+  }
 
   const createContract = async () => {
     if (!form.siteId) { toast.error('Pick the property this contract covers'); return }
@@ -137,7 +164,7 @@ export default function SnowBillingPage() {
       return
     }
     try {
-      await api.post('/api/snow/contracts', form)
+      await api.post('/api/snow/contracts', contractBody(form, tools))
       toast.success('Contract created')
       setShowForm(false); setForm(EMPTY_CONTRACT); load()
     } catch (error) { toast.error(serverMessage(error, 'Failed to create contract')) }
@@ -219,6 +246,7 @@ export default function SnowBillingPage() {
           <Field id="snow-mode" label="Billing mode">
             <select id="snow-mode" className="input w-full" value={form.billingMode} onChange={(e) => setForm({ ...form, billingMode: e.target.value })}>
               {MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              {tools && <option value="depth_band">By snow depth bands</option>}
             </select>
           </Field>
           <Field id="snow-per-push" label="Per push ($)">
@@ -242,6 +270,31 @@ export default function SnowBillingPage() {
           <Field id="snow-salt" label="Salt ($)">
             <input id="snow-salt" className="input w-full" type="number" placeholder="Salt $" value={form.saltRate} onChange={(e) => setForm({ ...form, saltRate: e.target.value })} />
           </Field>
+          {tools && form.billingMode === 'depth_band' && (
+            <fieldset className="col-span-2 md:col-span-4 rounded border p-2 dark:border-slate-700" data-testid="snow-depth-bands">
+              <legend className="text-xs font-medium">Price by snow depth (inches; leave the last "to" blank for "and over")</legend>
+              {form.depthBands.map((b, i) => (
+                <div key={i} className="mt-1 grid grid-cols-4 gap-2 text-xs">
+                  <input className="input" type="number" aria-label={`Band ${i + 1} from inches`} placeholder="From" value={b.from} onChange={(e) => setForm({ ...form, depthBands: form.depthBands.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)) })} />
+                  <input className="input" type="number" aria-label={`Band ${i + 1} to inches`} placeholder="To" value={b.to} onChange={(e) => setForm({ ...form, depthBands: form.depthBands.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)) })} />
+                  <input className="input" type="number" aria-label={`Band ${i + 1} price`} placeholder="$" value={b.amount} onChange={(e) => setForm({ ...form, depthBands: form.depthBands.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)) })} />
+                  <button type="button" className="text-red-600 dark:text-red-400" onClick={() => setForm({ ...form, depthBands: form.depthBands.filter((_, j) => j !== i) })}>Remove</button>
+                </div>
+              ))}
+              <button type="button" className="mt-1 text-xs text-blue-700 underline dark:text-blue-300" onClick={() => setForm({ ...form, depthBands: [...form.depthBands, { from: '', to: '', amount: '' }] })}>Add a band</button>
+            </fieldset>
+          )}
+          {tools && (
+            <>
+              <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.requirePhotos} onChange={(e) => setForm({ ...form, requirePhotos: e.target.checked })} /> Before and after photos required</label>
+              <Field id="snow-salt-unit" label="Salt counted in"><select id="snow-salt-unit" className="input w-full" value={form.saltUnit} onChange={(e) => setForm({ ...form, saltUnit: e.target.value })}><option value="">Not counted (flat salt $)</option><option value="tons">Tons</option><option value="bags">Bags</option><option value="lbs">Pounds</option><option value="yards">Yards</option></select></Field>
+              <Field id="snow-salt-per" label="Salt $ per unit"><input id="snow-salt-per" className="input w-full" type="number" value={form.saltPerUnitRate} onChange={(e) => setForm({ ...form, saltPerUnitRate: e.target.value })} /></Field>
+              {form.billingMode === 'hourly' && <Field id="snow-salt-cost" label="Our salt cost per unit"><input id="snow-salt-cost" className="input w-full" type="number" value={form.saltUnitCost} onChange={(e) => setForm({ ...form, saltUnitCost: e.target.value })} /></Field>}
+              {form.billingMode === 'hourly' && <Field id="snow-markup" label="Material markup %"><input id="snow-markup" className="input w-full" type="number" value={form.materialMarkupPct} onChange={(e) => setForm({ ...form, materialMarkupPct: e.target.value })} /></Field>}
+              <Field id="snow-base-min" label="Minutes on site (base)"><input id="snow-base-min" className="input w-full" type="number" value={form.baseMinutes} onChange={(e) => setForm({ ...form, baseMinutes: e.target.value })} /></Field>
+              <Field id="snow-min-inch" label="+ minutes per inch"><input id="snow-min-inch" className="input w-full" type="number" value={form.minutesPerInch} onChange={(e) => setForm({ ...form, minutesPerInch: e.target.value })} /></Field>
+            </>
+          )}
           {/* Four rate boxes, one of which the invoice is actually calculated from. Say which. (T41) */}
           {needed && (
             <p className="col-span-2 md:col-span-4 text-xs text-gray-600 dark:text-slate-400">
@@ -346,6 +399,16 @@ export default function SnowBillingPage() {
                         <span className="font-normal text-xs text-gray-500 dark:text-slate-400">below trigger · billed on request</span>
                       )}
                       {money(Number(ev.billableAmount))}
+                      {tools && (ev as any).overrideReason && <span className="block text-xs font-normal text-gray-500 dark:text-slate-400">changed from {money(Number((ev as any).computedAmount))}: {(ev as any).overrideReason}</span>}
+                      {tools && mayChangePrice && !(ev as any).invoiceId && <button type="button" className="block text-xs font-normal text-blue-700 underline dark:text-blue-300" onClick={() => setRepricing({ id: ev.id, amount: String(Number(ev.billableAmount)), reason: '' })}>Change price</button>}
+                      {repricing?.id === ev.id && (
+                        <span className="mt-1 flex flex-wrap items-center gap-1 text-xs font-normal">
+                          <input className="input w-20 py-0.5" type="number" aria-label="New amount" value={repricing.amount} onChange={(e) => setRepricing({ ...repricing, amount: e.target.value })} />
+                          <input className="input py-0.5" aria-label="Why the price changes" placeholder="Why" value={repricing.reason} onChange={(e) => setRepricing({ ...repricing, reason: e.target.value })} />
+                          <button type="button" className="btn-primary btn-sm" onClick={reprice}>Save</button>
+                          <button type="button" className="btn-secondary btn-sm" onClick={() => setRepricing(null)}>Cancel</button>
+                        </span>
+                      )}
                     </span>
                   </div>
                 ))}

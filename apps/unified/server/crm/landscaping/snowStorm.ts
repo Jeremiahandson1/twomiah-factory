@@ -18,6 +18,8 @@ import { fail, one, listAll } from '../../http/reply.ts'
 import {
   startStorm, getStorm, dispatchStorm, stormStops, startStormStop, logStormStop, logAllStormStops, skipStormStop, endStorm, billStorm,
 } from '../../data/snowStorm.ts'
+import { snowProposals, getSnowSettings, setSnowAutoStart, stormTexts } from '../../data/snowForecast.ts'
+import { SNOW_TOOLS } from './snowBilling.ts'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -34,7 +36,9 @@ export function createSnowStormRoutes(d: CrmDeps) {
   const mayWork = async (c: any, stop: { assignedToId: string | null }) =>
     (await may(c, JOB_DISPATCH_PERMISSION)) || (!!stop.assignedToId && stop.assignedToId === c.get('user')?.userId)
   /** The visit's money is for a seat that may read invoices; the crew sees pushes, salt and hours, not what they bill. */
-  const withoutMoney = (ev: any) => { if (!ev) return ev; const { billableAmount, ...rest } = ev; return rest }
+  const withoutMoney = (ev: any) => { if (!ev) return ev; const { billableAmount, computedAmount, ...rest } = ev; return rest }
+  const toolsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, SNOW_TOOLS)
+  const gate = d.features.requireEnabledFeature
   const shapeStop = (s: any, money: boolean) => ({ ...s, event: money ? s.event : withoutMoney(s.event) })
 
   const stopById = async (companyId: string, id: string) =>
@@ -90,7 +94,11 @@ export function createSnowStormRoutes(d: CrmDeps) {
     const name = String(b?.name ?? '').trim()
     if (!name) return fail(c, 400, 'Name the storm (for example "Dec 14 storm").', undefined, { name: 'Required' })
     if (name.length > 120) return fail(c, 400, 'A storm name is at most 120 characters.', undefined, { name: 'Too long' })
-    const storm = await startStorm(db, u.companyId, u.userId, { name, notes: b?.notes ? String(b.notes) : null })
+    // Row 25/30 (snow_tools): the snowfall expected (it scales each stop's time), and whether it came from the forecast's proposal.
+    const tools = await toolsOn(u.companyId)
+    const expected = tools && b?.expectedInches != null && b.expectedInches !== '' ? Number(b.expectedInches) : null
+    if (expected != null && (!Number.isFinite(expected) || expected < 0 || expected > 120)) return fail(c, 400, 'Expected snowfall is inches from 0 to 120.', undefined, { expectedInches: 'Invalid' })
+    const storm = await startStorm(db, u.companyId, u.userId, { name, notes: b?.notes ? String(b.notes) : null, ...(tools ? { source: b?.source === 'forecast' ? 'forecast' : null, expectedInches: expected } : {}) })
     audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_storm', entityId: storm.id, entityName: storm.name, userId: u.userId, companyId: u.companyId })
     // "Start and dispatch" in one go: a target in the same request dispatches straight away.
     if (b?.target) {
@@ -108,7 +116,7 @@ export function createSnowStormRoutes(d: CrmDeps) {
     if (!DAY.test(date) || Number.isNaN(Date.parse(date))) return { error: 'Pick the day to dispatch for (YYYY-MM-DD).', status: 400 }
     const r = await dispatchStorm(db, u.companyId, u.userId, storm, {
       routeId: target?.routeId ?? null, tag: target?.tag ?? null, contractIds: target?.contractIds ?? null, all: target?.all === true,
-    }, { date, assignedToId: assignedToId === undefined ? undefined : (assignedToId ? String(assignedToId) : null) })
+    }, { date, assignedToId: assignedToId === undefined ? undefined : (assignedToId ? String(assignedToId) : null), expectedInches: storm.expectedInches != null ? Number(storm.expectedInches) : null })
     if (r.error) return { error: r.error, status: r.error === 'Route not found' ? 404 : 400 }
     for (const m of r.made) d.realtime.emitToCompany(u.companyId, d.realtime.EVENTS.JOB_UPDATED, { id: m.jobId })
     audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'snow_storm', entityId: storm.id, entityName: `${storm.name} — dispatched ${r.made.length}`, userId: u.userId, companyId: u.companyId, metadata: { made: r.made.length, alreadyThere: r.alreadyThere, target } })
@@ -124,6 +132,25 @@ export function createSnowStormRoutes(d: CrmDeps) {
     const r = await dispatchFor(c, storm, b?.target ?? {}, b?.date, b?.assignedToId)
     if ('error' in r) return fail(c, r.status, r.error)
     return one(c, r, 201)
+  })
+
+  // The next three days' snow against the contracts' triggers: a storm proposed for the day whose snow reaches them.
+  app.get('/forecast', requirePermission(JOB_DISPATCH_PERMISSION), gate(SNOW_TOOLS), async (c) => {
+    const u = c.get('user')
+    const r = await snowProposals(db, u.companyId, await companyTimeZone(db, u.companyId))
+    if ('error' in r) return fail(c, r.code === 'NO_LOCATION' ? 409 : 502, r.error!, r.code)
+    return listAll(c, r.days)
+  })
+
+  // Start a storm on its own from the forecast — the owner's switch, off unless turned on.
+  app.get('/settings', requirePermission(JOB_DISPATCH_PERMISSION), gate(SNOW_TOOLS), async (c) => one(c, await getSnowSettings(db, c.get('user').companyId)))
+  app.put('/settings', requirePermission(JOB_DISPATCH_PERMISSION), requirePermission('settings:update'), gate(SNOW_TOOLS), async (c) => {
+    const u = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (typeof b?.autoStart !== 'boolean') return fail(c, 400, 'Say whether storms start on their own from the forecast (on or off).', undefined, { autoStart: 'Required' })
+    const out = await setSnowAutoStart(db, u.companyId, b.autoStart)
+    audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'landscaping_setting', entityId: u.companyId, entityName: `Snow: start from the forecast ${out.autoStart ? 'on' : 'off'}`, userId: u.userId, companyId: u.companyId })
+    return one(c, out)
   })
 
   app.get('/:id', requirePermission('jobs:read'), async (c) => {
@@ -155,7 +182,7 @@ export function createSnowStormRoutes(d: CrmDeps) {
     if (!stop) return fail(c, 404, 'Storm stop not found')
     if (!(await mayWork(c, stop))) return fail(c, 403, 'This stop is on another crew.')
     const b: any = await c.req.json().catch(() => ({}))
-    const r = await logStormStop(db, u.companyId, u.userId, stop.id, b)
+    const r = await logStormStop(db, u.companyId, u.userId, stop.id, b, new Date(), { tools: await toolsOn(u.companyId) })
     if ('error' in r) return fail(c, r.status, r.error)
     afterJob(u, r.job, 'onComplete')
     if (!r.alreadyLogged) audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'snow_event', entityId: r.event.id, entityName: `Storm visit ($${r.event.billableAmount})`, userId: u.userId, companyId: u.companyId, metadata: { stormId: stop.stormId } })
@@ -180,7 +207,7 @@ export function createSnowStormRoutes(d: CrmDeps) {
     if (storm.status === 'ended') return fail(c, 409, 'This storm has ended.')
     const b: any = await c.req.json().catch(() => ({}))
     const only = Array.isArray(b?.stopIds) ? b.stopIds.map(String) : undefined
-    const r = await logAllStormStops(db, u.companyId, u.userId, storm.id, b, only)
+    const r = await logAllStormStops(db, u.companyId, u.userId, storm.id, b, only, { tools: await toolsOn(u.companyId) })
     for (const j of r.jobs) afterJob(u, j, 'onComplete')
     audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'snow_storm', entityId: storm.id, entityName: `${storm.name} — logged ${r.logged.length}`, userId: u.userId, companyId: u.companyId, metadata: { logged: r.logged.length, failed: r.failed.length } })
     const money = await may(c, 'invoices:read')
@@ -208,6 +235,22 @@ export function createSnowStormRoutes(d: CrmDeps) {
       audit.log({ req: c, action: audit.ACTIONS.CREATE, entity: 'invoice', entityId: storm.id, entityName: `${storm.name} — ${r.invoices} draft invoice${r.invoices === 1 ? '' : 's'}`, userId: u.userId, companyId: u.companyId, metadata: { source: 'snow_storm', total: r.total } })
     }
     return one(c, { confirmed: confirm, ...r }, confirm && r.invoices ? 201 : 200)
+  })
+
+  // ---- Rows 25 and 30 (snow_tools, not ready) ----
+
+  // The storm-wide message to every customer on it (Service Autopilot "weather prevents service"): previewed, then queued.
+  app.post('/:id/notify', requirePermission(JOB_DISPATCH_PERMISSION), gate(SNOW_TOOLS), async (c) => {
+    const u = c.get('user')
+    if (!(await may(c, 'sms:send'))) return fail(c, 403, 'Texting customers is for a seat that may send texts.')
+    const storm = await getStorm(db, u.companyId, c.req.param('id'))
+    if (!storm) return fail(c, 404, 'Storm not found')
+    const b: any = await c.req.json().catch(() => ({}))
+    const message = typeof b?.message === 'string' && b.message.trim() ? b.message.trim().slice(0, 1600) : null
+    const tz = await companyTimeZone(db, u.companyId)
+    const r = await stormTexts(db, u.companyId, u.userId, storm.id, message, tz, new Date(), b?.dryRun === false)
+    if (b?.dryRun === false) audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'snow_storm', entityId: storm.id, entityName: `${storm.name} — customers texted`, userId: u.userId, companyId: u.companyId, metadata: { texts: r.queued } })
+    return one(c, { dryRun: b?.dryRun !== false, willText: r.texts.length, queued: r.queued, preview: r.texts.slice(0, 3).map((t) => ({ name: t.name, body: t.body })), skipped: r.skipped, sendAt: r.texts[0]?.sendAt ?? null })
   })
 
   return app
