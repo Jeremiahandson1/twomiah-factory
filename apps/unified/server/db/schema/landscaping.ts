@@ -440,3 +440,29 @@ export const companyBudget = pgTable('company_budget', {
   index('company_budget_company_id_idx').on(t.companyId),
   uniqueIndex('company_budget_active_year_idx').on(t.companyId, t.year).where(budgetIsActive),
 ])
+
+// A takeoff on an uploaded plan (landscaping parity row 4; Aspire's property takeoffs; feature plan_takeoffs, not ready): the plan file
+// (PDF or picture, in storage at fileKey), the page measured, its scale (feet per page width) and the measured items — areas, lengths
+// and counts, each a list of points in page-width units ([x, y], 0..1 across). data/planTakeoffs.ts measures them; a takeoff becomes
+// quote lines.
+export const planTakeoff = pgTable('plan_takeoff', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  fileKey: text('file_key').notNull(),
+  fileType: text('file_type').notNull(), // application/pdf, image/png, image/jpeg
+  fileName: text('file_name'),
+  page: integer('page').default(1).notNull(),
+  // The page's height ÷ its width, as the screen rendered it (points are in page-width units on both axes).
+  pageAspect: decimal('page_aspect', { precision: 8, scale: 5 }),
+  feetPerWidth: decimal('feet_per_width', { precision: 14, scale: 4 }),
+  items: json('items').default([]).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('plan_takeoff_company_id_idx').on(t.companyId),
+  index('plan_takeoff_site_id_idx').on(t.siteId),
+])
