@@ -45,6 +45,21 @@ export default function TerritoriesPage() {
   // Row 23 (territory_tools, not ready; Spotio): redraw a boundary, Belongs To, import from KML.
   const tools = useAuth().hasFeature('territory_tools')
   const [redrawId, setRedrawId] = useState<string | null>(null)
+  // Row 24 (territory_boundaries, not ready): a state, county, city or ZIP outline from the Census, filled into the new territory.
+  const boundaries = useAuth().hasFeature('territory_boundaries')
+  const [bKind, setBKind] = useState<'zip' | 'city' | 'county' | 'state'>('zip')
+  const [bName, setBName] = useState('')
+  const [bState, setBState] = useState('')
+  const findBoundary = async () => {
+    setBusy(true)
+    try {
+      const r: any = await api.get(`/api/territories/boundary?kind=${bKind}&name=${encodeURIComponent(bName)}&state=${encodeURIComponent(bState)}`)
+      setMode('polygon'); setCentre(null); setCorners(r.boundary.points)
+      if (!name.trim()) setName(r.name)
+      if (bKind === 'zip' && !zipList.includes(bName.trim())) setZips((z) => [z.trim(), bName.trim()].filter(Boolean).join(', '))
+      toast.success(`${r.name} outlined on the map${r.note ? ` — ${r.note}` : ''}`)
+    } catch (e) { toast.error(errorText(e, 'Could not find that boundary')) } finally { setBusy(false) }
+  }
 
   const load = useCallback(async () => {
     try { setRows(listOf<Territory>(await api.get('/api/territories'))) }
@@ -158,6 +173,17 @@ export default function TerritoriesPage() {
               </>
             )}
           </div>
+          {boundaries && (
+            <div className="flex flex-wrap items-end gap-2 text-sm" data-testid="boundary-picker">
+              <label>From a boundary<select className="block border rounded-lg px-2 py-2 bg-white dark:bg-slate-900" value={bKind} onChange={(e) => setBKind(e.target.value as any)}>
+                <option value="zip">ZIP</option><option value="city">City</option><option value="county">County</option><option value="state">State</option>
+              </select></label>
+              {bKind !== 'state' && <label>{bKind === 'zip' ? 'ZIP' : 'Name'}<input value={bName} onChange={(e) => setBName(e.target.value)} className="block border rounded-lg px-3 py-2 w-40 bg-white dark:bg-slate-900" placeholder={bKind === 'zip' ? '54701' : bKind === 'city' ? 'Eau Claire' : 'Chippewa'} /></label>}
+              {bKind !== 'zip' && <label>State<input value={bState} onChange={(e) => setBState(e.target.value.toUpperCase().slice(0, 2))} className="block border rounded-lg px-3 py-2 w-16 bg-white dark:bg-slate-900" placeholder="WI" /></label>}
+              <button onClick={findBoundary} disabled={busy} className="px-3 py-2 rounded-lg border">Outline it</button>
+              <span className="text-xs text-gray-500 dark:text-slate-400">US Census boundaries</span>
+            </div>
+          )}
           <fieldset className="text-sm"><legend className="font-medium">Reps</legend>
             <div className="flex flex-wrap gap-3 mt-1">
               {team.map((p) => (

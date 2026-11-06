@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: territories from Census boundaries (roofing parity row 24; apps/unified server/data/censusBoundary.ts).
+  { id: 'territory_boundaries', name: 'Territories from ZIP, city, county or state', description: 'Make a territory from a ZIP, city, county or state boundary (US Census outlines), shown on the map before you save it', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: territories finished (roofing parity row 23; apps/unified server/crm/roof/field/territories.ts).
   { id: 'territory_tools', name: 'Territories: import, nesting, redraw and the phone warning', description: 'Import territories from a KML file, put a territory inside another, redraw a boundary on the map, and warn a rep on the phone when they knock outside their territory', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: the job thread, company documents and packets in the homeowner portal (roofing parity row 22).

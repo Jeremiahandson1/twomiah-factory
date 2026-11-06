@@ -9,6 +9,7 @@
 //   · canvassing:manage (owner, admin, manager) — create, change, delete, assign reps, and see every territory;
 //   · canvassing:read (the read-only seat) — sees every territory, changes none;
 //   · anyone else (the field rung) — sees only the territories they are on. Another territory answers 404.
+import { findBoundary, BOUNDARY_FEATURE, type Fetcher } from '../../../data/censusBoundary.ts'
 import { readKml, makesLoop, MAX_KML_BYTES } from '../../../data/territoryImport.ts'
 import { Hono } from 'hono'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -67,6 +68,10 @@ export function territoryInputError(input: any, partial = false): { error: strin
 
 /** Roofing parity row 23 (not ready): KML import, Belongs To, the phone's outside-your-territory notice, redrawing a boundary. */
 export const TERRITORY_TOOLS = 'territory_tools'
+
+/** Tests only: stand in for the Census service. */
+let boundaryFetcher: Fetcher | undefined
+export function useBoundaryFetcherForTests(f: Fetcher | undefined) { boundaryFetcher = f }
 
 export function createTerritoryRoutes(d: CrmDeps) {
   const { db } = d
@@ -171,6 +176,15 @@ export function createTerritoryRoutes(d: CrmDeps) {
     }
     return one(c, { created, updated, skipped })
   })
+  // Row 24 (territory_boundaries, not ready; Spotio "Select Territory"): a state, county, city or ZIP outline from the Census's free
+  // TIGERweb service, to look at on the map and save as a territory the ordinary way (data/censusBoundary.ts).
+  app.get('/boundary', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await d.features.isFeatureEnabled(c.get('user').companyId, BOUNDARY_FEATURE).catch(() => false))) return fail(c, 404, 'Not found')
+    const out = await findBoundary(c.req.query('kind') as any, c.req.query('name') || '', c.req.query('state') || '', boundaryFetcher)
+    if (out.status === 'error') return fail(c, out.code === 'BAD_REQUEST' ? 400 : out.code === 'NOT_FOUND' ? 404 : 502, out.error, out.code)
+    return one(c, { name: out.name, boundary: { kind: 'polygon', points: out.points }, parts: out.parts, note: out.note })
+  })
+
   app.put('/:id/parent', requirePermission('canvassing:manage'), async (c) => {
     if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
     const u = c.get('user')
