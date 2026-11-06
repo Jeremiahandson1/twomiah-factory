@@ -360,8 +360,9 @@ describe('save a copy to documents', () => {
 
 describe('a saved copy is dated by the company’s day', () => {
   test('the document’s name carries the company’s calendar day, not UTC’s', async () => {
-    // A zone whose calendar day differs from UTC's right now, whatever the hour: UTC+14 from noon UTC on, UTC-11 before it.
-    const zone = new Date().getUTCHours() >= 12 ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago'
+    // A zone whose calendar day differs from UTC's right now, whatever the hour: UTC+14 is a day ahead from 10:00 UTC on, UTC-11 a day
+    // behind until 11:00 UTC. (The switch was at noon, so between 11:00 and 11:59 UTC the zone chosen was on UTC's own day.)
+    const zone = new Date().getUTCHours() >= 10 ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago'
     const [before] = await t.db.select({ timezone: (t.schema.company as any).timezone }).from(t.schema.company).where(eq(t.schema.company.id, companyId))
     await t.db.update(t.schema.company).set({ timezone: zone } as any).where(eq(t.schema.company.id, companyId))
     try {
