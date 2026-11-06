@@ -11,6 +11,8 @@ import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createRainDayRoutes } from './rainDay.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
+import { photoMarkupMounts } from '../roof/photoMarkup/index.ts'
+import { createCrewDayRoutes } from './crewDay.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSnowStormRoutes } from './snowStorm.ts'
 import { createVisitReportRoutes } from './visitReports.ts'
@@ -41,6 +43,11 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     { path: '/api/snow', access: 'user', feature: 'snow_billing', router: createSnowBillingRoutes(d) },
     // The visit-done message: the crew's note and after-photos, and what the customer was sent. NOT READY (hidden feature).
     { path: '/api/visit-reports', access: 'user', feature: 'visit_reports', router: createVisitReportRoutes(d) },
+    // The crew's day on the phone and the office's side of it (parity rows 11–15): each route asks its own not-ready switch too.
+    { path: '/api/crew-day', access: 'user', feature: 'recurring_routes', router: createCrewDayRoutes(d) },
+    // Drawing on a visit's photos from the phone (landscaping parity row 9; roofing's photo_markup, not ready). Roofing mounts the same
+    // route itself (crm/roof/index.ts), so it is mounted here only where roofing's add-on is not.
+    ...(d.settings?.roof ? [] : photoMarkupMounts(d)),
     { path: '/api/sites', access: 'user', feature: ['snow_billing', 'area_pricing', 'recurring_routes'], router: createSiteRoutes(d) },
   ]
 }

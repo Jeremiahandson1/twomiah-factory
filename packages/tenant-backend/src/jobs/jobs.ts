@@ -62,7 +62,7 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    */
   crewLogin?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
-export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
+export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null; /** "On my way": the minutes the crew said they are away (5–120), for the customer's text. */ etaMinutes?: number | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
 export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook }
 /**
@@ -644,9 +644,9 @@ export function createJobRoutes(deps: JobDeps) {
   }
   /** The hook a status runs when a job moves into it — one table for the buttons and the edit (see PUT /:id). */
   const hookFor = (status: string): JobHook | undefined => jobHookFor(status, o)
-  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, tappedAt?: Date | null) => {
+  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, tappedAt?: Date | null, etaMinutes?: number | null) => {
     if (!hook) return {}
-    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, tappedAt: tappedAt ?? null })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
+    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, tappedAt: tappedAt ?? null, etaMinutes: etaMinutes ?? null })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
   }
 
   // ---------------------------------------------------------------- list / today
@@ -799,6 +799,11 @@ export function createJobRoutes(deps: JobDeps) {
   if (t.jobPhoto && o.storage) {
     const storage = o.storage
     const keyFromUrl = (url: string) => (url || '').startsWith(mediaPrefix) ? url.slice(mediaPrefix.length) : null
+    /**
+     * Before or after the work (Yardbook before/after photos; landscaping parity row 9): the photo's kind, where the table keeps one
+     * (job_photo.photo_type). Anything else is an ordinary photo, as before.
+     */
+    const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && (v === 'before' || v === 'after') ? { photoType: v } : {})
 
     app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
@@ -819,7 +824,7 @@ export function createJobRoutes(deps: JobDeps) {
       const key = `photos/${currentUser.companyId}/${id}/${crypto.randomUUID().replace(/-/g, '')}.${PHOTO_EXT[type]}`
       await storage.put(key, buffer, type)
       const caption = (form!.get('caption') as string) || null
-      const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption }).returning()
+      const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption, ...photoKind(form!.get('kind')) }).returning()
       return c.json(photo, 201)
     })
 
@@ -849,14 +854,14 @@ export function createJobRoutes(deps: JobDeps) {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
-      const body = await c.req.json().catch(() => null) as { photos?: unknown; caption?: unknown; notes?: unknown } | null
+      const body = await c.req.json().catch(() => null) as { photos?: unknown; caption?: unknown; notes?: unknown; kind?: unknown } | null
       const own = `${mediaPrefix}photos/${currentUser.companyId}/${id}/`
       const urls = Array.isArray(body?.photos) ? body!.photos.filter((u): u is string => typeof u === 'string') : []
       if (urls.some((u) => !u.startsWith(own) || u.includes('..'))) return c.json({ error: 'A photo could not be read — take it again.', code: 'bad_photo' }, 400)
       const caption = [typeof body?.caption === 'string' ? body.caption : '', typeof body?.notes === 'string' ? body.notes : ''].map((x) => x.trim()).filter(Boolean).join('\n') || null
       const have = new Set((await db.select({ url: t.jobPhoto.url }).from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId)))).map((r: any) => r.url))
       const fresh = [...new Set(urls)].filter((u) => !have.has(u))
-      const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption }))).returning() : []
+      const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption, ...photoKind(body?.kind) }))).returning() : []
       return c.json({ saved: made.length, photos: made }, made.length ? 201 : 200)
     })
 
@@ -1289,9 +1294,12 @@ export function createJobRoutes(deps: JobDeps) {
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
       // The phone says WHEN the tech tapped (`tappedAt`): a move kept on the phone until signal returns still records the real
       // time. Believed only if it is a time (not in the future, not more than a week back); else the time it arrives is used.
-      const said = (await c.req.json().catch(() => null) as { tappedAt?: unknown } | null)?.tappedAt
+      const sent = await c.req.json().catch(() => null) as { tappedAt?: unknown; etaMinutes?: unknown } | null
+      const said = sent?.tappedAt
       const tapped = typeof said === 'string' && !Number.isNaN(Date.parse(said)) ? new Date(said) : null
       const when = tapped && tapped.getTime() <= Date.now() + 5 * 60_000 && tapped.getTime() >= Date.now() - 7 * 86_400_000 ? tapped : null
+      // "On my way" can say how far away the crew is (Jobber's 5–60 minute picker): whole minutes 1–120, else the usual wording.
+      const eta = status === 'dispatched' && typeof sent?.etaMinutes === 'number' && Number.isInteger(sent.etaMinutes) && sent.etaMinutes >= 1 && sent.etaMinutes <= 120 ? sent.etaMinutes : null
       // Moving a job OUT of completed clears the completion stamp — the same rule the status dropdown has
       // followed since landscaping T14 L13. Start and Dispatch only wrote the status, so reopening a finished
       // job left it still claiming a completion time, and "Completed today" kept counting it. (T26 M1)
@@ -1311,7 +1319,7 @@ export function createJobRoutes(deps: JobDeps) {
         return c.json({ error: jobMoveRefusal(status, String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
       }
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
-      const more = await runHook(hook(), updated, currentUser, when)
+      const more = await runHook(hook(), updated, currentUser, when, eta)
       // Start / Complete / Dispatch are a field seat's buttons; the moved row's money is withheld (./jobMoney.ts).
       return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })

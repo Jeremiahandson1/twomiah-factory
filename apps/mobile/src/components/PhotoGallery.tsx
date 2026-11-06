@@ -33,7 +33,7 @@ import type { MarkupShape } from '../photos/markup'
 import { useOfflineApi } from '../offline/useOfflineApi'
 import { useOfflineQueue } from '../offline/OfflineContext'
 import { getSaved } from '../offline/readThrough'
-import { jobPhotoRequest, pendingJobPhotos } from '../jobflow/jobPhotos'
+import { jobPhotoRequest, pendingJobPhotos, type PhotoKind } from '../jobflow/jobPhotos'
 
 /** The verticals whose job carries its own photos (CrmSettings.jobs.photos, and roofing's job module). */
 const PHOTOS_ON_JOB = ['basic', 'fieldservice', 'landscaping', 'roofing']
@@ -46,6 +46,8 @@ export interface JobPhoto {
   caption?: string | null
   /** On a marked copy (roofing's photo_markup): the photo it was drawn on, and the drawing. */
   sourcePhotoId?: string | null
+  /** 'before' / 'after' the work (landscaping's visit photos), else an ordinary photo. */
+  photoType?: string | null
   markup?: MarkupShape[] | null
 }
 
@@ -86,9 +88,14 @@ interface Props {
   jobId: string
   /** May this person add a photo? (jobs:update on a job's own photos; documents:create on the contractor's.) */
   canAdd?: boolean
+  /**
+   * Ask whether each photo is from BEFORE or AFTER the work (landscaping's visit, Yardbook before/after): a Before / After choice
+   * above the strip, each photo tagged. Only where the job keeps its own photos.
+   */
+  kinds?: boolean
 }
 
-export function PhotoGallery({ jobId, canAdd = true }: Props) {
+export function PhotoGallery({ jobId, canAdd = true, kinds = false }: Props) {
   const t = useTheme()
   // The full-screen viewer draws under the status bar (edge-to-edge): the close button clears it.
   const insets = useSafeAreaInsets()
@@ -103,6 +110,7 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const [viewPhoto, setViewPhoto] = useState<JobPhoto | null>(null)
   // Drawing on a photo (photo_markup, not ready; ../photos/PhotoMarkup.tsx): the original being drawn on.
   const [drawing, setDrawing] = useState<JobPhoto | null>(null)
+  const [kind, setKind] = useState<PhotoKind>('before')
   const mayDraw = canAdd && photosOnJob(vertical) && hasFeature('photo_markup')
   const enabled = hasFeature('photo_capture')
   const offline = useOfflineApi()
@@ -132,7 +140,9 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
     // A job that keeps its own photos sends them through the offline queue: with signal at once, without it kept on the phone.
     if (photosOnJob(vertical)) {
       setUploading(true)
-      const r = await offline.post(`/api/jobs/${jobId}/photos/saved`, jobPhotoRequest(jobId, [result.uri], 'Job photo').body, { recordKey: jobPhotoRequest(jobId, [], '').recordKey, label: 'Job photo' })
+      const asked = kinds ? kind : undefined
+      const label = asked === 'before' ? 'Before photo' : asked === 'after' ? 'After photo' : 'Job photo'
+      const r = await offline.post(`/api/jobs/${jobId}/photos/saved`, jobPhotoRequest(jobId, [result.uri], label, asked).body, { recordKey: jobPhotoRequest(jobId, [], '').recordKey, label })
       setUploading(false)
       if (r.queued) { haptics.success(); toast.success('Saved on the phone \u2014 waiting to send') }
       else if (r.ok) { haptics.success(); toast.success('Photo uploaded'); loadPhotos() }
@@ -167,6 +177,16 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
           </View>
         )}
       </View>
+      {kinds && canAdd && photosOnJob(vertical) ? (
+        <View style={styles.kinds} accessibilityRole="radiogroup">
+          {(['before', 'after'] as const).map((k) => (
+            <TouchableOpacity key={k} accessibilityRole="radio" accessibilityState={{ selected: kind === k }} onPress={() => setKind(k)}
+              style={[styles.kind, { borderColor: kind === k ? t.primary : t.border, backgroundColor: kind === k ? t.primaryLight : 'transparent' }]}>
+              <Text style={{ color: kind === k ? t.primary : t.textMuted, fontWeight: '600', fontSize: 13 }}>{k === 'before' ? 'Before the work' : 'After the work'}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator style={{ marginVertical: 20 }} color={t.primary} />
@@ -192,12 +212,14 @@ export function PhotoGallery({ jobId, canAdd = true }: Props) {
             <View key={`${p.itemId}:${p.uri}`} accessibilityLabel={p.state === 'failed' ? "Couldn't send \u2014 tap to fix in Waiting to send" : 'Waiting to send'}>
               <Image source={{ uri: p.uri }} style={[styles.thumb, { opacity: 0.6 }]} />
               <View style={{ position: 'absolute', right: 4, top: 4 }}><Ionicons name={p.state === 'failed' ? 'alert-circle' : 'time'} size={18} color={p.state === 'failed' ? t.error : t.warning} /></View>
+              {kinds && p.kind ? <View style={[styles.marked, { backgroundColor: t.textMuted }]}><Text style={[styles.markedText, { color: t.onPrimary }]}>{p.kind === 'before' ? 'Before' : 'After'}</Text></View> : null}
             </View>
           ))}
           {photos.map(photo => (
             <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)} accessibilityLabel={photo.sourcePhotoId ? `Marked copy of ${photo.caption || 'photo'}` : photo.caption || 'Photo'}>
               <Image source={photoSource(photo, true)} style={styles.thumb} />
-              {photo.sourcePhotoId ? <View style={[styles.marked, { backgroundColor: t.primary }]}><Text style={[styles.markedText, { color: t.onPrimary }]}>Marked</Text></View> : null}
+              {photo.sourcePhotoId ? <View style={[styles.marked, { backgroundColor: t.primary }]}><Text style={[styles.markedText, { color: t.onPrimary }]}>Marked</Text></View>
+                : kinds && (photo.photoType === 'before' || photo.photoType === 'after') ? <View style={[styles.marked, { backgroundColor: t.textMuted }]}><Text style={[styles.markedText, { color: t.onPrimary }]}>{photo.photoType === 'before' ? 'Before' : 'After'}</Text></View> : null}
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -245,6 +267,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   title: { fontSize: 15, fontWeight: '700' },
   addBtns: { flexDirection: 'row', gap: 8 },
+  kinds: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  kind: { flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   addBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   strip: { gap: 8, paddingBottom: 4 },
   thumb: { width: 80, height: 80, borderRadius: 8 },

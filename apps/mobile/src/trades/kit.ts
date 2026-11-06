@@ -17,8 +17,8 @@ export const FORBIDDEN = /(refund|charge|checkout|\/pos\b|register|kiosk|gift-?c
 export const rowCache = new Map<string, any>()
 export interface Row { open?: { spec: string; id: string }; key: string; title: string; subtitle?: string; meta?: string; badge?: string; tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
-export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string }
-export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
+export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string; /** Driving directions to this address in the crew's chosen maps app (./directions.ts). */ directions?: string }
+export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** …and only while this one is OFF (a section another switch replaces). */ unlessFeature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
 /**
  * kind 'level' is a fill level: a number of percent from 0 to 100 (empty = not used) — the phone's draggable slider.
  * kind 'levels' is ANY NUMBER of them (parity row 15): the value is a JSON list of percents, one per open bottle; + adds a bottle, each has its slider and a remove.
@@ -86,6 +86,11 @@ export interface ScreenSpec {
   links?: Array<{ label: string; route: string; icon?: string; any: string[]; feature?: string }>
   /** A "+" in the header that opens a form screen of its own (an expense with its receipt photo), for a seat with `any`. */
   create?: { label: string; route: string; any: string[] }
+  /**
+   * The offline queue's record key for a row (the same `key` its actions' `offline` uses): while a save of that record is kept on
+   * the phone, the list row and the detail say "Waiting to send" — never the status the server has not heard of yet.
+   */
+  waitingKey?: (d: any) => string
 }
 /** A chip's day, worked out when the list loads (a chip's query is fixed data): {dayStart} / {dayEnd} are today's start and
  *  end on this phone's clock, {weekEnd} the end of the seventh day — as instants, the bookings list's from/to. */
@@ -108,3 +113,8 @@ export const mayUse = (s: { any: string[]; feature?: string }, can: (p: string) 
 export const calDay = (v: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v ?? '')); if (!m) return undefined; return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) }
 /** '19:30' → '7:30 PM'. */
 export const hhmm = (v: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? '')); if (!m) return undefined; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}` }
+
+/** Is a save of this record still on the phone (waiting, sending or refused)? `queue` is the offline queue's items. */
+export const isWaiting = (queue: Array<{ recordKey?: string }> | undefined, key: string | undefined) => !!key && !!queue?.some((i) => i.recordKey === key)
+/** A row as the list draws it while one of its saves is on the phone: said as waiting, never as done (src/offline/README.md). */
+export const asWaiting = <R extends Row>(r: R, waiting: boolean): R => (waiting ? { ...r, badge: 'Waiting to send', tone: 'warning' } : r)

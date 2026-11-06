@@ -14,18 +14,36 @@ import { pictureToken } from '../crm/comms/smsMedia.ts'
 export const MAX_REPORT_PHOTOS = 3
 export const MAX_NOTE = 1000
 export const AFTER = 'after'
+/** A photo the crew took before starting (Yardbook before/after; landscaping parity row 9). */
+export const BEFORE = 'before'
 
 const MEDIA_PREFIX = '/media/'
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
 const first = (name: string | null | undefined) => String(name || '').trim().split(/\s+/)[0] || 'there'
 const keyOf = (url: string) => (String(url || '').startsWith(MEDIA_PREFIX) ? String(url).slice(MEDIA_PREFIX.length) : null)
 
-/** The job's after-photos, newest last (the order the crew took them): `{ id, key }`, keys in the private store. */
-export async function afterPhotos(db: any, companyId: string, jobId: string): Promise<Array<{ id: string; key: string; caption: string | null }>> {
+/**
+ * The job's before- and after-photos (Yardbook sends both with the visit report): the before ones first, then the after ones, each
+ * in the order the crew took them. `kind` says which.
+ */
+export async function visitPhotos(db: any, companyId: string, jobId: string): Promise<Array<{ id: string; key: string; caption: string | null; kind: 'before' | 'after' }>> {
   const rows: any[] = await db.select().from(jobPhoto)
-    .where(and(eq(jobPhoto.companyId, companyId), eq(jobPhoto.jobId, jobId), eq(jobPhoto.photoType, AFTER)))
+    .where(and(eq(jobPhoto.companyId, companyId), eq(jobPhoto.jobId, jobId), inArray(jobPhoto.photoType, [BEFORE, AFTER])))
     .orderBy(asc(jobPhoto.createdAt), asc(jobPhoto.id))
-  return rows.map((r) => ({ id: r.id, key: keyOf(r.url) as string, caption: r.caption ?? null })).filter((r) => !!r.key)
+  // A photo the crew drew on (photo_markup) goes in place of its original: the marked copy keeps the original's kind.
+  const drawnOn = new Set(rows.map((r) => r.sourcePhotoId).filter(Boolean))
+  const all = rows.filter((r) => !drawnOn.has(r.id)).map((r) => ({ id: r.id, key: keyOf(r.url) as string, caption: r.caption ?? null, kind: (r.photoType === BEFORE ? 'before' : 'after') as 'before' | 'after' })).filter((r) => !!r.key)
+  return [...all.filter((p) => p.kind === 'before'), ...all.filter((p) => p.kind === 'after')]
+}
+
+/**
+ * The pictures a visit-done message carries (a text takes MAX_REPORT_PHOTOS): with both kinds, the first before-photo and then the
+ * after-photos — the change the customer is paying for; with one kind, that kind.
+ */
+export function messagePhotos<P extends { kind: 'before' | 'after' }>(photos: P[], max = MAX_REPORT_PHOTOS): P[] {
+  const before = photos.filter((p) => p.kind === 'before'), after = photos.filter((p) => p.kind === 'after')
+  if (before.length && after.length) return [before[0], ...after].slice(0, max)
+  return photos.slice(0, max)
 }
 
 export async function getReport(db: any, companyId: string, jobId: string) {
@@ -61,8 +79,9 @@ export function visitMessage(w: VisitWords): { text: string; subject: string } {
   }
 }
 
-export function visitEmailHtml(w: VisitWords, pictureUrls: string[]): string {
-  const imgs = pictureUrls.map((u) => `<p><img src="${esc(u)}" alt="After photo" style="max-width:100%;border-radius:8px"></p>`).join('')
+export function visitEmailHtml(w: VisitWords, pictureUrls: string[], kinds: Array<'before' | 'after'> = []): string {
+  const label = (i: number) => (kinds[i] === 'before' ? 'Before' : 'After')
+  const imgs = pictureUrls.map((u, i) => `${kinds.length ? `<p style="margin:12px 0 4px;font-weight:bold">${label(i)}</p>` : ''}<p style="margin-top:0"><img src="${esc(u)}" alt="${label(i)} photo" style="max-width:100%;border-radius:8px"></p>`).join('')
   return `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111827">
 <h2 style="margin:0 0 8px">${esc(w.title)} is done</h2>
 <p>Hi ${esc(w.firstName)}, ${esc(w.companyName)} finished this visit on ${esc(w.day)}.</p>
@@ -122,7 +141,7 @@ export async function sendVisitReport(db: any, deps: SendDeps, companyId: string
     return { status: 'nothing', reason: !ct ? 'The visit has no customer.' : 'No way to reach this customer: no phone or email, or they opted out.' }
   }
 
-  const photos = (await afterPhotos(db, companyId, jobId)).slice(0, MAX_REPORT_PHOTOS)
+  const photos = messagePhotos(await visitPhotos(db, companyId, jobId))
   const day = new Date(j.completedAt ?? now).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz })
   const words: VisitWords = { companyName: co?.name || 'We', firstName: first(ct.name), title: String(j.title || 'your visit'), day, note: report.note ?? null, photos: photos.length }
   const msg = visitMessage(words)
@@ -136,8 +155,10 @@ export async function sendVisitReport(db: any, deps: SendDeps, companyId: string
     return { status: 'queued', channel: 'text', photos: photos.length, sendAt }
   }
   try {
-    const urls = photos.map((p) => deps.pictureUrl(p.key, EMAIL_PICTURE_SECONDS)).filter((u): u is string => !!u)
-    await deps.sendEmail({ to: String(ct.email).trim(), subject: msg.subject, html: visitEmailHtml({ ...words, photos: urls.length }, urls) })
+    // The email has room for every photo, before and after, each labelled.
+    const pics = (await visitPhotos(db, companyId, jobId)).map((p) => ({ url: deps.pictureUrl(p.key, EMAIL_PICTURE_SECONDS), kind: p.kind })).filter((p): p is { url: string; kind: 'before' | 'after' } => !!p.url)
+    const urls = pics.map((p) => p.url)
+    await deps.sendEmail({ to: String(ct.email).trim(), subject: msg.subject, html: visitEmailHtml({ ...words, photos: urls.length }, urls, pics.map((p) => p.kind)) })
     await settle('sent', { channel: 'email', photoCount: urls.length, sendAt: now, sentAt: now, error: null })
     return { status: 'sent', channel: 'email', photos: urls.length, sendAt: now }
   } catch (err: any) {
@@ -164,12 +185,12 @@ export async function visitsForCustomer(db: any, companyId: string, contactId: s
     .orderBy(desc(job.completedAt)).limit(limit)
   const out = []
   for (const x of rows) {
-    const photos = await afterPhotos(db, companyId, x.jobId)
+    const photos = await visitPhotos(db, companyId, x.jobId)
     // A visit with neither a note nor a photo has nothing to show.
     if (!x.r.note && !photos.length) continue
     out.push({
       jobId: x.jobId, title: x.title, completedAt: x.completedAt, note: x.r.note ?? null,
-      photos: photos.map((p) => ({ id: p.id, caption: p.caption, url: pictureUrl(p.key, 3600) })).filter((p) => !!p.url),
+      photos: photos.map((p) => ({ id: p.id, caption: p.caption, kind: p.kind, url: pictureUrl(p.key, 3600) })).filter((p) => !!p.url),
     })
   }
   return out

@@ -7,12 +7,14 @@ import { useList } from '../home/useList'
 import { useAuth } from '../auth/AuthContext'
 import { useVertical } from '../vertical/VerticalContext'
 import { specFor } from './specs'
-import { mayUse, rowCache } from './kit'
+import { mayUse, rowCache, isWaiting, asWaiting } from './kit'
+import { useOfflineQueue } from '../offline/OfflineContext'
 
 export function LandscapingDay({ tab }: { tab?: boolean }) {
   const router = useRouter()
   const { can } = useAuth()
   const { hasFeature } = useVertical()
+  const { queue } = useOfflineQueue()
   const route = specFor('landscaping-route')!
   const snow = specFor('landscaping-snow')!
   const showRoute = mayUse(route, can, hasFeature)
@@ -37,14 +39,18 @@ export function LandscapingDay({ tab }: { tab?: boolean }) {
               {waiting.length ? (
                 <View style={{ gap: space[2] }}>
                   <SectionHeader title="Snow stops — log each one when it is done" />
-                  <Group>{waiting.map((s, i) => { const r = snow.rows(s, {}); rowCache.set(`${snow.id}:${r.id}`, s)
+                  <Group>{waiting.map((s, i) => { const r = asWaiting(snow.rows(s, {}), isWaiting(queue, snow.waitingKey?.(s))); rowCache.set(`${snow.id}:${r.id}`, s)
                     return <ListRow key={r.key} title={r.title} subtitle={r.subtitle} badge={r.badge} badgeTone={r.tone} divider={i < waiting.length - 1} onPress={() => open(snow.id, r.id)} /> })}</Group>
                 </View>
+              ) : null}
+              {/* The day on a map, numbered, and the Finish Day recap (parity rows 11 and 14; crew_day_map, not ready). */}
+              {showRoute && hasFeature('crew_day_map') ? (
+                <Group><ListRow title="Map of my day and Finish Day" subtitle="Your stops on a map, in order, and how the day went" icon="map" divider={false} onPress={() => router.push('/(details)/route-day' as any)} /></Group>
               ) : null}
               {visits.rows.length ? (
                 <View style={{ gap: space[2] }}>
                   <SectionHeader title="Today's visits, in order" />
-                  <Group>{visits.rows.map((j, i) => { const r = route.rows(j, {}); rowCache.set(`${route.id}:${r.id}`, j)
+                  <Group>{visits.rows.map((j, i) => { const r = asWaiting(route.rows(j, {}), isWaiting(queue, route.waitingKey?.(j))); rowCache.set(`${route.id}:${r.id}`, j)
                     return <ListRow key={r.key} title={`${i + 1}. ${r.title}`} subtitle={r.subtitle} meta={r.meta} badge={r.badge} badgeTone={r.tone} divider={i < visits.rows.length - 1} onPress={() => open(route.id, r.id)} /> })}</Group>
                 </View>
               ) : null}

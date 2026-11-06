@@ -12,12 +12,15 @@ export const photosKey = (jobId: string) => `jobphotos:${jobId}`
 const savedPath = (jobId: string) => `/api/jobs/${encodeURIComponent(jobId)}/photos/saved`
 const filePath = (jobId: string) => `/api/jobs/${encodeURIComponent(jobId)}/photos/file`
 
-/** The save the gallery hands the offline queue for the pictures just taken. */
-export function jobPhotoRequest(jobId: string, uris: string[], label: string): NewItem {
-  return { method: 'POST', path: savedPath(jobId), body: { $photos: { uploadTo: filePath(jobId), uris } }, recordKey: photosKey(jobId), label }
+/** Before or after the work (landscaping's visit photos, Yardbook): kept on the photo by the server (job_photo.photo_type). */
+export type PhotoKind = 'before' | 'after'
+
+/** The save the gallery hands the offline queue for the pictures just taken (`kind`: before or after the work, where asked). */
+export function jobPhotoRequest(jobId: string, uris: string[], label: string, kind?: PhotoKind): NewItem {
+  return { method: 'POST', path: savedPath(jobId), body: { $photos: { uploadTo: filePath(jobId), uris }, ...(kind ? { kind } : {}) }, recordKey: photosKey(jobId), label }
 }
 
-export interface PendingPhoto { uri: string; itemId: string; state: 'waiting' | 'sending' | 'failed'; message?: string }
+export interface PendingPhoto { uri: string; itemId: string; state: 'waiting' | 'sending' | 'failed'; message?: string; kind?: PhotoKind }
 
 /** The pictures of this job still on the phone: waiting to be sent, being sent, or refused by the server. */
 export function pendingJobPhotos(queue: Array<Pick<ItemView, 'id' | 'path' | 'method' | 'state' | 'body' | 'refusal'>>, jobId: string): PendingPhoto[] {
@@ -25,5 +28,6 @@ export function pendingJobPhotos(queue: Array<Pick<ItemView, 'id' | 'path' | 'me
     .filter((q) => q.method === 'POST' && q.path === savedPath(jobId))
     .flatMap((q) => ((q.body as any)?.$photos?.uris ?? []).map((uri: string) => ({
       uri, itemId: q.id, state: q.state as PendingPhoto['state'], ...(q.refusal?.message ? { message: q.refusal.message } : {}),
+      ...((q.body as any)?.kind === 'before' || (q.body as any)?.kind === 'after' ? { kind: (q.body as any).kind } : {}),
     })))
 }
