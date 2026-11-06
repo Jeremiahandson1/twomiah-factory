@@ -9,7 +9,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import { billingFor, billedVisits, BILLING_MODES } from '../../data/routeBilling.ts'
-import { makeRouteVisits, retimeRouteVisits, reassignOpenVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, companyToday, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
+import { lastVisitDay, cancelOutOfSeason, crewClashes, yardPoint, makeRouteVisits, retimeRouteVisits, reassignOpenVisits, cancelOpenVisits, visitsOfRoute, routeStopPoints, companyToday, HHMM, MAX_VISIT_WEEKS } from '../../data/routeVisits.ts'
 import { createRoutingService } from '../field/routingService.ts'
 import { createGeocodingService } from '../field/geocodingService.ts'
 import { createJobCostingService } from '../field/jobCostingService.ts'
@@ -23,6 +23,12 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
  */
 const DAY_INDEX_HELP = 'Pick the day this route runs — Sunday (0) through Saturday (6).'
 const NAME_HELP = 'Give the route a name — it is what the crew sees on the board.'
+/** Landscaping parity rows 20 and 21 (not ready): seasons, a new stop's visits at once, crew clashes, the optimiser from the yard, drag. */
+export const ROUTE_BOARD_TOOLS = 'route_board_tools'
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+const isYmd = (v: unknown): v is string => typeof v === 'string' && YMD.test(v) && !Number.isNaN(Date.parse(v))
+/** The same day a year on (Feb 29 becomes Feb 28). */
+const nextYear = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); const t = new Date(Date.UTC(y + 1, m - 1, d)); if (t.getUTCMonth() !== m - 1) t.setUTCDate(0); return t.toISOString().slice(0, 10) }
 const START_HELP = 'Give the time the crew leaves the yard as hours and minutes, like 07:30. The first stop starts then.'
 
 /**
@@ -59,6 +65,7 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
   const { db, audit } = d
   const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
   const app = new Hono<AppEnv>()
+  const toolsOn = (companyId: string) => d.features.isFeatureEnabled(companyId, ROUTE_BOARD_TOOLS)
 
   /**
    * What a route earns is the books, not the round (T62: "route cards show weekly revenue ($55)"). The price per visit
@@ -152,9 +159,11 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     const u = c.get('user')
     const route = await routeWithStops(c.req.param('id'), u.companyId)
     if (!route) return fail(c, 404, 'Route not found')
-    if (await maySeeMoney(c)) return one(c, { ...route, billing: await billingFor(db, u.companyId, route) })
+    // Row 21: the visits still to do whose crew is already booked at that time on another job — said, never stopped.
+    const extra = (await toolsOn(u.companyId)) ? { clashes: await crewClashes(db, u.companyId, route.id, await companyToday(db, u.companyId)) } : {}
+    if (await maySeeMoney(c)) return one(c, { ...route, ...extra, billing: await billingFor(db, u.companyId, route) })
     const { billingMode: _mode, ...crewRoute } = route
-    return one(c, { ...crewRoute, stops: route.stops.map(withoutPrice) })
+    return one(c, { ...crewRoute, ...extra, stops: route.stops.map(withoutPrice) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {
@@ -207,6 +216,16 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     }
     if (body.status) patch.status = body.status
     if (body.notes != null) patch.notes = body.notes
+    // Row 20: the route's season (both days kept; blank = all year). A season set or shortened cancels the visits outside it.
+    if (body.seasonStart !== undefined || body.seasonEnd !== undefined) {
+      if (!(await toolsOn(u.companyId))) return fail(c, 403, 'This module is not enabled for your account.', 'FEATURE_NOT_ENABLED')
+      const start = body.seasonStart === '' || body.seasonStart === null ? null : body.seasonStart
+      const end = body.seasonEnd === '' || body.seasonEnd === null ? null : body.seasonEnd
+      if (start !== undefined && start !== null && !isYmd(start)) return fail(c, 400, 'Pick the day the season starts.', undefined, { seasonStart: 'Pick a day' })
+      if (end !== undefined && end !== null && !isYmd(end)) return fail(c, 400, 'Pick the day the season ends.', undefined, { seasonEnd: 'Pick a day' })
+      if (start !== undefined) patch.seasonStart = start
+      if (end !== undefined) patch.seasonEnd = end
+    }
     if (body.startTime != null && body.startTime !== '') {
       if (!HHMM.test(String(body.startTime))) return fail(c, 400, START_HELP, undefined, { startTime: START_HELP })
       patch.startTime = String(body.startTime)
@@ -231,9 +250,18 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     })
     // A new start time moves every still-to-do visit of this route with it.
     if (patch.startTime && before && before.startTime !== route.startTime) await retimeRouteVisits(db, u.companyId, route.id)
+    // A season set or changed: the visits still just scheduled outside it are cancelled (and none are made there again).
+    if (route.seasonStart && route.seasonEnd && route.seasonEnd < route.seasonStart) {
+      await db.update(recurringRoute).set({ seasonStart: before?.seasonStart ?? null, seasonEnd: before?.seasonEnd ?? null }).where(eq(recurringRoute.id, route.id))
+      return fail(c, 400, 'The season ends after it starts.', undefined, { seasonEnd: 'Before the start' })
+    }
+    let cancelledOutOfSeason = 0
+    if (before && (before.seasonStart !== route.seasonStart || before.seasonEnd !== route.seasonEnd)) {
+      cancelledOutOfSeason = await cancelOutOfSeason(db, u.companyId, route, await companyToday(db, u.companyId))
+    }
     // A new crew takes the visits still to do; the ones already done stay with whoever did them.
     if ('assignedToId' in patch && before && before.assignedToId !== route.assignedToId) await reassignOpenVisits(db, u.companyId, route.id, route.assignedToId)
-    return one(c, route)
+    return one(c, { ...route, ...(cancelledOutOfSeason ? { cancelledOutOfSeason } : {}) })
   })
 
   // A deleted route leaves a trace (T58d), named from the returned row because the row is gone by the time anyone
@@ -291,7 +319,33 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
       estimatedMinutes: minutes.value ?? 30,
       pricePerVisit: priceGiven ? String(price.value ?? 0) : '0',
     }).returning()
-    return one(c, money ? stop : withoutPrice(stop), 201)
+    // Row 21: a stop added after the route's visits were made gets its own visits now, as far as the route's already reach —
+    // not at the next top-up — and any of them whose crew is booked elsewhere at that time is said.
+    let visitsMade = 0
+    let clashes: any[] | undefined
+    if (await toolsOn(u.companyId)) {
+      const today = await companyToday(db, u.companyId)
+      const last = await lastVisitDay(db, u.companyId, routeId)
+      if (last && last >= today) {
+        const weeks = Math.min(MAX_VISIT_WEEKS, Math.ceil((Date.parse(last) - Date.parse(today)) / (7 * 86_400_000)) + 1)
+        visitsMade = (await makeRouteVisits(db, u.companyId, u.userId, route, { from: today, weeks, until: last, onlyStopIds: [stop.id] })).made.length
+      }
+      clashes = await crewClashes(db, u.companyId, routeId, today)
+    }
+    return one(c, { ...(money ? stop : withoutPrice(stop)), ...(clashes ? { visitsMade, clashes } : {}) }, 201)
+  })
+
+  // Row 20: renew the route for its next season (Service Autopilot's master schedule renewal) — the same days a year on.
+  app.post('/:id/renew', requirePermission('jobs:update'), async (c) => {
+    const u = c.get('user')
+    if (!(await toolsOn(u.companyId))) return fail(c, 403, 'This module is not enabled for your account.', 'FEATURE_NOT_ENABLED')
+    const [route] = await db.select().from(recurringRoute).where(and(eq(recurringRoute.id, c.req.param('id')), eq(recurringRoute.companyId, u.companyId))).limit(1)
+    if (!route) return fail(c, 404, 'Route not found')
+    if (!route.seasonStart || !route.seasonEnd) return fail(c, 409, 'This route runs all year, so there is no season to renew.')
+    const [next] = await db.update(recurringRoute).set({ seasonStart: nextYear(route.seasonStart), seasonEnd: nextYear(route.seasonEnd), status: 'active', updatedAt: new Date() })
+      .where(eq(recurringRoute.id, route.id)).returning()
+    audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'recurring_route', entityId: route.id, entityName: route.name || 'route', metadata: { renewedSeason: `${next.seasonStart} to ${next.seasonEnd}` } })
+    return one(c, next)
   })
 
   // Reorder stops: body = { stopIds: [id1, id2, ...] } in the new order
@@ -415,7 +469,9 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
         message: `${unplaced.length} of ${stops.length} properties are not on the map yet. Put them on the map, then improve the order.`,
       })
     }
-    const result = await createRoutingService(d).optimizeRoute(stops.map((s) => ({ id: s.stopId, lat: s.lat!, lng: s.lng! })))
+    // Row 21: from the yard (the business's address in Settings) where it is set and found, as the crew drives it; else from the first stop.
+    const yard = (await toolsOn(u.companyId)) ? await yardPoint(db, u.companyId) : null
+    const result = await createRoutingService(d).optimizeRoute(stops.map((s) => ({ id: s.stopId, lat: s.lat!, lng: s.lng! })), yard)
     const proposed: string[] = result.optimizedOrder.map((s: any) => s.id)
     const changes = proposed.some((id, i) => id !== base.current[i])
     const saved = result.savings
@@ -424,6 +480,7 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
       totalMiles: Math.round((result.totalDistanceMiles || 0) * 10) / 10,
       savings: changes && saved ? { miles: Math.round((saved.distanceMiles || 0) * 10) / 10, minutes: saved.timeMinutes || 0 } : null,
       source: result.source,
+      startFrom: yard ? 'yard' : 'first_stop',
       message: changes ? 'A shorter order is ready. Apply it to move the stops and re-time the visits still to do.' : 'This order is already the shortest we can find.',
     })
   })

@@ -25,6 +25,10 @@ export const recurringRoute = pgTable('recurring_route', {
   billingMode: text('billing_mode'),
   status: text('status').default('active').notNull(), // active, paused, archived
   notes: text('notes'),
+  // The route's season (landscaping parity row 20; Service Autopilot's master schedules): visits are made only between these
+  // days (YYYY-MM-DD, both kept), none outside it; when it ends the Route Board offers the next season's renewal. Null: all year.
+  seasonStart: text('season_start'),
+  seasonEnd: text('season_end'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

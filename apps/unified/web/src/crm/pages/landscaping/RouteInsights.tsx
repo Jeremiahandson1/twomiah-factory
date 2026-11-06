@@ -18,6 +18,8 @@ interface Optimize {
   stops: Array<{ stopId: string; siteName: string }>
   unplaced?: Array<{ stopId: string; siteName: string; canLocate: boolean }>
   savings?: { miles: number; minutes: number } | null
+  /** Where the shortest order was worked out from: the business's yard (route_board_tools), or the first stop. */
+  startFrom?: 'yard' | 'first_stop'
 }
 
 const errorText = (e: unknown, fallback: string) => (e as any)?.response?.data?.error || (e as any)?.message || fallback
@@ -101,6 +103,7 @@ export default function RouteInsights({ routeId, onChanged }: { routeId: string;
         {best && (
           <div className="mt-2 text-sm">
             {best.message && <p className="text-gray-600 dark:text-slate-300">{best.message}</p>}
+            {best.startFrom === 'yard' && <p className="text-xs text-gray-500 dark:text-slate-400">Worked out from your yard (the address in Settings), the way the crew drives it.</p>}
             {best.unplaced && best.unplaced.length > 0 && (
               <>
                 <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Not on the map: {best.unplaced.map((u) => u.siteName).join(', ')}.</p>
