@@ -5,7 +5,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Eye, FileText } from 'lucide-react'
 import { api } from '../../../../api'
-import { useMayWrite, useToast, errorText } from '../../../../shared'
+import { useMayWrite, useToast, errorText, useAuth } from '../../../../shared'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Photo { id: string; caption: string | null; photoType: string; url: string; thumbnailUrl: string | null; shared: boolean }
 interface Doc { id: string; name: string; type: string; shared: boolean }
@@ -17,6 +19,25 @@ export default function ShareWithHomeowner({ jobId, homeowner, refreshKey }: { j
   const mayShare = useMayWrite('portal:share')
   const [files, setFiles] = useState<Files | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // Row 21 (portal_tools, not ready; AccuLynx): what the homeowner sees, telling them, their last visit, closing on Collected.
+  const toolsOn = useAuth().hasFeature('portal_tools')
+  const mayClose = useMayWrite('company:update')
+  const [ho, setHo] = useState<{ homeowner: { name: string; portalOn: boolean; lastVisit: string | null } | null; sees: Array<{ kind: string; id: string; name: string }>; closeOnCollected: boolean } | null>(null)
+  const [preview, setPreview] = useState(false)
+  const loadHo = useCallback(async () => {
+    if (!toolsOn) return
+    try { setHo(await api.get(`/api/job-files/homeowner?jobId=${jobId}`) as any) } catch { setHo(null) }
+  }, [jobId, toolsOn])
+  useEffect(() => { loadHo() }, [loadHo, refreshKey])
+  const tell = async () => {
+    setBusy('notify')
+    try { const r: any = await api.post('/api/job-files/notify', { jobId }); toast.success(r?.sent === 'email' ? 'Emailed the homeowner' : 'Texted the homeowner') }
+    catch (e) { toast.error(errorText(e, 'Could not tell the homeowner')) } finally { setBusy(null) }
+  }
+  const setClose = async (on: boolean) => {
+    try { await api.put('/api/job-files/settings', { closeOnCollected: on }); setHo((h) => h && { ...h, closeOnCollected: on }) }
+    catch (e) { toast.error(errorText(e, 'Could not change the setting')) }
+  }
 
   const load = useCallback(async () => {
     try { setFiles((await api.get(`/api/job-files?jobId=${jobId}`)) as Files) } catch { setFiles(null) }
@@ -28,6 +49,7 @@ export default function ShareWithHomeowner({ jobId, homeowner, refreshKey }: { j
     try {
       await api.put(`/api/job-files/${kind}/${id}`, { shared })
       setFiles((f) => f && ({ ...f, [kind]: (f[kind] as Array<{ id: string; shared: boolean }>).map((x) => (x.id === id ? { ...x, shared } : x)) } as Files))
+      void loadHo()
     } catch (e) { toast.error(errorText(e, 'Could not change what the homeowner sees')) } finally { setBusy(null) }
   }
   if (!files) return null
@@ -52,6 +74,22 @@ export default function ShareWithHomeowner({ jobId, homeowner, refreshKey }: { j
       <p className="text-xs text-gray-500 mb-4 dark:text-slate-400">
         {homeowner ? `${homeowner} sees` : 'The homeowner sees'} only what is ticked here, in their portal’s Photos &amp; Documents. Nothing is shown until you tick it. {total ? `${shown} of ${total} shown.` : ''}
       </p>
+      {toolsOn && ho && (
+        <div className="mb-4 rounded-lg border border-gray-200 p-3 text-sm dark:border-slate-700" data-testid="portal-tools">
+          <p className="text-gray-700 dark:text-slate-200">{!ho.homeowner ? 'This job has no homeowner.' : !ho.homeowner.portalOn ? `${ho.homeowner.name}’s portal is off.` : ho.homeowner.lastVisit ? `${ho.homeowner.name} last opened their portal ${whenDateTime(ho.homeowner.lastVisit, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.` : `${ho.homeowner.name} has not opened their portal yet.`}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="btn-secondary" aria-expanded={preview} onClick={() => setPreview(!preview)}>{preview ? 'Hide' : 'View as the homeowner'}</button>
+            {mayShare && ho.homeowner?.portalOn && <button type="button" className="btn-secondary" disabled={busy === 'notify'} onClick={tell}>Tell the homeowner</button>}
+          </div>
+          {preview && (
+            <div className="mt-2 rounded bg-gray-50 p-2 dark:bg-slate-800">
+              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">Their Photos &amp; Documents for this job</p>
+              {ho.sees.length ? <ul className="space-y-0.5">{ho.sees.map((f) => <li key={`${f.kind}-${f.id}`}>{f.name} <span className="text-xs text-gray-500 dark:text-slate-400">({codeLabel(f.kind)})</span></li>)}</ul> : <p className="text-gray-500 dark:text-slate-400">Nothing yet.</p>}
+            </div>
+          )}
+          {mayClose && <label className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-slate-300"><input type="checkbox" checked={ho.closeOnCollected} onChange={(e) => setClose(e.target.checked)} /> Close a homeowner’s portal once their last job is Collected (every job)</label>}
+        </div>
+      )}
       {total === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">This job has no photos, documents or inspection reports yet. File documents under this job from Documents.</p>}
       {files.reports.length > 0 && <>
         <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mt-2 mb-2 dark:text-slate-400">Inspection report</h3>

@@ -13,6 +13,9 @@
 // changes the files of the jobs it may (the shared jobs rule: seatJob.ts).
 //
 // The homeowner's side is ./portal.ts (the customer portal's job-files section).
+import { PORTAL_TOOLS, closeOnCollected, setCloseOnCollected, homeownerOf } from '../../../data/homeownerPortal.ts'
+import { roofPortalJobFiles } from './portal.ts'
+import { company as companyTable } from '../../../db/schema/index.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, desc, eq } from 'drizzle-orm'
@@ -50,6 +53,57 @@ export function createJobFilesRoutes(d: CrmDeps) {
       documents: docs.map((x: any) => ({ id: x.id, name: x.name, type: x.type, mimeType: x.mimeType || null, shared: !!x.sharedWithCustomer })),
       reports: reports.map((r: any) => ({ id: r.id, title: r.title, shared: !!r.sharedWithCustomer })),
     })
+  })
+
+  // ---- Row 21 (portal_tools, not ready; AccuLynx): see it as the homeowner, tell them, their last visit, close on Collected ----
+  const toolsOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, PORTAL_TOOLS).catch(() => false)
+  const homeownerFiles = roofPortalJobFiles(d)
+  app.get('/homeowner', requirePermission('jobs:read'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const jobId = c.req.query('jobId') || ''
+    if (!(await jobFor(c, jobId))) return fail(c, 404, 'Job not found')
+    const who = await homeownerOf(db, me.companyId, jobId)
+    // Exactly what their portal lists for this job (the portal's own list, filtered to the job).
+    const sees = who ? (await homeownerFiles.list(who)).filter((f: any) => f.jobId === jobId) : []
+    return one(c, {
+      homeowner: who ? { name: who.name, portalOn: !!who.portalEnabled && !!who.portalToken, lastVisit: who.lastPortalVisit ? new Date(who.lastPortalVisit).toISOString() : null } : null,
+      sees, closeOnCollected: await closeOnCollected(db, me.companyId),
+    })
+  })
+  app.put('/settings', requirePermission('company:update'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (typeof b?.closeOnCollected !== 'boolean') return fail(c, 400, 'Say whether the portal closes when the job is Collected.')
+    return one(c, { closeOnCollected: await setCloseOnCollected(db, c.get('user').companyId, b.closeOnCollected) })
+  })
+  app.post('/notify', requirePermission('portal:share'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    const jobId = String(b?.jobId || '')
+    if (!(await jobFor(c, jobId))) return fail(c, 404, 'Job not found')
+    const who = await homeownerOf(db, me.companyId, jobId)
+    if (!who) return fail(c, 409, 'This job has no homeowner to tell.')
+    if (!who.portalEnabled || !who.portalToken) return fail(c, 409, 'Their portal is off. Turn it on from the contact first.')
+    const origin = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
+    if (!/^https?:\/\//.test(origin)) return fail(c, 409, 'The app’s web address is not set, so there is no link to send.')
+    const link = `${origin}/portal/${who.portalToken}`
+    const [co] = await db.select({ name: companyTable.name }).from(companyTable).where(eq(companyTable.id, me.companyId)).limit(1)
+    const first = String(who.name || '').trim().split(/\s+/)[0] || 'there'
+    const message = `Hi ${first}, ${co?.name || 'we'} added new photos and documents for your project. See them at ${link}`
+    const mobile = String(who.mobile || who.phone || '').trim()
+    if (mobile && !who.optedOutSms) {
+      const r: any = await d.services.sms.sendSMS(me.companyId, { contactId: who.id, message, jobId, userId: me.userId }).catch((e: any) => ({ success: false, error: e?.message }))
+      if (r?.success === false) return fail(c, 502, r.error ? `The text was not sent: ${r.error}` : 'The text was not sent.')
+      return one(c, { sent: 'text' })
+    }
+    if (String(who.email || '').trim() && !who.emailOptOut) {
+      const esc = (x: string) => x.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
+      await (d.services as any).emailService.sendRaw({ to: String(who.email).trim(), subject: `New photos and documents for your project — ${co?.name || ''}`.trim(), html: `<p>${esc(message.replace(link, ''))}</p><p><a href="${esc(link)}">Open your portal</a></p>` })
+      return one(c, { sent: 'email' })
+    }
+    return fail(c, 409, 'No way to reach the homeowner: no phone or email, or they opted out.')
   })
 
   app.put('/photos/:id', requirePermission('portal:share'), async (c) => {

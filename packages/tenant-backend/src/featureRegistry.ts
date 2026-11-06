@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: the homeowner portal's office tools (roofing parity row 21; apps/unified server/crm/roof/portalFiles/office.ts).
+  { id: 'portal_tools', name: 'Homeowner portal tools', description: 'See exactly what the homeowner sees, tell them when something new is shared, see when they last opened their portal, and close it once the job is Collected', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: statuses and checklists under the milestones (roofing parity row 20; apps/unified server/crm/roof/pipeline.ts).
   { id: 'pipeline_statuses', name: 'Statuses and checklists', description: 'Add your own statuses under each pipeline milestone — for every job type or only some — each with its checklist the crew and office tick off', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: a company's own pipeline boards (roofing parity row 19; apps/unified server/crm/roof/pipeline.ts).
