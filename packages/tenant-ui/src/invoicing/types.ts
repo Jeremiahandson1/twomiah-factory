@@ -133,7 +133,8 @@ export interface LineItemInput {
    * `type` is the one that was load-bearing and missing: job costing splits its estimate on it, and
    * nothing had ever sent it, so every quote line was NULL and the estimate was zero.
    */
-  type?: 'labor' | 'material' | 'part' | 'service' | 'other'
+  /** 'text': a heading or a note on a quote, words only (quote_text_lines). */
+  type?: 'labor' | 'material' | 'part' | 'service' | 'other' | 'text'
   /** What the line costs US per unit, as against unitPrice which is what the customer pays. */
   unitCost?: number
   /** Which catalogue item it was priced from. */

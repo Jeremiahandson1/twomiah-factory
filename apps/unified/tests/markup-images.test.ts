@@ -1,6 +1,6 @@
 // Default markup by kind of line, and pictures on quote lines (contractor parity item 3), through the real server and its real
 // database. The screens are markup-images-ui.test.ts (a DOM installed as globals stops the in-memory database booting).
-//   · both features are registered not ready, general contractor only; off, their doors are shut (the registry's gate answers 403);
+//   · both features are registered not ready (markup: general contractor only; pictures: also landscaping); off, their doors are shut (the registry's gate answers 403);
 //   · the markup defaults are cost-side: read with margin:read, changed by owner/admin, validated in words, cleaned the way the form reads them;
 //   · a picture on a line is kept only where quote_line_images is on, only as an https address or one of our /media photos, survives
 //     an edit, and reaches the customer's copy — which still has no cost, markup or code on it;
@@ -19,11 +19,12 @@ const PNG = await sharp({ create: { width: 8, height: 8, channels: 3, background
 const picForm = (file: File = new File([new Uint8Array(PNG)], 'tile.png', { type: 'image/png' })) => { const fd = new FormData(); fd.append('file', file); return fd }
 
 describe('the features', () => {
-  test.each(['markup_defaults', 'quote_line_images'])('%s is registered, not ready, and offered to the general contractor only', (id) => {
+  // Pictures on quote lines are also landscaping's (landscaping parity row 7, Jobber Grow line images).
+  test.each([['markup_defaults', ['crm']], ['quote_line_images', ['crm', 'crm-landscaping']]] as const)('%s is registered, not ready, and offered to %p', (id, templates) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
     expect(f.hidden).toBe(true)
-    expect(f.templates).toEqual(['crm'])
+    expect(f.templates).toEqual([...templates])
   })
 })
 

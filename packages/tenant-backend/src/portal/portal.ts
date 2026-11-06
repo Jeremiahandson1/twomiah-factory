@@ -19,7 +19,7 @@ import { noteStamp } from '../time/zoneDay'
 import { isDocumentToken, readQuotePreviewToken, QUOTE_PREVIEW_FEATURE } from './documentLinks'
 import { includedLines, notIncludedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, chosenLabel, offersOptions, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
-import { hasDocumentTables, loadDocument, loadMarks, documentForCustomer, cosignerRequired, checkInitials, pdfExtras, INITIAL_FIRST_CODE } from '../invoicing/quoteDocument'
+import { hasDocumentTables, loadDocument, loadMarks, documentForCustomer, cosignerRequired, checkInitials, pdfExtras, withLinePictures, INITIAL_FIRST_CODE } from '../invoicing/quoteDocument'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 
@@ -124,6 +124,8 @@ export interface PortalDeps {
   loadQuotePdf: () => Promise<(quote: any, company: any) => Promise<Buffer>>
   selections?: PortalSelectionsService
   fileService?: PortalFileService
+  /** The business's photo library, read for each quote line's picture on the PDF (quote_line_images); else fileService. */
+  photoStore?: { getObject?: (key: string) => Promise<{ body: Uint8Array | Buffer } | null> }
   emitToCompany?: (companyId: string, event: string, data: any) => void
   EVENTS?: Record<string, string>
   logger?: { warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
@@ -237,7 +239,7 @@ const MAX_SIGNATURE_BYTES = 500_000
 const PORTAL_QUOTE_FIELDS = ['id', 'number', 'name', 'status', 'issueDate', 'expiryDate', 'subtotal', 'taxRate', 'taxAmount', 'discount', 'total', 'terms', 'customerMessage', 'sentAt', 'viewedAt', 'approvedAt', 'declinedAt', 'signature', 'signedAt', 'signedBy', 'createdAt', 'updatedAt', 'projectId', 'depositType', 'depositValue'] as const
 // optional/selected: an optional line the customer may tick before approving (invoicing/quoteOptions.ts).
 // section + allowance: the phase a line sits under and whether it is an allowance (invoicing/quoteSections.ts). Never cost or markup.
-const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'imageUrl', 'optionRole'] as const
+const PORTAL_QUOTE_LINE_FIELDS = ['id', 'description', 'quantity', 'unitPrice', 'total', 'sortOrder', 'optional', 'selected', 'section', 'allowance', 'imageUrl', 'optionRole', 'type'] as const
 // What a customer is shown of a proposal option: its whole price and the deposit it would ask; no cost, no item code.
 const PORTAL_OPTION_FIELDS = ['id', 'name', 'tier', 'brand', 'warranty', 'description', 'photos', 'recommended', 'chosen', 'price', 'subtotal', 'taxAmount', 'addPrice', 'deposit', 'discount', 'attachments', 'setIndex', 'setName', 'setKind'] as const
 const PORTAL_PROJECT_FIELDS = ['id', 'number', 'name', 'description', 'status', 'type', 'address', 'city', 'state', 'zip', 'startDate', 'endDate', 'progress', 'createdAt', 'updatedAt'] as const
@@ -1153,13 +1155,13 @@ export function createPortalRoutes(deps: PortalDeps) {
     const allLines = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
     const lineItems = includedLines<any>(allLines)
     // The optional lines left unticked are printed too, apart and labelled "Not included" (Jobber), never in the total.
-    const notIncluded = await customerLines(db, contact.companyId, notIncludedLines<any>(allLines))
+    const notIncluded = await withLinePictures(deps.photoStore ?? fileService, await customerLines(db, contact.companyId, notIncludedLines<any>(allLines)))
     const live = await proposalsLive(t, deps.proposalsEnabled, contact.companyId)
     const view = live ? await proposalView(db, t, found) : null
     const options = offersOptions(view, found.status) ? await Promise.all(view!.options.map(async (op) => ({ ...pick(op, PORTAL_OPTION_FIELDS), lines: await customerLines(db, contact.companyId, op.lines), upgrades: await customerLines(db, contact.companyId, op.upgrades) }))) : undefined
     const generate = await loadQuotePdf()
     const extras = live ? await pdfExtras(db, t, fileService, quoteId, view?.options ?? null, !!options) : {}
-    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems), notIncluded, contact, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}), ...extras }, await fullCompany(contact.companyId))
+    const pdf = await generate({ ...found, lineItems: await withLinePictures(deps.photoStore ?? fileService, await customerLines(db, contact.companyId, options ? lineItems.filter((li: any) => !li.proposalOptionId) : lineItems)), notIncluded, contact, ...(options ? { options, offer: { needsChoice: view!.needsChoice, lowest: view!.lowest.total } } : {}), ...extras }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   }
   const quotePdf = async (c: any) => {
