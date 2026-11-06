@@ -8,7 +8,9 @@ against a real landscaping tenant by `apps/unified/tests/landscaping-phone-day.t
 nothing was run in a phone or a browser in this session. The offline wiring is NOT done (see the end).**
 
 Where they live on the phone: **More → Route Board** opens "Today's route" for a landscaping seat (the Route Board's desktop row is
-mapped to it in `apps/unified/scripts/mobile-parity.ts`; the phone's five-slot bar is full, so it is not a tab). Open snow stops are
+mapped to it in `apps/unified/scripts/mobile-parity.ts`). Since the 11/06 parity round (row 32; LMN Crew and Jobber open the crew on
+their day) a **crew seat** has it as the FIRST TAB, **Today**, in the Dashboard's slot (the Dashboard stays a row in More), while the
+Route Board is on; office seats keep Dashboard · Jobs · Schedule · Contacts · More. Test: `tests/mobile/landscaping-today-tab.test.ts`. Open snow stops are
 listed at the top of the same screen and each opens "Log snow visit".
 
 ## What the leaders document
@@ -42,8 +44,8 @@ Kit changes (additive, phone only): an action or section may name the business s
 
 ## Not built (named so nobody assumes)
 
-Skip-with-reason, ETA "on my way", before-photos and photo markup, materials used, required forms, map of the day, end-of-day recap,
-a Today's route tab (the bar is full; this is an owner decision), photos with no signal.
+Nothing from this list is left: skip-with-reason, ETA "on my way", before-photos and photo markup, materials used, required forms, map of
+the day and end-of-day recap were built in rows 8–15, the Today tab in row 32, and photos with no signal in the offline queue.
 
 ## Offline (row 11): written and tested on a scratch merge, NOT on this branch
 
