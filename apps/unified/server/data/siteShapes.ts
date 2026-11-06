@@ -2,6 +2,7 @@
 // The server works the area out from the corners — a number typed by the screen is never trusted — and keeps the property's
 // own columns (lawnSqft, bedSqft, …) equal to the sum of its shapes, so the rate card, which reads those columns, needs no change.
 import { and, eq, asc } from 'drizzle-orm'
+import polygonClipping from 'polygon-clipping'
 import { site, siteShape } from '../db/schema/index.ts'
 
 export const SHAPE_AREA_TYPES = ['lawnSqft', 'bedSqft', 'hardscapeSqft', 'lotSqft', 'drivewaySqft'] as const
@@ -32,6 +33,31 @@ export function polygonSqft(path: Array<[number, number]>): number {
     sum += dLng * (2 + Math.sin(rad(lat1)) + Math.sin(rad(lat2)))
   }
   return Math.round((Math.abs(sum) * EARTH_RADIUS_M * EARTH_RADIUS_M * SQFT_PER_SQM) / 2)
+}
+
+/**
+ * What each area type measures once overlaps are taken out (Aspire): the shapes of a type that add are joined into one region
+ * (two lawn shapes drawn over each other count the shared part once), the cut-outs of that type are joined too and taken away,
+ * and the region left is measured. A cut-out that lies outside every shape of its type takes nothing away. Corners are joined
+ * as flat [lng, lat] points — at a property's size the difference from the curved earth is far below a square foot — and the
+ * region left is measured on the sphere like a single shape.
+ */
+export function typeTotals(shapes: Array<Pick<ShapeInput, 'areaType' | 'mode' | 'path'>>): Map<string, number> {
+  const ring = (path: Array<[number, number]>) => path.map(([lat, lng]) => [lng, lat] as [number, number])
+  const back = (r: Array<[number, number]>) => r.map(([lng, lat]) => [lat, lng] as [number, number])
+  const totals = new Map<string, number>()
+  for (const type of new Set(shapes.map((s) => s.areaType))) {
+    const of = shapes.filter((s) => s.areaType === type)
+    const adds = of.filter((s) => s.mode !== 'cut').map((s) => [ring(s.path)])
+    const cuts = of.filter((s) => s.mode === 'cut').map((s) => [ring(s.path)])
+    if (!adds.length) { totals.set(type, 0); continue }
+    let region = polygonClipping.union(adds[0] as any, ...(adds.slice(1) as any[]))
+    if (cuts.length) region = polygonClipping.difference(region as any, ...(cuts as any[]))
+    let sqft = 0
+    for (const poly of region) poly.forEach((r, i) => { sqft += (i === 0 ? 1 : -1) * polygonSqft(back(r as Array<[number, number]>)) })
+    totals.set(type, Math.max(0, Math.round(sqft)))
+  }
+  return totals
 }
 
 export interface ShapeInput { areaType: ShapeAreaType; mode: 'add' | 'cut'; label: string | null; path: Array<[number, number]> }
@@ -66,7 +92,7 @@ export const shapesOf = (db: any, companyId: string, siteId: string) =>
 
 /**
  * Save the property's shapes — the whole set, as the map shows it — and set its columns from them: for each area type, the
- * shapes that add minus the shapes that cut (never below zero). A type the property had shapes for and now has none goes
+ * region its shapes cover with overlaps counted once and its cut-outs taken away (typeTotals). A type the property had shapes for and now has none goes
  * blank; a type never drawn is left as typed by hand. Returns the property, or null when it is not this company's.
  */
 export async function replaceShapes(db: any, companyId: string, siteId: string, shapes: ShapeInput[]) {
@@ -75,14 +101,12 @@ export async function replaceShapes(db: any, companyId: string, siteId: string, 
     if (!found) return null
     const before: Array<{ areaType: string }> = await tx.select({ areaType: siteShape.areaType }).from(siteShape).where(and(eq(siteShape.siteId, siteId), eq(siteShape.companyId, companyId)))
     await tx.delete(siteShape).where(and(eq(siteShape.siteId, siteId), eq(siteShape.companyId, companyId)))
-    const sums = new Map<string, number>()
     for (const s of shapes) {
-      const sqft = polygonSqft(s.path)
-      await tx.insert(siteShape).values({ companyId, siteId, areaType: s.areaType, mode: s.mode, label: s.label, path: s.path, areaSqft: sqft })
-      sums.set(s.areaType, (sums.get(s.areaType) ?? 0) + (s.mode === 'cut' ? -sqft : sqft))
+      await tx.insert(siteShape).values({ companyId, siteId, areaType: s.areaType, mode: s.mode, label: s.label, path: s.path, areaSqft: polygonSqft(s.path) })
     }
+    const sums = typeTotals(shapes)
     const patch: Record<string, unknown> = { updatedAt: new Date(), measuredAt: new Date(), measurementSource: 'aerial' }
-    for (const [type, total] of sums) patch[type] = Math.max(0, Math.round(total))
+    for (const [type, total] of sums) patch[type] = total
     for (const b of before) if (!sums.has(b.areaType)) patch[b.areaType] = null
     const [updated] = await tx.update(site).set(patch).where(and(eq(site.id, siteId), eq(site.companyId, companyId))).returning()
     return updated

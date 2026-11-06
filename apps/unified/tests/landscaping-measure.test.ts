@@ -4,7 +4,8 @@
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { and, eq, inArray } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
-import { polygonSqft } from '../server/data/siteShapes.ts'
+import { polygonSqft, typeTotals } from '../server/data/siteShapes.ts'
+import { FEATURE_REGISTRY } from '../../../packages/tenant-backend/src/featureRegistry.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId: string
@@ -104,7 +105,8 @@ describe('shapes on a property', () => {
     // Corners are kept to 7 decimals (a centimetre), so the saved area can differ from the raw one by a square foot or two.
     const lawnArea = out.shapes.find((x: any) => x.areaType === 'lawnSqft' && x.mode === 'add').areaSqft, holeArea = out.shapes.find((x: any) => x.mode === 'cut').areaSqft
     expect(Math.abs(lawnArea - polygonSqft(lawn))).toBeLessThanOrEqual(2)
-    expect(row.lawnSqft).toBe(lawnArea - holeArea)
+    // The cut-out lies inside the lawn, so it takes its whole area away (to the square foot or two the joining rounds).
+    expect(Math.abs(row.lawnSqft! - (lawnArea - holeArea))).toBeLessThanOrEqual(2)
     expect(Math.abs(row.lawnSqft! / (flatSqft(40, 30) - flatSqft(10, 10)) - 1)).toBeLessThan(0.02)
     expect(Math.abs(row.bedSqft! - polygonSqft(beds))).toBeLessThanOrEqual(2)
     expect(row.measurementSource).toBe('aerial')
@@ -196,5 +198,128 @@ describe('Area Pricing from the measured area, and onto a quote', () => {
     const q2 = await (await as(owner, '/api/quotes', { method: 'POST', json: { name: 'Bare', contactId: bare.ct.id, lineItems: [{ description: 'x', quantity: 1, unitPrice: 1 }] } })).json()
     const unmeasured = await as(owner, '/api/area-pricing/quote/add', { method: 'POST', json: { quoteId: q2.id, siteId: bare.s.id, serviceType: 'mowing' } })
     expect(unmeasured.status).toBe(422)
+  })
+})
+
+// Row 2 (Aspire): shapes of one kind that overlap count the shared part once; cut-outs still subtract, but only where they
+// cover that kind. Fails without the change: the columns were the plain sum of every shape.
+describe('overlapping shapes are merged', () => {
+  const east = (m: number) => m / (111_320 * Math.cos((44.8 * Math.PI) / 180))
+
+  test('two lawn shapes drawn over each other count the shared part once', async () => {
+    const { s } = await property('Overlap A')
+    // 40 x 30 m and a second 40 x 30 m shifted 20 m east: together 60 x 30 m, not 80 x 30 m.
+    const a = rect(44.8, -91.5, 40, 30), b = rect(44.8, -91.5 + east(20), 40, 30)
+    await putShapes(s.id, [{ areaType: 'lawnSqft', path: a }, { areaType: 'lawnSqft', path: b }])
+    const row = await siteRow(s.id)
+    expect(Math.abs(row.lawnSqft! / flatSqft(60, 30) - 1)).toBeLessThan(0.01)
+    // Each shape keeps its own full area; only the property's total is merged.
+    const saved = (await (await as(owner, `/api/area-pricing/sites/${s.id}/shapes`)).json()).data
+    expect(Math.abs(saved[0].areaSqft - polygonSqft(a))).toBeLessThanOrEqual(2)
+  })
+
+  test('a shape wholly inside another of its kind adds nothing; a different kind is not merged with it', () => {
+    const big = rect(44.8, -91.5, 40, 40), inner = rect(44.8001, -91.4999, 10, 10)
+    const t1 = typeTotals([{ areaType: 'lawnSqft', mode: 'add', path: big }, { areaType: 'lawnSqft', mode: 'add', path: inner }])
+    expect(Math.abs(t1.get('lawnSqft')! - polygonSqft(big))).toBeLessThanOrEqual(2)
+    const t2 = typeTotals([{ areaType: 'lawnSqft', mode: 'add', path: big }, { areaType: 'bedSqft', mode: 'add', path: inner }])
+    expect(Math.abs(t2.get('lawnSqft')! - polygonSqft(big))).toBeLessThanOrEqual(2)
+    expect(Math.abs(t2.get('bedSqft')! - polygonSqft(inner))).toBeLessThanOrEqual(2)
+  })
+
+  test('two cut-outs over each other take the shared part away once; a cut-out off the lawn takes nothing', () => {
+    const lawn = rect(44.8, -91.5, 40, 40)
+    const cut = rect(44.8001, -91.4999, 10, 10)
+    const far = rect(44.81, -91.5, 10, 10) // a kilometre north, off the lawn
+    const t1 = typeTotals([{ areaType: 'lawnSqft', mode: 'add', path: lawn }, { areaType: 'lawnSqft', mode: 'cut', path: cut }, { areaType: 'lawnSqft', mode: 'cut', path: cut }])
+    expect(Math.abs(t1.get('lawnSqft')! - (polygonSqft(lawn) - polygonSqft(cut)))).toBeLessThanOrEqual(2)
+    const t2 = typeTotals([{ areaType: 'lawnSqft', mode: 'add', path: lawn }, { areaType: 'lawnSqft', mode: 'cut', path: far }])
+    expect(Math.abs(t2.get('lawnSqft')! - polygonSqft(lawn))).toBeLessThanOrEqual(2)
+    // A kind with only cut-outs measures nothing, never below zero.
+    expect(typeTotals([{ areaType: 'bedSqft', mode: 'cut', path: far }]).get('bedSqft')).toBe(0)
+  })
+})
+
+// Row 1 (Yardbook): print the measurements, a PDF of the shapes over the satellite picture, labelled, with the totals.
+// Fails without the change: there was no /api/measure-print and no feature measure_print.
+describe('print the measurements', () => {
+  const base = ['contacts', 'jobs', 'quotes', 'invoices', 'recurring_routes', 'area_pricing', 'snow_billing']
+  const enable = async (on: boolean) => {
+    await t.db.update(t.schema.company).set({ enabledFeatures: on ? [...base, 'measure_print'] : base }).where(eq(t.schema.company.id, companyId))
+    t.services.features.forgetFeatures()
+  }
+  const latin = (b: Buffer) => b.toString('latin1')
+  const east = (m: number) => m / (111_320 * Math.cos((44.8 * Math.PI) / 180))
+
+  test('is hidden: the registry marks it not ready, and it is off unless the business has it', async () => {
+    expect(FEATURE_REGISTRY.find((f) => f.id === 'measure_print')?.hidden).toBe(true)
+    await enable(false)
+    const { s } = await property('Print off')
+    await putShapes(s.id, [{ areaType: 'lawnSqft', path: rect(44.8, -91.5, 20, 20) }])
+    expect((await as(owner, `/api/measure-print/sites/${s.id}/pdf`)).status).toBe(403)
+  })
+
+  test('a PDF of the shapes; without a map key they are drawn on plain ground and the page says why', async () => {
+    await enable(true)
+    const before = process.env.GOOGLE_MAPS_API_KEY
+    delete process.env.GOOGLE_MAPS_API_KEY
+    try {
+      const { s } = await property('Print A')
+      await putShapes(s.id, [
+        { areaType: 'lawnSqft', path: rect(44.8, -91.5, 40, 30), label: 'Front' },
+        { areaType: 'lawnSqft', path: rect(44.8, -91.5 + east(20), 40, 30) },
+        { areaType: 'bedSqft', path: rect(44.8004, -91.5, 6, 6) },
+      ])
+      const res = await as(viewer, `/api/measure-print/sites/${s.id}/pdf`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('application/pdf')
+      expect(res.headers.get('content-disposition')).toMatch(/^inline;/)
+      const pdf = Buffer.from(await res.arrayBuffer())
+      expect(latin(pdf.subarray(0, 5))).toBe('%PDF-')
+      expect(latin(pdf)).not.toContain('/Subtype /Image')
+      const dl = await as(owner, `/api/measure-print/sites/${s.id}/pdf?download=1`)
+      expect(dl.headers.get('content-disposition')).toBe('attachment; filename="measurements-print-a.pdf"')
+    } finally { if (before !== undefined) process.env.GOOGLE_MAPS_API_KEY = before }
+  })
+
+  test('with a map key the satellite picture of the shapes is fetched and put in the PDF', async () => {
+    await enable(true)
+    const before = process.env.GOOGLE_MAPS_API_KEY
+    const realFetch = globalThis.fetch
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key'
+    const asked: string[] = []
+    const sharp = (await import('sharp')).default
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#2f6b2f' } }).png().toBuffer()
+    globalThis.fetch = (async (input: any, init?: any) => {
+      const url = String(input?.url ?? input)
+      if (url.startsWith('https://maps.googleapis.com/maps/api/staticmap')) { asked.push(url); return new Response(png, { headers: { 'content-type': 'image/png' } }) }
+      return realFetch(input, init)
+    }) as any
+    try {
+      const { s } = await property('Print B')
+      await putShapes(s.id, [{ areaType: 'lawnSqft', path: rect(44.8, -91.5, 40, 30) }])
+      const res = await as(owner, `/api/measure-print/sites/${s.id}/pdf`)
+      expect(res.status).toBe(200)
+      expect(asked.length).toBe(1)
+      expect(asked[0]).toContain('maptype=satellite')
+      // Centred on the shape: 15 m north and 20 m east of its south-west corner.
+      const m = asked[0].match(/center=([-\d.]+),([-\d.]+)&zoom=(\d+)/)!
+      expect(Math.abs(Number(m[1]) - (44.8 + 15 / 110_574))).toBeLessThan(0.00002)
+      expect(Math.abs(Number(m[2]) - (-91.5 + east(20)))).toBeLessThan(0.00002)
+      expect(Number(m[3])).toBeGreaterThanOrEqual(18)
+      expect(latin(Buffer.from(await res.arrayBuffer()))).toContain('/Subtype /Image')
+    } finally {
+      globalThis.fetch = realFetch
+      if (before === undefined) delete process.env.GOOGLE_MAPS_API_KEY; else process.env.GOOGLE_MAPS_API_KEY = before
+    }
+  })
+
+  test('nothing drawn: a plain sentence, not an empty PDF; another property id is not found', async () => {
+    await enable(true)
+    const { s } = await property('Print C')
+    const res = await as(owner, `/api/measure-print/sites/${s.id}/pdf`)
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toMatch(/Nothing is drawn/)
+    expect((await as(owner, '/api/measure-print/sites/not-a-site/pdf')).status).toBe(404)
   })
 })

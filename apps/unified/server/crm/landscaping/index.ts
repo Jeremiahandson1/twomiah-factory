@@ -10,6 +10,7 @@ import { createRecurringRouteRoutes } from './recurringRoutes.ts'
 import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createRainDayRoutes } from './rainDay.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
+import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
 import { createSnowBillingRoutes } from './snowBilling.ts'
 import { createSnowStormRoutes } from './snowStorm.ts'
 import { createVisitReportRoutes } from './visitReports.ts'
@@ -34,6 +35,7 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     { path: '/api/recurring-routes/rain-day', access: 'user', feature: 'recurring_routes', router: createRainDayRoutes(d) },
     { path: '/api/recurring-routes', access: 'user', feature: 'recurring_routes', router: createRecurringRouteRoutes(d) },
     { path: '/api/area-pricing', access: 'user', feature: 'area_pricing', router: createAreaPricingRoutes(d) },
+    { path: '/api/measure-print', access: 'user', feature: MEASURE_PRINT_FEATURE, router: createMeasurePrintRoutes(d) },
     // Storm mode, before the snow router so /api/snow/storms is never read as an id.
     { path: '/api/snow/storms', access: 'user', feature: 'snow_billing', router: createSnowStormRoutes(d) },
     { path: '/api/snow', access: 'user', feature: 'snow_billing', router: createSnowBillingRoutes(d) },
