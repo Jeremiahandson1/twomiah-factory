@@ -62,7 +62,7 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    */
   crewLogin?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
-export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
+export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null; /** "On my way": the minutes the crew said they are away (5–120), for the customer's text. */ etaMinutes?: number | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
 export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook }
 /**
@@ -644,9 +644,9 @@ export function createJobRoutes(deps: JobDeps) {
   }
   /** The hook a status runs when a job moves into it — one table for the buttons and the edit (see PUT /:id). */
   const hookFor = (status: string): JobHook | undefined => jobHookFor(status, o)
-  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, tappedAt?: Date | null) => {
+  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, tappedAt?: Date | null, etaMinutes?: number | null) => {
     if (!hook) return {}
-    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, tappedAt: tappedAt ?? null })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
+    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, tappedAt: tappedAt ?? null, etaMinutes: etaMinutes ?? null })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
   }
 
   // ---------------------------------------------------------------- list / today
@@ -1294,9 +1294,12 @@ export function createJobRoutes(deps: JobDeps) {
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
       // The phone says WHEN the tech tapped (`tappedAt`): a move kept on the phone until signal returns still records the real
       // time. Believed only if it is a time (not in the future, not more than a week back); else the time it arrives is used.
-      const said = (await c.req.json().catch(() => null) as { tappedAt?: unknown } | null)?.tappedAt
+      const sent = await c.req.json().catch(() => null) as { tappedAt?: unknown; etaMinutes?: unknown } | null
+      const said = sent?.tappedAt
       const tapped = typeof said === 'string' && !Number.isNaN(Date.parse(said)) ? new Date(said) : null
       const when = tapped && tapped.getTime() <= Date.now() + 5 * 60_000 && tapped.getTime() >= Date.now() - 7 * 86_400_000 ? tapped : null
+      // "On my way" can say how far away the crew is (Jobber's 5–60 minute picker): whole minutes 1–120, else the usual wording.
+      const eta = status === 'dispatched' && typeof sent?.etaMinutes === 'number' && Number.isInteger(sent.etaMinutes) && sent.etaMinutes >= 1 && sent.etaMinutes <= 120 ? sent.etaMinutes : null
       // Moving a job OUT of completed clears the completion stamp — the same rule the status dropdown has
       // followed since landscaping T14 L13. Start and Dispatch only wrote the status, so reopening a finished
       // job left it still claiming a completion time, and "Completed today" kept counting it. (T26 M1)
@@ -1316,7 +1319,7 @@ export function createJobRoutes(deps: JobDeps) {
         return c.json({ error: jobMoveRefusal(status, String(now.status)), code: 'JOB_MOVE_REFUSED', status: now.status }, 409)
       }
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
-      const more = await runHook(hook(), updated, currentUser, when)
+      const more = await runHook(hook(), updated, currentUser, when, eta)
       // Start / Complete / Dispatch are a field seat's buttons; the moved row's money is withheld (./jobMoney.ts).
       return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })

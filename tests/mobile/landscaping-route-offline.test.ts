@@ -78,5 +78,20 @@ async function throughTheQueue() {
 }
 await throughTheQueue()
 
+// Row 10: "On my way" with the minutes away (Jobber's 5–60 minute picker).
+console.log('on my way, with the minutes away')
+{
+  const omw = route.detail!.actions!.find((a) => a.id === 'onmyway')
+  check('Today’s route has On my way', !!omw && omw.label === 'On my way')
+  check('…offered before the crew has left, not after', !!omw?.when?.({ status: 'scheduled' }) && !!omw?.when?.({ status: 'on_hold' }) && !omw?.when?.({ status: 'dispatched' }) && !omw?.when?.({ status: 'in_progress' }) && !omw?.when?.({ status: 'completed' }))
+  const eta = omw?.inputs?.find((i) => i.id === 'eta')
+  check('…with Jobber’s 5 to 60 minutes to pick from, 15 to start', eta?.kind === 'choice' && eta.choices?.[0] === '5 min' && eta.choices?.at(-1) === '60 min' && eta.initial?.(visit) === '15 min', eta)
+  check('…and asks first: the customer may be texted', !!omw?.confirm && /how many minutes away/.test(omw!.confirm!.body(visit)))
+  const req = omw!.request(visit, { eta: '30 min' })
+  check('it marks the visit on the way, with the minutes and the tap time', req.method === 'POST' && req.path === '/api/jobs/v1/dispatch' && req.body.etaMinutes === 30 && !!Date.parse(req.body.tappedAt), req)
+  check('…kept on the phone with no signal, in line with the visit’s Start and Finish', omw!.offline?.(visit)?.key === 'job:v1')
+  check('…and a missing pick sends no minutes (the usual words)', !('etaMinutes' in omw!.request(visit, { eta: '' }).body))
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)

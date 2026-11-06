@@ -155,3 +155,36 @@ describe('row 9: before and after photos', () => {
     expect(html).toContain('alt="Before photo"')
   })
 })
+
+// Row 10 (Jobber's 5–60 minute picker): "On my way" says how many minutes away the crew is. Fails without the change: dispatch read
+// no etaMinutes and the text always said 15–20 minutes.
+describe('row 10: on my way, with the minutes away', () => {
+  test('the minutes picked reach the customer’s text; none, or nonsense, keeps the usual words', async () => {
+    const { jobUpdateTemplate } = await import('../../../packages/tenant-backend/src/integrations/sms.ts')
+    const sent: Array<{ jobId: string; kind: string; eta: number | null | undefined }> = []
+    const sms = (t.services as any).crm.sms
+    const real = sms.sendJobUpdate
+    sms.sendJobUpdate = async (_co: string, jobId: string, kind: string, opts?: { etaMinutes?: number | null }) => { sent.push({ jobId, kind, eta: opts?.etaMinutes }) }
+    try {
+      const a = await visit('Eta')
+      expect((await post(crew, `/api/jobs/${a.job.id}/dispatch`, { etaMinutes: 25, tappedAt: new Date().toISOString() })).status).toBe(200)
+      const b = await visit('NoEta')
+      expect((await post(crew, `/api/jobs/${b.job.id}/dispatch`, { etaMinutes: 'soon' })).status).toBe(200)
+      const c = await visit('Far')
+      expect((await post(crew, `/api/jobs/${c.job.id}/dispatch`, { etaMinutes: 900 })).status).toBe(200)
+      expect(sent.find((x) => x.jobId === a.job.id)).toEqual({ jobId: a.job.id, kind: 'on_my_way', eta: 25 })
+      expect(sent.find((x) => x.jobId === b.job.id)?.eta ?? null).toBeNull()
+      expect(sent.find((x) => x.jobId === c.job.id)?.eta ?? null).toBeNull()
+      // An "On my way" that waited on the phone more than 30 minutes is recorded but not texted (services.ts stillCurrent).
+      const d = await visit('Stale')
+      expect((await post(crew, `/api/jobs/${d.job.id}/dispatch`, { etaMinutes: 10, tappedAt: new Date(Date.now() - 45 * 60_000).toISOString() })).status).toBe(200)
+      expect(sent.some((x) => x.jobId === d.job.id)).toBe(false)
+      const [stale] = await t.db.select().from(t.schema.job).where(eq(t.schema.job.id, d.job.id))
+      expect(stale.status).toBe('dispatched')
+    } finally { sms.sendJobUpdate = real }
+    expect(jobUpdateTemplate('on_my_way', { etaMinutes: 25 })).toContain('should arrive in about 25 minutes.')
+    expect(jobUpdateTemplate('on_my_way', { etaMinutes: 1 })).toContain('about 1 minute.')
+    expect(jobUpdateTemplate('on_my_way')).toContain('approximately 15-20 minutes')
+    expect(jobUpdateTemplate('nothing')).toBeNull()
+  })
+})

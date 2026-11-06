@@ -4,6 +4,7 @@
  * Today's route is the signed-in person's visits for today, in the order of the route's stops (the Route Board makes each stop a
  * dated job timed from the route's start, so start time IS the stop order). It calls the desktop's own routes:
  *   GET  /api/jobs/today               a crew seat reads only its own jobs (jobs:read)
+ *   POST /api/jobs/:id/dispatch        "On my way" with the minutes away (`etaMinutes`, parity row 10) — the customer's text says them
  *   POST /api/jobs/:id/start|complete  jobs:update — the same buttons as the Schedule; finishing a visit tells the customer where the
  *                                      business turned the visit-done message on. Both work with no signal (parity row 8): kept on
  *                                      the phone under `job:<id>` (the shared job flow's key) with the moment they were TAPPED
@@ -22,6 +23,11 @@ import { type ScreenSpec, type Row, words, hhmm, join } from './kit'
 
 const maps = (address?: string | null) => (address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : '')
 const OPEN_JOB = ['scheduled', 'pending', 'confirmed', 'dispatched']
+/** Where "On my way" can go from (jobs.ts JOB_MOVES_FROM.dispatched). */
+const NOT_LEFT = ['scheduled', 'pending', 'confirmed', 'on_hold']
+/** Jobber's ETA picker: how far away the crew is, for the customer's text. */
+export const ETA_CHOICES = ['5 min', '10 min', '15 min', '20 min', '30 min', '45 min', '60 min']
+export const etaMinutes = (choice: string | undefined) => { const n = parseInt(String(choice || ''), 10); return Number.isInteger(n) && n >= 1 && n <= 120 ? n : undefined }
 const jobTone = (s: string): Row['tone'] => (s === 'completed' ? 'success' : s === 'in_progress' ? 'info' : s === 'cancelled' ? 'danger' : 'neutral')
 const stopTone = (s: string): Row['tone'] => (s === 'done' ? 'success' : s === 'working' ? 'info' : s === 'skipped' ? 'danger' : 'neutral')
 /** The moment of a tap, for a move kept on the phone: the server records it, not the time the save arrives (jobs.ts tappedAt). */
@@ -60,6 +66,14 @@ export const LANDSCAPING: ScreenSpec[] = [
         { feature: 'visit_reports', unlessFeature: 'photo_capture', links: (d) => (d.status === 'completed' || d.status === 'in_progress' ? [{ label: 'Add an after photo', url: '', icon: 'camera', route: `/(details)/visit-photo?jobId=${d.id}` }] : []) },
       ],
       actions: [
+        // "On my way" with how many minutes away (parity row 10, Jobber's 5–60 minute picker): the visit is marked on the way and, where
+        // the business texts arrivals, the customer is told the minutes picked — through the shared sender (their opt-out kept). Kept
+        // on the phone with no signal under the visit's key; one sent more than 30 minutes late is recorded but not texted (services.ts).
+        { id: 'onmyway', label: 'On my way', icon: 'car', any: ['jobs:update'], when: (d) => NOT_LEFT.includes(d.status),
+          confirm: { title: 'On your way?', body: (d) => `This marks the visit on the way. If your business texts customers when the crew is coming, ${d.contact?.name || 'the customer'} is told how many minutes away you are.`, button: 'On my way' },
+          inputs: [{ id: 'eta', label: 'How far away are you?', kind: 'choice', choices: ETA_CHOICES, initial: () => '15 min' }],
+          offline: (d) => ({ key: `job:${d.id}`, label: `${d.contact?.name || d.number || 'Visit'} · on my way` }),
+          request: (d, v) => ({ method: 'POST', path: `/api/jobs/${d.id}/dispatch`, body: { ...tapped(), ...(etaMinutes(v.eta) ? { etaMinutes: etaMinutes(v.eta) } : {}) } }), done: 'On your way' },
         { id: 'start', label: 'Start this stop', icon: 'play', any: ['jobs:update'], when: (d) => OPEN_JOB.includes(d.status),
           offline: (d) => ({ key: `job:${d.id}`, label: `${d.contact?.name || d.number || 'Visit'} · started` }),
           request: (d) => ({ method: 'POST', path: `/api/jobs/${d.id}/start`, body: tapped() }), done: 'Started' },
