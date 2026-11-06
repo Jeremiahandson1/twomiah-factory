@@ -81,7 +81,7 @@ describe('row 26: the wording', () => {
     const rep = await reportOf(v.job.id)
     expect(rep.messageText).toMatch(/^Hey Pat! Green Acres wrapped up Mow \d+\. Edges trimmed\. Rate us: https:\/\/app\.example\/api\/visit-feedback\//)
     const [text] = await t.db.select().from(t.schema.scheduledText).where(eq(t.schema.scheduledText.contactId, v.ct.id))
-    expect(text.body).toBe(rep.messageText)
+    expect(text.body).toBe(String(rep.messageText))
     // The office reads the copy, on the visit and in the list.
     const one = await (await as(owner, `/api/visit-reports/job/${v.job.id}`)).json()
     expect(one.messageText).toBe(rep.messageText)
