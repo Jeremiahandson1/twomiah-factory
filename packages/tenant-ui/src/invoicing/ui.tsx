@@ -581,6 +581,8 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
     markupDefaults?: MarkupDefaults | null
     /** A picture on each line (quote_line_images): `upload` stores the file and answers its address. */
     images?: { upload: (file: File) => Promise<string> }
+    /** "+ Add text": a line of words only — a heading or a note, no quantity or price (quote_text_lines). */
+    textLines?: boolean
   }
   /** Offer an "Option" name on each line: lines sharing a name are one option (Good / Better / Best) the customer picks between. */
 }) {
@@ -636,7 +638,28 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
     onChange([...kept, { description: '', quantity: 1, unitPrice: 0, section: name }])
   }
 
-  const row = (li: LineItemInput, i: number) => (
+  // Every column but the remove button: a text line's words run across them.
+  const allSpan = 1 + (showCost ? 1 : 0) + 1 + (showCost ? 1 : 0) + (showMarkup ? 1 : 0) + 2 + (optional ? 1 : 0)
+  const textRow = (li: LineItemInput, i: number) => (
+    <tr key={i} data-testid="text-line-row">
+      <td colSpan={allSpan} className="px-3 py-2">
+        <textarea rows={Math.min(6, Math.max(1, String(li.description).split('\n').length))} value={li.description} onChange={e => update(i, { description: e.target.value })} placeholder="A heading or a note for the customer" aria-label="Text line" className={`${inputCls} font-semibold`} />
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-700 dark:text-slate-200">
+          <span>Text only — no quantity or price</span>
+          {namedSections && (
+            <label className="flex items-center gap-1">Section
+              <select aria-label="Section" value={li.section || ''} onChange={(e) => update(i, { section: e.target.value || undefined })} className={`${selectCls} py-0.5 text-xs`}>
+                <option value="">None</option>
+                {sectionNames.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      </td>
+      <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700 dark:text-red-300" aria-label="Remove text line"><X className="w-4 h-4" /></button></td>
+    </tr>
+  )
+  const row = (li: LineItemInput, i: number) => li.type === 'text' ? textRow(li, i) : (
     <tr key={i}>
       <td className="px-3 py-2">
         {est
@@ -789,6 +812,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
       <div className="p-2 border-t border-gray-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0, ...(est && sectionNames.length ? { section: sectionNames[sectionNames.length - 1] } : {}) }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add line</button>
         {est && <button type="button" onClick={addSection} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add section</button>}
+        {estimating?.textLines && <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0, type: 'text', ...(sectionNames.length ? { section: sectionNames[sectionNames.length - 1] } : {}) }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add text</button>}
         {withPricebook && (
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
             <span>or from the pricebook</span>

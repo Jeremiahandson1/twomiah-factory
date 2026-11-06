@@ -45,6 +45,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   // Usual markup by kind of line, with the margin shown as the quote is built (markup_defaults); a picture on each line (quote_line_images).
   const markupOn = useQuoteFeature('markup_defaults')
   const imagesOn = useQuoteFeature('quote_line_images')
+  const textOn = useQuoteFeature('quote_text_lines')
   const [markupDefaults, setMarkupDefaults] = useState<MarkupDefaults | null>(null)
   useEffect(() => {
     if (!markupOn || !maySeeCost) { setMarkupDefaults(null); return }
@@ -323,7 +324,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                */
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost, loaded: pricebookLoaded } : undefined}
               optional={!!cfg.quoteOptions}
-              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes, ...(markupDefaults ? { markupDefaults } : {}), ...(imagesOn ? { images: { upload: uploadLinePicture } } : {}) } : undefined}
+              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes, ...(markupDefaults ? { markupDefaults } : {}), ...(imagesOn ? { images: { upload: uploadLinePicture } } : {}), ...(textOn ? { textLines: true } : {}) } : undefined}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (

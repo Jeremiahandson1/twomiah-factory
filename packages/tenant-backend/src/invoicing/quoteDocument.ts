@@ -207,3 +207,27 @@ export async function pdfExtras(db: any, t: { quoteProposalDocument?: any; quote
     ...(attachmentFiles.length ? { attachmentFiles } : {}),
   }
 }
+
+/**
+ * Each line's picture (quote_line_images) read from the business's photo store so the PDF can print it beside the line (Jobber
+ * Grow: line images on the quote and its PDF). Only the business's own uploads (/media/…) that are PNG or JPEG — the two kinds a
+ * PDF takes, and the two the upload saves; a picture at an outside https address stays on the customer's page only. A picture
+ * that cannot be read is left off; the line still prints. At most 40 lines' pictures are read.
+ */
+export async function withLinePictures<T extends { imageUrl?: string | null }>(storage: any, lines: T[]): Promise<Array<T & { picture?: Buffer }>> {
+  if (!storage?.getObject) return lines
+  let read = 0
+  const out: Array<T & { picture?: Buffer }> = []
+  for (const l of lines) {
+    const url = typeof l?.imageUrl === 'string' ? l.imageUrl : ''
+    if (!url.startsWith('/media/') || read >= 40) { out.push(l); continue }
+    read++
+    try {
+      const obj = await storage.getObject(url.slice('/media/'.length))
+      const bytes = obj ? Buffer.from(obj.body) : null
+      const type = bytes ? sniffType(bytes) : null
+      out.push(bytes && (type === 'image/png' || type === 'image/jpeg') ? { ...l, picture: bytes } : l)
+    } catch { out.push(l) }
+  }
+  return out
+}
