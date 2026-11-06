@@ -387,3 +387,24 @@ export const visitCrewTime = pgTable('visit_crew_time', {
   index('visit_crew_time_company_id_idx').on(t.companyId),
   index('visit_crew_time_job_id_idx').on(t.jobId),
 ])
+
+// A route saved as a template (landscaping parity row 28; Yardbook's copy route; route_copy, not ready): the route's crew, start time,
+// billing mode, season and its stops in order, kept apart from the board so a template never makes visits. "Use" makes a new route
+// from it on a chosen day. `stops`: [{ siteId, contactId, serviceType, estimatedMinutes, pricePerVisit, skipVisitMessage }] in order.
+export const recurringRouteTemplate = pgTable('recurring_route_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  estimatedHours: decimal('estimated_hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  startTime: text('start_time').default('08:00').notNull(),
+  billingMode: text('billing_mode'),
+  seasonStart: text('season_start'),
+  seasonEnd: text('season_end'),
+  notes: text('notes'),
+  stops: json('stops').default([]).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('recurring_route_template_company_id_idx').on(t.companyId),
+])

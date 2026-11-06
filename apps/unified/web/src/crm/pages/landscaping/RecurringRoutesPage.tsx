@@ -10,6 +10,7 @@ import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
 import { whenDate, companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 import { SitePicker, useSites } from './SitePicker'
 import RouteBillingPanel from './RouteBillingPanel'
+import { RouteCopyPanel, RouteTemplatesPanel } from './RouteCopyPanel'
 import RouteInsights from './RouteInsights'
 import RainDayPanel from './RainDayPanel'
 import { CouldNotDoPanel, CrewScorePanel } from './CrewDayPanels'
@@ -48,7 +49,7 @@ interface Stop {
 /** GET /api/recurring-routes/:id → billing (only for a seat that may see invoices): how the visits are billed and why. */
 interface RouteBilling { mode: string; chosen: boolean; note: string | null; covered: Array<{ name: string }> }
 interface RouteDetail {
-  id: string; name: string; dayName: string; startTime?: string; stops?: Stop[]; billing?: RouteBilling
+  id: string; name: string; dayName: string; dayOfWeek?: number; startTime?: string; stops?: Stop[]; billing?: RouteBilling
   /** Rows 20 and 21 (route_board_tools): the season, and the visits whose crew is booked elsewhere at that time. */
   seasonStart?: string | null; seasonEnd?: string | null
   clashes?: Array<{ visitId: string; number: string; day: string; time: string; other: string; otherTitle: string; otherTime: string }>
@@ -297,6 +298,8 @@ export default function RecurringRoutesPage() {
         ))}
       </div>
 
+      <RouteTemplatesPanel onMade={(id) => { loadBoard(); openRoute(id) }} />
+
       {/* Routes the seven columns above cannot hold; empty for any company that has only used this screen. (T58) */}
       {unscheduled.length > 0 && (
         <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 mb-6 dark:border-amber-700 dark:bg-amber-950/30">
@@ -322,6 +325,8 @@ export default function RecurringRoutesPage() {
             </div>
             {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete route</button>}
           </div>
+
+          <RouteCopyPanel route={{ id: detail.id, name: detail.name, dayOfWeek: detail.dayOfWeek }} onMade={(id) => { loadBoard(); openRoute(id) }} />
 
           {tools && (
             <div className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-slate-700">
