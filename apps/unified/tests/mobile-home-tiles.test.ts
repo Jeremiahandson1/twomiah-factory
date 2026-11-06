@@ -321,7 +321,9 @@ if (want('homecare')) describe('homecare: every office tile opens exactly what i
     const inactiveVisit = await visit(c1.id, bea.id, { isActive: false })
     const otherDay = await visit(c2.id, ada.id, { date: TOMORROW, startTime: new Date(`${TOMORROW}T09:00:00Z`), endTime: new Date(`${TOMORROW}T10:00:00Z`) })
     // Clocked in now: two open punches today (the visit above, and another caregiver); a finished punch is not.
-    const nowish = new Date(Date.now() - 20 * 60_000)
+    // Twenty minutes ago, but never before today began (the company is on UTC): run between 00:00 and 00:20 UTC, "20 minutes
+    // ago" was yesterday, so nobody was clocked in today and every shift remained (CI 11/06 00:2x UTC).
+    const nowish = new Date(Math.max(Date.now() - 20 * 60_000, Date.parse(`${TODAY}T00:00:00.000Z`)))
     await ins(S.timeEntries, { companyId, caregiverId: c1.id, clientId: ada.id, scheduleId: v1.id, startTime: nowish, isComplete: false })
     await ins(S.timeEntries, { companyId, caregiverId: c3.id, clientId: cal.id, startTime: nowish, isComplete: false })
     const finished = await ins(S.timeEntries, { companyId, caregiverId: c2.id, clientId: ada.id, startTime: new Date(Date.now() - 3 * 3_600_000), endTime: new Date(Date.now() - 2 * 3_600_000), isComplete: true })

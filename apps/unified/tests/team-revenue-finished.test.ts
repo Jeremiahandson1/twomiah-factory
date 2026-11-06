@@ -15,7 +15,9 @@ import { sharesOf, splitCents } from '../server/data/teamRevenue.ts'
 const json = async (r: Response) => (await r.json()) as any
 const data = async (r: Response) => { const b = await json(r); return b?.data ?? b }
 const DAY = 86_400_000
-const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+// A report's dates are the BUSINESS's days (the company is on America/Chicago, below); toISOString() gave UTC's, which is
+// already tomorrow from 7 PM Central, so a quote sent 18 days ago fell inside the 19–21 window every evening (CI 11/06 00:20 UTC).
+const ymd = (ms: number) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
 const ago = (days: number) => new Date(Date.now() - days * DAY)
 const FEATURES = ['contacts', 'jobs', 'quotes', 'invoices', 'reports', 'time_tracking', 'team_revenue_reports', 'plan_reports']
 
