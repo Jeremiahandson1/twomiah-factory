@@ -43,6 +43,10 @@ const EPS = 0.005
 /** A deposit or progress invoice as the screens show it. */
 type Billed = { id: string; number: string; status: string; billKind: string | null; total: string; balance: number; isFinal: boolean }
 
+
+/** The note that marks an invoice the homeowner raised to pay toward an estimate (row 16). */
+const PAY_TOWARD = 'Payment toward quote'
+
 export function createQuoteBilling(d: CrmDeps, opts: { canTakeCardPayments: (companyId: string) => Promise<boolean> }) {
   const { db } = d
   const numbering = d.settings?.invoices?.numbering || DEFAULT_NUMBERING
@@ -107,6 +111,52 @@ export function createQuoteBilling(d: CrmDeps, opts: { canTakeCardPayments: (com
     if (!row) return null
     d.realtime.emitToCompany(companyId, d.realtime.EVENTS.INVOICE_CREATED, { id: row.id, number: row.number })
     return depositView(companyId, row)
+  }
+
+  /**
+   * Roofing parity row 16 (JobNimbus "pay from an estimate"; portal_pay_options): the homeowner pays toward an approved quote from its
+   * page. The amount becomes an invoice on the quote (billed toward it like a progress invoice, credited on the final one), sent, and
+   * the page goes to its own link to pay. An unpaid one raised this way before is reused, not doubled: the customer pays it (any part,
+   * with the amount box) or the office voids it.
+   */
+  async function raisePayment(companyId: string, quoteId: string, amount: number): Promise<{ error: string; status: 400 | 404 | 409 } | { path: string | null; reused: boolean; number: string }> {
+    if (!(Number.isFinite(amount) && amount >= 1)) return { error: 'Enter at least $1.00.', status: 400 }
+    const first = await ownQuote(db, companyId, quoteId)
+    if (!first || first.status !== 'approved') return { error: 'Only an approved estimate can be paid toward.', status: 400 }
+    const contactId = await customerOf(companyId, first)
+    if (!contactId) return { error: 'This estimate has no customer to bill.', status: 400 }
+    const today = businessToday(await companyTimeZone(db, companyId))
+    const out = await db.transaction(async (tx: any) => {
+      await lockQuoteRow(tx, companyId, quoteId)
+      const q = await ownQuote(tx, companyId, quoteId)
+      const rows = await billedRows(tx, companyId, quoteId)
+      if (rows.some((r: any) => r.quoteId === quoteId)) return { error: `${q.number} is invoiced in full already. Pay that invoice instead.`, status: 409 as const }
+      const open = rows.find((r: any) => r.billKind === 'progress' && String(r.notes || '').startsWith(PAY_TOWARD) && r.status !== 'void' && Number(r.amountPaid || 0) <= 0)
+      if (open) return { row: open, reused: true }
+      const left = round2(Number(q.total) - sum(rows))
+      const pay = round2(amount)
+      if (pay > left + EPS) return { error: `At most ${money(Math.max(0, left))} is left to pay on this estimate.`, status: 409 as const }
+      const last = left - pay <= EPS
+      const created = await insertInvoice(tx, { invoice, invoiceLineItem } as any, numbering, {
+        companyId, contactId, projectId: q.projectId ?? undefined, dueDate: today, issueDate: today, taxRate: 0, status: 'sent',
+        notes: `${PAY_TOWARD} ${q.number}. It is credited on the final invoice.`, terms: q.terms ?? undefined,
+        extra: { billKind: 'progress', billedQuoteId: q.id, ...(last ? { quoteId: q.id } : {}), ...(jobOf(q) ? { jobId: jobOf(q) } : {}) },
+      }, [{ description: `Payment toward ${q.number} — ${q.name}`, quantity: 1, unitPrice: pay }])
+      return { row: created, reused: false }
+    })
+    if ('error' in out) return out
+    if (!out.reused) d.realtime.emitToCompany(companyId, d.realtime.EVENTS.INVOICE_CREATED, { id: out.row.id, number: out.row.number })
+    const token = await documentLinkToken(db, invoice, out.row.id)
+    return { path: token ? documentLinkPath(token) : null, reused: out.reused, number: out.row.number }
+  }
+
+  /** What is left to pay toward an approved quote (its total less every invoice billed on it). */
+  async function leftToPay(companyId: string, quoteId: string): Promise<number> {
+    const q = await ownQuote(db, companyId, quoteId)
+    if (!q || q.status !== 'approved') return 0
+    const rows = await billedRows(db, companyId, quoteId)
+    if (rows.some((r: any) => r.quoteId === quoteId)) return 0
+    return round2(Math.max(0, Number(q.total) - sum(rows)))
   }
 
   /** Billed against remaining, for the quote's page and its job's. */
@@ -245,7 +295,7 @@ export function createQuoteBilling(d: CrmDeps, opts: { canTakeCardPayments: (com
   }
 
   return {
-    raiseDeposit,
+    raiseDeposit, raisePayment, leftToPay,
     depositFor: async (companyId: string, quoteId: string) => { const r = await depositRowOf(db, companyId, quoteId); return r ? depositView(companyId, r) : null },
     billedBefore, checkTotal, summary, raiseProgress, routes,
   }

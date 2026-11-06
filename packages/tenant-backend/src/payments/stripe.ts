@@ -1530,6 +1530,12 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     }
     if (invoiceBalance(inv) <= 0) return c.json({ error: 'This invoice has nothing left to pay.' }, 400)
 
+    // A part amount (the amount box, roofing parity row 16): a number, at least $1 (Stripe's floor is 50¢), never over the balance.
+    if (amount !== undefined && amount !== null && amount !== '') {
+      const a = Number(amount)
+      if (!Number.isFinite(a) || a < 1) return c.json({ error: 'Enter at least $1.00.' }, 400)
+      if (a > invoiceBalance(inv) + 0.005) return c.json({ error: 'That is more than this invoice owes.' }, 400)
+    }
     // inv.balance is not a column (the partial path never ran) — #157
     let result
     if (amount && amount < invoiceBalance(inv)) {

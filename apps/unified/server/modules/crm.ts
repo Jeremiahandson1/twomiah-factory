@@ -617,6 +617,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       canTakeCardPayments,
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
       quoteDeposit: { onApproved: (companyId: string, q: any) => afterApproval(companyId, q.id), depositFor: quoteBilling.depositFor },
+      // Roofing parity row 16 (portal_pay_options, not ready): part payment on the invoice page and paying toward an approved quote.
+      payOptions: { enabled: (companyId: string) => features.isFeatureEnabled(companyId, 'portal_pay_options'), leftToPay: quoteBilling.leftToPay, raise: quoteBilling.raisePayment },
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).

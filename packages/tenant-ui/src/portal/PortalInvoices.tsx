@@ -33,6 +33,8 @@ export interface PortalInvoiceData {
   company?: { name?: string | null; email?: string | null; phone?: string | null } | null
   /** Can the business take a card here (portal.ts payOnlineFor)? false: say how to pay instead of a Pay button. */
   payOnline?: boolean
+  /** Row 16: the customer may choose how much to pay (portal.ts payOptions). */
+  partPayment?: boolean
   [key: string]: unknown
 }
 
@@ -181,7 +183,7 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
         )}
         <div className="p-6 bg-gray-100 border-t dark:bg-slate-800 dark:border-slate-700"><p className="text-sm text-gray-600 dark:text-slate-400">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>
       </div>
-      {token && <PortalPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} invoiceId={invoice.id} amount={Number(invoice.balance)} {...(link ? { linkToken: token } : { portalToken: token })} primaryColor={company?.primaryColor || undefined} onSuccess={() => { setShowPayment(false); load() }} />}
+      {token && <PortalPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} invoiceId={invoice.id} amount={Number(invoice.balance)} allowPart={!!invoice.partPayment} {...(link ? { linkToken: token } : { portalToken: token })} primaryColor={company?.primaryColor || undefined} onSuccess={() => { setShowPayment(false); load() }} />}
     </div>
   )
 }
