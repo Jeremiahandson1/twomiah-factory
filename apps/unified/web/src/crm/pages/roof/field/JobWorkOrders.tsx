@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ClipboardList, Copy, Plus, Send, Trash2, X } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useConfirm, useMayWrite, usePermissions, useToast } from '../../../../shared'
+import { errorText, useConfirm, useMayWrite, usePermissions, useToast, useAuth } from '../../../../shared'
 import { money } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
@@ -123,6 +123,23 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
   const [shared, setShared] = useState<string[]>(existing?.photoIds || [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Row 26 (work_order_tools, not ready; Roofr): fill from the signed proposal, and saved scopes.
+  const toolsOn = useAuth().hasFeature('work_order_tools')
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; scope: string }>>([])
+  useEffect(() => { if (toolsOn) api.get('/api/work-orders/templates').then((r) => setTemplates(listOf(r))).catch(() => setTemplates([])) }, [toolsOn])
+  const fillFromProposal = async () => {
+    try {
+      const r: any = await api.get(`/api/work-orders/from-proposal?jobId=${encodeURIComponent(jobId)}`)
+      setForm((f) => ({ ...f, scope: r.scope, title: f.title || `Work order — ${r.quoteNumber}` }))
+      if (r.materialLines?.length) setLines(r.materialLines)
+      toast.success(`Filled from proposal ${r.quoteNumber}`)
+    } catch (e) { toast.error(errorText(e, 'Could not read the proposal')) }
+  }
+  const saveTemplate = async () => {
+    const n = (form.title || 'Scope').trim()
+    try { await api.post('/api/work-orders/templates', { name: n, scope: form.scope }); toast.success(`Saved as the template “${n}”`); setTemplates(listOf(await api.get('/api/work-orders/templates'))) }
+    catch (e) { toast.error(errorText(e, 'Could not save the template')) }
+  }
 
   useEffect(() => {
     api.get('/api/crews', { limit: 100 }).then((r) => setCrews(listOf<CrewRow>(r))).catch(() => setCrews([]))
@@ -179,6 +196,18 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
             <div className="sm:col-span-2"><label htmlFor="wo-price" className={lab}>Price for the whole job ($)</label>
               <input id="wo-price" type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="What the crew is paid, as one lump sum" className={input} />
               <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">The crew never sees it. Once the work order is sent it counts as the job&rsquo;s crew labour in job costing, in place of pay by the square.</p></div>
+          )}
+          {toolsOn && (
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-2 text-sm" data-testid="wo-tools">
+              <button type="button" onClick={fillFromProposal} className="px-3 py-1.5 rounded-lg border">Fill from the signed proposal</button>
+              {templates.length > 0 && (
+                <select aria-label="Use a template" className="border rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900" value="" onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); if (t) set('scope', t.scope) }}>
+                  <option value="">Use a template…</option>
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              )}
+              <button type="button" disabled={!form.scope.trim()} onClick={saveTemplate} className="px-3 py-1.5 rounded-lg border disabled:opacity-50">Save scope as a template</button>
+            </div>
           )}
           <div className="sm:col-span-2"><label htmlFor="wo-scope" className={lab}>Scope of work</label><textarea id="wo-scope" rows={4} value={form.scope} onChange={(e) => set('scope', e.target.value)} placeholder="What to do, what to watch for, where to park…" className={input} /></div>
         </div>

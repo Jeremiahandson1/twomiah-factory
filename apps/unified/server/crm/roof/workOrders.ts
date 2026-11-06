@@ -33,6 +33,8 @@ import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
 import { createSeatJob } from './field/seatJob.ts'
+import { WORK_ORDER_TOOLS, MAX_TEMPLATES, fromProposal, listTemplates, companyCamFor } from '../../data/workOrderTools.ts'
+import { workOrderTemplate } from '../../db/schema/index.ts'
 import { onCompanyClock, optional, phone } from './validation.ts'
 
 export const WORK_ORDER_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'completed', 'cancelled'] as const
@@ -152,6 +154,53 @@ export function createWorkOrderRoutes(d: CrmDeps) {
       .where(and(...conditions)).orderBy(desc(workOrder.createdAt), desc(workOrder.id)).limit(200)
     const withLink = await mayLink(c), withPrice = await maySeePrice(c)
     return listAll(c, rows.map((r: any) => view(r.wo, withLink, withPrice)))
+  })
+
+  // ---- Row 26 (work_order_tools, not ready; Roofr Work Orders 2.0) — before '/:id' so these are never read as an order's id ----
+  const toolsOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, WORK_ORDER_TOOLS).catch(() => false)
+  // The signed proposal as the order's scope and material lines (no prices).
+  app.get('/from-proposal', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const jobId = c.req.query('jobId') || ''
+    const [j] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, me.companyId))).limit(1)
+    if (!j) return fail(c, 404, 'Job not found')
+    const out = await fromProposal(db, me.companyId, jobId)
+    if (!out) return fail(c, 404, 'This job has no signed proposal yet.', 'NO_PROPOSAL')
+    return one(c, out)
+  })
+  app.get('/templates', requirePermission('jobs:read'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    return listAll(c, await listTemplates(db, c.get('user').companyId))
+  })
+  app.post('/templates', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 80) : ''
+    const scope = typeof b?.scope === 'string' ? b.scope.trim().slice(0, 5000) : ''
+    if (!name || !scope) return fail(c, 400, 'Name the template and write its scope.', 'validation_failed', { [!name ? 'name' : 'scope']: 'Required' })
+    if ((await listTemplates(db, me.companyId)).length >= MAX_TEMPLATES) return fail(c, 409, `You have ${MAX_TEMPLATES} templates — delete one first.`)
+    const [row] = await db.insert(workOrderTemplate).values({ companyId: me.companyId, name, scope, createdById: me.userId } as any).returning()
+    return one(c, row, 201)
+  })
+  app.delete('/templates/:tid', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const [row] = await db.delete(workOrderTemplate).where(and(eq(workOrderTemplate.id, c.req.param('tid')), eq(workOrderTemplate.companyId, me.companyId))).returning({ id: workOrderTemplate.id })
+    if (!row) return fail(c, 404, 'Template not found')
+    return one(c, { id: row.id, deleted: true })
+  })
+  // CompanyCam photos for the job — the business's CompanyCam account is the step left (data/workOrderTools.ts).
+  app.get('/companycam-photos', requirePermission('jobs:read'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const client = companyCamFor(me.companyId)
+    if (!client) return fail(c, 501, 'Connect your CompanyCam account first (its API token, in Settings). The job’s own photos can go on the order today.', 'NO_ACCOUNT')
+    const [j] = await db.select({ id: job.id, address: job.address, number: job.number }).from(job).where(and(eq(job.id, c.req.query('jobId') || ''), eq(job.companyId, me.companyId))).limit(1)
+    if (!j) return fail(c, 404, 'Job not found')
+    try { return listAll(c, await client.photos({ address: j.address ?? null, jobNumber: j.number ?? null })) }
+    catch (err: any) { return fail(c, 502, `CompanyCam did not answer: ${String(err?.message || 'try again shortly')}`) }
   })
 
   app.get('/:id', requirePermission('jobs:read'), async (c) => {

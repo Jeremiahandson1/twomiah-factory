@@ -548,6 +548,18 @@ export const stormRadarEventMatch = pgTable('storm_event_match', {
  * pays. `photo_ids` are the job photos shared with the crew; `completion_photo_ids` the ones the crew took, which are also
  * the job's own photos. The link stops answering at `token_expires_at`.
  */
+/** A saved scope / instructions for work orders (roofing parity row 26; Roofr Work Orders 2.0; work_order_tools, not ready). */
+export const workOrderTemplate = pgTable('work_order_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  scope: text('scope').notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('work_order_template_company_id_idx').on(t.companyId),
+])
+
 export const workOrder = pgTable('work_order', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
