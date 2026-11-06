@@ -7,7 +7,7 @@ import { company, website, page, post, portfolioItem } from '../db/schema/index.
 import { sectionsShown } from './render.ts'
 import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices, type SiteService } from './menu.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
-import { SITE_DESIGNS, SITE_DESIGN_SPECS } from '../core/vertical.ts'
+import { frameOptionsOf, SITE_DESIGNS, SITE_DESIGN_SPECS } from '../core/vertical.ts'
 import { previewing } from './drafts.ts'
 import { servicePagesOf, type ServicePage } from './servicePages.ts'
 import { socialLinksOf } from './structuredData.ts'
@@ -26,9 +26,10 @@ export interface SiteContext {
    * textSizeToggle: the reader's text-size buttons (home care). shop: a store's cart in the header, its script and its pages.
    * cover: the design draws the bar's leather-book frame around the page (SITE_DESIGN_SPECS frame 'book'; base.ejs). fonts and
    * schemes: a whole look's own type, and whether it restyles for light and dark (SITE_DESIGN_SPECS; base.ejs). ctaHref:
-   * where the header's button goes (SiteSettings.ctaHref).
+   * where the header's button goes (SiteSettings.ctaHref). faces, wordmark, motion, themeColor: the frame's own type, the sign
+   * wordmark, the light motion and the phone's bar colour of a design that is not the book's (SITE_DESIGN_SPECS; base.ejs).
    */
-  options: { textSizeToggle: boolean; shop: boolean; cover: boolean; fonts?: string; schemes?: boolean; ctaHref: string }
+  options: { textSizeToggle: boolean; shop: boolean; cover: boolean; fonts?: string; schemes?: boolean; ctaHref: string } & ReturnType<typeof frameOptionsOf>
   colours: SiteColours
   /** The owner's type and feel (site/feel.ts): fonts, corners, buttons, spacing. */
   style?: SiteStyle | null
@@ -94,7 +95,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     slug: co.slug,
     design,
     words: vertical.site.words,
-    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: SITE_DESIGN_SPECS[design].frame === 'book', fonts: fontsUrl(cleanStyle(s?.style), SITE_DESIGN_SPECS[design]), schemes: !!SITE_DESIGN_SPECS[design].schemes, ctaHref: vertical.site.ctaHref || '/contact' },
+    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: SITE_DESIGN_SPECS[design].frame === 'book', fonts: fontsUrl(cleanStyle(s?.style), SITE_DESIGN_SPECS[design]), schemes: !!SITE_DESIGN_SPECS[design].schemes, ctaHref: vertical.site.ctaHref || '/contact', ...frameOptionsOf(SITE_DESIGN_SPECS[design]) },
     colours: siteColours(co, s?.accentColor, s?.palette),
     style: cleanStyle(s?.style),
     services, trade,

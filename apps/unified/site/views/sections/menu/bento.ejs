@@ -1,0 +1,72 @@
+<%
+  // THE BENTO — the home page's picks off the menu, laid out as tiles of different sizes (designs/sign.css .bento; the
+  // bar's facts, server/site/admin.ts ADDON_SECTIONS). Every item tile reads the bar's menu by slug (site.menu, Bar → Menu),
+  // so a price changed or an item 86'd shows here too: nothing on the page is typed twice. Real text, real prices; the
+  // full list stays on /menu. (Moved from templates/website-premium-bar, feature/premium-bar 4d16caa.)
+  //
+  // data: { heading, intro, tiles: [
+  //   { item: "<menu item slug>", size, tone, eyebrow?, href?, text?, stamp? }   item tile (name/price/description from the menu; stamp = a big decorative word, e.g. "½ lb")
+  //   { kind: "taps", size, tone, title?, href? }                         live tap count + first few names
+  //   { kind: "link", size, tone, eyebrow?, title, text?, href }          a plain door to another page
+  // ] }
+  // size: "lg" (2x2) | "wide" (2x1) | "tall" (1x2) | "" (1x1)
+  // tone: "paper" (cream menu card) | "red" (the sign) | "yellow" (the wall lettering) | "dark"
+  const heading = data.heading || 'Off the grill'
+  const intro = data.intro || ''
+  const menu = (typeof site !== 'undefined' && site && Array.isArray(site.menu)) ? site.menu : []
+  // Taps come from the live state, the same numbers the Tonight Board shows (/api/live).
+  const L = (typeof live !== 'undefined' && live) ? live : null
+  const tapCount = L && L.taps ? L.taps.count : 0
+  const tapNames = L && L.taps && Array.isArray(L.taps.featured) ? L.taps.featured.map(f => f.name).filter(Boolean) : []
+  function find(slug) {
+    for (const s of menu) for (const i of (s.items || [])) if (i.slug === slug && i.isActive !== false) return { s, i }
+    return null
+  }
+  function price(i) {
+    if (i.priceLabel) return i.priceLabel
+    if (i.priceCents === null || i.priceCents === undefined) return ''
+    return i.priceCents % 100 === 0 ? '$' + (i.priceCents / 100) : '$' + (i.priceCents / 100).toFixed(2)
+  }
+  const TONES = { paper: 1, red: 1, yellow: 1, dark: 1 }
+  const SIZES = { lg: 1, wide: 1, tall: 1 }
+  const tiles = (Array.isArray(data.tiles) ? data.tiles : []).map(t => {
+    if (!t) return null
+    const size = SIZES[t.size] ? t.size : ''
+    const tone = TONES[t.tone] ? t.tone : 'paper'
+    if (t.item) {
+      const hit = find(t.item)
+      if (!hit) return null                                   // not on the menu (any more): no tile, never a stale one
+      const { s, i } = hit
+      return { size, tone, stamp: t.stamp || '', eyebrow: t.eyebrow || '', title: i.name, price: price(i), text: t.text || i.description || '', href: t.href || (i.isSignature ? '/' + s.slug + '/' + i.slug : '/menu#item-' + i.slug), out: !!i.is86ed, dietary: Array.isArray(i.dietary) ? i.dietary : [] }
+    }
+    if (t.kind === 'taps') {
+      if (!tapCount) return null
+      const names = tapNames.slice(0, 4)
+      return { size, tone, eyebrow: t.eyebrow || 'On tap now', title: t.title || (tapCount + (tapCount === 1 ? ' line pouring' : ' lines pouring')), price: '', text: (t.text ? t.text + ' ' : '') + names.join(' · ') + (tapCount > names.length ? ' and more' : ''), href: t.href || '/taps', out: false, dietary: [] }
+    }
+    if (t.kind === 'link' && t.title && t.href) return { size, tone, eyebrow: t.eyebrow || '', title: t.title, price: '', text: t.text || '', href: t.href, out: false, dietary: [] }
+    return null
+  }).filter(Boolean)
+  if (!tiles.length) return
+%>
+<section id="picks" class="bento" aria-labelledby="picks-heading">
+  <div class="container">
+    <div class="section-head section-head--left">
+      <h2 class="section-title" id="picks-heading"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="bento__grid" role="list">
+      <% tiles.forEach(function (t) { %>
+        <li class="bento__tile bento__tile--<%= t.tone %><%= t.size ? ' bento__tile--' + t.size : '' %><%= t.out ? ' is-out' : '' %>" data-reveal>
+          <% if (t.eyebrow) { %><p class="bento__eyebrow"><%= t.eyebrow %></p><% } %>
+          <h3 class="bento__name"><a href="<%= t.href %>"><%= t.title %></a></h3>
+          <% if (t.price || t.out) { %><p class="bento__price mono"><% if (t.out) { %><span class="bento__out">Out tonight</span> <% } %><%= t.price %></p><% } %>
+          <% if (t.text) { %><p class="bento__desc"><%= t.text %></p><% } %>
+          <% if (t.dietary.length) { %><ul class="menu-item__diet" aria-label="Dietary tags"><% t.dietary.forEach(function (d) { %><li class="menu__chip menu__chip--<%= String(d).toLowerCase() %>"><%= String(d).toUpperCase() %></li><% }) %></ul><% } %>
+          <% if (t.stamp) { %><span class="bento__stamp" aria-hidden="true"><%= t.stamp %></span><% } %>
+          <span class="bento__arrow" aria-hidden="true">&rarr;</span>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+</section>

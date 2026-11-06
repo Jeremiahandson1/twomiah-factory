@@ -204,10 +204,13 @@ const REAL: Record<string, (d: Record<string, any>) => void> = {
 
 /**
  * A section whose fields choose between looks: each look is rendered too, and a field passes when any look prints it.
- * The Tonight board with a cover image is the cover alone; without it, the lettering, lines, picture and closing lines.
+ * The Tonight board with a cover image is the cover alone; without it, the sign over the door when one is named (the
+ * painted-sign heading); without either, the lettering, lines, picture and closing lines.
  */
 const ALSO: Record<string, Array<(d: Record<string, any>) => void>> = {
-  'tonight/board': [(d) => { delete d.coverImage; delete d.coverImageSmall }, (d) => { delete d.coverImage; delete d.coverImageSmall; delete d.titleImage; delete d.titleImageSmall }],
+  'tonight/board': [(d) => { delete d.coverImage; delete d.coverImageSmall },
+    (d) => { delete d.coverImage; delete d.coverImageSmall; delete d.sign },
+    (d) => { delete d.coverImage; delete d.coverImageSmall; delete d.sign; delete d.titleImage; delete d.titleImageSmall }],
 }
 
 describe('on a bar tenant: each bar section saves, comes back, and renders what was typed', () => {

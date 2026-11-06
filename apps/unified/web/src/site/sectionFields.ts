@@ -312,7 +312,14 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'line1', label: 'First line under the name (optional)', kind: 'text' },
       { key: 'line2', label: 'Second line under the name (optional)', kind: 'text' },
       intro,
+      // The painted-sign design's heading: the sign over the door, in real text (designs/sign.css .sign).
+      { key: 'sign', label: 'The sign over the door, as the heading (optional)', kind: 'group', hint: 'Fill in the name to draw it as your sign; leave it empty for the name and lettering above.', fields: [
+        { key: 'name', label: 'Name on the sign', kind: 'text', placeholder: 'e.g. Amber Inn' },
+        { key: 'band', label: 'The band under it (optional)', kind: 'text', placeholder: 'e.g. Bar & Grill' },
+        { key: 'est', label: 'The oval on the band (optional)', kind: 'text', placeholder: 'e.g. Est. 1881' },
+      ] },
       { key: 'art', label: 'Picture beside the board (optional)', kind: 'image' },
+      { key: 'artSmall', label: 'Picture beside the board, small (optional)', kind: 'image', hint: 'A copy about 700 pixels wide, for phones.' },
       { key: 'artAlt', label: 'Picture description (optional)', kind: 'text' },
       { key: 'artCaption', label: 'Picture caption (optional)', kind: 'text' },
       { key: 'artWidth', label: 'Picture width in pixels (optional)', kind: 'number', hint: 'Blank for 1400. With the height, it keeps the page from jumping as the picture loads.' },
@@ -333,6 +340,22 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'showSignatureLinks', label: 'Link signature items to their own page', kind: 'bool', defaultOn: true },
       { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
     defaultData: { heading: 'The menu', kind: 'all', showSignatureLinks: true },
+  },
+  {
+    type: 'menu', variant: 'bento', label: 'Menu — Picks as tiles',
+    description: 'A few things off the menu as tiles of different sizes, with their real prices — live from your CRM, so an 86 shows here too.',
+    fields: [heading, intro, { key: 'tiles', label: 'Tiles', kind: 'list', itemLabel: 'tile', max: 8, item: [
+      { key: 'kind', label: 'What the tile shows', kind: 'select', options: [{ value: '', label: 'An item off the menu' }, { value: 'taps', label: "What's on tap" }, { value: 'link', label: 'A link to another page' }] },
+      { key: 'item', label: 'Menu item (its web address name)', kind: 'text', hint: 'For an item tile: the last part of its page address, e.g. olive.', placeholder: 'e.g. olive' },
+      { key: 'size', label: 'Size', kind: 'select', options: [{ value: '', label: 'Small' }, { value: 'wide', label: 'Wide' }, { value: 'tall', label: 'Tall' }, { value: 'lg', label: 'Large' }] },
+      { key: 'tone', label: 'Colour', kind: 'select', options: [{ value: 'paper', label: 'Cream paper' }, { value: 'red', label: 'Sign red' }, { value: 'yellow', label: 'Painted yellow' }, { value: 'dark', label: 'Black' }] },
+      { key: 'eyebrow', label: 'Small line above (optional)', kind: 'text' },
+      { key: 'title', label: 'Title (links and taps; optional)', kind: 'text', hint: "An item tile takes the item's own name." },
+      { key: 'text', label: 'Words (optional)', kind: 'textarea', hint: "An item tile takes the item's description when this is empty." },
+      { key: 'href', label: 'Link (optional)', kind: 'text', hint: "Blank: the item's own page, or /taps." },
+      { key: 'stamp', label: 'Big word on the tile (optional)', kind: 'text', placeholder: 'e.g. ½ lb' },
+    ] }],
+    defaultData: { heading: 'Off the grill', intro: '', tiles: [] },
   },
   {
     type: 'taps', variant: 'wall', label: 'Taps — What is pouring',
