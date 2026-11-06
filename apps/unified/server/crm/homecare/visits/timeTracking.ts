@@ -773,8 +773,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     const asked = String(form!.get('name') || '')
     const name = /^[A-Za-z0-9_-]{8,80}$/.test(asked) ? asked : crypto.randomUUID().replace(/-/g, '')
     const id = c.req.param('id')!
-    const values = { companyId: g.companyId, timeEntryId: id, caregiverId: g.te.caregiverId, clientId: g.te.clientId, category: 'visit', imageBase64: dataUri, imageSize: bytes.length, uploadName: name }
-    await db.insert(visitPhotos).values(values as any)
+    await db.insert(visitPhotos).values({ companyId: g.companyId, timeEntryId: id, caregiverId: g.te.caregiverId, clientId: g.te.clientId, category: 'visit', imageBase64: dataUri, imageSize: bytes.length, uploadName: name } as any)
       .onConflictDoUpdate({ target: [visitPhotos.companyId, visitPhotos.timeEntryId, visitPhotos.uploadName], set: { imageBase64: dataUri, imageSize: bytes.length, uploadedAt: new Date() } as any })
     return one(c, { url: `visit-photo:${name}` }, 201)
   })
