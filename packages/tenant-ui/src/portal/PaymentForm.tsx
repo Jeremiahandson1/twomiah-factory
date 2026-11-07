@@ -109,15 +109,47 @@ function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSucce
   )
 }
 
-export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalToken, linkToken, onSuccess, primaryColor }: { isOpen: boolean; onClose: () => void; invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; primaryColor?: string }) {
+/**
+ * How much to pay (roofing parity row 16, JobNimbus: the customer enters an amount): the whole balance, or another amount from $1 up to
+ * it. Shown only where the business offers part payment (the invoice's partPayment); the server checks the same bounds.
+ */
+function AmountStep({ balance, onPick, onCancel }: { balance: number; onPick: (amount: number) => void; onCancel: () => void }) {
+  const [mode, setMode] = useState<'all' | 'part'>('all')
+  const [typed, setTyped] = useState('')
+  const n = Number(typed)
+  const bad = mode === 'part' && !(Number.isFinite(n) && n >= 1 && n <= balance + 0.005)
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="pay-amount" checked={mode === 'all'} onChange={() => setMode('all')} /> The whole balance, {money(balance)}</label>
+      <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="pay-amount" checked={mode === 'part'} onChange={() => setMode('part')} /> Another amount</label>
+      {mode === 'part' && (
+        <div>
+          <input className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" type="number" min={1} max={balance} step="0.01" inputMode="decimal" aria-label="Amount to pay" placeholder="Amount" value={typed} onChange={(e) => setTyped(e.target.value)} />
+          {typed !== '' && bad && <p className="mt-1 text-sm text-red-700 dark:text-red-300" role="alert">Enter an amount from $1.00 to {money(balance)}.</p>}
+        </div>
+      )}
+      <div className="flex gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-800 dark:border-slate-600 dark:text-slate-200">Cancel</button>
+        <button type="button" disabled={bad || (mode === 'part' && typed === '')} onClick={() => onPick(mode === 'all' ? balance : Math.round(n * 100) / 100)} className="flex-1 rounded-lg bg-green-700 px-4 py-2 font-medium text-white disabled:opacity-50">Continue</button>
+      </div>
+    </div>
+  )
+}
+
+export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalToken, linkToken, onSuccess, primaryColor, allowPart }: { isOpen: boolean; onClose: () => void; invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; primaryColor?: string; allowPart?: boolean }) {
+  const [chosen, setChosen] = useState<number | null>(null)
+  useEffect(() => { if (!isOpen) setChosen(null) }, [isOpen])
   if (!isOpen) return null
+  const pay = allowPart ? chosen : amount
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div role="dialog" aria-modal="true" aria-label="Make Payment" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">Make Payment</h2>
-          <PortalPaymentForm invoiceId={invoiceId} amount={amount} portalToken={portalToken} linkToken={linkToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />
+          {pay === null
+            ? <AmountStep balance={amount} onPick={setChosen} onCancel={onClose} />
+            : <PortalPaymentForm invoiceId={invoiceId} amount={pay} portalToken={portalToken} linkToken={linkToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />}
         </div>
       </div>
     </div>

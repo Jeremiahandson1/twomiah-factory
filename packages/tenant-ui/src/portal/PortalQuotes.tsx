@@ -11,6 +11,24 @@ import { SectionedRows } from '../invoicing/sections'
 const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', viewed: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', declined: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', expired: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' }
 const RESPONDABLE = ['sent', 'viewed']
 
+/** Row 16 (JobNimbus "pay from an estimate"): an amount toward the approved quote, from $1 up to what is left. */
+function PayToward({ left, busy, onPay }: { left: number; busy: boolean; onPay: (amount: number) => void }) {
+  const [typed, setTyped] = useState(left.toFixed(2))
+  const n = Number(typed)
+  const bad = !(Number.isFinite(n) && n >= 1 && n <= left + 0.005)
+  return (
+    <div className="mt-3 rounded-lg border border-green-200 bg-white p-3 text-sm text-gray-800 dark:border-green-900 dark:bg-slate-900 dark:text-slate-200" data-testid="quote-pay-toward">
+      <p className="font-medium">Make a payment toward this estimate</p>
+      <p className="text-gray-600 dark:text-slate-400">{moneyShort(left)} left to pay. It is credited on your final invoice.</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input className="w-36 rounded-lg border border-gray-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" type="number" min={1} max={left} step="0.01" inputMode="decimal" aria-label="Amount to pay toward the estimate" value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <button type="button" disabled={busy || bad} onClick={() => onPay(Math.round(n * 100) / 100)} className={btnSuccess}>Pay</button>
+      </div>
+      {bad && typed !== '' && <p className="mt-1 text-red-700 dark:text-red-300" role="alert">Enter an amount from $1.00 to {moneyShort(left)}.</p>}
+    </div>
+  )
+}
+
 export interface PortalQuoteData {
   id: string; number: string; name?: string | null; status: string; total: string | number; subtotal?: string | number
   taxAmount?: string | number; taxRate?: string | number; discount?: string | number; terms?: string | null
@@ -19,6 +37,8 @@ export interface PortalQuoteData {
   /** The deposit asked on approval, and — once approved — its invoice (tenant-backend portal.ts customerQuote). */
   depositAmount?: string
   deposit?: { number: string; total: string; balance: number; path: string | null; payOnline: boolean } | null
+  /** Row 16: what is left to pay toward this approved quote, where the business offers paying from the quote (portal.ts payTowardFor). */
+  payToward?: { left: string }
   /**
    * A quote with options the customer chooses between (tenant-backend portal.ts customerQuote); absent on any other quote.
    * `sets` groups them: a set they pick one of, or an additive set they add any of. `options` is every option, flat.
@@ -223,6 +243,15 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
       setError('Failed to approve quote: ' + (e as Error).message)
     } finally { setBusy(false) }
   }
+  // Row 16: pay toward the approved quote — the server raises the invoice for the amount, and its page takes the card.
+  const payToward = async (amount: number) => {
+    setBusy(true); setError('')
+    try {
+      const res = await portalFetch(`/quotes/${quoteId}/pay`, { method: 'POST', body: JSON.stringify({ amount }) })
+      if (res?.path) window.location.assign(res.path)
+      else setError('The payment page could not be opened. Please contact the business.')
+    } catch (e) { setError('Could not start the payment: ' + (e as Error).message) } finally { setBusy(false) }
+  }
   // Tick or untick an optional line before approving: the server works the total out again and answers the quote.
   const choose = async (lineItemId: string, selected: boolean) => {
     setBusy(true); setError('')
@@ -357,7 +386,8 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
                       : <p className="mt-1 text-gray-700 dark:text-slate-300">{business} does not take card payments online. To pay the deposit, please contact them{reach ? ` at ${reach}` : ''}.</p>}
                   </div>
                 )}
-                {quote.deposit && Number(quote.deposit.balance) <= 0 && <p className="mt-2 text-sm text-green-800 dark:text-green-300">Deposit paid ({quote.deposit.number}). Thank you.</p>}{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} timeZone={company?.timeZone} />}</div>
+                {quote.deposit && Number(quote.deposit.balance) <= 0 && <p className="mt-2 text-sm text-green-800 dark:text-green-300">Deposit paid ({quote.deposit.number}). Thank you.</p>}
+                {quote.payToward && !(quote.deposit && Number(quote.deposit.balance) > 0) && <PayToward left={Number(quote.payToward.left)} busy={busy} onPay={payToward} />}{quote.signature && <SignatureDisplay className="mt-3" signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} timeZone={company?.timeZone} />}</div>
             </div>
           </div>
         )}

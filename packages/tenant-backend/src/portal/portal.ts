@@ -165,6 +165,16 @@ export interface PortalDeps {
     depositFor: (companyId: string, quoteId: string) => Promise<unknown>
   }
   /**
+   * Roofing parity row 16 (JobNimbus; the app's portal_pay_options, not ready): the invoice page lets the customer pay part of the
+   * balance (an amount box), and an approved quote's page lets them pay toward it — the app raises that invoice (raise) and the page
+   * goes to its link. Optional: absent, neither is offered.
+   */
+  payOptions?: {
+    enabled: (companyId: string) => Promise<boolean>
+    leftToPay: (companyId: string, quoteId: string) => Promise<number>
+    raise: (companyId: string, quoteId: string, amount: number) => Promise<{ error: string; status: number } | { path: string | null; reused: boolean; number: string }>
+  }
+  /**
    * The customer's finished visits with the crew's note and after-photos (landscaping's visit-done message). Optional: given,
    * the portal gains a Visits section. Answers null when the business has not turned the messages on — then it is a 404.
    */
@@ -944,6 +954,27 @@ export function createPortalRoutes(deps: PortalDeps) {
     return marks.customer && !marks.cosigner ? { name: doc.cosignerName } : null
   }
   const HELD = (who: { name: string }) => `You have signed. ${who.name} still has to sign before this is approved, so it can no longer be changed.`
+  /** Row 16: what is left to pay toward an approved quote, where the business offers paying from the quote and takes cards. */
+  const payTowardFor = async (companyId: string, found: any): Promise<{ payToward?: { left: string } }> => {
+    if (!deps.payOptions || found.status !== 'approved') return {}
+    try {
+      if (!(await deps.payOptions.enabled(companyId)) || !(await payOnlineFor(companyId))) return {}
+      const left = await deps.payOptions.leftToPay(companyId, found.id)
+      return left >= 1 ? { payToward: { left: left.toFixed(2) } } : {}
+    } catch { return {} }
+  }
+  /** Row 16: pay toward an approved quote — the app raises the invoice for the amount; the page goes to its link. */
+  const payTowardQuote = async (c: any) => {
+    const { contact } = P(c)
+    const found = await visibleQuote(c.req.param('quoteId'), contact.id)
+    if (!found) return c.json({ error: 'Quote not found' }, 404)
+    if (!deps.payOptions || !(await deps.payOptions.enabled(contact.companyId).catch(() => false))) return c.json({ error: 'Not found' }, 404)
+    if (!(await payOnlineFor(contact.companyId))) return c.json({ error: 'This business does not take card payments online.' }, 400)
+    const body = await c.req.json().catch(() => ({}))
+    const r = await deps.payOptions.raise(contact.companyId, found.id, Number(body?.amount))
+    if ('error' in r) return c.json({ error: r.error }, r.status as any)
+    return c.json(r)
+  }
   /** The customer's copy of a quote: named fields, lines without item codes, the deposit it asks and — approved — its invoice. */
   const customerQuote = async (companyId: string, found: any, lineItems: any[], company: any) => {
     const asks = 'depositType' in found ? depositAmount(found) : 0
@@ -972,6 +1003,7 @@ export function createPortalRoutes(deps: PortalDeps) {
         : lineItems.filter((li: any) => !li.proposalOptionId || li.selected !== false))).map(customerLine),
       ...(proposal ? { proposal } : {}),
       ...(asks > 0 ? { depositAmount: asks.toFixed(2), deposit } : {}),
+      ...(await payTowardFor(companyId, found)),
       company: { name: company.name, email: company.email, phone: company.phone },
     }
   }
@@ -1218,6 +1250,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     return c.json({
       ...invoiceRow, status: deriveStatus(found, undefined, company.timeZone), balance, lineItems: await customerLines(db, contact.companyId, lineItems), payments, project: projectInfo,
       payOnline: await payOnlineFor(contact.companyId),
+      // Row 16: the customer may pay part of the balance (an amount box) where the business offers it.
+      ...(deps.payOptions && (await deps.payOptions.enabled(contact.companyId).catch(() => false)) ? { partPayment: true } : {}),
       company: { name: company.name, email: company.email, phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip },
     })
   }
@@ -1241,6 +1275,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/p/:token/quotes/:quoteId/choose-option', portalAuth, chooseProposal)
   app.post('/p/:token/quotes/:quoteId/choose-upgrade', portalAuth, chooseUpgrade)
   app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
+  app.post('/p/:token/quotes/:quoteId/pay', portalAuth, payTowardQuote)
   app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
 
@@ -1257,6 +1292,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   app.post('/d/:token/quotes/:quoteId/choose-option', docAuth, onlyLinked('quote', 'quoteId'), chooseProposal)
   app.post('/d/:token/quotes/:quoteId/choose-upgrade', docAuth, onlyLinked('quote', 'quoteId'), chooseUpgrade)
   app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
+  app.post('/d/:token/quotes/:quoteId/pay', docAuth, onlyLinked('quote', 'quoteId'), payTowardQuote)
   // …and the office's PREVIEW of a quote (/v/:token, documentLinks.ts quotePreviewToken): the customer's own page for it, read
   // only. Only GETs are mounted here — there is no approve, tick, choose or decline behind this door — and opening it changes
   // nothing (a sent quote is not marked viewed). A draft is shown as the customer will see it once sent.
