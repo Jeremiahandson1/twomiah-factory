@@ -3,7 +3,7 @@
 // One implementation for every CRM; the template passes its nav list, api, auth and socket state.
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useOutlet, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Home, Settings, LogOut, ChevronDown, ChevronRight, Building, User, Sun, Moon } from 'lucide-react'
+import { Menu, X, Home, Settings, LogOut, ChevronDown, ChevronRight, Building, User, Sun, Moon, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useTheme, useIsMobile, useBrandPalette } from './hooks'
 import { SkipLink, RouteAnnouncer } from './Accessibility'
 import { GlobalSearch } from './GlobalSearch'
@@ -47,6 +47,16 @@ function readCollapsed(who: string): string[] {
     const list = raw ? JSON.parse(raw) : []
     return Array.isArray(list) ? list.filter((x) => typeof x === 'string') : []
   } catch { return [] }
+}
+
+/**
+ * The menu folded to a rail of icons (contractor parity row 8; Buildertrend, JobTread; feature nav_rail, not ready): the
+ * person's choice, kept per signed-in user like the folded headings. Wide screens only — the phone's drawer is always full.
+ */
+export const NAV_RAIL = 'nav_rail'
+export const railKey = (who: string) => `twomiah:nav-rail:${who}`
+export function readRail(who: string): boolean {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem(railKey(who)) === '1' } catch { return false }
 }
 
 // react-router's <NavLink> as JSX fails TS2786 in the typed templates (a second @types/react copy is
@@ -117,6 +127,19 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     return next
   })
   const navGroups = useMemo(() => groupBySection(navItems), [navItems])
+
+  // The rail (row 8): icons only, each named on hover and to a screen reader; the headings give way to a rule.
+  const railAllowed = hasFeature(NAV_RAIL)
+  const [railChosen, setRailChosen] = useState<boolean>(() => readRail(who))
+  useEffect(() => { setRailChosen(readRail(who)) }, [who])
+  const rail = railAllowed && railChosen && !isMobile
+  const toggleRail = () => setRailChosen((prev) => {
+    const next = !prev
+    try { localStorage.setItem(railKey(who), next ? '1' : '0') } catch { /* private mode: it holds for this visit only */ }
+    return next
+  })
+  const itemCls = (active: boolean) => rail ? `${linkCls(active)} justify-center` : linkCls(active)
+  const words = (text: string) => <span className={rail ? 'sr-only' : undefined}>{text}</span>
 
   // Is there nav below the fold? Drives the fade at the bottom of the sidebar. Recomputed on scroll and on
   // resize, and whenever the list itself changes length — switching a module on in Settings can be what
@@ -239,26 +262,29 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
       {sidebarOpen && isMobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col overflow-hidden transform transition-transform duration-200 ease-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-50 ${rail ? 'w-16' : 'w-64'} bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col overflow-hidden transform transition-transform duration-200 ease-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         aria-label="Main navigation"
+        data-rail={rail ? 'true' : undefined}
       >
         <div className="h-16 flex items-center justify-between px-4 border-b dark:border-slate-800">
           <div className="flex items-center gap-2 min-w-0">
             <Brand className="w-8 h-8 text-orange-500 flex-shrink-0 dark:text-orange-200" aria-hidden="true" />
-            <span className="font-bold text-lg text-gray-900 dark:text-white truncate">{company?.name || fallbackName}</span>
+            {!rail && <span className="font-bold text-lg text-gray-900 dark:text-white truncate">{company?.name || fallbackName}</span>}
           </div>
           <button type="button" onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Close menu"><X className="w-5 h-5" /></button>
         </div>
 
+        {!rail && (
         <div className="px-4 py-3 border-b dark:border-slate-800">
           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{company?.name}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
         </div>
+        )}
 
         {config.backToPortal !== false && (
           <div className="px-3 pt-3">
-            <RouterLink to="/" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors">
-              <Home className="w-4 h-4" />Back to Portal
+            <RouterLink to="/" title={rail ? 'Back to Portal' : undefined} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors${rail ? ' justify-center' : ''}`}>
+              <Home className="w-4 h-4" aria-hidden="true" />{words('Back to Portal')}
             </RouterLink>
           </div>
         )}
@@ -275,7 +301,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
           className="h-full overflow-y-auto py-4 px-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(51_65_85)_transparent]"
           aria-label="Sidebar"
         >
-          {collapsible ? (
+          {collapsible && !rail ? (
             <div className="space-y-1">
               {navGroups.map((group, gi) => {
                 const here = group.items.some((i) => itemIsOpen(i, location.pathname))
@@ -324,16 +350,17 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
               const showSection = item.section && (!prev || prev.section !== item.section)
               return (
                 <li key={`${item.to}-${item.label}`}>
-                  {showSection && (
-                    <div className="pt-4 pb-1 px-3"><p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">{item.section}</p></div>
+                  {showSection && (rail
+                    ? <hr className="my-2 border-gray-200 dark:border-slate-800" aria-hidden="true" />
+                    : <div className="pt-4 pb-1 px-3"><p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">{item.section}</p></div>
                   )}
                   {item.external ? (
-                    <a href={externalHref(item)} target="_blank" rel="noopener noreferrer" className={linkCls(false)}>
-                      <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" /><span>{item.label}</span>
+                    <a href={externalHref(item)} target="_blank" rel="noopener noreferrer" title={rail ? item.label : undefined} className={itemCls(false)}>
+                      <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />{words(item.label)}
                     </a>
                   ) : (
-                    <RouterLink to={item.to} end={item.exact} className={({ isActive }) => linkCls(isActive)}>
-                      <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" /><span>{item.label}</span>
+                    <RouterLink to={item.to} end={item.exact} title={rail ? item.label : undefined} className={({ isActive }) => itemCls(isActive)}>
+                      <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />{words(item.label)}
                     </RouterLink>
                   )}
                 </li>
@@ -358,14 +385,21 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
               Now through maySeeRoute, which also honours routePermissions — the rank was only half
               the gate the URL applies, and the portal tile needed the identical question. (T41) */}
           {maySeeRoute(config, '/crm/settings', user?.role, can) && (
-            <RouterLink to="/crm/settings" className={({ isActive }) => linkCls(isActive)}>
-              <Settings className="w-5 h-5" aria-hidden="true" /><span>Settings</span>
+            <RouterLink to="/crm/settings" title={rail ? 'Settings' : undefined} className={({ isActive }) => itemCls(isActive)}>
+              <Settings className="w-5 h-5" aria-hidden="true" />{words('Settings')}
             </RouterLink>
+          )}
+          {railAllowed && !isMobile && (
+            <button type="button" onClick={toggleRail} aria-pressed={rail} data-testid="nav-rail-toggle" title={rail ? 'Expand the menu' : 'Collapse the menu to icons'}
+              className={`mt-1 w-full ${itemCls(false)}`}>
+              {rail ? <PanelLeftOpen className="w-5 h-5" aria-hidden="true" /> : <PanelLeftClose className="w-5 h-5" aria-hidden="true" />}
+              {words(rail ? 'Expand the menu' : 'Collapse menu')}
+            </button>
           )}
         </div>
       </aside>
 
-      <div className="lg:ml-64">
+      <div className={rail ? 'lg:ml-16' : 'lg:ml-64'}>
         <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b dark:border-slate-800 h-16">
           <div className="h-full px-4 flex items-center justify-between">
             <button type="button" onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Open menu" aria-expanded={sidebarOpen}>
