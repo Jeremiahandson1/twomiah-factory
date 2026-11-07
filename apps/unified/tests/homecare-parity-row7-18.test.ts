@@ -9,7 +9,8 @@ import { bootTenant, seedOwner } from './harness.ts'
 import { missedVisits } from '../server/crm/homecare/core/noArrival.ts'
 import { bonusOvertimeCents } from '../server/crm/homecare/core/payrollPay.ts'
 import { createHomecareCore } from '../server/crm/homecare/core/index.ts'
-import { ymdIn, hmsIn } from '../server/crm/homecare/core/agencyTime.ts'
+import { ymdIn, hmsIn, addDays } from '../server/crm/homecare/core/agencyTime.ts'
+import { zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 
 describe('the rules (pure)', () => {
   test('missed: past start + grace, within three hours, and nobody clocked in', () => {
@@ -81,6 +82,25 @@ describe('row 7: the caregiver who has not arrived', () => {
     // the background scan uses the same rule and the same once-only row
     const core = createHomecareCore({ services: t.services.crm } as any)
     expect(await core.noArrival.scanAll()).toBe(0)
+  })
+
+  test('a visit due just before midnight is still alerted just after it (once), and a caregiver who clocked in after midnight has arrived', async () => {
+    const core = createHomecareCore({ services: t.services.crm } as any)
+    const lou = (await ins(t.schema.clients, { companyId, firstName: 'Lou', lastName: 'Late', isActive: true })).id
+    const kim = (await ins(t.schema.clients, { companyId, firstName: 'Kim', lastName: 'Late', isActive: true })).id
+    const night = addDays(ymdIn(new Date(), TZ), 20)                 // a day ahead, so nothing else in this file is on it
+    const next = addDays(night, 1)
+    const visit = (clientId: string, caregiverId: string) => ins(t.schema.schedules, { companyId, caregiverId, clientId, scheduleType: 'one-time', date: night, startTime: new Date(`${night}T23:45:00`), endTime: new Date(`${night}T23:59:00`), isActive: true })
+    await visit(lou, ids.ann)                                          // Ann never comes
+    await visit(kim, ids.bob)                                          // Bob comes at 00:05
+    const at = zonedWallTimeToUtc(next, '00:20', TZ)
+    await ins(t.schema.timeEntries, { companyId, caregiverId: ids.bob, clientId: kim, startTime: zonedWallTimeToUtc(next, '00:05', TZ), endTime: zonedWallTimeToUtc(next, '01:05', TZ), isComplete: true })
+    const first = await core.noArrival.scanCompany(companyId, at)
+    expect(first.alertsCreated).toBe(1)
+    const rows = (await t.db.select().from(t.schema.noshowAlerts).where(eq(t.schema.noshowAlerts.clientId, lou))) as any[]
+    expect(rows.map((r) => [r.caregiverId, String(r.shiftDate).slice(0, 10)])).toEqual([[ids.ann, night]])
+    expect((await core.noArrival.scanCompany(companyId, at)).alertsCreated).toBe(0)
+    expect(((await t.db.select().from(t.schema.noshowAlerts).where(eq(t.schema.noshowAlerts.clientId, kim))) as any[]).length).toBe(0)
   })
 
   test('the family portal is an installable app: its service worker shows notices and caches nothing; off without care_family_comms', async () => {

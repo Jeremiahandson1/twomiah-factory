@@ -6,7 +6,7 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { supervisoryStatus } from '../server/crm/homecare/core/supervisory.ts'
-import { ymdIn } from '../server/crm/homecare/core/agencyTime.ts'
+import { ymdIn, addDays } from '../server/crm/homecare/core/agencyTime.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = ''
@@ -25,7 +25,8 @@ const setFeatures = async (list: string[]) => {
 const BASE = ['contacts', 'scheduling', 'team', 'dashboard']
 // The agency's own calendar day (the app counts "overdue" on it); UTC's was a day ahead each evening in Chicago (10/30).
 const TZ = 'America/Chicago'
-const day = (offset: number) => ymdIn(new Date(Date.now() + offset * 86_400_000), TZ)
+// Calendar days on the agency's clock, not 24-hour steps: across a clock change those land a day off late in the evening (11/06).
+const day = (offset: number) => addDays(ymdIn(new Date(), TZ), offset)
 const list = async () => (await json(await as('owner')('/api/supervisory-visits'))).body
 const row = (b: any, id: string) => b.clients.find((c: any) => c.clientId === id)
 

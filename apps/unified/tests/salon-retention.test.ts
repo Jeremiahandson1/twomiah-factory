@@ -27,7 +27,8 @@ describe('salon: automatic retention sends', () => {
   const features = async (list: string[]) => { await t.db.update(t.schema.company).set({ enabledFeatures: list } as any).where(eq(t.schema.company.id, co)); t.services.features.forgetFeatures() }
   const today = () => tzParts(new Date(), TZ).date
   // n days ago on the SHOP's calendar (the app counts the rebook date on it); UTC's date is a day ahead every Chicago evening.
-  const shopDaysAgo = (n: number) => tzParts(new Date(Date.now() - n * DAY), TZ).date
+  // Calendar days, not 24-hour steps: across a clock change those land a day off late in the evening (11/06).
+  const shopDaysAgo = (n: number) => addDays(today(), -n)
   const noon = (dateStr: string) => new Date(`${dateStr}T18:00:00Z`)           // midday in Chicago, whatever the season
   const settings = (patch: Record<string, unknown>) => as('owner', '/api/retention/settings', 'PUT', patch)
   const run = (dryRun = false) => as('owner', '/api/retention/run', 'POST', { dryRun })
