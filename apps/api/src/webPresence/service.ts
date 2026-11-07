@@ -227,7 +227,8 @@ export async function renderForSite(d: Deps, row: SiteRow, payload: { model: unk
   if (before.lead !== after.lead || before.hiring !== after.hiring || inboxChanged(payload.prev, out.model)) {
     try { await reconcileForms(d, row, out.model) } catch (e: any) { return { status: 502, body: { error: 'Could not update where messages are sent. Nothing was changed. Please try again in a minute.' } } }
   }
-  return { status: 200, body: { ok: true, model: out.model, notes, files: { 'index.html': out.files['index.html'], 'privacy/index.html': out.files['privacy/index.html'] } } }
+  // The stylesheet travels with the pages: a save can change the look, and the site serves the sheet from the same save (handler.mjs).
+  return { status: 200, body: { ok: true, model: out.model, notes, cssVersion: out.cssVersion, files: { 'index.html': out.files['index.html'], 'privacy/index.html': out.files['privacy/index.html'], 'styles/main.css': out.files['styles/main.css'] } } }
 }
 
 // ─── sign-in ─────────────────────────────────────────────────────────────────────────────────

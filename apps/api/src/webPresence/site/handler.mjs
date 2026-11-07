@@ -74,6 +74,25 @@ export function createHandler(deps) {
     return html(body, 200, { 'cache-control': 'public, max-age=0, must-revalidate', 'netlify-cdn-cache-control': 'public, max-age=60, stale-while-revalidate=600' })
   }
 
+  // The page's stylesheet: the one saved with the page (the editor's last save, or the Factory's adopt), else the one deployed with
+  // the function. Cached for a year only when the version asked for is the version held — the page and its stylesheet are written
+  // together, but Blobs is eventually consistent, so a just-saved page can ask an edge that still holds the previous sheet; that
+  // answer is kept for seconds, not a year, and the next ask gets the new one.
+  async function stylesheet(want) {
+    let body = String(initial.css || ''), ver = String(initial.cssVersion || '')
+    const got = store.getWithMetadata ? await store.getWithMetadata('css', { type: 'text' }) : null
+    if (got && typeof got.data === 'string' && got.data) { body = got.data; ver = String((got.metadata && got.metadata.v) || '') }
+    if (!body) return new Response('Not found', { status: 404, headers: { 'cache-control': NO_STORE, ...SECURITY } })
+    const exact = !!want && want === ver
+    const cache = exact ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate'
+    return new Response(body, { status: 200, headers: { 'content-type': 'text/css; charset=utf-8', 'cache-control': cache, 'netlify-cdn-cache-control': exact ? 'public, max-age=31536000, immutable' : 'public, max-age=30', ...SECURITY } })
+  }
+  /** Store a page's stylesheet with its version — ONE write (the version rides as the blob's metadata), so the two never disagree. */
+  async function saveStylesheet(css, v) {
+    if (typeof css !== 'string' || !css) return
+    await store.set('css', css, { metadata: { v: String(v || '') } })
+  }
+
   async function img(hash) {
     if (!/^[0-9a-f]{40}$/.test(String(hash))) return new Response('Not found', { status: 404 })
     const got = await store.getWithMetadata('img:' + hash, { type: 'arrayBuffer' })
@@ -148,8 +167,10 @@ export function createHandler(deps) {
     if (!res.ok || !out || !out.model || !out.files || typeof out.files['index.html'] !== 'string') {
       return json({ error: (out && out.error) || 'Could not save right now. Nothing was changed.' }, res.status === 400 ? 400 : 502)
     }
-    // All three together: the page and its privacy page are only ever from the same save.
+    // All together: the page, its privacy page and its stylesheet are only ever from the same save. The stylesheet goes first, so a
+    // page is never out before the sheet it asks for. (A Factory that sends no stylesheet leaves the one held — older Factories.)
     await count('save')
+    await saveStylesheet(out.files['styles/main.css'], out.cssVersion)
     await kv.set('model', JSON.stringify(out.model))
     await kv.set('page', out.files['index.html'])
     await kv.set('privacy', out.files['privacy/index.html'] || initial.privacy)
@@ -267,6 +288,7 @@ export function createHandler(deps) {
     let b = null
     try { b = JSON.parse(text) } catch { return json({ error: 'That did not look right.' }, 400) }
     if (!b || !b.model || typeof b.page !== 'string') return json({ error: 'That did not look right.' }, 400)
+    await saveStylesheet(b.css, b.cssVersion)
     await kv.set('model', JSON.stringify(b.model))
     await kv.set('page', b.page)
     if (typeof b.privacy === 'string') await kv.set('privacy', b.privacy)
@@ -538,6 +560,7 @@ export function createHandler(deps) {
       if (r === 'api/export' && m === 'GET') return await exportModel(req)
       if (r === 'privacy' && (m === 'GET' || m === 'HEAD')) return await page('privacy')
       if (r === 'img' && m === 'GET') return await img(u.searchParams.get('h'))
+      if (r === 'css' && (m === 'GET' || m === 'HEAD')) return await stylesheet(u.searchParams.get('v') || '')
       if (r === 'api/signin' && m === 'POST') return await signin(req)
       if (r === 'api/signout' && m === 'POST') return await signout(req)
       if (r === 'api/link' && m === 'POST') return await linkRequest(req)

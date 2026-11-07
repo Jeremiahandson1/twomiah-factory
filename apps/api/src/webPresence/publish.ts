@@ -7,7 +7,7 @@
 //
 // There is NO index.html: the page is the function's, so an edit (saved to Blobs) shows with no deploy. The first version of the
 // page rides inside the function bundle, and is what Blobs serves until the owner's first save.
-import { readFileSync, existsSync, writeFileSync, unlinkSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { join, dirname } from 'node:path'
@@ -22,7 +22,9 @@ const SITE_DIR = join(HERE, 'site')
 const API_DIR = join(HERE, '..', '..')
 // @netlify/blobs is declared by apps/unified (the Factory's own package.json is fenced), so the bundler is told where to find it.
 const BLOBS_FROM = join(API_DIR, '..', 'unified')
-const PUBLIC_DIR = join(HERE, '..', '..', '..', '..', 'unified', 'site', 'public')
+// apps/api/src/webPresence → apps/unified/site/public. (It was one '..' too many — <repo>/unified/… does not exist — and the copy
+// skips a missing file, so no $19 site was ever shipped styles/fonts.css or a /fonts/ face: they 404'd live, 11/07.)
+const PUBLIC_DIR = join(HERE, '..', '..', '..', 'unified', 'site', 'public')
 const HERO_DIR = join(HERE, '..', '..', 'assets', 'hero-library')
 
 export const FUNCTION_NAME = 'site'
@@ -62,8 +64,8 @@ export function formsHtml(resumeExtraFields: number = 2): string {
 
 /** The function's source bundle: handler + entry + the first page, model and spec, as one file. Cached by content. */
 const bundleCache = new Map<string, string>()
-export async function bundleFunction(payload: { index: string; privacy: string; model: unknown; spec: unknown }): Promise<string> {
-  const payloadSrc = `export const INITIAL = ${JSON.stringify({ index: payload.index, privacy: payload.privacy, model: payload.model })};\nexport const SPEC = ${JSON.stringify(payload.spec)};\n`
+export async function bundleFunction(payload: { index: string; privacy: string; model: unknown; spec: unknown; css?: string; cssVersion?: string }): Promise<string> {
+  const payloadSrc = `export const INITIAL = ${JSON.stringify({ index: payload.index, privacy: payload.privacy, model: payload.model, css: payload.css ?? '', cssVersion: payload.cssVersion ?? '' })};\nexport const SPEC = ${JSON.stringify(payload.spec)};\n`
   const key = String(Bun.hash(payloadSrc)) + ':' + String(Bun.hash(['handler', 'entry', 'lambda', 'clean', 'shapes', 'session'].map((f) => readFileSync(join(SITE_DIR, f + '.mjs'), 'utf8')).join('\n')))
   const hit = bundleCache.get(key)
   if (hit) return hit
@@ -99,17 +101,23 @@ export interface SiteFiles { files: Record<string, string | Uint8Array>; functio
 export async function buildSiteFiles(rendered: OnePageOutput, spec: SiteSpec): Promise<SiteFiles> {
   const files: Record<string, string | Uint8Array> = {}
   for (const [p, c] of Object.entries(rendered.files)) {
-    if (p === 'index.html' || p === 'privacy/index.html') continue   // these two are the function's
+    // The two pages and the stylesheet are the function's: an editor save replaces all three together, with no deploy. A deployed
+    // styles/main.css would be served instead of the function's (a file wins over a rewrite) and keep the first look for ever.
+    if (p === 'index.html' || p === 'privacy/index.html' || p === 'styles/main.css') continue
     files[p] = c
   }
   for (const a of rendered.assets) {
     const src = a.startsWith('hero-library/') ? join(HERO_DIR, a.slice('hero-library/'.length)) : join(PUBLIC_DIR, a)
     if (existsSync(src)) files[a] = readFileSync(src)
   }
+  // Every self-hosted typeface, whatever this page uses: the owner can pick other letters in the editor, which deploys nothing,
+  // so a face the first page did not need must already be here. (A few hundred KB; unchanged files are not uploaded again.)
+  files['styles/fonts.css'] = readFileSync(join(PUBLIC_DIR, 'styles', 'fonts.css'), 'utf8')
+  for (const f of readdirSync(join(PUBLIC_DIR, 'fonts'))) if (/\.woff2$|^LICENSE\.txt$/.test(f)) files['fonts/' + f] = readFileSync(join(PUBLIC_DIR, 'fonts', f))
   files['edit/index.html'] = readFileSync(join(SITE_DIR, 'editor.html'), 'utf8')
   files['forms.html'] = formsHtml()
   files['_redirects'] = redirectsFile()
   files['_headers'] = headersFile()
-  const code = await bundleFunction({ index: rendered.files['index.html'], privacy: rendered.files['privacy/index.html'], model: rendered.model, spec })
+  const code = await bundleFunction({ index: rendered.files['index.html'], privacy: rendered.files['privacy/index.html'], model: rendered.model, spec, css: rendered.files['styles/main.css'], cssVersion: rendered.cssVersion })
   return { files, functions: { [FUNCTION_NAME]: zip({ [FUNCTION_NAME + '.mjs']: code }) } }
 }
