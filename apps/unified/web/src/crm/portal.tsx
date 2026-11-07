@@ -1,6 +1,7 @@
 // The customer's portal (/portal/<token>), loaded on its own: it pays cards through Stripe, and Stripe's library
 // injects Stripe's script the moment it is imported. Kept out of the admin's bundle, the admin pages never load it.
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useParams } from 'react-router-dom'
+import { ClientAppInstall } from './pages/salon/ClientAppPanels'
 import {
   PortalProvider, PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes,
   PortalQuoteDetail, PortalInvoices, PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail,
@@ -11,8 +12,12 @@ import { verticalScreens } from './vertical'
 
 /** Mounted at /portal/:token/* — the paths below are the portal's own. */
 export default function PortalApp() {
+  const { token = '' } = useParams()
+  // A salon's portal is its clients' app (row 25): installable in the salon's name when the salon has it.
+  const salon = verticalScreens().home === 'salon'
   return (
     <PortalProvider config={verticalScreens().portal as any}>
+      {salon && token ? <ClientAppInstall token={token} /> : null}
       <Routes>
         <Route element={<PortalLayout />}>
           <Route index element={<PortalDashboard />} />

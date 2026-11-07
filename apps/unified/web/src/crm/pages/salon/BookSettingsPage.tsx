@@ -11,6 +11,7 @@ import { roleWord } from '../../viewAs'
 import type { BookScope } from './bookScope'
 import BlockTypesSection from './BlockTypesSection'
 import TeamOrderSection from './TeamOrderSection'
+import { ClientAppSettings } from './ClientAppPanels'
 
 const box = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900'
 const hint = 'mt-1 text-sm text-gray-600 dark:text-slate-300'
@@ -184,6 +185,7 @@ export default function BookSettingsPage() {
           )}
         </section>
       )}
+      {hasFeature('salon_client_app') && <ClientAppSettings />}
     </div>
   )
 }
