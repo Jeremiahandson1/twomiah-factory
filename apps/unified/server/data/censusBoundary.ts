@@ -32,7 +32,9 @@ const q = (s: string) => s.replace(/'/g, "''")
 export function boundaryQuery(kind: Kind, name: string, state: string, offset: number): string | null {
   const st = String(state || '').trim().toUpperCase()
   const fips = STATE_FIPS[st]
-  const n = String(name || '').trim()
+  // "Eau Claire County" is how people say it; TIGERweb's BASENAME is "Eau Claire" (roofing live test 11/07: the county outline was
+  // not found until the word was left off). Only the county's own word goes — a city keeps "City" (Carson City, Jersey City).
+  const n = kind === 'county' ? String(name || '').trim().replace(/\s+(county|parish|borough|census area|city and borough)\.?$/i, '').trim() : String(name || '').trim()
   const tail = `&outFields=NAME,BASENAME&returnGeometry=true&maxAllowableOffset=${offset}&outSR=4326&f=geojson`
   if (kind === 'zip') return /^\d{5}$/.test(n) ? `${TIGER}/PUMA_TAD_TAZ_UGA_ZCTA/MapServer/1/query?where=${encodeURIComponent(`ZCTA5='${n}'`)}${tail}` : null
   if (!fips) return null

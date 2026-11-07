@@ -55,16 +55,18 @@ const TYPE_COLORS: Record<string, string> = {
   emergency: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 }
 
-interface ContactOption { id: string; name?: string | null }
+interface ContactOption { id: string; name?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null }
 
 interface JobForm {
   contactId: string; jobType: string; address: string; city: string; state: string; zip: string
   roofType: string; stories: string; totalSquares: string; scheduledDate: string; scheduledTime: string; notes: string
+  // An insurance job's claim, as AccuLynx takes it on the new job (roofing live test 11/07: only on the claim page afterwards).
+  insuranceCompany: string; claimNumber: string; adjusterName: string; adjusterPhone: string; dateOfLoss: string
 }
 /** The required address boxes and the word each is called by (server/crm/roof/jobs.ts REQUIRED_JOB_FIELDS). */
 const REQUIRED_ADDRESS: Array<[keyof JobForm, string]> = [['address', 'property address'], ['city', 'city'], ['state', 'state'], ['zip', 'ZIP code']]
 const spoken = (w: string[]) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`)
-const EMPTY_FORM: JobForm ={ contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', totalSquares: '', scheduledDate: '', scheduledTime: '', notes: '' }
+const EMPTY_FORM: JobForm ={ contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', totalSquares: '', scheduledDate: '', scheduledTime: '', notes: '', insuranceCompany: '', claimNumber: '', adjusterName: '', adjusterPhone: '', dateOfLoss: '' }
 
 export default function JobsPage() {
   // Offer a write only where it is allowed: POST /api/jobs asks jobs:create.
@@ -142,13 +144,23 @@ export default function JobsPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search, statusFilter, typeFilter, crewFilter, repFilter, mineOnly])
 
+  // The homeowner's address is the property's until someone types another (roofing live test 11/07: picking Hank left the address
+  // blank). Only empty boxes are filled, so an address already typed for a rental or a second property is never overwritten.
+  const withContactAddress = (f: JobForm, c: ContactOption | undefined): JobForm => (!c ? f : {
+    ...f,
+    address: f.address || c.address || '', city: f.city || c.city || '', state: f.state || c.state || '', zip: f.zip || c.zip || '',
+  })
+  const pickContact = (contactId: string) => setForm((f) => withContactAddress({ ...f, contactId }, contacts.find((c) => c.id === contactId)))
   const openCreate = async (contactId = '') => {
     setForm({ ...EMPTY_FORM, contactId })
     setMissing([])
+    let list: ContactOption[] = []
     try {
       // The homeowner: customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
-      setContacts(customersOnly(rowsOf<ContactOption>(await api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }))))
-    } catch { setContacts([]) }
+      list = customersOnly(rowsOf<ContactOption>(await api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS })))
+    } catch { list = [] }
+    setContacts(list)
+    if (contactId) setForm((f) => withContactAddress(f, list.find((c) => c.id === contactId)))
     setModalOpen(true)
   }
 
@@ -171,10 +183,14 @@ export default function JobsPage() {
     if (blank.length) return
     setSaving(true)
     try {
-      const { address, stories, roofType, totalSquares, scheduledDate, scheduledTime, ...rest } = form
+      const { address, stories, roofType, totalSquares, scheduledDate, scheduledTime, insuranceCompany, claimNumber, adjusterName, adjusterPhone, dateOfLoss, ...rest } = form
+      // The claim's facts only on an insurance job, each only when filled in.
+      const claim = form.jobType === 'insurance'
+        ? Object.fromEntries(Object.entries({ insuranceCompany, claimNumber, adjusterName, adjusterPhone, dateOfLoss }).filter(([, v]) => v.trim()))
+        : {}
       // The day and time on the calendar (the company's clock) and the roof's squares, each only when filled in.
       const job = await api.post('/api/jobs', {
-        ...rest, propertyAddress: address, ...(stories ? { stories: Number(stories) } : {}), ...(roofType && { roofType }),
+        ...rest, ...claim, propertyAddress: address, ...(stories ? { stories: Number(stories) } : {}), ...(roofType && { roofType }),
         ...(totalSquares ? { totalSquares: Number(totalSquares) } : {}),
         ...(scheduledDate ? { scheduledDate } : {}), ...(scheduledDate && scheduledTime ? { scheduledTime } : {}),
       }) as RoofJob
@@ -339,7 +355,7 @@ export default function JobsPage() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Contact *</label>
-                <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
+                <select value={form.contactId} onChange={(e) => pickContact(e.target.value)} className="w-full text-sm border rounded-lg px-3 py-2">
                   <option value="">Select contact...</option>
                   {contacts.map((c) => <option key={c.id} value={c.id}>{c.name || '—'}</option>)}
                 </select>
@@ -350,6 +366,17 @@ export default function JobsPage() {
                   {typeOptions(form.jobType).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
                 </select>
               </div>
+              {form.jobType === 'insurance' && (
+                <fieldset className="rounded-lg border border-amber-200 p-3 space-y-2 dark:border-amber-900/60" data-testid="new-job-claim">
+                  <legend className="text-xs font-medium text-amber-800 px-1 dark:text-amber-300">Insurance claim</legend>
+                  {([['insuranceCompany', 'Insurance company', 'e.g. State Farm', 'text'], ['claimNumber', 'Claim number', '', 'text'], ['adjusterName', 'Adjuster', '', 'text'], ['adjusterPhone', 'Adjuster phone', '', 'tel'], ['dateOfLoss', 'Date of loss', '', 'date']] as Array<[keyof JobForm, string, string, string]>).map(([k, label, ph, type]) => (
+                    <div key={k}>
+                      <label htmlFor={`roof-new-${k}`} className="text-xs text-gray-500 block mb-1 dark:text-slate-400">{label}</label>
+                      <input id={`roof-new-${k}`} type={type} placeholder={ph} value={form[k]} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, [k]: v })) }} className="w-full text-sm border rounded-lg px-3 py-2" />
+                    </div>
+                  ))}
+                </fieldset>
+              )}
               {/* Required: the property address, city, state and ZIP (server/crm/roof/jobs.ts REQUIRED_JOB_FIELDS). */}
               <div>
                 <label htmlFor="roof-new-address" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Property address *</label>

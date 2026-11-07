@@ -4,7 +4,7 @@
 // no-op. Now every call goes through the api client (refresh + retry), errors are shown, and the inbox refreshes live
 // on lead:created / lead:updated when the template passes its socket subscribe.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink, ShieldAlert, ArrowRight, Flag, CalendarPlus, CalendarX } from 'lucide-react'
+import { Inbox, Phone, UserPlus, XCircle, Search, RefreshCw, Clock, TrendingUp, ChevronDown, AlertCircle, ExternalLink, ShieldAlert, ArrowRight, Flag, CalendarPlus, CalendarX, Plus } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TextButton } from '../text/TextButton'
@@ -84,6 +84,23 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const [showStats, setShowStats] = useState(true)
   const [expandedLead, setExpandedLead] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // Add lead (roofing live test 11/07: the inbox had no way to add one) — POST /api/leads/manual, the inbox's own create permission.
+  const mayAddLead = config?.ownPermission ? maySetUpSources : mayMakeContact
+  const NEW_LEAD = { name: '', phone: '', email: '', jobType: '', location: '', description: '' }
+  const [adding, setAdding] = useState<typeof NEW_LEAD | null>(null)
+  const saveLead = async () => {
+    if (!adding) return
+    if (!adding.name.trim()) { toast?.error?.('Give the lead a name.'); return }
+    if (!adding.phone.trim() && !adding.email.trim()) { toast?.error?.('Add a phone number or an email, so someone can reach them.'); return }
+    setBusy('add')
+    try {
+      const body = Object.fromEntries(Object.entries(adding).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v))
+      await api.post('/api/leads/manual', body)
+      toast?.success?.('Lead added')
+      setAdding(null)
+      fetchLeads(); fetchStats()
+    } catch (e) { toast?.error?.(errMsg(e, 'The lead could not be added')) } finally { setBusy(null) }
+  }
   // The small form open under one enquiry: why it was lost, or when the site visit is.
   const [panel, setPanel] = useState<{ id: string; kind: 'lost' | 'visit' } | null>(null)
   const [reasons, setReasons] = useState<Array<{ id: string; label: string }>>([])
@@ -189,10 +206,28 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
           <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>{subtitle}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {mayAddLead && <button onClick={() => setAdding(NEW_LEAD)} style={btn()} data-testid="add-lead"><Plus size={14} /> Add lead</button>}
           <button onClick={() => setShowStats(!showStats)} style={btn({ background: showStats ? c.activeBtn : c.surface })}><TrendingUp size={14} /> Stats</button>
           <button onClick={() => { fetchLeads(); fetchStats() }} style={btn()}><RefreshCw size={14} /> Refresh</button>
         </div>
       </div>
+
+      {adding && (
+        <form onSubmit={(e) => { e.preventDefault(); saveLead() }} data-testid="add-lead-form" style={{ border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: 16, marginBottom: 16, background: c.surface, display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          {([['name', 'Name *', 'text'], ['phone', 'Phone', 'tel'], ['email', 'Email', 'email'], ['jobType', jobTypeLabel, 'text'], ['location', 'Address or area', 'text']] as Array<[keyof typeof NEW_LEAD, string, string]>).map(([k, label, type]) => (
+            <label key={k} style={{ display: 'grid', gap: 4, fontSize: 13 }}>{label}
+              <input type={type} value={adding[k]} onChange={(e) => { const v = e.target.value; setAdding((s) => (s ? { ...s, [k]: v } : s)) }} style={{ padding: '8px 10px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text }} />
+            </label>
+          ))}
+          <label style={{ display: 'grid', gap: 4, fontSize: 13, gridColumn: '1 / -1' }}>What they need
+            <textarea rows={2} value={adding.description} onChange={(e) => { const v = e.target.value; setAdding((s) => (s ? { ...s, description: v } : s)) }} style={{ padding: '8px 10px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text }} />
+          </label>
+          <div style={{ display: 'flex', gap: 8, gridColumn: '1 / -1' }}>
+            <button type="submit" disabled={busy === 'add'} style={btn()}>Save lead</button>
+            <button type="button" onClick={() => setAdding(null)} style={btn()}>Cancel</button>
+          </div>
+        </form>
+      )}
 
       {error && (
         <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 16, borderRadius: 8, background: c.errBg, color: c.errText, fontSize: 13 }}>

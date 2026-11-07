@@ -371,6 +371,31 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })
   })
 
+  /**
+   * A lead typed in by hand — a phone call, a referral, someone met on a roof down the street (roofing live test 11/07: the inbox had
+   * no way to add one, so the lead went in as a contact and never reached the inbox, its stages or its numbers). The same writer every
+   * other door uses (insertLead), marked as added by hand (platform 'manual', no source), by a seat that may add leads.
+   */
+  const manualSchema = z.object({
+    name: z.string().trim().min(1, 'Give the lead a name.').max(200),
+    email: z.string().trim().email('That email address does not look right.').max(320).optional().or(z.literal('').transform(() => undefined)),
+    phone: z.string().trim().max(50).optional(),
+    jobType: z.string().trim().max(200).optional(),
+    location: z.string().trim().max(300).optional(),
+    description: z.string().trim().max(5000).optional(),
+  })
+  // At /manual: POST /api/leads itself is the public website form (server/modules/company.ts), mounted before this module.
+  app.post('/manual', requirePermission(own ? 'leads:create' : 'contacts:create'), async (c) => {
+    const u = c.get('user') as any
+    const parsed = manualSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the lead’s details.' }, 400)
+    if (!parsed.data.email && !parsed.data.phone) return c.json({ error: 'Add a phone number or an email, so someone can reach them.' }, 400)
+    const row = await insertLead(db, t.lead, { companyId: u.companyId, sourceId: null, platform: 'manual', parsed: parsed.data, rawPayload: { addedBy: u.userId } })
+    emitToCompany(u.companyId, EVENTS.LEAD_CREATED, { id: row.id, sourcePlatform: 'manual', homeownerName: row.homeownerName })
+    await audit.log({ action: 'create', entity: 'lead', entityId: row.id, metadata: { platform: 'manual' }, req: { user: u } })
+    return c.json(row, 201)
+  })
+
   app.get('/stats', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)

@@ -238,19 +238,20 @@ ${data.disclosure}`,
           <p style="margin-top:0;color:#6b7280;">Quote ${escHtml(data.quoteNumber)}</p>
           <p>Hi ${escHtml(data.contactName)},</p>
           <p>Thank you for the opportunity to provide this quote.</p>
+          ${data.chooseOne ? `<p><strong>Choose one of these options</strong> at the link below — the price follows the option you pick.</p>` : ''}
           ${rows ? `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
             <tr style="background:#f3f4f6;"><th style="padding:6px 8px;text-align:left;">Item</th><th style="padding:6px 8px;text-align:right;">Qty</th><th style="padding:6px 8px;text-align:right;">Price</th><th style="padding:6px 8px;text-align:right;">Total</th></tr>
             ${rows}
           </table>` : ''}
           <table style="width:100%;font-size:14px;margin:8px 0 16px;">
-            ${data.subtotal != null ? `<tr><td style="text-align:right;padding:2px 8px;">Subtotal</td><td style="text-align:right;width:120px;">${money(data.subtotal)}</td></tr>` : ''}
-            ${discount ? `<tr><td style="text-align:right;padding:2px 8px;">Discount</td><td style="text-align:right;">−${money(discount)}</td></tr>` : ''}
-            ${tax ? `<tr><td style="text-align:right;padding:2px 8px;">Tax${data.taxRate ? ' (' + escHtml(Number(data.taxRate)) + '%)' : ''}</td><td style="text-align:right;">${money(tax)}</td></tr>` : ''}
-            <tr><td style="text-align:right;padding:6px 8px;font-weight:700;">Total</td><td style="text-align:right;font-weight:700;">${money(data.total)}</td></tr>
+            ${data.subtotal != null && !data.chooseOne ? `<tr><td style="text-align:right;padding:2px 8px;">Subtotal</td><td style="text-align:right;width:120px;">${money(data.subtotal)}</td></tr>` : ''}
+            ${discount && !data.chooseOne ? `<tr><td style="text-align:right;padding:2px 8px;">Discount</td><td style="text-align:right;">−${money(discount)}</td></tr>` : ''}
+            ${tax && !data.chooseOne ? `<tr><td style="text-align:right;padding:2px 8px;">Tax${data.taxRate ? ' (' + escHtml(Number(data.taxRate)) + '%)' : ''}</td><td style="text-align:right;">${money(tax)}</td></tr>` : ''}
+            <tr><td style="text-align:right;padding:6px 8px;font-weight:700;">${data.chooseOne ? 'From' : 'Total'}</td><td style="text-align:right;font-weight:700;">${money(data.total)}</td></tr>
           </table>
           ${data.expiryDate ? `<p><strong>Valid until:</strong> ${escHtml(data.expiryDate)}</p>` : ''}
           ${approveUrl
-            ? `<p style="text-align:center;"><a href="${escHtml(approveUrl)}" class="button">Review and approve</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">You can approve or decline it at this link.</p>`
+            ? `<p style="text-align:center;"><a href="${escHtml(approveUrl)}" class="button">${data.chooseOne ? 'Choose your option' : 'Review and approve'}</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">You can approve or decline it at this link.</p>`
             : `<p>${howToAccept}</p>`}
         </div>
         <div class="footer">${escHtml(data.companyName)}</div>
@@ -258,7 +259,7 @@ ${data.disclosure}`,
     `,
       text: `Quote ${data.quoteNumber} from ${data.companyName}${data.quoteName ? ': ' + data.quoteName : ''}\n\n`
         + lines.map((l) => `${l.description} — ${Number(l.quantity || 0)} × ${money(l.unitPrice)} = ${money(l.total)}`).join('\n')
-        + `\n\nTotal: ${money(data.total)}${data.expiryDate ? '\nValid until: ' + data.expiryDate : ''}\n\n`
+        + `\n\n${data.chooseOne ? 'Choose one option at the link. From' : 'Total'}: ${money(data.total)}${data.expiryDate ? '\nValid until: ' + data.expiryDate : ''}\n\n`
         + (approveUrl ? `Review and approve: ${approveUrl}` : howToAccept),
     }
   },

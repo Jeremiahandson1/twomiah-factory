@@ -10,6 +10,7 @@ import { inspectionMounts } from './inspection/index.ts'
 import { photoMarkupMounts } from './photoMarkup/index.ts'
 import { portalFilesMounts } from './portalFiles/index.ts'
 import { createRoofCollector } from './collected.ts'
+import { createRoofSigner } from './signed.ts'
 import { createWorkOrderRoutes } from './workOrders.ts'
 import { createCrewLinkRoutes } from './crewLink.ts'
 import { createPipelineRoutes } from './pipeline.ts'
@@ -31,6 +32,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
   if (!d.settings?.roof) return []
   // A job whose invoices are all paid is Collected (./collected.ts), however the money came in.
   d.services.onInvoicePaid?.(createRoofCollector(d).collectIfPaid)
+  // A job whose proposal is approved is Signed (./signed.ts), however it was approved.
+  d.services.onQuoteApproved?.(createRoofSigner(d).signIfApproved)
   // …and the rep who sold it is paid what the company's plans owe, once the job is Collected (./commissions.ts). Runs after the
   // step above, which is what moves the job there.
   d.services.onInvoicePaid?.(createRoofCommissions(d).earnForInvoice)

@@ -28,7 +28,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 8. Open the sign-in link from the email and enter the email; 🙋 **PERSON:** types the password from step 2. **Expect:** the setup wizard ("Welcome, Chrome Test Roofing!") with the details filled in.
 9. Walk every step of the wizard. **Expect:** each makes sense; anything that needs an outside account says so in words.
 10. 📱 **Dashboard:** numbers and tiles show, none says NaN or undefined; every tile opens the list it counts.
-11. **Team:** add a manager `twomiah14+chromeroofmgr@gmail.com`, a sales rep `twomiah14+chromeroofrep@gmail.com` and a crew member `twomiah14+chromeroofcrew@gmail.com`. Chrome opens each invite in twomiah14's inbox; 🙋 **PERSON:** sets each password. Used in section N.
+11. **Team:** add a manager `twomiah14+chromeroofmgr@gmail.com` (role **Manager**), a sales rep `twomiah14+chromeroofrep@gmail.com` (role **Sales rep**) and a crew member `twomiah14+chromeroofcrew@gmail.com` (role **Crew**). Chrome opens each invite in twomiah14's inbox; 🙋 **PERSON:** sets each password. Used in section N.
 12. Open the public website. 📱 **Expect:** the roofer's site with its name and services; the Instant Estimator if it is on.
 
 ## C. Leads, contacts and the pipeline
@@ -54,8 +54,8 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 25. On the signed estimate's page (customer link): **pay toward the approved estimate**. **Expect:** the payment page, or a polite "card payments are not set up" (no Stripe connected).
 26. Make an invoice from the job. On the customer's invoice page, choose an amount to pay (**pay any amount**). **Expect:** the amount box works, or the polite not-connected note.
 27. **Text invoices and receipts:** schedule the invoice's pay link to be texted every few days. **Expect:** saved (texts won't send on a test site — the reason says so).
-28. **Card surcharge** (Settings › Card payments): turn it on at 3% with the processor tick. **Expect:** saved; WI is capped at 3%; it says debit/prepaid never pay it.
-29. **Payments and payouts:** **Expect:** a polite "connect Stripe first".
+28. **Card surcharge** (menu › **Card payments**): turn it on at 3% with the processor tick. **Expect:** saved; WI is capped at 3%; it says debit/prepaid never pay it.
+29. **Payments and payouts** (menu › **Card payments**): **Expect:** a polite "connect Stripe first".
 30. Record a cash payment on the invoice. **Expect:** the balance drops; the status changes to paid or partial.
 
 ## F. Homeowner portal
@@ -84,8 +84,8 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 
 ## J. Storms, canvassing and territories
 
-43. **Storm Leads:** run a check / open the list. **Expect:** loads; "check NOAA now" works or says why not.
-44. **Hail swaths:** **Expect:** a polite "connect a hail-data provider" message. **Storm lead scores** shown on leads where a storm exists.
+43. **Storm Leads:** open the list. **Storm Map:** "Check NOAA now". **Expect:** loads; the check works or says why not.
+44. **Hail swaths** (Storm Map): **Expect:** a polite "connect a hail-data provider" message. **Storm lead scores** shown on leads where a storm exists.
 45. **Territories:** make a territory from a **ZIP** (54701), one from a **city** (Eau Claire, WI) and one from a **county** (Eau Claire County). **Expect:** each outline shows on the map before saving.
 46. **Territory tools:** import a KML file (any small KML), put one territory inside another, redraw a boundary. **Expect:** each saved; the nested one shows under its parent.
 47. **Canvassing:** open the canvassing map; drop a door knock with a result. **Expect:** saved on the map.

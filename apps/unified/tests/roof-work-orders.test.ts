@@ -175,6 +175,14 @@ describe('the office makes and sends a work order', () => {
     expect((await link(token, '/accept', 'POST', { name: 'Dale Foreman' })).status).toBe(200)
     const late = await call('mgr', 'PUT', `/api/work-orders/${id}`, { scope: 'Changed my mind.' })
     expect([late.status, late.body.code]).toEqual([409, 'wrong_status'])
+    // …but its start still moves (rain, a late delivery): roofing live test 11/07 — the office could not reschedule an accepted order.
+    // A start sent with a scope change is still refused whole.
+    const both = await call('mgr', 'PUT', `/api/work-orders/${id}`, { scope: 'Sneaky.', startDate: '2026-12-01' })
+    expect([both.status, both.body.code]).toEqual([409, 'wrong_status'])
+    const moved = await call('mgr', 'PUT', `/api/work-orders/${id}`, { startDate: '2026-12-01' })
+    expect([moved.status, moved.body]).toEqual([200, expect.anything()])
+    expect(moved.body.scope).toBe('Also the garage.')
+    expect(new Date(moved.body.startDate).toISOString().slice(0, 7)).toBe('2026-12')
   })
 })
 

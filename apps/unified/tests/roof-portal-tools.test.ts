@@ -49,6 +49,12 @@ describe('row 21', () => {
     expect(r.status).toBe(200)
     expect(r.body.homeowner).toMatchObject({ name: 'Lee Marsh', portalOn: true, lastVisit: '2026-11-03T16:12:00.000Z' })
     expect(r.body.sees.map((f: any) => f.name)).toEqual(['Ridge done'])
+    // With the portal's messages on (row 22), each job has a line of its own in the portal for its thread — not a file, so not here:
+    // it showed as a blank "(Job)" (roofing live test 11/07).
+    await setFeatures(['portal_tools', 'portal_posts_packets'])
+    const withPosts = await json(await auth(`/api/job-files/homeowner?jobId=${j.id}`))
+    expect(withPosts.body.sees.map((f: any) => [f.kind, f.name])).toEqual([['photo', 'Ridge done']])
+    await setFeatures(['portal_tools'])
   })
 
   test('tell the homeowner: a text with their portal link; an email with no mobile; refused when the portal is off', async () => {

@@ -33,6 +33,9 @@ describe('row 24: the Census queries and real answers', () => {
   test('each kind asks its TIGERweb layer', () => {
     expect(boundaryQuery('zip', '54701', '', 0.002)).toContain('/PUMA_TAD_TAZ_UGA_ZCTA/MapServer/1/query?where=' + encodeURIComponent("ZCTA5='54701'"))
     expect(boundaryQuery('county', 'Eau Claire', 'wi', 0.002)).toContain('/tigerWMS_Current/MapServer/82/query?where=' + encodeURIComponent("UPPER(BASENAME)='EAU CLAIRE' AND STATE='55'"))
+    // "Eau Claire County", as people type it (roofing live test 11/07); a city keeps its "City".
+    expect(boundaryQuery('county', 'Eau Claire County', 'WI', 0.002)).toContain(encodeURIComponent("UPPER(BASENAME)='EAU CLAIRE' AND STATE='55'"))
+    expect(boundaryQuery('city', 'Carson City', 'NV', 0.002)).toContain(encodeURIComponent("UPPER(BASENAME)='CARSON CITY'"))
     expect(boundaryQuery('city', "O'Fallon", 'MO', 0.002)).toContain(encodeURIComponent("UPPER(BASENAME)='O''FALLON' AND STATE='29'"))
     expect(boundaryQuery('state', '', 'WI', 0.002)).toContain('/MapServer/80/query?where=' + encodeURIComponent("STATE='55'"))
     expect(boundaryQuery('zip', '547', '', 0.002)).toBeNull()

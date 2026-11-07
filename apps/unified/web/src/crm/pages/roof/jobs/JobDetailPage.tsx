@@ -1029,10 +1029,13 @@ function ScheduleCard({ job, mayEdit, mayMove, onSaved }: { job: Pick<RoofJob, '
           <input id="roof-job-squares" type="number" min={0} step="0.01" value={squares} disabled={!mayEdit} onChange={(e) => setSquares(e.target.value)} className={input} />
         </div>
       </div>
-      {mayEdit && changed && (
-        <div className="flex justify-end mt-3">
-          <button onClick={save} disabled={saving} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save'}
+      {/* Always there, said plainly (roofing live test 11/07: the date did not stay unless you found the Save that appeared after
+          choosing it). A date, a time and the squares are saved together, so a date is never kept without the time picked for it. */}
+      {mayEdit && (
+        <div className="flex items-center justify-end gap-3 mt-3">
+          {changed && !saving && <span className="text-xs text-amber-700 dark:text-amber-300" role="status" data-testid="schedule-unsaved">Not saved yet</span>}
+          <button onClick={save} disabled={saving || !changed} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50" data-testid="schedule-save">
+            {saving ? 'Saving…' : 'Save schedule'}
           </button>
         </div>
       )}
