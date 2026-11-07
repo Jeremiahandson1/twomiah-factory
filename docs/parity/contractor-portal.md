@@ -55,7 +55,8 @@ Not in row 10: BT's weekly Client Update digest (a digest of the above; listed a
 
 - 10a (built): items 1–4 and 6 — per-project settings over a company default, per-item sharing of daily logs and files, the schedule (phases / every task / weeks ahead) with comments both ways, daily logs with photos, client to-dos with checklists; emails on a shared daily log or a new to-do where the settings ask, and "tell the client" for the schedule and files; the office's preview of the client's page.
 - 10b (built): item 5 — the payment schedule (a share of the contract or a fixed amount, due on a date or at a milestone); releasing raises a real invoice, billed toward the approved quote so its final invoice credits it, never past the contract; the client sees paid / due / coming up and pays the released one through its invoice; emailed when a payment is due where asked.
-- Left: 7 documents to e-sign, and its notice.
+- 10c (built): item 7 — documents to e-sign: a PDF on the project sent to the client (always emailed), read and signed in the portal with the drawn signature, the typed name, consent, time, address, browser and a SHA-256 of the exact file; the signed copy (the original plus a signature page) filed on the project and shown to the client; an audit row; cancel while unsigned.
+- Row 10 is built: every item in "What row 10 builds". Left for a later row, as listed above: Buildertrend's weekly Client Update digest.
 
 ## Sources
 

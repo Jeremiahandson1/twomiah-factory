@@ -1152,3 +1152,31 @@ export const projectPayment = pgTable('project_payment', {
 }, (t) => [
   index('project_payment_project_id_idx').on(t.projectId),
 ])
+
+/**
+ * A document sent to the project's client to e-sign in their portal (0094, contractor parity row 10c; Buildertrend's digital
+ * signatures; client_portal_plus). The office picks a PDF on the project; the client reads it and signs with the evidence quotes
+ * keep (ESIGN/UETA: who, when, from where, that they agreed to sign electronically, and a SHA-256 of exactly the file they saw).
+ * The signed copy — the original with a signature page added — is filed on the project and shown to the client.
+ */
+export const projectSignRequest = pgTable('project_sign_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  message: text('message'),
+  /** 'sent' | 'signed' | 'cancelled' */
+  status: text('status').default('sent').notNull(),
+  signedName: text('signed_name'),
+  signatureImage: text('signature_image'),
+  signedAt: timestamp('signed_at'),
+  signerIp: text('signer_ip'),
+  signerUserAgent: text('signer_user_agent'),
+  documentHash: text('document_hash'),
+  signedDocumentId: text('signed_document_id'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_sign_request_project_id_idx').on(t.projectId),
+])

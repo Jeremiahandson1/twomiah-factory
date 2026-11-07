@@ -45,7 +45,8 @@ function stubOffice() {
     calls.push({ m: 'GET', url })
     if (url.endsWith('/settings')) return SETTINGS
     if (url.startsWith('/api/daily-logs')) return { data: [{ dailyLog: { id: 'l1', date: '2026-11-02T00:00:00.000Z', workPerformed: 'Cabinets out', sharedWithClient: false } }] }
-    if (url.startsWith('/api/documents')) return { data: [{ id: 'd1', name: 'Layout.pdf', sharedWithCustomer: true }] }
+    if (url.startsWith('/api/documents')) return { data: [{ id: 'd1', name: 'Layout.pdf', sharedWithCustomer: true, mimeType: 'application/pdf' }] }
+    if (url.endsWith('/sign-requests')) return { data: [{ id: 'sr1', title: 'Contract', status: 'signed', signedName: 'Lee Marsh', signedAt: '2026-11-03T00:00:00.000Z', signerIp: '203.0.113.7' }] }
     if (url.endsWith('/todos')) return { data: [{ id: 't1', title: 'Pick a colour', status: 'open', checklist: [{ text: 'Walls', done: true }, { text: 'Trim', done: false }] }] }
     if (url.endsWith('/payments')) return { contract: { value: 20000, source: 'quotes' }, scheduled: 2000, paid: 0, payments: [{ id: 'pay1', name: 'Deposit', amountType: 'percent', share: 10, amount: 2000, dueDate: null, state: 'scheduled', invoiceNumber: null }] }
     if (url.endsWith('/comments')) return { data: [{ id: 'c1', taskId: 'k1', taskName: 'Demolition', body: 'Keep the sink?', fromClient: true, createdAt: '' }] }
@@ -74,6 +75,13 @@ describe('the office’s panel', () => {
       await settle()
       await click(button('Add to-do'))
       expect(s.calls.find((c) => c.m === 'POST' && c.url.endsWith('/todos'))?.body).toEqual({ title: 'Sign off the layout', checklist: [{ text: 'Read it', done: false }, { text: 'Sign it', done: false }] })
+      // documents to sign: the evidence shown, and a PDF sent
+      expect(document.querySelector('[data-testid="sign-requests-office"]')!.textContent).toContain('Signed by Lee Marsh')
+      expect(document.querySelector('[data-testid="sign-requests-office"]')!.textContent).toContain('from 203.0.113.7')
+      await setSelect(document.querySelector('select[aria-label="PDF to sign"]'), 'd1')
+      expect((document.querySelector('input[aria-label="Title to sign"]') as any).value).toBe('Layout')
+      await click(button('Send to sign'))
+      expect(s.calls.find((c) => c.url === '/api/client-portal/p1/sign-requests' && c.m === 'POST')?.body).toEqual({ documentId: 'd1', title: 'Layout' })
       // the payment schedule: a planner who may bill releases one
       expect(document.querySelector('[data-testid="payment-schedule-office"]')!.textContent).toContain('Contract $20,000.00')
       await click(button('Release & invoice'))
@@ -103,6 +111,7 @@ describe('the office’s panel', () => {
 
 describe('the client’s project page', () => {
   const EXTRAS = {
+    toSign: [{ id: 'sr1', title: 'Contract', message: 'Please read page 2', status: 'sent', signedAt: null, signedName: null, signed: false }, { id: 'sr2', title: 'Change of scope', message: null, status: 'signed', signedAt: '2026-11-03T00:00:00.000Z', signedName: 'Lee Marsh', signed: true }],
     sections: { schedule: 'phases', dailyLogs: true, photos: true, todos: true },
     schedule: [{ id: 'k1', name: 'Demolition', startDate: '2026-11-02T00:00:00.000Z', endDate: '2026-11-05T00:00:00.000Z', progress: 50, status: 'in_progress', comments: [{ id: 'c1', body: 'Keep the sink?', fromClient: true, createdAt: null }, { id: 'c2', body: 'Yes', fromClient: false, createdAt: null }] }],
     dailyLogs: [{ id: 'l1', date: '2026-11-02T00:00:00.000Z', weather: 'Sunny', workPerformed: 'Cabinets out', workCompleted: null, photos: [{ id: 'ph1', caption: 'Bare wall' }] }],
@@ -128,6 +137,10 @@ describe('the client’s project page', () => {
     expect(pay.textContent).toContain('$2,000.00 paid of $20,000.00')
     expect([...pay.querySelectorAll('a')].map((a: any) => [a.textContent, a.getAttribute('href')])).toEqual([['Pay $5,000.00', '/portal/tok/invoices/i2']])
     expect(pay.textContent).toContain('Coming up')
+    const toSign = document.querySelector('[data-testid="client-to-sign"]')!
+    expect([...toSign.querySelectorAll('a')].map((a: any) => [a.textContent, a.getAttribute('href')])).toEqual([['Read it', 'https://api.example.com/api/portal/p/tok/projects/p1/files/sign/sr1'], ['Signed copy', 'https://api.example.com/api/portal/p/tok/projects/p1/files/sign/sr2']])
+    expect([...toSign.querySelectorAll('button')].map((b: any) => b.textContent)).toEqual(['Sign'])
+    expect(toSign.textContent).toContain('Signed by Lee Marsh')
     expect(document.querySelector('[data-testid="client-schedule"]')!.textContent).toContain('Your builder: Yes')
     expect(document.querySelector('[data-testid="client-daily-logs"] img')!.getAttribute('src')).toBe('https://api.example.com/api/portal/p/tok/projects/p1/files/log-photo/l1:ph1')
     expect(document.querySelector('[data-testid="client-files"]')!.textContent).toContain('Layout.pdf')

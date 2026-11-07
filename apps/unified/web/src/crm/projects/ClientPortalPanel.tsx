@@ -9,7 +9,8 @@ import { formatDate } from '../date'
 
 type Settings = { schedule: 'off' | 'phases' | 'all'; scheduleWeeks: number | null; dailyLogs: boolean; photos: boolean; todos: boolean; payments: boolean; documents: boolean; shareByDefault: boolean; notify: Record<string, boolean> }
 type Log = { id: string; date: string; workPerformed?: string | null; sharedWithClient?: boolean }
-type Doc = { id: string; name: string; sharedWithCustomer?: boolean }
+type Doc = { id: string; name: string; sharedWithCustomer?: boolean; mimeType?: string | null; originalName?: string | null }
+type SignReq = { id: string; title: string; status: string; signedName?: string | null; signedAt?: string | null; signerIp?: string | null; documentHash?: string | null }
 type Todo = { id: string; title: string; status: string; dueDate?: string | null; checklist?: Array<{ text: string; done: boolean }> }
 type Pay = { id: string; name: string; amountType: string; share: number | null; amount: number; dueDate: string | null; state: string; invoiceNumber: string | null }
 type Schedule = { contract: { value: number; source: string }; payments: Pay[]; scheduled: number; paid: number }
@@ -26,6 +27,8 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
   // The payment schedule raises invoices: the server asks invoices:create.
   const mayBill = known && can('invoices:create')
   const [pay, setPay] = useState<Schedule | null>(null)
+  const [signs, setSigns] = useState<SignReq[]>([])
+  const [signDraft, setSignDraft] = useState({ documentId: '', title: '' })
   const [payDraft, setPayDraft] = useState({ name: '', amountType: 'percent', amount: '', dueDate: '' })
   const [s, setS] = useState<Settings | null>(null)
   const [logs, setLogs] = useState<Log[]>([])
@@ -37,14 +40,16 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     const pick = (r: any) => (Array.isArray(r) ? r : r?.data || [])
-    const [st, lg, dc, td, cm, ps] = await Promise.all([
+    const [st, lg, dc, td, cm, ps, sr] = await Promise.all([
       api.get(`/api/client-portal/${projectId}/settings`).catch(() => null),
       api.get(`/api/daily-logs?projectId=${projectId}&limit=50`).catch(() => ({ data: [] })),
       api.get(`/api/documents?projectId=${projectId}`).catch(() => ({ data: [] })),
       api.get(`/api/client-portal/${projectId}/todos`).catch(() => ({ data: [] })),
       api.get(`/api/client-portal/${projectId}/comments`).catch(() => ({ data: [] })),
       api.get(`/api/client-portal/${projectId}/payments`).catch(() => null),
+      api.get(`/api/client-portal/${projectId}/sign-requests`).catch(() => ({ data: [] })),
     ])
+    setSigns(pick(sr))
     setPay(ps as Schedule | null)
     setS(st as Settings | null)
     setLogs(pick(lg).map((r: any) => r.dailyLog ?? r))
@@ -92,6 +97,16 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
   const release = async (p: Pay) => {
     try { const r: any = await api.post(`/api/client-portal/payments/${p.id}/release`, {}); toast.success(`Invoice ${r?.invoice?.number || ''} raised and sent`); setPay(r?.schedule ?? null) } catch (e) { fail(e, 'Could not release it') }
   }
+  const sendToSign = async () => {
+    if (!signDraft.documentId || !signDraft.title.trim()) { toast.error('Pick the PDF and give it a title'); return }
+    try {
+      const r: any = await api.post(`/api/client-portal/${projectId}/sign-requests`, { documentId: signDraft.documentId, title: signDraft.title.trim() })
+      toast.success(r?.told === 'email' ? 'Sent, and the client was emailed' : 'Sent to their portal')
+      setSignDraft({ documentId: '', title: '' }); load()
+    } catch (e) { fail(e, 'Could not send it') }
+  }
+  const cancelSign = async (id: string) => { try { await api.post(`/api/client-portal/sign-requests/${id}/cancel`, {}); load() } catch (e) { fail(e, 'Could not cancel it') } }
+  const pdfs = docs.filter((x) => /pdf$/i.test(String(x.mimeType || '')) || /\.pdf$/i.test(String(x.originalName || x.name || '')))
   const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
   const tick = (key: keyof Settings, label: string) => (
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!mayChange} checked={!!s[key]} onChange={(e) => save({ [key]: e.target.checked } as any)} />{label}</label>
@@ -179,6 +194,32 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
               </span>
               <input aria-label="Payment due date" type="date" value={payDraft.dueDate} onChange={(e) => setPayDraft({ ...payDraft, dueDate: e.target.value })} className={input} />
               <button type="button" onClick={addPayment} className="rounded-lg bg-orange-600 px-3 py-1 text-sm text-white hover:bg-orange-700">Add payment</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {s.documents && (signs.length > 0 || (mayChange && pdfs.length > 0)) && (
+        <div className={box} data-testid="sign-requests-office">
+          <p className="text-sm font-medium mb-2">Documents to sign</p>
+          <ul className="space-y-1 mb-2">
+            {signs.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>{r.title}</span>
+                <span className={muted}>{r.status === 'signed' ? `Signed by ${r.signedName} · ${r.signedAt ? formatDate(r.signedAt) : ''}${r.signerIp ? ` · from ${r.signerIp}` : ''}` : r.status === 'cancelled' ? 'Cancelled' : 'Waiting for their signature'}
+                  {mayChange && r.status === 'sent' && <button type="button" onClick={() => cancelSign(r.id)} className="ml-2 text-red-700 dark:text-red-300">Cancel</button>}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {mayChange && pdfs.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <select aria-label="PDF to sign" value={signDraft.documentId} onChange={(e) => setSignDraft({ ...signDraft, documentId: e.target.value, title: signDraft.title || (pdfs.find((x) => x.id === e.target.value)?.name || '').replace(/\.pdf$/i, '') })} className={input}>
+                <option value="">Pick a PDF…</option>
+                {pdfs.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+              <input aria-label="Title to sign" value={signDraft.title} onChange={(e) => setSignDraft({ ...signDraft, title: e.target.value })} placeholder="Contract" className={input} />
+              <button type="button" onClick={sendToSign} className="rounded-lg bg-orange-600 px-3 py-1 text-sm text-white hover:bg-orange-700">Send to sign</button>
             </div>
           )}
         </div>

@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { usePortal } from './PortalContext'
 import { formatDate, PLink } from './common'
+import { SignatureModal, type SignatureData } from './SignaturePad'
 
 type Comment = { id: string; body: string; fromClient: boolean; createdAt: string | null }
 type Task = { id: string; name: string; startDate: string | null; endDate: string | null; progress: number; status: string; comments: Comment[] }
@@ -12,14 +13,17 @@ type Log = { id: string; date: string | null; weather: string | null; workPerfor
 type FileRow = { id: string; name: string; type: string; mimeType: string | null; createdAt: string | null; image: boolean }
 type Todo = { id: string; title: string; notes: string | null; checklist: Array<{ text: string; done: boolean }>; dueDate: string | null; status: string; completedAt: string | null }
 type Payment = { id: string; name: string; amount: number; dueDate: string | null; milestone: { name: string; done: boolean } | null; state: 'scheduled' | 'due' | 'paid'; invoiceId: string | null; invoiceNumber: string | null; balance: number | null }
-export type ProjectExtras = { sections: { schedule: string; dailyLogs: boolean; photos: boolean; todos: boolean; payments?: boolean }; schedule?: Task[]; dailyLogs?: Log[]; files?: FileRow[]; todos?: Todo[]; payments?: { contract: number; paid: number; payments: Payment[] } }
+type ToSign = { id: string; title: string; message: string | null; status: 'sent' | 'signed'; signedAt: string | null; signedName: string | null; signed: boolean }
+export type ProjectExtras = { toSign?: ToSign[];
+  sections: { schedule: string; dailyLogs: boolean; photos: boolean; todos: boolean; payments?: boolean }; schedule?: Task[]; dailyLogs?: Log[]; files?: FileRow[]; todos?: Todo[]; payments?: { contract: number; paid: number; payments: Payment[] } }
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 const h3 = 'font-semibold text-gray-900 mb-3 dark:text-slate-100'
 const muted = 'text-sm text-gray-500 dark:text-slate-400'
 
 export function PortalProjectExtras({ projectId }: { projectId: string }) {
-  const { fetch: portalFetch, url, token } = usePortal()
+  const { fetch: portalFetch, url, token, contact } = usePortal()
+  const [signing, setSigning] = useState<ToSign | null>(null)
   const [x, setX] = useState<ProjectExtras | null>(null)
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [err, setErr] = useState('')
@@ -42,8 +46,38 @@ export function PortalProjectExtras({ projectId }: { projectId: string }) {
     catch (e) { setErr((e as Error).message || 'Could not save that') }
   }
 
+  const sign = async (sig: SignatureData) => {
+    if (!signing) return
+    setErr('')
+    try {
+      await portalFetch(`/projects/${projectId}/sign/${signing.id}`, { method: 'POST', body: JSON.stringify({ signature: sig.signature, signedBy: sig.signedBy, consent: sig.consent }), headers: { 'Content-Type': 'application/json' } })
+      setSigning(null); load()
+    } catch (e) { setErr((e as Error).message || 'Could not sign it') }
+  }
+
   return (
     <div data-testid="project-extras">
+      {x.toSign && x.toSign.length > 0 && (
+        <div className="p-6 border-b dark:border-slate-700" data-testid="client-to-sign">
+          <h3 className={h3}>Documents to sign</h3>
+          <ul className="space-y-3">
+            {x.toSign.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 dark:border-slate-700">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{d.title}</p>
+                  {d.message && <p className="text-sm text-gray-700 dark:text-slate-200">{d.message}</p>}
+                  {d.status === 'signed' && <p className={muted}>Signed by {d.signedName}{d.signedAt ? ` on ${formatDate(d.signedAt)}` : ''}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <a href={url(`/projects/${projectId}/files/sign/${d.id}`)} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-3 py-1 text-sm dark:border-slate-600">{d.status === 'signed' ? 'Signed copy' : 'Read it'}</a>
+                  {d.status === 'sent' && <button type="button" onClick={() => setSigning(d)} className="rounded-lg bg-orange-600 px-3 py-1 text-sm text-white hover:bg-orange-700">Sign</button>}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <SignatureModal isOpen={!!signing} onClose={() => setSigning(null)} onSave={sign} title={signing ? `Sign: ${signing.title}` : 'Sign'} signerName={contact?.name || ''} />
+        </div>
+      )}
       {err && <p role="alert" className="px-6 pt-4 text-sm text-red-700 dark:text-red-300">{err}</p>}
       {x.todos && x.todos.length > 0 && (
         <div className="p-6 border-b dark:border-slate-700" data-testid="client-todos">

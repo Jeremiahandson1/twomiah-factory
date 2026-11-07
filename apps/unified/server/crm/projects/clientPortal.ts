@@ -26,6 +26,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createPaymentSchedule } from './paymentSchedule.ts'
+import { createSignRequests } from './signRequests.ts'
 
 export const CLIENT_PORTAL_PLUS = 'client_portal_plus'
 const IMAGE = /^image\/(jpeg|png|webp|gif)$/
@@ -97,6 +98,8 @@ export function createClientPortal(d: CrmDeps) {
 
   // The payment schedule (row 10b, paymentSchedule.ts): it tells the client through the same settings.
   const payments = createPaymentSchedule(d, tellClient)
+  // Documents to e-sign (row 10c, signRequests.ts).
+  const signs = createSignRequests(d, tellClient)
 
   // ── what the client sees ───────────────────────────────────────────────────────────────────────
 
@@ -108,7 +111,8 @@ export function createClientPortal(d: CrmDeps) {
   /** The project page's extra sections, as this client may see them. */
   async function view(companyId: string, projectId: string) {
     const s = await settingsFor(companyId, projectId)
-    const out: any = { sections: { schedule: s.schedule, dailyLogs: s.dailyLogs, photos: s.photos, todos: s.todos, payments: s.payments } }
+    const out: any = { sections: { schedule: s.schedule, dailyLogs: s.dailyLogs, photos: s.photos, todos: s.todos, payments: s.payments, documents: s.documents } }
+    if (s.documents) out.toSign = await signs.listFor(companyId, projectId)
     // The payment schedule (row 10b): what is due, what is paid, and the released ones' invoices to pay online.
     if (s.payments) {
       const ps = await payments.scheduleFor(companyId, projectId)
@@ -180,9 +184,15 @@ export function createClientPortal(d: CrmDeps) {
       const [row] = await db.update(clientTodo).set(set).where(eq(clientTodo.id, t.id)).returning()
       return { id: row.id, checklist: row.checklist, status: row.status, completedAt: iso(row.completedAt) }
     },
+    async sign(cont, projectId, requestId, input) {
+      if (!(await on(cont?.companyId)) || !(await ownProject(cont, projectId))) return null
+      if (!(await settingsFor(cont.companyId, projectId)).documents) return null
+      return signs.sign(cont, projectId, requestId, input)
+    },
     async file(cont, projectId, kind, id) {
       if (!(await on(cont?.companyId)) || !(await ownProject(cont, projectId))) return null
       const s = await settingsFor(cont.companyId, projectId)
+      if (kind === 'sign') return s.documents ? signs.file(cont.companyId, projectId, id) : null
       if (kind === 'document' && s.photos) {
         const [x] = await db.select().from(document).where(and(eq(document.id, id), eq(document.projectId, projectId), eq(document.companyId, cont.companyId), eq(document.sharedWithCustomer, true))).limit(1) as any[]
         if (!x || !x.path || String(x.path).includes('..') || !String(x.path).startsWith(`${cont.companyId}/`)) return null
@@ -219,6 +229,7 @@ export function createClientPortal(d: CrmDeps) {
     const mine = async (c: any, projectId: string) => (await db.select({ id: project.id }).from(project).where(and(eq(project.id, projectId), eq(project.companyId, (c.get('user') as any).companyId))).limit(1))[0]
 
     payments.routes(app)
+    signs.routes(app)
 
     app.get('/defaults', requirePermission('projects:read'), async (c) => one(c, shape(await defaultRow((c.get('user') as any).companyId))))
     app.put('/defaults', requirePermission('projects:update'), async (c) => {

@@ -127,6 +127,8 @@ export interface PortalProjectExtras {
   comment: (contact: any, projectId: string, taskId: string, body: string) => Promise<any | { error: string } | null>
   todo: (contact: any, projectId: string, todoId: string, change: { item?: number; done?: boolean; complete?: boolean }) => Promise<any | { error: string } | null>
   file: (contact: any, projectId: string, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
+  /** Row 10c: the client signs a document sent to them, with the signing evidence (who, consent, where, when). */
+  sign?: (contact: any, projectId: string, requestId: string, input: { signature?: unknown; signedBy?: unknown; consent?: unknown; ip: string | null; userAgent: string | null }) => Promise<any | { error: string } | null>
 }
 export interface PortalDeps {
   /** The contractor's project-page extras (see PortalProjectExtras). Optional: no such section without it. */
@@ -1794,6 +1796,13 @@ export function createPortalRoutes(deps: PortalDeps) {
       const change = { ...(typeof b?.item === 'number' ? { item: b.item, done: !!b.done } : {}), ...(typeof b?.complete === 'boolean' ? { complete: b.complete } : {}) }
       return answer(c, await px.todo(P(c).contact, c.req.param('projectId'), c.req.param('todoId'), change))
     })
+    if (px.sign) {
+      const sign = px.sign
+      app.post('/p/:token/projects/:projectId/sign/:requestId', portalAuth, gate('projectExtras' as any), async (c) => {
+        const b: any = await c.req.json().catch(() => ({}))
+        return answer(c, await sign(P(c).contact, c.req.param('projectId'), c.req.param('requestId'), { signature: b?.signature, signedBy: b?.signedBy, consent: b?.consent, ip: signerIp(c), userAgent: c.req.header('user-agent') || null }))
+      })
+    }
     app.get('/p/:token/projects/:projectId/files/:kind/:id', portalAuth, gate('projectExtras' as any), async (c) => {
       const file = await px.file(P(c).contact, c.req.param('projectId'), c.req.param('kind'), c.req.param('id'))
       if (!file) return c.json({ error: 'File not found' }, 404)

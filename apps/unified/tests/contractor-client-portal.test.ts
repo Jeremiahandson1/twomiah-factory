@@ -24,7 +24,11 @@ beforeAll(async () => {
   process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'https://crm.example.com'
   ;(t.services.email as any).send = async () => ({ success: true })
   ;(t.services.crm.emailService as any).sendRaw = async (m: any) => { mails.push(m); return { success: true } }
-  Object.assign((t.services as any).crm.storage, { storageConfigured: () => true, getObject: async (key: string) => t.store.getObject(key) })
+  Object.assign((t.services as any).crm.storage, {
+    storageConfigured: () => true, getObject: async (key: string) => t.store.getObject(key),
+    saveFile: async (file: File, cid: string, folder: string) => { const key = `${cid}/${folder}/${crypto.randomUUID()}.pdf`; await t.store.put(key, Buffer.from(await file.arrayBuffer()), file.type); return { path: key, originalname: file.name, mimetype: file.type, size: file.size } },
+    getFileUrl: (key: string) => `/files/${key}`,
+  })
   const tok = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
   owner = (p: string, i: any = {}) => t.call(p, { ...i, headers: { ...(i.headers || {}), Authorization: `Bearer ${tok}` } })
   const ins = async (table: any, values: any) => ((await t.db.insert(table).values(values).returning()) as any[])[0]
@@ -167,5 +171,57 @@ describe('the payment schedule', () => {
     expect([over.status, over.body.error]).toEqual([400, 'Releasing 19000.00 would bill 21000.00 on a contract of 20000.00.'])
     // another client never sees it
     expect((await P('ann')(`/projects/${ids.kitchen}/extras`)).status).toBe(404)
+  }, 90_000)
+})
+
+// Row 10c — documents to e-sign: a PDF on the project sent to the client, signed in the portal with the evidence quotes keep,
+// a signed copy (the original plus a signature page) filed on the project; never someone else's, never twice, never unconsented.
+describe('documents to e-sign', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  test('sent, read, signed with evidence; the signed copy is filed and shown; refusals in words', async () => {
+    const { PDFDocument } = await import('pdf-lib')
+    const pdf = await PDFDocument.create(); pdf.addPage([612, 792]).drawText('Contract terms')
+    const bytes = Buffer.from(await pdf.save())
+    const key = `${companyId}/docs/contract.pdf`
+    await t.store.put(key, bytes, 'application/pdf')
+    const doc = (await t.db.insert(t.schema.document).values({ companyId, projectId: ids.kitchen, name: 'Contract.pdf', filename: 'contract.pdf', originalName: 'Contract.pdf', mimeType: 'application/pdf', path: key, url: '/x' } as any).returning())[0]
+    mails.length = 0
+    const sent = await json(await owner(`/api/client-portal/${ids.kitchen}/sign-requests`, { method: 'POST', json: { documentId: doc.id, title: 'Kitchen contract' } }))
+    expect(sent.status).toBe(201)
+    expect(mails.map((m) => m.subject)).toEqual(['Please sign: Kitchen contract — Kitchen'])
+    // only a PDF on this project
+    const png = (await t.db.insert(t.schema.document).values({ companyId, projectId: ids.kitchen, name: 'Photo.png', filename: 'p.png', originalName: 'Photo.png', mimeType: 'image/png', path: `${companyId}/p.png`, url: '/y' } as any).returning())[0]
+    expect((await json(await owner(`/api/client-portal/${ids.kitchen}/sign-requests`, { method: 'POST', json: { documentId: png.id, title: 'x' } }))).body.error).toBe('Only a PDF can be sent to sign.')
+
+    let x = await json(await P('lee')(`/projects/${ids.kitchen}/extras`))
+    const req = x.body.toSign.find((r: any) => r.title === 'Kitchen contract')
+    expect(req).toMatchObject({ status: 'sent', signed: false })
+    const read = await P('lee')(`/projects/${ids.kitchen}/files/sign/${req.id}`)
+    expect([read.status, read.headers.get('content-type')]).toEqual([200, 'application/pdf'])
+    expect((await P('ann')(`/projects/${ids.kitchen}/files/sign/${req.id}`)).status).toBe(404)
+
+    const S = (b: any, who = 'lee') => P(who)(`/projects/${ids.kitchen}/sign/${req.id}`, { method: 'POST', json: b, headers: { 'x-forwarded-for': '203.0.113.7', 'user-agent': 'TestBrowser/1' } })
+    expect((await json(await S({ signature: PNG, signedBy: 'Lee Marsh' }))).body.error).toBe('You must agree to sign electronically before signing.')
+    expect((await json(await S({ signature: PNG, consent: true }))).body.error).toBe('Please type your full name to sign.')
+    expect((await json(await S({ signedBy: 'Lee Marsh', consent: true }))).body.error).toBe('A signature is required.')
+    expect((await S({ signature: PNG, signedBy: 'Lee Marsh', consent: true }, 'ann')).status).toBe(404)
+    const ok = await json(await S({ signature: PNG, signedBy: 'Lee Marsh', consent: true }))
+    expect(ok.status).toBe(200)
+    expect(ok.body).toMatchObject({ status: 'signed', signedName: 'Lee Marsh', signed: true })
+    expect((await json(await S({ signature: PNG, signedBy: 'Lee Marsh', consent: true }))).body.error).toMatch(/^This was signed on/)
+
+    const [row] = await t.db.select().from(t.schema.projectSignRequest).where(eq(t.schema.projectSignRequest.id, req.id)) as any[]
+    const { createHash } = await import('node:crypto')
+    expect([row.signerIp, row.signerUserAgent, row.documentHash]).toEqual(['203.0.113.7', 'TestBrowser/1', createHash('sha256').update(bytes).digest('hex')])
+    const [signedDoc] = await t.db.select().from(t.schema.document).where(eq(t.schema.document.id, row.signedDocumentId)) as any[]
+    expect([signedDoc.projectId, signedDoc.sharedWithCustomer, signedDoc.name]).toEqual([ids.kitchen, true, 'Kitchen contract (signed)'])
+    const copy = await PDFDocument.load(new Uint8Array(await (await P('lee')(`/projects/${ids.kitchen}/files/sign/${req.id}`)).arrayBuffer()))
+    expect(copy.getPageCount()).toBe(2) // the original page and the signature page
+    const audits = await t.db.select().from(t.schema.auditLog).where(eq(t.schema.auditLog.entityId, req.id)) as any[]
+    expect(audits.map((a) => [a.action, a.userName, a.ipAddress])).toEqual([['sign_request.signed', 'Lee Marsh', '203.0.113.7']])
+    // the office's list carries the evidence, never the drawn image
+    const list = await json(await owner(`/api/client-portal/${ids.kitchen}/sign-requests`))
+    expect(JSON.stringify(list.body)).not.toContain('base64')
+    expect((await owner(`/api/client-portal/sign-requests/${req.id}/cancel`, { method: 'POST' })).status).toBe(400)
   }, 90_000)
 })
