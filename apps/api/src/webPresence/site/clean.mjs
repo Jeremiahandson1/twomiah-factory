@@ -125,6 +125,9 @@ const slug = (s) => cleanLine(s, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '')
  * it could not be ADDED now — "a trade change removes nothing". Colours and type are coarse-checked here and finished by the
  * Factory's render (the contrast guards), which returns the canonical model.
  */
+/** The logo's height in the top bar: the owner's pick. 'standard' is the design's own (stored as nothing). */
+export const LOGO_SIZES = ['standard', 'large', 'xlarge']
+
 export function cleanModel(raw, spec, prev = null) {
   const r = raw && typeof raw === 'object' ? raw : {}
   const p = prev && typeof prev === 'object' ? prev : {}
@@ -139,6 +142,7 @@ export function cleanModel(raw, spec, prev = null) {
     serviceAreas: (Array.isArray(biz.serviceAreas) ? biz.serviceAreas : []).map((a) => cleanLine(a, 60)).filter(Boolean).slice(0, 20),
     logo: cleanImage(biz.logo),
   }
+  if (LOGO_SIZES.includes(biz.logoSize) && biz.logoSize !== 'standard') business.logoSize = biz.logoSize
   const look = r.look && typeof r.look === 'object' ? r.look : {}
   const plook = p.look || {}
   const pal = look.palette && typeof look.palette === 'object' ? look.palette : {}
@@ -162,6 +166,8 @@ export function cleanModel(raw, spec, prev = null) {
       lead: { on: !!(r.forms && r.forms.lead && r.forms.lead.on === true), inbox: cleanEmail(r.forms && r.forms.lead && r.forms.lead.inbox), extraFields: [] },
       hiring: { on: !!(r.forms && r.forms.hiring && r.forms.hiring.on === true), inbox: cleanEmail(r.forms && r.forms.hiring && r.forms.hiring.inbox) },
     },
+    // The top menu: "Home" first when the owner asks for it; each section's own word is on the section (`menu`).
+    menu: { home: !!(r.menu && r.menu.home === true) },
     sections: [],
   }
   const lead = r.forms && r.forms.lead
@@ -183,7 +189,9 @@ export function cleanModel(raw, spec, prev = null) {
     if (!variant) continue
     seen.add(id)
     // `hidden` defaults to shown: a section saved before the toggle existed is never hidden by it (Potato lesson 2).
-    clean.sections.push({ id, type, variant, hidden: s.hidden === true, data: cleanShape(SHAPES[type], s.data) })
+    // The word for this section in the top menu, when the owner chose one (none = the section's usual word, if it has one).
+    const menuWord = cleanLine(s.menu, 24)
+    clean.sections.push({ id, type, variant, hidden: s.hidden === true, ...(menuWord ? { menu: menuWord } : {}), data: cleanShape(SHAPES[type], s.data) })
   }
   if (JSON.stringify(clean).length > LIMITS.modelBytes) return { ...clean, sections: [], tooBig: true }
   return clean

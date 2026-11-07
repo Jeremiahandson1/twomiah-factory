@@ -47,6 +47,22 @@ describe('the first page, for each trade', () => {
   })
 })
 
+describe('the menu and logo size are cleaned like everything else', () => {
+  test('a menu word is one short line; "Home" only on an explicit yes; logo size only from the list', () => {
+    const spec = buildSpec('roofing')
+    const { model } = first('roofing')
+    const raw = { ...model, menu: { home: 'yes' }, business: { ...model.business, logoSize: 'giant' }, sections: model.sections.map((s: any, k: number) => (k === 0 ? { ...s, menu: '  <b>Club' + String.fromCharCode(10) + 'Starter</b> Kit with a very long name indeed ' } : s)) }
+    const c = cleanModel(raw, spec)
+    expect(c.menu).toEqual({ home: false })
+    expect(c.business.logoSize).toBeUndefined()
+    expect(c.sections[0].menu.length).toBeLessThanOrEqual(24); expect(c.sections[0].menu).not.toContain(String.fromCharCode(10))
+    const ok = cleanModel({ ...model, menu: { home: true }, business: { ...model.business, logoSize: 'xlarge' }, sections: model.sections.map((s: any, k: number) => (k === 0 ? { ...s, menu: 'Club Starter Kit' } : k === 1 ? { ...s, menu: '   ' } : s)) }, spec)
+    expect(ok.menu).toEqual({ home: true }); expect(ok.business.logoSize).toBe('xlarge')
+    expect(ok.sections[0].menu).toBe('Club Starter Kit'); expect('menu' in ok.sections[1]).toBe(false)
+    expect('logoSize' in cleanModel({ ...model, business: { ...model.business, logoSize: 'standard' } }, spec).business).toBe(false)
+  })
+})
+
 describe('the published page', () => {
   test('one page: home + privacy, with the sitemap, robots and llms that go with it — nothing else', async () => {
     const { model } = first('roofing'); const out = await draw('roofing', model)
@@ -67,6 +83,29 @@ describe('the published page', () => {
     const anchors = [...html.matchAll(/<nav class="primary-nav"[\s\S]*?<\/nav>/g)].flatMap((m) => [...m[0].matchAll(/href="(#[^"]+)"/g)].map((x) => x[1]))
     expect(anchors.length).toBeGreaterThan(0)
     for (const a of anchors) expect(html).toMatch(new RegExp(`id="${a.slice(1)}"`))
+  })
+  test("the owner's menu: their own word for a section, \"Home\" first when asked, hidden sections out, six at most", async () => {
+    const { model } = first('roofing')
+    const nav = (html: string) => [...(/<nav class="primary-nav"[^>]*>([\s\S]*?)<\/nav>/.exec(html)![1].matchAll(/<a href="([^"]*)"[^>]*>([^<]*)<\/a>/g))].map((m) => m[2] + ' ' + m[1])
+    const plain = nav(String((await draw('roofing', model)).files['index.html']))
+    expect(plain[0]).not.toMatch(/^Home /)
+    const sections = model.sections.map((s: any) => (s.id === 'services' ? { ...s, menu: 'Club Starter Kit' } : s))
+    const own = nav(String((await draw('roofing', { ...model, menu: { home: true }, sections })).files['index.html']))
+    expect(own[0]).toBe('Home #top')
+    expect(own).toContain('Club Starter Kit #services')
+    expect(own.join()).not.toMatch(/Services #services/)
+    expect(own.length).toBeLessThanOrEqual(6)
+    const hidden = nav(String((await draw('roofing', { ...model, sections: sections.map((s: any) => (s.id === 'services' ? { ...s, hidden: true } : s)) })).files['index.html']))
+    expect(hidden.join()).not.toMatch(/Club Starter Kit/)
+  })
+  test("logo size: the owner's pick sets the header logo's height; none leaves the design's own 44px", async () => {
+    const { model } = first('roofing')
+    const withLogo = { ...model, business: { ...model.business, logo: '/media?h=' + 'a'.repeat(40) } }
+    const img = (html: string) => /<a class="brand[^"]*"[^>]*><img [^>]*style="([^"]*)"/.exec(html)![1]
+    expect(img(String((await draw('roofing', withLogo)).files['index.html']))).toContain('height:44px;')
+    expect(img(String((await draw('roofing', { ...withLogo, business: { ...withLogo.business, logoSize: 'large' } })).files['index.html']))).toContain('height:min(60px, max(44px, 15vw));')
+    expect(img(String((await draw('roofing', { ...withLogo, business: { ...withLogo.business, logoSize: 'xlarge' } })).files['index.html']))).toContain('height:min(76px, max(44px, 15vw));')
+    expect(img(String((await draw('roofing', { ...withLogo, business: { ...withLogo.business, logoSize: 'huge;background:red' } })).files['index.html']))).toContain('height:44px;')
   })
   test('adding a section stays on the one page', async () => {
     const { model } = first('roofing')

@@ -22,10 +22,12 @@ function libraryPhotosIn(value: unknown, found: string[] = []): string[] {
   return found
 }
 
-export interface OnePageSection { id: string; type: string; variant: string; hidden?: boolean; data: Record<string, any> }
+export interface OnePageSection { id: string; type: string; variant: string; hidden?: boolean; /** The owner's word for it in the top menu. */ menu?: string; data: Record<string, any> }
 export interface OnePageModel {
-  business: { name: string; phone?: string; email?: string; address?: string; city?: string; state?: string; zip?: string; tagline?: string; hours?: Record<string, any>; serviceAreas?: string[]; logo?: string }
+  business: { name: string; phone?: string; email?: string; address?: string; city?: string; state?: string; zip?: string; tagline?: string; hours?: Record<string, any>; serviceAreas?: string[]; logo?: string; logoSize?: 'large' | 'xlarge' }
   look: { design?: string; palette?: Record<string, string>; style?: Record<string, string> }
+  /** The top menu: "Home" first when asked for. */
+  menu?: { home?: boolean }
   forms: { lead: { on: boolean; inbox?: string; extraFields?: Array<{ label: string }> }; hiring: { on: boolean; inbox?: string } }
   sections: OnePageSection[]
 }
@@ -148,6 +150,9 @@ function llmsText(i: OnePageInput, sections: any[]): string {
   return lines.join('\n')
 }
 
+/** The logo sizes an owner may pick (clean.mjs LOGO_SIZES), as the header logo's height in px. */
+const LOGO_PX: Record<string, number> = { large: 60, xlarge: 76 }
+
 export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   const m = i.model
   const b = m.business
@@ -155,18 +160,23 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   const style = cleanStyle(m.look.style)
   const { sections, forms } = rendererSections(i)
 
-  // The in-page menu: the first six sections that have a menu word, in page order.
+  // The in-page menu: "Home" first when the owner asked for it, then the shown sections that have a menu word — the owner's
+  // own word for the section, else the section's usual one — in page order, six in all. "#top" is the top of the page in HTML.
   const nav: Array<{ label: string; href: string }> = []
+  if (m.menu?.home) nav.push({ label: 'Home', href: '#top' })
   for (const s of m.sections) {
     const c = i.caps[s.id]
-    if (!c?.nav || !shown(i, s, forms)) continue
-    if (nav.length < MENU_MAX) nav.push({ label: c.nav, href: '#' + c.anchor })
+    const word = String(s.menu || '').trim() || c?.nav
+    if (!c || !word || !shown(i, s, forms)) continue
+    if (nav.length < MENU_MAX) nav.push({ label: word, href: '#' + c.anchor })
   }
   const hasContact = sections.some((s) => s.type === 'contact')
   const hours = (b.hours && Object.keys(b.hours).length ? b.hours : null) as any
   const settingsExtra: Record<string, any> = {
     phone: b.phone || '', email: b.email || '', address: fullAddress(b), streetAddress: b.address || '', addressLocality: b.city || '', addressRegion: b.state || '', postalCode: b.zip || '',
     logoUrl: b.logo || '', tagline: oneLine(b.tagline),
+    // The owner's logo size: the header's logo height in px (base.ejs; 44 is the design's own). Only these numbers reach the page.
+    ...(b.logoSize && LOGO_PX[b.logoSize] ? { logoHeight: LOGO_PX[b.logoSize] } : {}),
     seoDescription: oneLine(b.tagline) || oneLine(sections.find((s) => s.type === 'hero')?.data?.subtitle),
     businessHours: hours, businessHoursLines: hours ? businessHoursLines(hours) : [],
     serviceAreas: (b.serviceAreas || []).map((name) => ({ name })),
