@@ -165,7 +165,16 @@ export function createChangeOrderRoutes(d: CrmDeps) {
 
   app.post('/', requirePermission('change-orders:create'), async (c) => {
     const currentUser = c.get('user') as any
-    const data = changeOrderSchema.parse(await c.req.json())
+    const raw: any = await c.req.json()
+    // The phone's offline queue may send a save twice (contractor parity row 11): it names the change order it is raising (`id`),
+    // and a second send of the same id answers the one already raised — one change order, one number, however often it is sent.
+    const clientId = typeof raw?.id === 'string' && /^[a-z0-9]{20,40}$/.test(raw.id) ? raw.id : null
+    if (clientId) {
+      const [had] = await db.select().from(changeOrder).where(eq(changeOrder.id, clientId)).limit(1) as any[]
+      if (had) return had.companyId === currentUser.companyId ? one(c, had) : fail(c, 409, 'Send that again from the phone.')
+    }
+    const { id: _clientId, ...rawRest } = raw || {}
+    const data = changeOrderSchema.parse(rawRest)
     const { lineItems, amount: sentAmount, ...coData } = data
 
     if (coData.status !== undefined && !CREATABLE.includes(coData.status)) {
@@ -191,6 +200,7 @@ export function createChangeOrderRoutes(d: CrmDeps) {
         markKey: `CO:${data.projectId}`,
       })
       const [newCo] = await tx.insert(changeOrder).values({
+        ...(clientId ? { id: clientId } : {}),
         ...coData,
         number,
         amount: amount.toString(),

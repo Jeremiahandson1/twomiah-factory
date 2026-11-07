@@ -10,7 +10,7 @@ import { FEATURE_REGISTRY } from '@twomiah/tenant-backend'
 import { CONTRACTOR, clockInExtras } from '../../mobile/src/trades/contractor.ts'
 
 const json = async (r: Response) => ({ status: r.status, body: (await r.json().catch(() => null)) as any })
-const ON = ['contacts', 'projects', 'daily_logs', 'punch_lists', 'time_tracking', 'job_costing', 'job_budgets', 'contractor_phone']
+const ON = ['contacts', 'projects', 'daily_logs', 'punch_lists', 'time_tracking', 'job_costing', 'job_budgets', 'change_orders', 'inspections', 'selections', 'documents', 'contractor_phone']
 let t: any, companyId = '', owner: any, field: any, proj: any
 const spec = (id: string) => CONTRACTOR.find((s) => s.id === id)!
 const act = (specId: string, actionId: string, where: 'detail' | 'list' = 'detail') => (where === 'detail' ? spec(specId).detail!.actions! : spec(specId).actions!).find((a) => a.id === actionId)!
@@ -104,5 +104,42 @@ describe('contractor phone', () => {
     await t.db.update(t.schema.company).set({ enabledFeatures: ON.filter((f) => f !== 'contractor_phone') } as any).where(eq(t.schema.company.id, companyId))
     t.services.features.forgetFeatures()
     expect((await field(`/api/project-phone/${proj.id}/cost-codes`)).status).toBe(404)
+  }, 90_000)
+})
+
+// Row 11b — change orders raised on the phone (one however often sent), sent to the client; inspections resulted on site (the
+// same result twice is that result); selections read by the project path the list fills in; files open in the signed-in browser.
+describe('contractor phone, 11b', () => {
+  test('a change order raised twice is one change order with one number; sending it to the client', async () => {
+    const r = act('con-projects', 'add-co').request(proj, { title: 'Move the island', description: 'Two feet north', amount: '1250', daysAdded: '2' })
+    const a = await json(await send(owner, r))
+    const b = await json(await send(owner, r))
+    expect([a.status, b.status, b.body.id, b.body.number]).toEqual([201, 200, r.body.id, a.body.number])
+    const cos = await t.db.select().from(t.schema.changeOrder).where(eq(t.schema.changeOrder.projectId, proj.id)) as any[]
+    expect(cos.map((o) => [o.title, Number(o.amount), o.daysAdded, o.status])).toEqual([['Move the island', 1250, 2, 'draft']])
+    const sub = act('con-change-orders', 'submit')
+    expect(sub.offline).toBeUndefined() // a second send would be refused: it needs signal
+    expect((await json(await send(owner, sub.request(cos[0], {})))).body.status).toBe('submitted')
+  }, 90_000)
+
+  test('an inspection passed twice from the phone is passed, once', async () => {
+    const insp = (await t.db.insert(t.schema.inspection).values({ companyId, projectId: proj.id, number: 'INS-001', type: 'framing', status: 'scheduled', scheduledDate: new Date('2026-01-05T00:00:00Z') } as any).returning())[0]
+    const pass = act('con-inspections', 'pass').request(insp, {})
+    const one1 = await json(await send(owner, pass))
+    const one2 = await json(await send(owner, pass))
+    expect([one1.status, one2.status, one2.body.status]).toEqual([200, 200, 'passed'])
+    // a different result afterwards is still refused: a result is not edited
+    expect((await send(owner, act('con-inspections', 'fail').request(insp, { deficiencies: 'x' }))).status).toBe(400)
+  }, 90_000)
+
+  test('selections read by the path the list fills in; a file opens in the signed-in browser', async () => {
+    const { fillPath } = await import('../../mobile/src/trades/kit.ts')
+    const q: Record<string, string> = { projectId: proj.id }
+    const path = fillPath(spec('con-selections').list.path, q)
+    expect([path, q]).toEqual([`/api/selections/project/${proj.id}`, {}])
+    expect((await owner(path!)).status).toBe(200)
+    expect(fillPath('/api/selections/project/{projectId}', {})).toBeNull()
+    const links = spec('con-files').detail!.sections[0].links!({ id: 'doc1', name: 'Plans.pdf' })
+    expect(links[0].route).toBe('/(details)/web?path=%2Fapi%2Fdocuments%2Fdoc1%2Ffile&title=Plans.pdf')
   }, 90_000)
 })
