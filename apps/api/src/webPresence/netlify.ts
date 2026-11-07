@@ -79,12 +79,17 @@ export class Netlify {
    * One deploy: the whole file set and the functions. Files are matched by SHA-1 and only the ones Netlify does not already have
    * are uploaded; functions are matched by the SHA-256 of their zip. Resolves when Netlify says the deploy is ready.
    */
-  async deploy(siteId: string, files: Record<string, string | Uint8Array>, functions: Record<string, Uint8Array> = {}, o: { attempts?: number; waitMs?: number } = {}): Promise<Deployed> {
+  async deploy(siteId: string, files: Record<string, string | Uint8Array>, functions: Record<string, Uint8Array> = {}, o: { attempts?: number; waitMs?: number; functionMeta?: Record<string, { runtime: string; invocationMode?: string; buildData?: Record<string, unknown> }> } = {}): Promise<Deployed> {
     const fileHashes: Record<string, string> = {}
     for (const [p, c] of Object.entries(files)) fileHashes['/' + p.replace(/^\/+/, '')] = sha1(c)
     const fnHashes: Record<string, string> = {}
     for (const [n, z] of Object.entries(functions)) fnHashes[n] = sha256(z)
-    const d = await this.call('POST', `/sites/${encodeURIComponent(siteId)}/deploys`, { json: { files: fileHashes, functions: fnHashes, async: false } })
+    // A current-format function is named as such the way Netlify's CLI names it: build_data in the deploy's functions_config, and
+    // the runtime + invocation mode on its upload. A Lambda-style function has neither (runtime=js), as before.
+    const meta = o.functionMeta || {}
+    const functionsConfig: Record<string, any> = {}
+    for (const [n, m] of Object.entries(meta)) if (m.buildData) functionsConfig[n] = { build_data: m.buildData }
+    const d = await this.call('POST', `/sites/${encodeURIComponent(siteId)}/deploys`, { json: { files: fileHashes, functions: fnHashes, async: false, ...(Object.keys(functionsConfig).length ? { functions_config: functionsConfig } : {}) } })
     const needF = new Set<string>(d.required || [])
     const needFn = new Set<string>(d.required_functions || [])
     for (const [p, c] of Object.entries(files)) {
@@ -94,7 +99,9 @@ export class Netlify {
     }
     for (const [n, z] of Object.entries(functions)) {
       if (!needFn.has(fnHashes[n])) continue
-      await this.call('PUT', `/deploys/${d.id}/functions/${encodeURIComponent(n)}?runtime=js`, { body: Buffer.from(z), type: 'application/zip' })
+      const m = meta[n]
+      const q = m ? 'runtime=' + encodeURIComponent(m.runtime) + (m.invocationMode ? '&invocation_mode=' + encodeURIComponent(m.invocationMode) : '') : 'runtime=js'
+      await this.call('PUT', `/deploys/${d.id}/functions/${encodeURIComponent(n)}?${q}`, { body: Buffer.from(z), type: 'application/zip' })
     }
     const attempts = o.attempts ?? 60
     for (let i = 0; i < attempts; i++) {
