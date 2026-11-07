@@ -17,17 +17,22 @@ interface Order {
   materials: Array<{ description: string; qty: number; unit: string }>
   photos: Photo[]; completionPhotos: Photo[]
   respondedByName: string | null; rejectReason: string | null; completedAt: string | null; completionNote: string | null
-  can: { accept: boolean; reject: boolean; photos: boolean; complete: boolean }
+  can: { accept: boolean; reject: boolean; photos: boolean; complete: boolean; arrive?: boolean; leave?: boolean }
   cancelled: boolean
+  /** Row 28 (crew_scheduling): the on-site checklist, what is ticked, and attendance. */
+  checklist?: Array<{ id: string; text: string }>
+  checks?: Record<string, string>
+  arrivedAt?: string | null
+  leftAt?: string | null
 }
 
 const STATUS_WORDS: Record<string, string> = {
-  sent: 'Waiting for your answer', accepted: 'You accepted this', rejected: 'You turned this down', completed: 'Done', cancelled: 'Cancelled by the office',
+  sent: 'Waiting for your answer', accepted: 'You accepted this', in_progress: 'In progress', rejected: 'You turned this down', completed: 'Done', cancelled: 'Cancelled by the office',
 }
 
 // Roofing parity row 27 (work_order_send_options): the crew page in Spanish — every fixed word here; the scope is the office's Spanish one.
-const ES: Record<string, string> = {"Loading…": "Cargando…", "For ": "Para ", "Where ": "Dónde ", "Start ": "Inicio ", "Materials": "Materiales", "Photos from the office": "Fotos de la oficina", "Your photos": "Sus fotos", "Your full name": "Su nombre completo", "Accept this work order": "Aceptar esta orden de trabajo", "Anything the office should know (optional)": "Algo que la oficina deba saber (opcional)", "Mark this work done": "Marcar este trabajo como terminado", "I can’t take this": "No puedo aceptarlo", "Why not?": "¿Por qué no?", "Send my answer": "Enviar mi respuesta", "This page is private to you. Please don’t share the link.": "Esta página es privada. Por favor no comparta el enlace."}
-const ES_STATUS: Record<string, string> = { sent: 'Esperando su respuesta', accepted: 'Usted aceptó esto', rejected: 'Usted lo rechazó', completed: 'Terminado', cancelled: 'Cancelado por la oficina' }
+const ES: Record<string, string> = {"I’m here": "Ya llegué", "Leaving for now": "Me voy por ahora", "On site since": "En el sitio desde", "Checklist": "Lista de verificación", "Loading…": "Cargando…", "For ": "Para ", "Where ": "Dónde ", "Start ": "Inicio ", "Materials": "Materiales", "Photos from the office": "Fotos de la oficina", "Your photos": "Sus fotos", "Your full name": "Su nombre completo", "Accept this work order": "Aceptar esta orden de trabajo", "Anything the office should know (optional)": "Algo que la oficina deba saber (opcional)", "Mark this work done": "Marcar este trabajo como terminado", "I can’t take this": "No puedo aceptarlo", "Why not?": "¿Por qué no?", "Send my answer": "Enviar mi respuesta", "This page is private to you. Please don’t share the link.": "Esta página es privada. Por favor no comparta el enlace."}
+const ES_STATUS: Record<string, string> = { sent: 'Esperando su respuesta', accepted: 'Usted aceptó esto', in_progress: 'En curso', rejected: 'Usted lo rechazó', completed: 'Terminado', cancelled: 'Cancelado por la oficina' }
 
 export default function CrewLinkPage() {
   const { token } = useParams<{ token: string }>()
@@ -151,6 +156,21 @@ export default function CrewLinkPage() {
             <label htmlFor="crew-name" className="text-sm text-gray-700 dark:text-slate-300">{tr('Your full name')}</label>
             <input id="crew-name" className={box} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             <button type="button" disabled={busy || name.trim().length < 2} onClick={() => post('/accept', { name })} className={`${big} bg-green-700 text-white`}>{tr('Accept this work order')}</button>
+          </section>
+        )}
+        {(order.can.arrive || order.can.leave) && (
+          <section className="space-y-2" data-testid="crew-attendance">
+            {order.arrivedAt && !order.leftAt && <p className="text-sm text-gray-600 dark:text-slate-400">{tr('On site since')} {whenDate(order.arrivedAt, { hour: 'numeric', minute: '2-digit' })}</p>}
+            {order.can.arrive && (order.status !== 'in_progress' || order.leftAt) && <button type="button" disabled={busy} onClick={() => post('/arrive', {})} className={`${big} bg-blue-700 text-white`}>{tr('I’m here')}</button>}
+            {order.can.leave && !order.leftAt && <button type="button" disabled={busy} onClick={() => post('/leave', {})} className={`${big} bg-white border dark:bg-slate-900 dark:border-slate-700`}>{tr('Leaving for now')}</button>}
+          </section>
+        )}
+        {order.checklist && order.checklist.length > 0 && (
+          <section className="space-y-1" data-testid="crew-checklist">
+            <h2 className="text-sm font-semibold mb-1">{tr('Checklist')}</h2>
+            {order.checklist.map((item) => (
+              <label key={item.id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" disabled={busy || !(order.can.complete)} checked={!!order.checks?.[item.id]} onChange={(e) => post('/check', { itemId: item.id, done: e.target.checked })} />{item.text}</label>
+            ))}
           </section>
         )}
         {order.can.complete && (

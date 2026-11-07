@@ -22,6 +22,9 @@ export const crew = pgTable('crew', {
   payPerSquare: decimal('pay_per_square', { precision: 10, scale: 2 }),
   // Roofing parity row 27 (work_order_send_options): whether this crew is asked to accept a work order (off: it is accepted on send).
   requiresApproval: boolean('requires_approval').default(true).notNull(),
+  // Row 28 (crew_scheduling): the crew's trades, and its certificates with their expiry ([{ name, expiresOn: 'YYYY-MM-DD' }]).
+  trades: json('trades').default([]).notNull(),
+  certificates: json('certificates').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -589,6 +592,12 @@ export const workOrder = pgTable('work_order', {
   linkDays: integer('link_days'),
   showMaterials: boolean('show_materials').default(true).notNull(),
   showPhotos: boolean('show_photos').default(true).notNull(),
+  // Row 28 (crew_scheduling, not ready; AccuLynx Crew App): the on-site checklist ([{ id, text }]) and what the crew ticked
+  // ({ [id]: at }), and when they arrived and left (attendance; arriving sets "in progress").
+  checklist: json('checklist').default([]).notNull(),
+  checks: json('checks').default({}).notNull(),
+  arrivedAt: timestamp('arrived_at'),
+  leftAt: timestamp('left_at'),
   status: text('status').default('draft').notNull(),
   publicToken: text('public_token'),
   tokenExpiresAt: timestamp('token_expires_at'),

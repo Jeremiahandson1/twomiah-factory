@@ -29,7 +29,7 @@ import { commission, crew, job, material, supplement, workOrder } from '../../db
 import type { CrmDeps } from '../deps.ts'
 
 /** Work orders that commit the shop to their price: the crew has been asked, or has said yes, or has done the work. */
-export const PRICED_WORK_ORDER_STATUSES = ['sent', 'accepted', 'completed'] as const
+export const PRICED_WORK_ORDER_STATUSES = ['sent', 'accepted', 'in_progress', 'completed'] as const
 
 /**
  * Orders that are real spend. A draft ('not_ordered') and a ready-to-send order are shopping lists, a rejected one was refused

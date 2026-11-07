@@ -617,6 +617,13 @@
       "when": 1794007038449,
       "tag": "0087_roof_work_order_send_options",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794007781040,
+      "tag": "0088_roof_crew_scheduling",
+      "breakpoints": true
     }
   ]
 }

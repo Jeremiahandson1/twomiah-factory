@@ -34,10 +34,11 @@ import { canSeeWith } from '../deps.ts'
 import { ownJobsWhere } from '../ownWork.ts'
 import { createSeatJob } from './field/seatJob.ts'
 import { WORK_ORDER_TOOLS, MAX_TEMPLATES, fromProposal, listTemplates, companyCamFor } from '../../data/workOrderTools.ts'
+import { CREW_SCHEDULING, readChecklist, certificateWarnings, scheduledOrders } from '../../data/crewScheduling.ts'
 import { workOrderTemplate } from '../../db/schema/index.ts'
 import { onCompanyClock, optional, phone } from './validation.ts'
 
-export const WORK_ORDER_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'completed', 'cancelled'] as const
+export const WORK_ORDER_STATUSES = ['draft', 'sent', 'accepted', 'in_progress', 'rejected', 'completed', 'cancelled'] as const
 /** The page the crew opens, on the app's address. */
 export const WORK_ORDER_PAGE = '/w'
 const LINK_DAYS = 30
@@ -208,6 +209,63 @@ export function createWorkOrderRoutes(d: CrmDeps) {
 
   // ---- Row 27 (work_order_send_options, not ready; Roofr + AccuLynx) ----
   const sendOptionsOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, SEND_OPTIONS).catch(() => false)
+  // ---- Row 28 (crew_scheduling, not ready) ----
+  const schedulingOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, CREW_SCHEDULING).catch(() => false)
+  // The schedule's work orders (sent, accepted, in progress) starting between from and to.
+  app.get('/schedule', requirePermission('jobs:read'), async (c) => {
+    if (!(await schedulingOn(c))) return fail(c, 404, 'Not found')
+    const from = new Date(String(c.req.query('from') || '')), to = new Date(String(c.req.query('to') || ''))
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return fail(c, 400, 'Send from and to.')
+    return listAll(c, await scheduledOrders(db, c.get('user').companyId, from, to))
+  })
+  // A crew's trades and certificates (with their expiry).
+  app.put('/crew-roster/:crewId', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await schedulingOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    const trades = Array.isArray(b?.trades) ? [...new Set(b.trades.map((x: any) => String(x).trim()).filter(Boolean))].slice(0, 20) : undefined
+    let certificates: any[] | undefined
+    if (b?.certificates !== undefined) {
+      if (!Array.isArray(b.certificates) || b.certificates.length > 20) return fail(c, 400, 'List up to 20 certificates.')
+      certificates = []
+      for (const x of b.certificates) {
+        const name = String(x?.name || '').trim().slice(0, 80)
+        if (!name) continue
+        if (x?.expiresOn && !/^\d{4}-\d{2}-\d{2}$/.test(String(x.expiresOn))) return fail(c, 400, `${name}: the expiry is a date.`, 'validation_failed', { certificates: 'A date' })
+        certificates.push({ name, expiresOn: x?.expiresOn ? String(x.expiresOn) : null })
+      }
+    }
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (trades) set.trades = trades
+    if (certificates) set.certificates = certificates
+    const [row] = await db.update(crew).set(set as any).where(and(eq(crew.id, c.req.param('crewId')), eq(crew.companyId, me.companyId))).returning()
+    if (!row) return fail(c, 404, 'Crew not found')
+    const tz = await companyTimeZone(db, me.companyId)
+    return one(c, { id: row.id, trades: row.trades, certificates: row.certificates, warnings: certificateWarnings(row.certificates, new Date().toLocaleDateString('en-CA', { timeZone: tz })) })
+  })
+  // The order's on-site checklist, and the office marking it in progress by hand (Roofr: the office may change the status).
+  app.put('/:id/checklist', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await schedulingOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const row = await readable(c)
+    if (!row) return fail(c, 404, 'Work order not found')
+    const b: any = await c.req.json().catch(() => ({}))
+    const list = readChecklist(b?.checklist)
+    if ('error' in list) return fail(c, 400, list.error, 'validation_failed', { checklist: list.error })
+    const [u] = await db.update(workOrder).set({ checklist: list, updatedAt: new Date() } as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId))).returning()
+    return one(c, view(u, true, await maySeePrice(c)))
+  })
+  app.post('/:id/in-progress', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
+    if (!(await schedulingOn(c))) return fail(c, 404, 'Not found')
+    const me = c.get('user')
+    const row = await readable(c)
+    if (!row) return fail(c, 404, 'Work order not found')
+    if (!['sent', 'accepted'].includes(row.status)) return fail(c, 409, `A ${row.status} work order cannot be put in progress.`, 'wrong_status')
+    const [u] = await db.update(workOrder).set({ status: 'in_progress', updatedAt: new Date() } as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['sent', 'accepted']))).returning()
+    if (!u) return fail(c, 409, 'It changed. Open it again.', 'wrong_status')
+    return one(c, view(u, true, await maySeePrice(c)))
+  })
+
   // A crew's standing answer: asked to accept each order, or not.
   app.put('/crew-approval/:crewId', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
     if (!(await sendOptionsOn(c))) return fail(c, 404, 'Not found')
@@ -295,11 +353,25 @@ export function createWorkOrderRoutes(d: CrmDeps) {
       if (!(await photosOk(me.companyId, row.jobId, photoIds))) return fail(c, 400, 'Those photos are not on this job.')
       set.photoIds = photoIds
     }
+    // Row 28 (crew_scheduling): a sent order whose start moves texts the crew the new start (AccuLynx reschedule notifications).
+    const movedStart = set.startDate !== undefined && ['sent', 'accepted', 'in_progress'].includes(row.status)
+      && String(set.startDate ? new Date(set.startDate as any).toISOString() : '') !== String(row.startDate ? new Date(row.startDate).toISOString() : '')
     // A rejected order that is changed goes back to a draft: it is a new ask, to be sent again, with the old answer cleared.
     if (row.status === 'rejected') Object.assign(set, { status: 'draft', respondedAt: null, respondedByName: null, rejectReason: null })
     const [updated] = await db.update(workOrder).set(set as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'rejected']))).returning()
     if (!updated) return fail(c, 409, 'It changed while you were editing. Open it again.', 'wrong_status')
-    return one(c, view(updated, true, await maySeePrice(c)))
+    let rescheduleNotice: string | undefined
+    if (movedStart && (await schedulingOn(c))) {
+      const tz = await companyTimeZone(db, me.companyId)
+      const when = updated.startDate ? new Date(updated.startDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }) : 'a date to be set'
+      const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, me.companyId)).limit(1)
+      try {
+        const r: any = await d.services.sms.sendSMS(me.companyId, { toPhone: updated.recipientPhone, message: `${co?.name || 'Your contractor'}: work order "${updated.title}" at ${updated.address || 'the job'} is rescheduled to ${when}.`, jobId: updated.jobId, userId: me.userId })
+        rescheduleNotice = r && !r.refused && r.status !== 'failed' ? 'The crew was texted the new start.' : (r?.errorMessage || 'The crew could not be texted the new start.')
+      } catch (err: any) { rescheduleNotice = err?.message || 'The crew could not be texted the new start.' }
+      await addNote(me.companyId, updated.jobId, me.userId, `Work order "${updated.title}" rescheduled to ${when}.`)
+    }
+    return one(c, { ...view(updated, true, await maySeePrice(c)), ...(rescheduleNotice ? { rescheduleNotice } : {}) })
   })
 
   // An order's send options (row 27): approval (null = the crew's), email + CC, Spanish, the link's days, what the sub may see.
@@ -346,14 +418,22 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     // The link is made the first time and keeps working on a resend; a new one only when asked for or when it has run out.
     const expired = !!(row.tokenExpiresAt && new Date(row.tokenExpiresAt) < now)
     const token = !row.publicToken || expired || body?.newLink ? newDocumentToken() : row.publicToken
-    const status = row.status === 'accepted' || !needsApproval ? 'accepted' : 'sent'
+    const status = row.status === 'in_progress' ? 'in_progress' : row.status === 'accepted' || !needsApproval ? 'accepted' : 'sent'
     const expires = opts && row.linkDays ? new Date(now.getTime() + Number(row.linkDays) * DAY) : linkExpiry(now, row.startDate)
     const [sent] = await db.update(workOrder).set({
       publicToken: token, tokenExpiresAt: expires, status, sentAt: now, updatedAt: now,
       ...(row.status === 'rejected' ? { respondedAt: null, respondedByName: null, rejectReason: null } : {}),
       ...(!needsApproval && row.status !== 'accepted' ? { respondedAt: now, respondedByName: 'No approval needed' } : {}),
-    } as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'accepted', 'rejected']))).returning()
+    } as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'accepted', 'in_progress', 'rejected']))).returning()
     if (!sent) return fail(c, 409, 'It changed while you were sending. Open it again.', 'wrong_status')
+    // Row 28: a crew whose certificate has run out — said, not blocked (the office decides).
+    let certNotice = ''
+    if (sent.crewId && (await schedulingOn(c))) {
+      const [cr] = await db.select({ certificates: crew.certificates }).from(crew).where(eq(crew.id, sent.crewId)).limit(1)
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: await companyTimeZone(db, me.companyId) })
+      const expired = certificateWarnings(cr?.certificates, today, 0).filter((w) => w.expired)
+      if (expired.length) certNotice = `Heads up: ${expired.map((w) => `${w.name} ran out ${w.expiresOn}`).join('; ')}.`
+    }
 
     const link = `${origin}${WORK_ORDER_PAGE}/${token}`
     const [co] = await db.select({ name: company.name, enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, me.companyId)).limit(1)
@@ -392,7 +472,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     await addNote(me.companyId, sent.jobId, me.userId, texted
       ? `Work order "${sent.title}" texted to ${sent.recipientName}.`
       : `Work order "${sent.title}" made ready for ${sent.recipientName} (not texted).`)
-    return one(c, { ...view(sent, true, await maySeePrice(c)), texted, ...(emailed ? { emailed } : {}), ...(reason ? { notice: reason } : {}) })
+    return one(c, { ...view(sent, true, await maySeePrice(c)), texted, ...(emailed ? { emailed } : {}), ...(reason ? { notice: reason } : {}), ...(certNotice ? { certNotice } : {}) })
   })
 
   app.post('/:id/cancel', requirePermission(JOB_DISPATCH_PERMISSION), async (c) => {
