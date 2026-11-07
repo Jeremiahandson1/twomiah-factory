@@ -5,14 +5,15 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { normWeights, optimize, scoreFor, DEFAULT_WEIGHTS, type OptCandidate } from '../server/crm/homecare/core/visitOptimizer.ts'
-import { ymdIn } from '../server/crm/homecare/core/agencyTime.ts'
+import { ymdIn, addDays } from '../server/crm/homecare/core/agencyTime.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = ''
 const tokens: Record<string, string> = {}
 const ids: Record<string, string> = {}
 const TZ = 'America/Chicago'
-const day = (offset: number) => ymdIn(new Date(Date.now() + offset * 86_400_000), TZ)
+// Calendar days on the agency's clock, not 24-hour steps: across a clock change those land a day off late in the evening (11/06).
+const day = (offset: number) => addDays(ymdIn(new Date(), TZ), offset)
 const login = async (email: string, password: string) =>
   (await (await t.call('/api/auth/login', { method: 'POST', json: { email, password } })).json()).accessToken as string
 const as = (who: string) => (p: string, init: any = {}) => t.call(p, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${tokens[who]}` } })
