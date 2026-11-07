@@ -109,6 +109,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/draw-schedules', icon: DollarSign, label: 'Draw Schedules', features: ['draw_schedules'], permission: 'draw-schedules:read' },
   { to: '/crm/aia-forms', icon: FileText, label: 'AIA G702/G703', features: ['aia_forms'], permission: 'aia-forms:read' },
   { to: '/crm/gantt', icon: BarChart3, label: 'Gantt Chart', features: ['gantt_charts'] },
+  // Not ready (contractor parity row 12; roofing's row 18 page): payouts and the card surcharge. Roofing has its own item at this address.
+  { to: '/crm/card-payments', icon: CreditCard, label: 'Card payments', features: ['payments_overview', 'card_surcharge'], permission: 'invoices:read' },
   { to: '/crm/website', icon: Globe, label: 'Website', section: 'Website', permission: 'site:read', exact: true },
   { to: '/crm/website/pages', icon: FileText, label: 'Pages', permission: 'site:read' },
   { to: '/crm/website/photos', icon: Image, label: 'Photos', permission: 'site:read' },

@@ -678,6 +678,8 @@ export const invoice = pgTable('invoice', {
   billKind: text('bill_kind'),
   billedQuoteId: text('billed_quote_id').references((): AnyPgColumn => quote.id, { onDelete: 'set null' }),
   creditApplied: decimal('credit_applied', { precision: 12, scale: 2 }).default('0').notNull(),
+  /** How the customer may pay it online (0095, contractor parity row 12; Jobber): 'card' | 'bank' | null (both). */
+  paymentMethods: text('payment_methods'),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_billed_quote_id_idx').on(t.billedQuoteId),
@@ -1294,4 +1296,21 @@ export const staffAccountEntry = pgTable('staff_account_entry', {
 }, (t) => [
   index('staff_account_entry_company_id_idx').on(t.companyId),
   index('staff_account_entry_user_id_idx').on(t.userId),
+])
+
+/**
+ * A payment plan on an invoice (0095, contractor parity row 12; feature payment_plans): the total split into installments, each
+ * due on its day. Payments fill them in order; the invoice's due date is kept on the first one not paid in full, so the automatic
+ * reminders (crm/billing/invoiceReminders.ts — a moved due date earns its own steps) remind for each installment in turn.
+ */
+export const invoiceInstallment = pgTable('invoice_installment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  dueDate: timestamp('due_date').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('invoice_installment_invoice_id_idx').on(t.invoiceId),
 ])

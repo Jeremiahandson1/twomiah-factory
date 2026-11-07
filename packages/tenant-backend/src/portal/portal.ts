@@ -193,6 +193,10 @@ export interface PortalDeps {
    * balance (an amount box), and an approved quote's page lets them pay toward it — the app raises that invoice (raise) and the page
    * goes to its link. Optional: absent, neither is offered.
    */
+  /** Contractor parity row 12: may this business's customers add a tip online (invoice_tips)? Absent: no. */
+  tipsFor?: (companyId: string) => Promise<boolean>
+  /** Row 12: an invoice's payment plan (installments and the next one owed), or null. Absent: none. */
+  planFor?: (companyId: string, invoiceId: string) => Promise<{ installments: any[]; next: { dueDate: string; owed: number } | null } | null>
   payOptions?: {
     enabled: (companyId: string) => Promise<boolean>
     leftToPay: (companyId: string, quoteId: string) => Promise<number>
@@ -1280,6 +1284,9 @@ export function createPortalRoutes(deps: PortalDeps) {
       payOnline: await payOnlineFor(contact.companyId),
       // Row 16: the customer may pay part of the balance (an amount box) where the business offers it.
       ...(deps.payOptions && (await deps.payOptions.enabled(contact.companyId).catch(() => false)) ? { partPayment: true } : {}),
+      // Row 12: tips, and a payment plan — whose next installment is offered as the amount (so part payment is on with it).
+      ...(deps.tipsFor && (await deps.tipsFor(contact.companyId).catch(() => false)) ? { tips: true } : {}),
+      ...(await (async () => { const plan = deps.planFor ? await deps.planFor(contact.companyId, found.id).catch(() => null) : null; return plan ? { plan, partPayment: true } : {} })()),
       company: { name: company.name, email: company.email, phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip },
     })
   }

@@ -666,6 +666,13 @@
       "when": 1794019764717,
       "tag": "0094_contractor_sign_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1794026163167,
+      "tag": "0095_contractor_payment_plans",
+      "breakpoints": true
     }
   ]
 }

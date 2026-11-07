@@ -55,6 +55,8 @@ const PunchListsPage = page(() => import('./crm/pages/PunchListsPage'))
 const InspectionsPage = page(() => import('./crm/pages/InspectionsPage'))
 const ChangeOrdersPage = page(() => import('./crm/pages/ChangeOrdersPage'))
 const GanttChartsPage = page(() => import('./crm/pages/GanttChartsPage'))
+// Roofing's card surcharge and payouts page, for every other trade too (contractor parity row 12); roofing mounts its own.
+const CardPaymentsPage = page(() => import('./crm/pages/roof/CardPaymentsPage'))
 const BidsPage = page(() => import('./crm/pages/BidsPage'))
 const PurchaseOrdersPage = page(() => import('./crm/pages/PurchaseOrdersPage'))
 const BillsPage = page(() => import('./crm/pages/BillsPage'))
@@ -198,6 +200,7 @@ export default function App() {
                         <Route path="change-orders" element={<ChangeOrdersPage />} />
                         <Route path="change-orders/:changeOrderId" element={<ChangeOrdersPage />} />
                         <Route path="gantt" element={<GanttChartsPage />} />
+                        {!roofScreens.isRoofing && <Route path="card-payments" element={<CardPaymentsPage />} />}
                         <Route path="bids" element={<BidsPage />} />
                         <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
                         <Route path="bills" element={<BillsPage />} />

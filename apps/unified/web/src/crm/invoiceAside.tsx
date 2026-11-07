@@ -15,6 +15,7 @@ import { ChairCheckoutPanel, RetailSellPanel, ReturnToShelfPanel, SaleReceiptBut
 import { OfferCodePanel } from './pages/salon/OfferCodePanel'
 import { verticalScreens } from './vertical'
 import { InvoiceTextPanel } from './pages/roof/InvoiceTextPanel'
+import { InvoicePaymentsPanel } from './invoicePaymentsPanel'
 
 interface Entry { kind: string; step: string; status: string; sentTo: string | null; detail: string | null; at: string }
 
@@ -111,6 +112,8 @@ export function DocumentAside({ kind, record, reload }: { kind: 'quote' | 'invoi
       {kind === 'invoice' && record?.id && <InvoiceRemindersPanel invoiceId={String(record.id)} status={String(record.status || '')} />}
       {/* Roofing parity row 17 (invoice_text_requests, not ready; the panel checks its switch): text the invoice now or on a schedule. */}
       {kind === 'invoice' && record?.id && <InvoiceTextPanel invoiceId={String(record.id)} status={String(record.status || '')} />}
+      {/* Contractor parity row 12 (payment_plans / payment_method_choice, not ready; the panel checks its switches). */}
+      {kind === 'invoice' && record?.id && <InvoicePaymentsPanel invoiceId={String(record.id)} total={Number(record.total || 0)} status={String(record.status || '')} paymentMethods={record.paymentMethods ?? null} />}
       {kind === 'invoice' && isSalon() && record?.id && <RetailSellPanel invoiceId={String(record.id)} status={String(record.status || '')} lines={record.lineItems} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <ReturnToShelfPanel invoiceId={String(record.id)} refunded={Number(record.amountRefunded || 0) > 0.005} reload={reload} />}
       {kind === 'invoice' && isSalon() && record?.id && <OfferCodePanel invoiceId={String(record.id)} status={String(record.status || '')} reload={reload} />}

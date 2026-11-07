@@ -69,6 +69,8 @@ import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createInvoiceReminderRoutes } from '../crm/billing/invoiceReminderRoutes.ts'
+import { paymentToolMounts, paymentPlanMounts } from '../crm/billing/paymentTools.ts'
+import { createPaymentPlans } from '../crm/billing/paymentPlans.ts'
 import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
 import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
 import { surchargePctFor } from '../data/cardSurcharge.ts'
@@ -445,6 +447,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Automatic invoice reminders and the late fee (crm/billing): the CRM's invoices and home care's Billing invoices, so
     // no one feature; each action asks its permission.
     { path: '/api/invoice-reminders', access: 'user', router: createInvoiceReminderRoutes(own, s.invoiceReminders) },
+    // Roofing's payment tools for every other trade (contractor parity row 12): the card surcharge, payouts, texted invoices and receipts.
+    ...paymentToolMounts(own),
+    // Payment plans and card / bank per invoice (row 12; payment_plans / payment_method_choice, each route asks its switch).
+    ...paymentPlanMounts(own),
     // Saved quotes to start the next from, and the automatic nudge to a customer who has not answered (crm/billing; both not ready).
     { path: '/api/quote-templates', access: 'user', feature: 'quote_templates', router: createQuoteTemplateRoutes(own) },
     { path: '/api/quote-followup', access: 'user', feature: 'quote_followup', router: createQuoteFollowUpRoutes(own, s.quoteFollowUp) },
@@ -562,7 +568,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // pays the CRM's invoice — stands aside there.
     ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments, requireFeature: features.requireEnabledFeature('online_payments'), requireTapToPay: features.requireEnabledFeature('tap_to_pay'),
       // Roofing parity row 18 (card_surcharge, not ready): the percent added to a credit-card payment (data/cardSurcharge.ts rules).
-      surchargeFor: async (companyId: string) => (await features.isFeatureEnabled(companyId, 'card_surcharge').catch(() => false)) ? surchargePctFor(db, companyId) : null } as any) }]),
+      surchargeFor: async (companyId: string) => (await features.isFeatureEnabled(companyId, 'card_surcharge').catch(() => false)) ? surchargePctFor(db, companyId) : null,
+      // Contractor parity row 12 (invoice_tips, not ready): customers may add a tip when they pay an invoice online.
+      tipsFor: (companyId: string) => features.isFeatureEnabled(companyId, 'invoice_tips') } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
@@ -626,6 +634,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The deposit a quote asks: raised when the customer approves, shown on the quote's own page (crm/billing).
       quoteDeposit: { onApproved: (companyId: string, q: any) => afterApproval(companyId, q.id), depositFor: quoteBilling.depositFor },
       // Roofing parity row 16 (portal_pay_options, not ready): part payment on the invoice page and paying toward an approved quote.
+      // Contractor parity row 12: tips on online payments, and an invoice's payment plan (its next installment is the amount offered).
+      tipsFor: (companyId: string) => features.isFeatureEnabled(companyId, 'invoice_tips'),
+      planFor: async (companyId: string, invoiceId: string) => ((await features.isFeatureEnabled(companyId, 'payment_plans').catch(() => false)) ? createPaymentPlans(own).planFor(companyId, invoiceId) : null),
       payOptions: { enabled: (companyId: string) => features.isFeatureEnabled(companyId, 'portal_pay_options'), leftToPay: quoteBilling.leftToPay, raise: quoteBilling.raisePayment },
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).
       proposalsEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_proposals'),

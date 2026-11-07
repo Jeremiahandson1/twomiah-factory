@@ -25,7 +25,7 @@ export const nav: NavItem[] = isRoofing ? GROUPS.flatMap((g) => g.nav) : []
  * its jobs and reports pages are roofing's) — and the shared Reports item's `reports` feature and reports:read gate,
  * matched by path, is roofing's own item's (it asks reports:read too).
  */
-export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports']
+export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports', '/crm/card-payments']
 
 // Roofing's menu (templates/crm-roof components/layout/AppLayout.tsx): its working items first, shared ones among them.
 // The Lead Inbox and Storm Leads sit with the contacts: at the shared menu's end the inbox fell under the Website heading
