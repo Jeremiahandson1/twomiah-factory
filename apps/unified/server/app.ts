@@ -81,6 +81,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     extraRolePermissions: vertical.extraRolePermissions,
     withheldRolePermissions: vertical.withheldRolePermissions,
     roleMapping: vertical.roleMapping,
+    roleWithheld: vertical.roleWithheld,
   })
   const sharedAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
   // View As, every vertical (core/viewAs.ts): the owner or an admin opens the app as one of their people. Home care

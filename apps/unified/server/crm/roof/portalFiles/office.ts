@@ -66,7 +66,9 @@ export function createJobFilesRoutes(d: CrmDeps) {
     if (!(await jobFor(c, jobId))) return fail(c, 404, 'Job not found')
     const who = await homeownerOf(db, me.companyId, jobId)
     // Exactly what their portal lists for this job (the portal's own list, filtered to the job).
-    const sees = who ? (await homeownerFiles.list(who)).filter((f: any) => f.jobId === jobId) : []
+    // The files only: a job's own line (kind 'job', no name — the place its message thread hangs in the portal) is not a file, and
+    // showed as a blank "(Job)" here (roofing live test 11/07).
+    const sees = who ? (await homeownerFiles.list(who)).filter((f: any) => f.jobId === jobId && f.kind !== 'job') : []
     return one(c, {
       homeowner: who ? { name: who.name, portalOn: !!who.portalEnabled && !!who.portalToken, lastVisit: who.lastPortalVisit ? new Date(who.lastPortalVisit).toISOString() : null } : null,
       sees, closeOnCollected: await closeOnCollected(db, me.companyId),

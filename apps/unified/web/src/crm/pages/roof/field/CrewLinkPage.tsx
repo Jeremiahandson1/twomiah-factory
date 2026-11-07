@@ -31,7 +31,7 @@ const STATUS_WORDS: Record<string, string> = {
 }
 
 // Roofing parity row 27 (work_order_send_options): the crew page in Spanish — every fixed word here; the scope is the office's Spanish one.
-const ES: Record<string, string> = {"I’m here": "Ya llegué", "Leaving for now": "Me voy por ahora", "On site since": "En el sitio desde", "Checklist": "Lista de verificación", "Loading…": "Cargando…", "For ": "Para ", "Where ": "Dónde ", "Start ": "Inicio ", "Materials": "Materiales", "Photos from the office": "Fotos de la oficina", "Your photos": "Sus fotos", "Your full name": "Su nombre completo", "Accept this work order": "Aceptar esta orden de trabajo", "Anything the office should know (optional)": "Algo que la oficina deba saber (opcional)", "Mark this work done": "Marcar este trabajo como terminado", "I can’t take this": "No puedo aceptarlo", "Why not?": "¿Por qué no?", "Send my answer": "Enviar mi respuesta", "This page is private to you. Please don’t share the link.": "Esta página es privada. Por favor no comparta el enlace."}
+const ES: Record<string, string> = {"I’m here": "Ya llegué", "Leaving for now": "Me voy por ahora", "On site since": "En el sitio desde", "Checklist": "Lista de verificación", "Loading…": "Cargando…", "For ": "Para ", "Where ": "Dónde ", "Start ": "Inicio ", "Materials": "Materiales", "Photos from the office": "Fotos de la oficina", "Your photos": "Sus fotos", "Your full name": "Su nombre completo", "Accept this work order": "Aceptar esta orden de trabajo", "Anything the office should know (optional)": "Algo que la oficina deba saber (opcional)", "Mark this work done": "Marcar este trabajo como terminado", "I can’t take this": "No puedo aceptarlo", "Why not?": "¿Por qué no?", "Send my answer": "Enviar mi respuesta", "This page is private to you. Please don’t share the link.": "Esta página es privada. Por favor no comparta el enlace.", "Add photos": "Agregar fotos", "Adding…": "Agregando…", "Job photo": "Foto del trabajo", "Work order": "Orden de trabajo", "Something went wrong. Try again.": "Algo salió mal. Inténtelo de nuevo."}
 const ES_STATUS: Record<string, string> = { sent: 'Esperando su respuesta', accepted: 'Usted aceptó esto', in_progress: 'En curso', rejected: 'Usted lo rechazó', completed: 'Terminado', cancelled: 'Cancelado por la oficina' }
 
 export default function CrewLinkPage() {
@@ -100,9 +100,9 @@ export default function CrewLinkPage() {
     <main className="min-h-screen bg-gray-50 dark:bg-slate-950 p-4" data-testid="crew-link">
       <div className="max-w-xl mx-auto space-y-4">
         <header>
-          <p className="text-sm text-gray-600 dark:text-slate-400">{order.company.name || 'Work order'}{order.company.phone ? ` · ${order.company.phone}` : ''}</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400">{order.company.name || tr('Work order')}{order.company.phone ? ` · ${order.company.phone}` : ''}</p>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.title}</h1>
-          <p className="mt-1 text-sm font-medium text-orange-700 dark:text-orange-300">{(order.language === 'es' ? ES_STATUS[order.status] : STATUS_WORDS[order.status]) || STATUS_WORDS[order.status] || 'Work order'}</p>
+          <p className="mt-1 text-sm font-medium text-orange-700 dark:text-orange-300">{(order.language === 'es' ? ES_STATUS[order.status] : STATUS_WORDS[order.status]) || STATUS_WORDS[order.status] || tr('Work order')}</p>
         </header>
 
         <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-2 dark:border-slate-700">
@@ -124,7 +124,7 @@ export default function CrewLinkPage() {
         {order.photos.length > 0 && (
           <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 dark:border-slate-700">
             <h2 className="text-sm font-semibold mb-2">{tr('Photos from the office')}</h2>
-            <div className="grid grid-cols-2 gap-2">{order.photos.map((p) => <a key={p.id} href={`${API}${p.url}`}><img src={`${API}${p.url}`} alt={p.caption || 'Job photo'} className="rounded-lg w-full h-32 object-cover" /></a>)}</div>
+            <div className="grid grid-cols-2 gap-2">{order.photos.map((p) => <a key={p.id} href={`${API}${p.url}`}><img src={`${API}${p.url}`} alt={p.caption || tr('Job photo')} className="rounded-lg w-full h-32 object-cover" /></a>)}</div>
           </section>
         )}
 
@@ -143,7 +143,7 @@ export default function CrewLinkPage() {
             {order.can.photos && (
               <>
                 <input ref={file} type="file" accept="image/*" multiple capture="environment" className="hidden" id="crew-photos" onChange={(e) => addPhotos(e.target.files)} />
-                <label htmlFor="crew-photos" className={`${big} block text-center bg-gray-100 dark:bg-slate-800 cursor-pointer`}>{busy ? 'Adding…' : 'Add photos'}</label>
+                <label htmlFor="crew-photos" className={`${big} block text-center bg-gray-100 dark:bg-slate-800 cursor-pointer`}>{busy ? tr('Adding…') : tr('Add photos')}</label>
               </>
             )}
           </section>

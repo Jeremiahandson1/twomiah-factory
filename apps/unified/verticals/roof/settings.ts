@@ -66,7 +66,13 @@ const roof: VerticalSettings = {
   // canvassing in the field) and the roofing brief's. One word everywhere: the server's refusals and Users rows
   // (permissions.roleLabel), and through the screens' roleLabels the role picker and the View As banner. Live re-test 3
   // (2026-10-24): "Staff shows as 'Staff' in Users, not 'Field'."
-  roleLabels: { field: 'Field' },
+  roleLabels: { field: 'Field', sales_rep: 'Sales rep', crew: 'Crew' },
+  // Two Field seats of roofing's own (AccuLynx's user roles; roofing live test 11/07: "the sales rep and crew member end up with the
+  // same menu", and the crew read the price list's prices). Both are the Field rung — the jobs they are on, their homeowners, canvassing —
+  // and everything that ranks a role reads them as Field. A Sales rep is Field as it is (it quotes, so it sees prices); a Crew seat goes
+  // without the price list's sale prices. An existing Field login keeps Field.
+  roleMapping: { sales_rep: 'field', crew: 'field' },
+  roleWithheld: { crew: ['prices:read'] },
   // templates/crm-roof middleware/permissions.ts. Door-knocking is the crew's job after a storm: they start a session,
   // log a stop and correct the one they just logged (T41) — not delete one, and not the shop's scripts. The read-only
   // seat sees the team's canvassing and writes none of it (owner's decision, 2026-10-11).
@@ -79,6 +85,8 @@ const roof: VerticalSettings = {
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
   crm: {
     roof: true,
+    // The seats a login may be given here: the shared ones and roofing's Sales rep and Crew (roleMapping above).
+    team: { roles: ['admin', 'manager', 'sales_rep', 'crew', 'field', 'viewer'] },
     // The roofer's own /api/dashboard (server/crm/roof/field/dashboard.ts).
     dashboard: 'roof',
     // Roofing sells no Call Tracking: the call log and the CallRail key are the AI Receptionist page's, on its switch.
@@ -93,6 +101,17 @@ const roof: VerticalSettings = {
   },
   // The screens' settings are filled as roofing's screens land (plan step 4).
   screens: {
+    // The role picker (Settings › Users): roofing's seats, each said by what it holds.
+    settings: {
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'read-only: sees the jobs, the pipeline and the reports; changes nothing' },
+        { value: 'crew', label: 'Crew', description: 'their crew’s jobs and work orders, photos, checklists and their own time; no prices and no company money' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads and jobs, inspections, quotes and canvassing, and their own commissions; not settings, the team or billing' },
+        { value: 'field', label: 'Field', description: 'the jobs they are on, day-to-day work and canvassing; not settings, the team or billing' },
+        { value: 'manager', label: 'Manager', description: 'runs the jobs, the pipeline, crews and quotes; not billing or company settings' },
+        { value: 'admin', label: 'Admin', description: 'full access, including billing, company settings and logins' },
+      ],
+    },
     // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
     // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
     // Roofing's jobs are its own pages, which do not open with a contact chosen, so a roofer's lead starts a quote.

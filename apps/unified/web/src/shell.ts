@@ -42,7 +42,9 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team', features: ['team'], permission: 'team:read' },
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'], permission: 'locations:read' },
-  { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'], permission: 'commissions:read' },
+  // No permission: GET /api/commissions answers everyone their OWN earnings (commissions:read widens it to everyone's), and the
+  // page loads the plans only for commissions:read (T38). The gate refused a sales rep their own $475 (roofing live test 2026-11-07).
+  { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'] },
   { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
   // GPS Tracking's page: where the crew is (from the phone app) and the job-site geofences. It had no menu item, so a
   // business sold GPS Tracking found no page for it (live test 2026-10-22). GET /api/geofencing asks only a session.
@@ -53,7 +55,8 @@ const SHARED_NAV: NavItem[] = [
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above.
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], permission: 'marketing:read' },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'], permission: 'ads:read' },
-  { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
+  // prices:read: a seat kept from the prices (roofing's Crew) has no price list to read (roofing live test 11/07).
+  { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'], permission: 'prices:read' },
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
   // The inbox and Google Business are requireAdmin on the server: a rank, so the menu asks the same rank.

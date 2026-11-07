@@ -30,9 +30,13 @@ export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports', '
 // Roofing's menu (templates/crm-roof components/layout/AppLayout.tsx): its working items first, shared ones among them.
 // The Lead Inbox and Storm Leads sit with the contacts: at the shared menu's end the inbox fell under the Website heading
 // and the storm leads under the field tools, where a roofer never looked (live test 2026-10-22).
-const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters', '/crm/insurance-follow-ups']
+// Roofing's own items that are not the home go here too: an item of roofing's own left off this list was in no list at all, so
+// Card payments and Permits never reached the menu with their switches on (roofing live test 2026-11-07).
+const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/permits', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/card-payments', '/crm/adjusters', '/crm/insurance-follow-ups']
 // …and its field tools under their own heading.
-const FIELD = ['/crm/canvassing', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports']
+// Territories and the Storm Map (where Check NOAA now and the hail swaths are) were on neither list, so they never reached the menu
+// (roofing live test 11/07: no NOAA button, no hail-swath control found).
+const FIELD = ['/crm/canvassing', '/crm/territories', '/crm/storm-radar', '/crm/storm-map', '/crm/estimator', '/crm/roof-reports']
 
 /**
  * A roofer's whole menu from the shared one: roofing's order — its working items first under Business, roofing's own
@@ -50,13 +54,16 @@ export function roofingMenu(shared: NavItem[]): NavItem[] {
   if (field[0]) field[0] = { ...field[0], section: 'Roofing' }
   const used = new Set([...LEAD, ...FIELD])
   const rest = base.filter((i) => !used.has(i.to))
+  // Any other item of roofing's own that no list names still gets a place, after the Business block's shared items.
+  const placed = new Set([...used, '/crm/reports'])
+  const unplaced = nav.filter((i) => !placed.has(i.to))
   const reports = own.get('/crm/reports')
   const at = rest.findIndex((i) => i.to === '/crm/job-costing' || i.to === '/crm/lead-sources')
   if (reports) rest.splice(at === -1 ? rest.length : at, 0, reports)
   // The Business block runs until the first shared item that opens another heading; the field tools go there.
   const split = rest.findIndex((i) => !!i.section)
   const cut = split === -1 ? rest.length : split
-  return [...lead, ...rest.slice(0, cut), ...field, ...rest.slice(cut)]
+  return [...lead, ...rest.slice(0, cut), ...unplaced, ...field, ...rest.slice(cut)]
 }
 /** The permission each roofing page asks, for a URL typed in (the shell's routePermissions). */
 export const routePermissions: Record<string, string> = isRoofing ? Object.assign({}, ...GROUPS.map((g) => g.routePermissions)) : {}

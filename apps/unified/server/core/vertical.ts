@@ -35,6 +35,8 @@ export interface VerticalSettings {
    * clinical staff seat, templates/crm-vet middleware/permissions.ts).
    */
   roleMapping?: Record<string, string>
+  /** Permissions one of the vertical's own role names goes without (PermissionsDeps.roleWithheld): roofing's Crew, no prices. */
+  roleWithheld?: Record<string, string[]>
   /** What the authenticator app lists two-factor under. */
   mfaIssuer: string
   /**

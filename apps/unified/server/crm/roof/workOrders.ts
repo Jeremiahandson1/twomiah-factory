@@ -321,12 +321,19 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     const me = c.get('user')
     const row = await readable(c)
     if (!row) return fail(c, 404, 'Work order not found')
-    if (!['draft', 'sent', 'rejected'].includes(row.status)) {
-      return fail(c, 409, row.status === 'accepted' ? 'The crew has accepted it. Cancel it and make a new one if the job has changed.' : `A ${row.status} work order cannot be changed.`, 'wrong_status')
-    }
-    const parsed = updateSchema.safeParse(await c.req.json().catch(() => null))
+    const raw = await c.req.json().catch(() => null)
+    const parsed = updateSchema.safeParse(raw)
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
+    // An accepted or started order keeps its scope, but its start can still move — rain, a late delivery — and the crew is texted
+    // the new start below (row 28, AccuLynx reschedule notifications). Every change was refused once the crew accepted, so the
+    // reschedule step could never run and the office could not move it on the Schedule (roofing live test 11/07).
+    // What was SENT, not the parsed object (its optional fields come back filled in).
+    const onlyStart = !!raw && typeof raw === 'object' && Object.keys(raw).every((k) => k === 'startDate')
+    const reschedulable = ['accepted', 'in_progress'].includes(row.status) && onlyStart && data.startDate !== undefined
+    if (!['draft', 'sent', 'rejected'].includes(row.status) && !reschedulable) {
+      return fail(c, 409, row.status === 'accepted' ? 'The crew has accepted it. You can still move its start date; cancel it and make a new one if the work has changed.' : `A ${row.status} work order cannot be changed.`, 'wrong_status')
+    }
     if (data.price !== undefined && !(await maySeePrice(c))) return fail(c, 403, 'What a crew is paid is the shop\u2019s cost. Ask an owner or manager to change the price.', 'work_order_price_not_permitted')
     const set: Record<string, unknown> = { updatedAt: new Date() }
     if (data.price !== undefined) set.price = data.price === null ? null : String(data.price)
@@ -358,7 +365,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
       && String(set.startDate ? new Date(set.startDate as any).toISOString() : '') !== String(row.startDate ? new Date(row.startDate).toISOString() : '')
     // A rejected order that is changed goes back to a draft: it is a new ask, to be sent again, with the old answer cleared.
     if (row.status === 'rejected') Object.assign(set, { status: 'draft', respondedAt: null, respondedByName: null, rejectReason: null })
-    const [updated] = await db.update(workOrder).set(set as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, ['draft', 'sent', 'rejected']))).returning()
+    const [updated] = await db.update(workOrder).set(set as any).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, me.companyId), inArray(workOrder.status, reschedulable ? ['accepted', 'in_progress'] : ['draft', 'sent', 'rejected']))).returning()
     if (!updated) return fail(c, 409, 'It changed while you were editing. Open it again.', 'wrong_status')
     let rescheduleNotice: string | undefined
     if (movedStart && (await schedulingOn(c))) {

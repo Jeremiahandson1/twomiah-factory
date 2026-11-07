@@ -19,6 +19,19 @@ interface Person { id: string; name: string; role: string }
 
 const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2']
 
+/** Each territory after the one it belongs to, with its depth; one whose parent is missing (or itself) is top level. */
+export function nestTerritories<T extends { id: string; parentId?: string | null }>(rows: T[]): Array<{ t: T; depth: number }> {
+  const ids = new Set(rows.map((r) => r.id))
+  const kids = new Map<string | null, T[]>()
+  for (const r of rows) { const p = r.parentId && ids.has(r.parentId) && r.parentId !== r.id ? r.parentId : null; kids.set(p, [...(kids.get(p) || []), r]) }
+  const out: Array<{ t: T; depth: number }> = []
+  const seen = new Set<string>()
+  const walk = (p: string | null, depth: number) => { for (const r of kids.get(p) || []) { if (seen.has(r.id)) continue; seen.add(r.id); out.push({ t: r, depth }); walk(r.id, depth + 1) } }
+  walk(null, 0)
+  for (const r of rows) if (!seen.has(r.id)) out.push({ t: r, depth: 0 })
+  return out
+}
+
 export default function TerritoriesPage() {
   const mayManage = useMayWrite('canvassing:manage')
   const toast = useToast()
@@ -90,6 +103,9 @@ export default function TerritoriesPage() {
   const drawn: Shape | null = (mode === 'polygon' && corners.length >= 3) || (mode === 'circle' && centre && Number(radius) > 0) ? draft : null
   const zipList = zips.split(/[\s,]+/).filter(Boolean)
 
+  // Each territory under the one it belongs to, indented (Spotio's nested territories; roofing live test 11/07: a nested one showed only
+  // an "in EC County" label, far from its parent). A parent first, then its own, depth by depth; one whose parent is gone is top level.
+  const ordered = useMemo(() => nestTerritories(rows), [rows])
   const areas: DrawnArea[] = useMemo(() => rows.filter((t) => t.boundary).map((t) => ({ id: t.id, shape: t.boundary as Shape, color: t.color, label: t.name })), [rows])
 
   const reset = () => { setCreating(false); setRedrawId(null); setName(''); setZips(''); setMode('off'); setCorners([]); setCentre(null); setPicked(new Set()) }
@@ -230,9 +246,9 @@ export default function TerritoriesPage() {
       {loading ? <p className="text-gray-500">Loading…</p> : rows.length === 0 ? (
         <p className="text-gray-500 dark:text-slate-400">{mayManage ? 'No territories yet. Draw one around a storm or a neighbourhood.' : 'You have not been given a territory yet.'}</p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {rows.map((t) => (
-            <li key={t.id} className={`rounded-lg border p-3 ${openId === t.id ? 'ring-2 ring-blue-500' : ''}`}>
+        <ul className="grid gap-3">
+          {ordered.map(({ t, depth }) => (
+            <li key={t.id} data-depth={depth} style={depth ? { marginLeft: `${Math.min(depth, 4) * 1.5}rem` } : undefined} className={`rounded-lg border p-3 ${depth ? 'border-l-4' : ''} ${openId === t.id ? 'ring-2 ring-blue-500' : ''}`}>
               <button className="w-full text-left" onClick={() => setOpenId(openId === t.id ? null : t.id)} aria-expanded={openId === t.id}>
                 <div className="flex items-center gap-2 font-medium"><span className="w-3 h-3 rounded-full" style={{ background: t.color }} /> {t.name}{t.parentId && rows.find((p) => p.id === t.parentId) ? <span className="text-xs font-normal text-gray-500 dark:text-slate-400">in {rows.find((p) => p.id === t.parentId)!.name}</span> : null}</div>
                 <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">

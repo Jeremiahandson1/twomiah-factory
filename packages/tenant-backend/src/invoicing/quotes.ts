@@ -883,6 +883,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
             quoteNumber: found.number, quoteName: found.name || '', companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
             companyPhone: co?.phone || '',
             contactName: recipient.name, total: emailTotal,
+            // The customer has yet to pick: the lines are the options and the total is the lowest, said as "from" (roofing live test 11/07).
+            chooseOne: !!offered?.needsChoice,
             subtotal: emailSubtotal, discount: found.discount, taxAmount: emailTax, taxRate: found.taxRate,
             lineItems: lines.map((l: any) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, total: l.total })),
             documentPath: token ? documentLinkPath(token) : null,

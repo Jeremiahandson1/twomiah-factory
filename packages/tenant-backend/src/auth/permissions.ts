@@ -9,6 +9,9 @@ export const ROLE_HIERARCHY = ['viewer', 'field', 'manager', 'admin', 'owner']
 export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
   owner: ['*'],
   admin: [
+    // prices:read — the price list's sale prices (GET /pricebook/items, /search). Every seat had them; a role that must not
+    // (roofing's Crew — roofing live test 11/07) has it withheld (PermissionsDeps.roleWithheld).
+    'prices:read',
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:*', 'time:*',
     'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*', 'punch-lists:*',
     'daily-logs:*', 'inspections:*', 'bids:*', 'team:*', 'company:read',
@@ -255,6 +258,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'care-office:*',
   ],
   manager: [
+    // prices:read — the price list's sale prices (GET /pricebook/items, /search). Every seat had them; a role that must not
+    // (roofing's Crew — roofing live test 11/07) has it withheld (PermissionsDeps.roleWithheld).
+    'prices:read',
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
     'invoices:create', 'invoices:update', 'time:*', 'expenses:*', 'documents:*',
     'rfis:*', 'change-orders:*', 'punch-lists:*', 'daily-logs:*', 'inspections:*',
@@ -336,6 +342,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'care-office:read',
   ],
   field: [
+    // prices:read — the price list's sale prices (GET /pricebook/items, /search). Every seat had them; a role that must not
+    // (roofing's Crew — roofing live test 11/07) has it withheld (PermissionsDeps.roleWithheld).
+    'prices:read',
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
     // expenses mirrors time. The pair above already lets someone correct their own timesheet line;
     // expenses had create and read only, so a stylist who typed $95 for $9.50 was offered Edit on
@@ -370,6 +379,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'bar:read', 'bar:console', 'bar:register',
   ],
   viewer: [
+    // prices:read — the price list's sale prices (GET /pricebook/items, /search). Every seat had them; a role that must not
+    // (roofing's Crew — roofing live test 11/07) has it withheld (PermissionsDeps.roleWithheld).
+    'prices:read',
     'contacts:read', 'projects:read', 'jobs:read', 'quotes:read', 'invoices:read',
     'time:read', 'expenses:read', 'documents:read', 'rfis:read', 'change-orders:read',
     'punch-lists:read', 'daily-logs:read', 'inspections:read', 'bids:read',
@@ -397,6 +409,12 @@ export interface PermissionsDeps {
    * leads (prospective clients' details), the office's alone.
    */
   withheldRolePermissions?: Record<string, string[]>
+  /**
+   * Permissions taken off one of a vertical's OWN role names (a roleMapping name), on top of the rung it maps to — roofing's Crew is the
+   * Field rung without the price list's prices (prices:read); its Sales rep is the Field rung as it is. Everything that ranks a role
+   * (the hierarchy, View As, requireRole) still reads the rung; only these permissions differ.
+   */
+  roleWithheld?: Record<string, string[]>
   /** Template role names mapped onto the standard hierarchy. `user → field` is always included. */
   roleMapping?: Record<string, string>
   /**
@@ -475,6 +493,8 @@ export function createPermissions(deps: PermissionsDeps) {
     const normalizedRole = normalizeRole(role)
     const permissions = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
     if (permissions.includes('*')) return true
+    // The vertical's own role name without this permission (roleWithheld): never granted back by the rung.
+    if (deps.roleWithheld?.[role]?.includes(permission)) return false
     // A company taking a permission away from a role (companyGrants → "-permission"); "*" above is never touched.
     if (extra.includes(`-${permission}`)) return false
     if (permissions.includes(permission)) return true
@@ -485,7 +505,9 @@ export function createPermissions(deps: PermissionsDeps) {
 
   function getPermissions(role: string): string[] {
     const normalizedRole = normalizeRole(role)
-    return ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
+    const list = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
+    const off = deps.roleWithheld?.[role]
+    return off?.length ? list.filter((p) => !off.includes(p)) : list
   }
 
   function requirePermission(permission: string) {

@@ -448,9 +448,30 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
     // A check that throws withholds: cost shown by accident is the leak this guards (live role check sweep, 2026-10-23).
     try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return false }
   }
+  /**
+   * …AND A SEAT MAY GO WITHOUT THE PRICES TOO (roofing live test 11/07). Every seat that quotes reads the sale prices, as above; a
+   * seat a vertical keeps from them — roofing's Crew, who does the work and quotes nothing (prices:read withheld) — gets the list's
+   * names, descriptions and units with no price and no cost. A seat with prices:read is answered exactly as before.
+   */
+  const PRICE_KEYS = new Set(['price', 'suggestedPrice'])
+  const stripPrices = (v: any): any => {
+    if (Array.isArray(v)) return v.map(stripPrices)
+    if (v && typeof v === 'object' && !(v instanceof Date)) {
+      const out: Record<string, any> = {}
+      for (const [k, val] of Object.entries(v)) if (!COST_KEYS.has(k) && !PRICE_KEYS.has(k)) out[k] = stripPrices(val)
+      return out
+    }
+    return v
+  }
+  const maySeePrices = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return await deps.canSee(u?.role, 'prices:read', u?.userId) } catch { return false }
+  }
   const run = (fn: (c: any, u: any) => Promise<any>, status = 200, carriesCost = false) => async (c: any) => {
     try {
       const data = await fn(c, c.get('user'))
+      if (carriesCost && !(await maySeePrices(c))) return c.json(stripPrices(data), status)
       return c.json(carriesCost && !(await maySeeCost(c)) ? stripCost(data) : data, status)
     } catch (e) { if (e instanceof PricebookError) return c.json({ error: e.message }, e.status); throw e }
   }
@@ -467,7 +488,7 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
   app.get('/export', requirePermission('pricebook:read'), run(async (_c, u) => svc.exportItems(u.companyId), 200, true))
   app.post('/import', requirePermission('pricebook:create'), run(async (c, u) => svc.importItems(u.companyId, await body(c))))
   app.post('/bulk/adjust-prices', requirePermission('pricebook:update'), run(async (c, u) => svc.bulkAdjust(u.companyId, await body(c))))
-  app.get('/calculate-price', run(async (c) => {
+  app.get('/calculate-price', requirePermission('prices:read'), run(async (c) => {
     const cost = Number(c.req.query('cost')), margin = Number(c.req.query('targetMargin'))
     if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(margin) || margin < 0 || margin >= 100) throw new PricebookError(400, 'cost must be ≥ 0 and targetMargin between 0 and 99.99')
     return { cost, targetMargin: margin, suggestedPrice: Math.round((cost / (1 - margin / 100)) * 100) / 100 }

@@ -179,6 +179,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     await syncJobValueFromProposal(db, companyId, quoteId).catch((err: Error) => logger.error('[quotes] job value not updated from the chosen option', { quote: quoteId, error: err?.message }))
     const deposit = await quoteBilling.raiseDeposit(companyId, quoteId)
     try { await quoteBudget.carryOver(companyId, quoteId) } catch (err: any) { logger.error?.('[quotes] budget not set up after approval', { quote: quoteId, error: err?.message }) }
+    // The modules' own after-approval steps (roofing: its job is Signed — crm/roof/signed.ts).
+    await s.afterQuoteApproved?.(companyId, quoteId)
     return deposit
   }
 

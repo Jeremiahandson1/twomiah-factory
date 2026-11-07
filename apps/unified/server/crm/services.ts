@@ -114,6 +114,13 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // mounts, run by BOTH ways money arrives — a payment typed in on the screen (invoice routes' afterMoney) and a card or
   // bank payment on the business's Stripe (afterInvoicePayment below). One failing step never stops the others.
   const invoicePaidSteps: Array<(invoiceId: string) => Promise<unknown>> = []
+  // …and after a quote is approved, by any door (roofing's: the job it was written for is Signed). One failing step never stops the others.
+  const quoteApprovedSteps: Array<(companyId: string, quoteId: string) => Promise<unknown>> = []
+  const afterQuoteApproved = async (companyId: string, quoteId: string) => {
+    for (const step of quoteApprovedSteps) {
+      try { await step(companyId, quoteId) } catch (err) { logger.warn?.('[quotes] an after-approval step failed', { quoteId, error: (err as Error)?.message }) }
+    }
+  }
   const afterInvoicePaid = async (invoiceId: string) => {
     for (const step of invoicePaidSteps) {
       try { await step(invoiceId) } catch (err) { logger.warn?.('[invoices] an after-payment step failed', { invoiceId, error: (err as Error)?.message }) }
@@ -332,6 +339,10 @@ export function createCrmServices(deps: CrmServiceDeps) {
     useBookingDeposits(d: BookingDeposits) { bookingDeposits = d },
     /** A step to run after money lands on an invoice, by either way it arrives (roofing's: collect the job). */
     onInvoicePaid(step: (invoiceId: string) => Promise<unknown>) { invoicePaidSteps.push(step) },
+    /** A step to run after a quote is approved, by any door (roofing's: sign the job). */
+    onQuoteApproved(step: (companyId: string, quoteId: string) => Promise<unknown>) { quoteApprovedSteps.push(step) },
+    /** Runs those steps (server/modules/crm.ts afterApproval). */
+    afterQuoteApproved,
     /** Runs those steps: commissions' sibling for a payment typed in on the screen. */
     afterInvoicePaid,
     /** The salon's card step at online booking (crm/salon/onlineBooking.ts, booking/engine.ts cardSaved). */

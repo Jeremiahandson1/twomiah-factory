@@ -100,7 +100,12 @@ export const PHONE_CALL_LEAD_PLATFORM: LeadPlatform = {
 }
 
 /** The doors every vertical has whether or not it offers them as sources — the inbox always names them. */
-export const BUILT_IN_LEAD_PLATFORMS: LeadPlatform[] = [WEBSITE_FORM_LEAD_PLATFORM, PHONE_CALL_LEAD_PLATFORM]
+/** A lead the office typed in itself (POST /api/leads/manual — a call, a referral, a door down the street). */
+export const MANUAL_LEAD_PLATFORM: LeadPlatform = {
+  value: 'manual', label: 'Added by hand', color: '#546e7a', tone: 'sky',
+  description: 'A lead someone on your team typed in.', instructions: [],
+}
+export const BUILT_IN_LEAD_PLATFORMS: LeadPlatform[] = [WEBSITE_FORM_LEAD_PLATFORM, PHONE_CALL_LEAD_PLATFORM, MANUAL_LEAD_PLATFORM]
 
 /** The same vocabulary as guide cards for the Integrations page — one list per vertical, not two. */
 export function leadSourceGuides(platforms: LeadPlatform[] = TRADES_LEAD_PLATFORMS): LeadSourceGuide[] {
