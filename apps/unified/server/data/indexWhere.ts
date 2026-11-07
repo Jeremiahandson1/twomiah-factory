@@ -34,3 +34,6 @@ export const invoiceSeqNext = sql`nextval('invoice_seq_number_seq')`
 
 /** company_budget: one active budget per company per year (landscaping parity row 27; data/companyBudget.ts activateBudget). */
 export const budgetIsActive = sql`status = 'active'`
+
+/** service_record: one record per appointment AND per service of a several-service visit (salon row 8); a record with no service line is one per appointment. */
+export const serviceRecordItemKey = sql`coalesce("appointment_item_id", '')`
