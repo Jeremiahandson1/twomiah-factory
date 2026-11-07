@@ -22,3 +22,4 @@ export const DOWNLOAD_TYPES: Record<string, string>
 export function checkDownload(bytes: Uint8Array, name: string, limit?: number): { ok: boolean; error?: string; ext: string; mime: string; name: string }
 export function downloadOffer(model: any): { name: string; priceCents: number; license: string } | null
 export const cleanLocation: (v: unknown) => string
+export const LOGO_SIZES: string[]

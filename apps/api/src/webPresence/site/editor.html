@@ -231,7 +231,8 @@
     areas.addEventListener('input', function () { b.serviceAreas = areas.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean); touch(); });
     var t = function (k, name, type, max) { var id = 'b' + k; var el = h('input', { id: id, type: type || 'text', maxlength: max || 120 }); el.value = b[k] || ''; el.addEventListener('input', function () { b[k] = el.value; touch(); }); return h('div', null, h('label', { for: id }, name), el); };
     return h('div', null,
-      h('div', { class: 'card' }, h('h2', null, 'Your business'), t('name', 'Business name', 'text', 80), t('tagline', 'One line about you', 'text', 140), h('div', { class: 'row' }, t('phone', 'Phone', 'tel', 30), t('email', 'Email shown on the page', 'email', 120)), t('address', 'Street address', 'text', 160), h('div', { class: 'row' }, t('city', 'City', 'text', 60), t('state', 'State', 'text', 30), t('zip', 'ZIP', 'text', 12)), h('label', null, 'Logo'), imageField(b, 'logo')),
+      h('div', { class: 'card' }, h('h2', null, 'Your business'), t('name', 'Business name', 'text', 80), t('tagline', 'One line about you', 'text', 140), h('div', { class: 'row' }, t('phone', 'Phone', 'tel', 30), t('email', 'Email shown on the page', 'email', 120)), t('address', 'Street address', 'text', 160), h('div', { class: 'row' }, t('city', 'City', 'text', 60), t('state', 'State', 'text', 30), t('zip', 'ZIP', 'text', 12)), h('label', null, 'Logo'), imageField(b, 'logo'),
+        h('label', null, 'Logo size in the top bar'), h('div', { class: 'row tight' }, [['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Extra large']].map(function (o) { return h('button', { type: 'button', 'aria-pressed': (b.logoSize || 'standard') === o[0] ? 'true' : 'false', onclick: function () { if (o[0] === 'standard') delete b.logoSize; else b.logoSize = o[0]; touch(); render(); } }, o[1]); }))),
       h('div', { class: 'card' }, h('h2', null, 'Opening hours'), h('p', { class: 'hint' }, 'Leave a day blank to leave it off the page.'), hoursBox),
       h('div', { class: 'card' }, h('h2', null, 'Where you work'), h('label', null, 'Towns and areas, one per line'), areas));
   }
@@ -269,6 +270,15 @@
           card.appendChild(h('div', null, h('label', null, 'Layout'), lay));
         }
         if (s.id === 'hiring') card.appendChild(h('p', { class: 'hint' }, 'List the jobs people can apply for. The form itself is switched on under Forms.'));
+        if (cap) {
+          var mid = 'menu-' + s.id, mw = h('input', { id: mid, type: 'text', maxlength: 24, placeholder: cap.nav || 'Not in the menu' }); mw.value = s.menu || '';
+          mw.addEventListener('input', function () { if (mw.value.trim()) s.menu = mw.value; else delete s.menu; touch(); });
+          var out = h('input', { type: 'checkbox', checked: !!s.noMenu, onchange: function (e) { if (e.target.checked) s.noMenu = true; else delete s.noMenu; mw.disabled = !!s.noMenu; touch(); } });
+          mw.disabled = !!s.noMenu;
+          card.appendChild(h('div', null, h('label', { for: mid }, 'Word in the top menu (optional)'), mw,
+            h('p', { class: 'hint' }, cap.nav ? 'Leave it blank to use "' + cap.nav + '".' : 'Give it a word to put this section in the menu.'),
+            h('label', null, out, ' Leave this section out of the top menu')));
+        }
         card.appendChild(fields(sp.shapes[s.type], s.data));
         card.appendChild(h('p', null, h('button', { type: 'button', class: 'danger', onclick: function () { if (confirm('Take "' + title + '" off the page? What you wrote in it is lost.')) { secs.splice(i, 1); touch(); render(); } } }, 'Remove from page')));
       }
@@ -281,7 +291,11 @@
       var k = pick.value; if (!k) return; var c = sp.caps[k];
       secs.push({ id: k, type: c.type, variant: c.variants[0], hidden: false, data: blank(sp.shapes[c.type]) }); state.open[k] = true; touch(); render();
     });
-    return h('div', null, h('p', { class: 'hint' }, 'This is a one-page site: every section below is part of that page. You can add, hide, move and change sections, but not add pages.'), list, addable.length ? h('div', { class: 'card' }, pick) : null);
+    var menu = m.menu || (m.menu = { home: false });
+    var home = h('input', { type: 'checkbox', checked: !!menu.home, onchange: function (e) { menu.home = e.target.checked; touch(); } });
+    var menuCard = h('div', { class: 'card' }, h('h2', null, 'Top menu'), h('label', null, home, ' Show "Home" first in the menu'),
+      h('p', { class: 'hint' }, 'The menu lists your sections in page order, up to six. Open a section to change its word in the menu.'));
+    return h('div', null, h('p', { class: 'hint' }, 'This is a one-page site: every section below is part of that page. You can add, hide, move and change sections, but not add pages.'), menuCard, list, addable.length ? h('div', { class: 'card' }, pick) : null);
   }
   function forms() {
     var f = state.model.forms, hasContact = state.model.sections.some(function (s) { return s.id === 'contact' && !s.hidden; }), hasHiring = state.model.sections.some(function (s) { return s.id === 'hiring' && !s.hidden; });
