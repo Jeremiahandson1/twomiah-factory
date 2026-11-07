@@ -145,6 +145,8 @@ describe('the published page', () => {
     expect(html).toMatch(/gallery-slideshow__controls" hidden data-controls/)         // the arrows appear only when the script runs
     expect(html).not.toMatch(/setInterval|autoplay/i)
     expect(String((await draw('roofing', c)).files['styles/main.css'])).toContain('.gallery-slideshow__track')
+    // one frame for every photo (the same size on every slide), each fitted inside it whole
+    expect(String((await draw('roofing', c)).files['styles/main.css'])).toMatch(/\.gallery-slideshow__figure img \{[^}]*aspect-ratio: 4 \/ 3;[^}]*object-fit: contain/)
   })
   test("the Starter Kit's introduction: a blank line starts a new paragraph, each escaped", async () => {
     const { model } = first('roofing')
