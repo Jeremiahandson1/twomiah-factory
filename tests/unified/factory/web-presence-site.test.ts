@@ -5,6 +5,7 @@
 import { fileURLToPath } from 'node:url'
 import { describe, test, expect } from 'bun:test'
 import { createHandler } from '../../../apps/api/src/webPresence/site/handler.mjs'
+import { blobsContext, strongReads, purger } from '../../../apps/api/src/webPresence/site/lambda.mjs'
 import { siteSecret, mintSignin, mintSession, signRequest, verifyRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
 
 const MASTER = 'master-key-for-tests'
@@ -29,7 +30,7 @@ const model = (over: any = {}) => ({
   ...over,
 })
 
-async function site(siteId = 'site-a', opts: { model?: any; factory?: (url: string, init: any) => Promise<Response>; netlify?: (url: string, init: any) => Promise<Response>; t?: { now: number } } = {}) {
+async function site(siteId = 'site-a', opts: { model?: any; factory?: (url: string, init: any) => Promise<Response>; netlify?: (url: string, init: any) => Promise<Response>; t?: { now: number }; fresh?: boolean; purge?: (tags: string[]) => Promise<boolean> } = {}) {
   const store = blobs()
   const t = opts.t || { now: Date.UTC(2026, 9, 29, 12, 0, 0) }
   const calls: Array<{ url: string; init: any }> = []
@@ -43,7 +44,7 @@ async function site(siteId = 'site-a', opts: { model?: any; factory?: (url: stri
     return new Response(JSON.stringify({ error: 'no factory' }), { status: 500 })
   }
   const env = { WP_SITE_ID: siteId, WP_SECRET: secret, WP_FACTORY_URL: 'https://factory.test', WP_TENANT_ID: 'tenant-a', WP_FACTORY_KEY: 'k' }
-  const handler = createHandler({ store, env, fetchImpl, now: () => t.now, initial: { index: '<html>initial</html>', privacy: '<html>privacy</html>', model: opts.model || model(), css: '/* deployed look */', cssVersion: 'v-deployed' }, spec: { limits: {} } })
+  const handler = createHandler({ store, env, fetchImpl, now: () => t.now, initial: { index: '<html>initial</html>', privacy: '<html>privacy</html>', model: opts.model || model(), css: '/* deployed look */', cssVersion: 'v-deployed' }, spec: { limits: {} }, ...(opts.fresh !== undefined ? { fresh: opts.fresh } : {}), ...(opts.purge ? { purge: opts.purge } : {}) })
   const call = (r: string, init: any = {}, headers: Record<string, string> = {}) =>
     handler(new Request('https://acme.netlify.app/.netlify/functions/site?r=' + r, { ...init, headers: { 'x-nf-client-connection-ip': '1.2.3.4', host: 'acme.netlify.app', ...(init.headers || {}), ...headers } }))
   const cookieFor = async (id = siteId, sec = secret) => 'wp_s=' + encodeURIComponent(await mintSession(sec, id, t.now))
@@ -454,5 +455,80 @@ describe('the function that is deployed', () => {
     expect(code).not.toMatch(/^\s*import\s[^\n]*['"]@netlify\//m)         // not an unresolved import the Netlify runtime would have to find
     expect(code).not.toMatch(/\bADMIN_KEY\b/)                            // no shared admin key anywhere in the site
     expect(readdirSync(fileURLToPath(new URL('../../../apps/api', import.meta.url))).filter((n) => n.startsWith('.wp-fn-'))).toEqual([])
+  })
+})
+
+describe('a save shows at once: strong reads when Netlify allows them, and the page cleared from the CDN on every save', () => {
+  const drawnPage = (m: any) => ({ ok: true, model: m, notes: [], files: { 'index.html': '<html>v2</html>', 'privacy/index.html': '<html>p2</html>' } })
+  const factory = async (_u: string, init: any) => new Response(JSON.stringify(drawnPage(JSON.parse(init.body).model)), { status: 200 })
+  test('every page is tagged; it is cached until the next save only when reads are strong AND clearing is available, else a minute with no stale tail', async () => {
+    for (const [fresh, purge, cdn, read] of [
+      [true, true, 'public, durable, max-age=86400', 'strong'],
+      [true, false, 'public, max-age=60', 'strong'],
+      [false, true, 'public, max-age=60', 'eventual'],
+      [false, false, 'public, max-age=60', 'eventual'],
+    ] as const) {
+      const s = await site('site-a', { fresh, ...(purge ? { purge: async () => true } : {}) })
+      for (const which of ['page', 'privacy']) {
+        const r = await s.call(which)
+        expect(r.headers.get('netlify-cache-tag')).toBe('wp-page')
+        expect(r.headers.get('netlify-cdn-cache-control')).toBe(cdn)
+        expect(r.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate')
+        expect(r.headers.get('x-wp-read')).toBe(read)
+      }
+    }
+  })
+  test("the owner's save clears the pages AFTER the new page is stored; a clearing that fails or throws never fails the save", async () => {
+    const order: string[] = []
+    let s: any
+    s = await site('site-a', { factory, fresh: true, purge: async (tags) => { order.push('purge:' + tags.join() + ':' + (s.store.m.get('page') || '')); return true } })
+    const res = await s.call('api/model', post(model({ business: { name: 'Acme 2' } })), await s.authed())
+    expect(res.status).toBe(200)
+    expect(order).toEqual(['purge:wp-page:<html>v2</html>'])
+    for (const purge of [async () => false, async () => { throw new Error('down') }]) {
+      const b = await site('site-a', { factory, fresh: true, purge: purge as any })
+      expect((await b.call('api/model', post(model()), await b.authed())).status).toBe(200)
+      expect(await (await b.call('page')).text()).toBe('<html>v2</html>')
+    }
+  })
+  test("the Factory's adopt (a change of trade) clears the pages too", async () => {
+    const tags: string[][] = []
+    const s = await site('site-a', { fresh: true, purge: async (t) => { tags.push(t); return true } })
+    const ts = String(Math.floor(s.t.now / 1000))
+    const body = JSON.stringify({ model: model(), page: '<html>new trade</html>', privacy: 'p' })
+    expect((await s.call('api/adopt', { method: 'POST', body }, { 'x-wp-ts': ts, 'x-wp-sig': await signRequest(s.secret, ts, body) })).status).toBe(200)
+    expect(tags).toEqual([['wp-page']])
+  })
+})
+
+describe("the function's Blobs connection and the CDN clearing (lambda.mjs)", () => {
+  const ev = (blobs: any) => ({ headers: { 'x-nf-site-id': 'nsite-1', 'x-nf-deploy-id': 'dep-1' }, blobs: Buffer.from(JSON.stringify(blobs)).toString('base64') })
+  test('the uncached address, when Netlify sends it, makes reads strong; without it nothing changes', () => {
+    const set: any[] = []
+    expect(blobsContext(ev({ url: 'https://edge.test', url_uncached: 'https://uncached.test', token: 'tk' }), (c: any) => set.push(c))).toEqual({ fresh: true, siteID: 'nsite-1', deployID: 'dep-1' })
+    expect(set).toEqual([{ deployID: 'dep-1', edgeURL: 'https://edge.test', uncachedEdgeURL: 'https://uncached.test', siteID: 'nsite-1', token: 'tk' }])
+    for (const e of [ev({ url: 'https://edge.test', token: 'tk' }), ev({ url: 'https://edge.test', url_uncached: 'http://plain.test', token: 'tk' }), { headers: {}, blobs: 'not base64 json' }, {}]) {
+      const none: any[] = []
+      expect(blobsContext(e as any, (c: any) => none.push(c)).fresh).toBe(false)
+      expect(none).toEqual([])
+    }
+  })
+  test('strongReads: every read asks for strong consistency; writes are untouched', async () => {
+    const calls: any[] = []
+    const store = { get: async (k: string, o: any) => { calls.push(['get', k, o]); return 'v' }, getWithMetadata: async (k: string, o: any) => { calls.push(['gwm', k, o]); return null }, getMetadata: async (k: string, o: any) => { calls.push(['gm', k, o]); return null }, set: async (k: string, _v: any, o?: any) => { calls.push(['set', k, o]) } }
+    const st = strongReads(store)
+    await st.get('page', { type: 'text' }); await st.getWithMetadata('css', { type: 'text' }); await st.getMetadata('dl:file'); await st.set('page', 'x', { metadata: { v: 1 } })
+    expect(calls).toEqual([['get', 'page', { type: 'text', consistency: 'strong' }], ['gwm', 'css', { type: 'text', consistency: 'strong' }], ['gm', 'dl:file', { consistency: 'strong' }], ['set', 'page', { metadata: { v: 1 } }]])
+  })
+  test("purger: Netlify's purge endpoint with the function's own purge token, by tag; none without a token or a site", async () => {
+    const sent: any[] = []
+    const f = async (url: string, init: any) => { sent.push({ url, init }); return new Response('', { status: 202 }) }
+    const p = purger({ clientContext: { custom: { purge_api_token: 'pt-1' } } }, 'nsite-1', f as any)!
+    expect(await p(['wp-page'])).toBe(true)
+    expect(sent[0].url).toBe('https://api.netlify.com/api/v1/purge')
+    expect(sent[0].init.headers.authorization).toBe('Bearer pt-1')
+    expect(JSON.parse(sent[0].init.body)).toEqual({ site_id: 'nsite-1', cache_tags: ['wp-page'] })
+    expect(await purger({ clientContext: { custom: { purge_api_token: 'pt-1' } } }, 'nsite-1', (async () => { throw new Error('x') }) as any)!(['wp-page'])).toBe(false)
+    expect(purger({}, 'nsite-1')).toBeNull(); expect(purger({ clientContext: { custom: { purge_api_token: 'pt' } } }, '')).toBeNull()
   })
 })
