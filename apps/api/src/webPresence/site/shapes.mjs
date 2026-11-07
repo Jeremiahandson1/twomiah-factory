@@ -39,6 +39,8 @@ export const SHAPES = {
   partners: { heading: 't:80', items: [{ name: 't:80', image: 'img', href: 'link' }, 24] },
   products: { heading: 't:80', intro: 'tl:300', items: [{ name: 't:80', description: 'tl:300', price: 't:20', image: 'img', href: 'link', label: 't:30' }, 24] },
   steps: { heading: 't:80', intro: 'tl:300', steps: [{ title: 't:80', text: 'tl:300' }, 6] },
+  // Questions and answers (the renderer's faq/accordion: each opens to its answer, readable with no script and by search engines).
+  faq: { heading: 't:80', intro: 'tl:300', items: [{ question: 't:200', answer: 'tl:1200' }, 20] },
   // "Sell a download" (one product per site): the words and price the page shows. The file itself is not here: it is kept apart in
   // the site's own store (handler.mjs, dl:file) and handed out only through a paid sale's link.
   download: { heading: 't:80', intro: 'tl:300', name: 't:100', price: 'usd', description: 'tl:900', includes: ['t:80', 12], license: 'tl:300', image: 'img', buttonLabel: 't:30' },
@@ -53,7 +55,7 @@ export const LABELS = {
   place: 'Where', address: 'Address', places: 'Places', date: 'Date', time: 'Time', where: 'Where', name: 'Name', price: 'Price', expiresLabel: 'Ends', badge: 'Badge', validThrough: 'Last day',
   disclaimer: 'Fine print', service: 'Service', priceLabel: 'Price', includes: 'Includes', members: 'People', bio: 'About them', beforeImage: 'Before', afterImage: 'After', location: 'Where',
   material: 'Material', year: 'Year', serviceZips: 'ZIP codes we cover', yesLabel: 'Button when we cover them', yesHref: 'Where it goes', noLabel: 'Words when we do not', noEmail: 'Email for those',
-  steps: 'Steps', subtitle2: 'Words', license: 'License terms', buttonLabel: 'Button words',
+  steps: 'Steps', subtitle2: 'Words', license: 'License terms', buttonLabel: 'Button words', question: 'Question', answer: 'Answer',
 }
 
 /** Section-level caps shared by the cleaner and the tests. */
