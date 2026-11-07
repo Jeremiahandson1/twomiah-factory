@@ -12,7 +12,7 @@ import { and, asc, count, eq, gte, inArray, lte, ne, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
 import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
-import { processingProblem, piecesOf, touch, type Processing } from './segments.ts'
+import { processingProblem, piecesOf, touch, segmentsProblem, asSegments, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
 import { findBlock } from './bookBlocks.ts'
 import { carryToBooking } from './onlineBooking.ts'
@@ -196,6 +196,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
    * Asked for in the body, else the service's own; a gap longer than the appointment is refused in words.
    */
   async function processingFor(companyId: string, serviceId: string | null, body: any, minutes: number): Promise<{ proc: Processing | null } | { problem: string }> {
+    // Row 7 (service_segments): this visit's own steps, set by hand; else a service's steps, as the menu says.
+    if ('segments' in body && body.segments !== null && body.segments !== undefined && !(Array.isArray(body.segments) && !body.segments.length)) {
+      if (!(await d.features.isFeatureEnabled(companyId, 'service_segments'))) return { problem: 'Service steps are not switched on for this salon.' }
+      const problem = segmentsProblem(body.segments, minutes)
+      if (problem) return { problem }
+      return { proc: { afterMin: null, min: null, segments: asSegments(body.segments) } }
+    }
     if ('processingMin' in body || 'processingAfterMin' in body) {
       // Setting a gap on this visit by hand needs the feature; a service that already carries one applies it as the menu says.
       if (!(await d.features.isFeatureEnabled(companyId, 'processing_time'))) return { problem: 'Processing time is not switched on for this salon.' }
@@ -204,7 +211,10 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       return { proc: Number(body.processingMin) > 0 ? { afterMin: Number(body.processingAfterMin || 0), min: Number(body.processingMin) } : null }
     }
     if (!serviceId) return { proc: null }
-    const [svc] = await db.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin }).from(serviceMenu).where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+    const [svc] = await db.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin, seg: serviceMenu.segments, dur: serviceMenu.durationMin }).from(serviceMenu).where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+    // The service's steps apply while they still fit this appointment's length (a shortened one keeps the old gap rule).
+    const seq = asSegments(svc?.seg)
+    if (seq && seq.reduce((t, x) => t + x.minutes, 0) === minutes) return { proc: { afterMin: null, min: null, segments: seq } }
     return { proc: svc?.m && svc.m > 0 ? { afterMin: svc.a ?? 0, min: svc.m } : null }
   }
 
@@ -236,7 +246,9 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (!Number.isInteger(duration) || duration < 1 || duration > 720) return bad(`Service ${n}: the length must be a whole number of minutes, 1 to 720.`)
       const offset = it.startOffsetMin != null && it.startOffsetMin !== '' ? Number(it.startOffsetMin) : cursor
       if (!Number.isInteger(offset) || offset < 0) return bad(`Service ${n}: the start must be a whole number of minutes from the visit's start.`)
-      const proc: Processing | null = svc.processingMin && svc.processingMin > 0 && svc.processingAfterMin != null && svc.processingAfterMin + svc.processingMin <= duration
+      const seq = asSegments((svc as any).segments)
+      const proc: Processing | null = seq && seq.reduce((t, x) => t + x.minutes, 0) === duration ? { afterMin: null, min: null, segments: seq }
+        : svc.processingMin && svc.processingMin > 0 && svc.processingAfterMin != null && svc.processingAfterMin + svc.processingMin <= duration
         ? { afterMin: svc.processingAfterMin, min: svc.processingMin } : null
       let price: number | null = svc.price != null ? Number(svc.price) : null
       if (canMoney && it.price != null && it.price !== '') {
@@ -537,7 +549,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           station: body.station || null,
           startTime,
           endTime,
-          processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null,
+          processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null, segments: proc?.segments ?? null,
           quotedPrice: body.quotedPrice ?? null,
           notes: [patchNote, body.notes, overrodeClash ? `Booked over a clash: ${overridingClash}` : null].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
@@ -546,7 +558,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           await tx.insert(appointmentItem).values(itemList.map((i, position) => ({
             companyId: currentUser.companyId, appointmentId: apptId, position, serviceId: i.serviceId,
             stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId,
-            startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, price: i.price != null ? String(i.price) : null,
+            startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, segments: i.proc?.segments ?? null, price: i.price != null ? String(i.price) : null,
           })) as any)
         }
         return row
@@ -644,13 +656,16 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (nextEnd.getTime() - nextStart.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
 
     // The processing gap: as booked, unless the service changed (the new service's) or the desk set one for this visit.
-    let nextProc: Processing | null = existing.processingMin && existing.processingMin > 0 ? { afterMin: existing.processingAfterMin ?? 0, min: existing.processingMin } : null
-    if (!itemised && ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body)) {
+    // Row 7: an appointment booked with steps keeps them (cut at its end if it is shortened — piecesOf).
+    let nextProc: Processing | null = asSegments((existing as any).segments) ? { afterMin: null, min: null, segments: asSegments((existing as any).segments) }
+      : existing.processingMin && existing.processingMin > 0 ? { afterMin: existing.processingAfterMin ?? 0, min: existing.processingMin } : null
+    if (!itemised && ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body || 'segments' in body)) {
       const got = await processingFor(currentUser.companyId, nextService ?? null, body, Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000))
       if ('problem' in got) return fail(c, 400, got.problem, 'BAD_PROCESSING', { processingMin: got.problem })
       nextProc = got.proc
       updates.processingAfterMin = got.proc?.afterMin ?? null
       updates.processingMin = got.proc?.min ?? null
+      updates.segments = got.proc?.segments ?? null
     }
     const nextStation = 'station' in updates ? updates.station : existing.station
     const checkBlocks = !body.overrideBlock && ('startTime' in updates || 'endTime' in updates || 'stylistId' in updates) && !CANCELLED.includes(nextStatus)

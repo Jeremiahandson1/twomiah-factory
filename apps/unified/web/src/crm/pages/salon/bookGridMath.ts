@@ -5,12 +5,26 @@ export const SNAP_MIN = 15
 export const PX_PER_MIN = 1.1
 export const MIN_CARD_MIN = 15
 
-export interface Gap { afterMin?: number | null; min?: number | null }
-/** One stretch of a card: hands-on work, or processing (the stylist is free, the client sits). */
-export interface Piece { start: number; end: number; kind: 'work' | 'processing' }
+export interface Gap { afterMin?: number | null; min?: number | null; /** Salon parity row 7: the service's steps in order; they win over the single gap. */ segments?: Array<{ kind: string; minutes: number }> | null }
+/** One stretch of a card: hands-on work, processing (the stylist is free, the client sits), blocked (nothing booked into it) or extra time. */
+export interface Piece { start: number; end: number; kind: 'work' | 'processing' | 'blocked' | 'extra' }
 
 /** A card's stretches: work, then the processing gap (when it has a usable one), then work again. No gap: one piece of work. */
 export function piecesFor(start: number, end: number, gap?: Gap | null): Piece[] {
+  // Row 7: one stretch per step, in order, cut at the card's end.
+  if (Array.isArray(gap?.segments) && gap!.segments!.length) {
+    const out: Piece[] = []
+    let at = start
+    for (const sg of gap!.segments!) {
+      const m = Math.max(0, Math.round(Number(sg.minutes) || 0))
+      const to = Math.min(end, at + m)
+      if (to > at) out.push({ start: at, end: to, kind: sg.kind === 'processing' ? 'processing' : sg.kind === 'blocked' ? 'blocked' : sg.kind === 'extra' ? 'extra' : 'work' })
+      at += m
+      if (at >= end) break
+    }
+    if (at < end) out.push({ start: at, end, kind: 'work' })
+    return out.length ? out : [{ start, end, kind: 'work' }]
+  }
   const after = Number(gap?.afterMin ?? 0), min = Number(gap?.min)
   if (!gap || !Number.isFinite(min) || min <= 0 || !Number.isFinite(after) || after < 0) return [{ start, end, kind: 'work' }]
   const gs = start + after, ge = Math.min(end, gs + min)

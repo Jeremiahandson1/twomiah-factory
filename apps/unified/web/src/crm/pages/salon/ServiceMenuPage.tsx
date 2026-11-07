@@ -36,6 +36,8 @@ interface Service {
   durationMin?: number;
   processingAfterMin?: number | null;
   processingMin?: number | null;
+  /** Salon parity row 7 (service_segments): the steps in order. */
+  segments?: Array<{ kind: StepKind; minutes: number }> | null;
   price?: number | string;
   priceIsFrom?: boolean;
   rebookIntervalDays?: number | null;
@@ -203,12 +205,47 @@ export default function ServiceMenuPage() {
   );
 }
 
+type StepKind = 'service' | 'processing' | 'blocked' | 'extra'
+const STEP_WORDS: Record<StepKind, string> = { service: 'Hands-on', processing: 'Processing (stylist free)', blocked: 'Blocked (nothing booked in)', extra: 'Extra time' }
+
+/**
+ * A service's steps (salon parity row 7; Fresha): hands-on, processing, blocked and extra time, any number, in order. Only processing
+ * frees the stylist. The steps must add up to the service's length; the server says so in words if not.
+ */
+export function StepsEditor({ steps, onChange, durationMin }: { steps: Array<{ kind: StepKind; minutes: number }>; onChange: (s: Array<{ kind: StepKind; minutes: number }>) => void; durationMin: number }) {
+  const total = steps.reduce((t, x) => t + (Number(x.minutes) || 0), 0)
+  const move = (i: number, d: number) => { const j = i + d; if (j < 0 || j >= steps.length) return; const n = [...steps]; [n[i], n[j]] = [n[j], n[i]]; onChange(n) }
+  return (
+    <div data-testid="steps-editor">
+      <p className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Steps</p>
+      {steps.map((x, i) => (
+        <div key={i} className="mb-1 flex items-center gap-2">
+          <select aria-label={`Step ${i + 1} kind`} value={x.kind} onChange={(e) => onChange(steps.map((y, j) => (j === i ? { ...y, kind: e.target.value as StepKind } : y)))} className="px-2 py-1 border rounded-lg text-sm">
+            {(Object.keys(STEP_WORDS) as StepKind[]).map((k) => <option key={k} value={k}>{STEP_WORDS[k]}</option>)}
+          </select>
+          <input aria-label={`Step ${i + 1} minutes`} type="number" min={1} value={String(x.minutes)} onChange={(e) => onChange(steps.map((y, j) => (j === i ? { ...y, minutes: Number(e.target.value) } : y)))} className="w-20 px-2 py-1 border rounded-lg text-sm" />
+          <button type="button" onClick={() => move(i, -1)} aria-label={`Move step ${i + 1} up`} className="px-1 text-sm">↑</button>
+          <button type="button" onClick={() => move(i, 1)} aria-label={`Move step ${i + 1} down`} className="px-1 text-sm">↓</button>
+          <button type="button" onClick={() => onChange(steps.filter((_, j) => j !== i))} aria-label={`Remove step ${i + 1}`} className="px-1 text-sm text-red-700 dark:text-red-300">×</button>
+        </div>
+      ))}
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => onChange([...steps, { kind: steps.length ? 'processing' : 'service', minutes: Math.max(1, durationMin - total) || 15 }])} className="text-sm text-orange-700 dark:text-orange-200">+ Add a step</button>
+        {steps.length > 0 && <span className={`text-xs ${total === durationMin ? 'text-gray-500 dark:text-slate-400' : 'text-red-700 dark:text-red-300'}`}>{total} of {durationMin} minutes</span>}
+      </div>
+      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">No steps: the whole time is hands-on (or the single gap above). The stylist is free only in processing steps.</p>
+    </div>
+  )
+}
+
 /* ---------------- Service Modal ---------------- */
 
 function ServiceModal({ service, onSave, onClose }: { service: Service | null; onSave: () => void; onClose: () => void }) {
   const toast = useToast();
   const { hasFeature } = useAuth();
   const showProcessing = hasFeature('processing_time');
+  const showSteps = hasFeature('service_segments');
+  const [steps, setSteps] = useState<Array<{ kind: StepKind; minutes: number }>>(Array.isArray(service?.segments) ? service!.segments! : []);
   // A service's own no-show / late-cancel fee (Card on file): the owner's or an admin's to set.
   const { can, known } = usePermissions();
   const showFees = hasFeature('card_on_file') && known && can('company:update');
@@ -259,6 +296,8 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
         payload.processingAfterMin = form.processingAfterMin === '' ? null : Number(form.processingAfterMin);
         payload.processingMin = form.processingMin === '' ? null : Number(form.processingMin);
       }
+      // Row 7: the steps, or none (an empty list clears them).
+      if (showSteps) payload.segments = steps.length ? steps.map((x) => ({ kind: x.kind, minutes: Number(x.minutes) })) : null;
       if (showFees) {
         const cents = (v: string) => (v.trim() === '' ? null : Math.round(Number(v) * 100));
         const pct = (v: string) => (v.trim() === '' ? null : Number(v));
@@ -318,7 +357,8 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
                 <input type="number" value={form.rebookIntervalDays} onChange={(e) => set('rebookIntervalDays', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Blank: no reminder" />
               </div>
             </div>
-            {showProcessing && (
+            {showSteps && <StepsEditor steps={steps} onChange={setSteps} durationMin={Number(form.durationMin) || 0} />}
+            {showProcessing && !steps.length && (
               <div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

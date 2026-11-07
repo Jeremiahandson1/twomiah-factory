@@ -27,7 +27,7 @@ import { findOff, offSpans } from './timeOff.ts'
 import { readTeamOrder } from '@twomiah/tenant-backend'
 import { appointment, appointmentItem, bookBlock, booking, bookingService, company, contact, serviceMenu } from '../../db/schema/index.ts'
 import { findStylistConflict } from './held.ts'
-import { piecesOf } from './segments.ts'
+import { piecesOf, asSegments, heldMinutes, segmentsOf } from './segments.ts'
 import { calendarDateIn } from './days.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import { BookingError, slugify, type BookingAddOn } from '../../booking/engine.ts'
@@ -212,10 +212,13 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       await lockAppointmentBook(tx, companyId)
       // The service's own processing gap, as the menu says (processing time): the colourist is free in it, so the booking holds
       // only the hands-on parts of its time — here, and in the clash check against the Book (held.ts).
-      let proc: { afterMin: number; min: number } | null = null
+      let proc: { afterMin: number | null; min: number | null; segments?: any } | null = null
       if (service.serviceMenuId) {
-        const [m] = await tx.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin }).from(serviceMenu).where(eq(serviceMenu.id, service.serviceMenuId)).limit(1)
-        if (m?.m && m.m > 0) proc = { afterMin: m.a ?? 0, min: m.m }
+        const [m] = await tx.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin, seg: serviceMenu.segments }).from(serviceMenu).where(eq(serviceMenu.id, service.serviceMenuId)).limit(1)
+        // Row 7: the service's steps (only processing frees the colourist), else its single gap.
+        const seq = asSegments(m?.seg)
+        if (seq) proc = { afterMin: null, min: null, segments: seq }
+        else if (m?.m && m.m > 0) proc = { afterMin: m.a ?? 0, min: m.m }
       }
       if (b.assignedUserId) {
         if (await findStylistConflict(tx, companyId, { stylistId: b.assignedUserId, stylistMemberId: null }, b.startAt, b.endAt, undefined, proc)) throw new BookingError('That time has just been taken — please pick another.', 409, 'taken')
@@ -243,7 +246,7 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
         // Its length is the menu's (the booking's end is the service's duration), and its price the one quoted online —
         // the menu's at the moment of booking. The name stays on the notes as booked, should the menu item be renamed.
         startTime: b.startAt, endTime: b.endAt,
-        processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null,
+        processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null, segments: proc?.segments ?? null,
         quotedPrice: service.price != null && Number(service.price) > 0 ? String(service.price) : null,
         notes: `Online booking: ${service.name || 'service'}${said ? ' — ' + said : ''}`,
       }).returning({ id: appointment.id })
@@ -261,9 +264,23 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
 
     // The Book's own appointments hold their time online, as the template's did (calendars.ts busy): the stylist's time
     // when one is named, everybody's when not. An appointment a booking made is that booking's time already.
+    // Row 7 (service_segments): what each online service holds of its stylist — every step but processing, from the menu item's steps
+    // or its single gap. Off, nothing is listed and an online booking holds its whole time, as it did.
+    async holds(exec, companyId) {
+      const out = new Map<string, Array<{ fromMin: number; toMin: number }>>()
+      if (!opts.isFeatureEnabled || !(await opts.isFeatureEnabled(companyId, 'service_segments').catch(() => false))) return out
+      const rows = await exec.select({ id: bookingService.id, seg: serviceMenu.segments, pa: serviceMenu.processingAfterMin, pm: serviceMenu.processingMin, dur: serviceMenu.durationMin })
+        .from(bookingService).innerJoin(serviceMenu, eq(serviceMenu.id, bookingService.serviceMenuId)).where(eq(bookingService.companyId, companyId))
+      for (const r of rows as any[]) {
+        const seq = segmentsOf({ segments: r.seg, processingAfterMin: r.pa, processingMin: r.pm }, Number(r.dur || 60))
+        if (seq.some((x) => x.kind === 'processing')) out.set(r.id, heldMinutes(seq))
+      }
+      return out
+    },
+
     async busy(exec, companyId, from, to) {
       const out: Array<{ userId: string | null; start: Date; end: Date }> = []
-      const rows = await exec.select({ id: appointment.id, start: appointment.startTime, end: appointment.endTime, stylistId: appointment.stylistId, memberId: appointment.stylistMemberId, pa: appointment.processingAfterMin, pm: appointment.processingMin }).from(appointment)
+      const rows = await exec.select({ id: appointment.id, start: appointment.startTime, end: appointment.endTime, stylistId: appointment.stylistId, memberId: appointment.stylistMemberId, pa: appointment.processingAfterMin, seg: appointment.segments, pm: appointment.processingMin }).from(appointment)
         .where(and(
           eq(appointment.companyId, companyId),
           gte(appointment.startTime, new Date(from.getTime() - 24 * 3_600_000)), lt(appointment.startTime, to),
@@ -271,9 +288,9 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
           notExists(exec.select({ id: booking.id }).from(booking).where(and(eq(booking.appointmentId, appointment.id), ne(booking.status, 'cancelled')))),
         ))
       // A visit with several services holds each stylist only for the services they do.
-      const itemised = rows.length ? await exec.select({ appointmentId: appointmentItem.appointmentId, stylistId: appointmentItem.stylistId, offset: appointmentItem.startOffsetMin, minutes: appointmentItem.durationMin, pa: appointmentItem.processingAfterMin, pm: appointmentItem.processingMin }).from(appointmentItem).where(inArray(appointmentItem.appointmentId, rows.map((r: any) => r.id))) : []
+      const itemised = rows.length ? await exec.select({ appointmentId: appointmentItem.appointmentId, stylistId: appointmentItem.stylistId, offset: appointmentItem.startOffsetMin, minutes: appointmentItem.durationMin, pa: appointmentItem.processingAfterMin, seg: appointmentItem.segments, pm: appointmentItem.processingMin }).from(appointmentItem).where(inArray(appointmentItem.appointmentId, rows.map((r: any) => r.id))) : []
       const hasItems = new Set<string>(itemised.map((i: any) => i.appointmentId))
-      const push = (userId: string | null, startMs: number, endMs: number, p: { afterMin: number | null; min: number | null } | null) => {
+      const push = (userId: string | null, startMs: number, endMs: number, p: { afterMin: number | null; min: number | null; segments?: any } | null) => {
         for (const piece of piecesOf(startMs, endMs, p)) out.push({ userId, start: new Date(piece.start), end: new Date(piece.end) })
       }
       // A chair-only stylist (a roster member, no login) is never offered online, so their appointment takes nobody's
@@ -281,13 +298,13 @@ export function createChairBooking(opts: { cards?: () => CardOnFile | null; isFe
       for (const r of rows) {
         if (hasItems.has(r.id) || !(r.stylistId || !r.memberId)) continue
         const start = new Date(r.start).getTime()
-        push(r.stylistId ?? null, start, r.end ? new Date(r.end).getTime() : start + DEFAULT_MINUTES * 60_000, { afterMin: r.pa, min: r.pm })
+        push(r.stylistId ?? null, start, r.end ? new Date(r.end).getTime() : start + DEFAULT_MINUTES * 60_000, { afterMin: r.pa, min: r.pm, segments: r.seg })
       }
       for (const it of itemised) {
         const r = rows.find((x: any) => x.id === it.appointmentId)
         if (!r || !it.stylistId) continue
         const start = new Date(r.start).getTime() + it.offset * 60_000
-        push(it.stylistId, start, start + it.minutes * 60_000, { afterMin: it.pa, min: it.pm })
+        push(it.stylistId, start, start + it.minutes * 60_000, { afterMin: it.pa, min: it.pm, segments: it.seg })
       }
       // Blocked time (lunch, training): the stylist's, or everybody's when no stylist is named.
       const blocks = await exec.select({ stylistId: bookBlock.stylistId, memberId: bookBlock.stylistMemberId, start: bookBlock.startTime, end: bookBlock.endTime }).from(bookBlock)

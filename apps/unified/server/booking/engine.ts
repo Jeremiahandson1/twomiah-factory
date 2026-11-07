@@ -82,6 +82,12 @@ export interface BookingAddOn {
    */
   busy?(exec: any, companyId: string, from: Date, to: Date): Promise<Array<{ userId: string | null; start: Date; end: Date }>>
   /**
+   * The stretches of a service that hold its person, as minutes from the start, by booking service id (salon parity row 7: only
+   * processing frees the stylist). A service not listed holds its whole time. Online, a new booking may then fit around another's
+   * processing — and another booking's processing is free time for it — the way the desk books into gaps.
+   */
+  holds?(exec: any, companyId: string): Promise<Map<string, Array<{ fromMin: number; toMin: number }>>>
+  /**
    * The vertical keeps the list of what customers book, by name (the salon's 'Service Menu'). Then a service is offered
    * and booked only while it is linked to that list (booking_service.service_menu_id, kept by the list's own writes);
    * what it is — name, description, length, price, whether it is offered — is the list's to change, and Booking
@@ -731,7 +737,8 @@ export function createBookingEngine(deps: EngineDeps) {
     // Inside a transaction the caller hands it in (claim); otherwise it is read here.
     const external = (externalBusy ?? await externalFor(companyId, s, firstDate, lastDate)).filter((e) => !ours.has(e.eventId))
     const own = [...(deps.addOn?.busy ? await deps.addOn.busy(exec, companyId, from, to) : []), ...await jobsBusy(exec, companyId, from, to, tz)]
-    return { tz, hours, daysOff, zones, bookings: rows, external, own }
+    const holds: Map<string, Array<{ fromMin: number; toMin: number }>> = deps.addOn?.holds ? await deps.addOn.holds(exec, companyId).catch(() => new Map()) : new Map()
+    return { tz, hours, daysOff, zones, bookings: rows, external, own, holds }
   }
   type Range = Awaited<ReturnType<typeof loadRange>>
 
@@ -744,9 +751,10 @@ export function createBookingEngine(deps: EngineDeps) {
     return e > s ? { s, e } : null
   }
 
-  const rulesOf = (svc: ServiceRow, s: SettingsRow): ServiceRules => ({
+  const rulesOf = (svc: ServiceRow, s: SettingsRow, holds?: Map<string, Array<{ fromMin: number; toMin: number }>>): ServiceRules => ({
     id: svc.id, durationMinutes: svc.durationMinutes, bufferBeforeMinutes: svc.bufferBeforeMinutes, bufferAfterMinutes: svc.bufferAfterMinutes,
     slotStepMinutes: svc.slotStepMinutes, capacity: svc.capacity, driveTimeMinutes: s.driveTimeMinutes,
+    ...(holds?.get(svc.id) ? { holds: holds.get(svc.id) } : {}),
   })
 
   /** One day's times, three ways: every time the hours offer, the free ones, and the free ones a customer may still book. */
@@ -754,14 +762,25 @@ export function createBookingEngine(deps: EngineDeps) {
     const busy: Busy[] = []
     for (const r of range.bookings) {
       const d = onDay(r.b.startAt, r.b.endAt, date, range.tz)
-      if (d) busy.push({ userId: r.b.assignedUserId, startMinute: d.s, endMinute: d.e, padBefore: r.before ?? 0, padAfter: r.after ?? 0, serviceId: r.b.serviceId })
+      if (!d) continue
+      // A booking whose service frees its person in processing (row 7) holds only its other stretches.
+      const held = r.b.serviceId ? range.holds?.get(r.b.serviceId) : undefined
+      if (held && held.length) {
+        const startMin = d.s
+        held.forEach((h, i) => {
+          const a = startMin + h.fromMin, z = Math.min(d.e, startMin + h.toMin)
+          if (z > a) busy.push({ userId: r.b.assignedUserId, startMinute: a, endMinute: z, padBefore: i === 0 ? r.before ?? 0 : 0, padAfter: i === held.length - 1 ? r.after ?? 0 : 0, serviceId: r.b.serviceId })
+        })
+        continue
+      }
+      busy.push({ userId: r.b.assignedUserId, startMinute: d.s, endMinute: d.e, padBefore: r.before ?? 0, padAfter: r.after ?? 0, serviceId: r.b.serviceId })
     }
     for (const x of [...range.external, ...range.own]) {
       const d = onDay(x.start, x.end, date, range.tz)
       if (d) busy.push({ userId: x.userId, startMinute: d.s, endMinute: d.e })
     }
     const base = {
-      dayOfWeek: weekdayOf(date), service: rulesOf(svc, s),
+      dayOfWeek: weekdayOf(date), service: rulesOf(svc, s, range.holds),
       hours: range.hours, daysOff: range.daysOff.filter((d: any) => d.date === date),
       zones: range.zones.map((z: any) => ({ userId: z.userId, zips: Array.isArray(z.zips) ? z.zips.map(String) : [] })), customerZip: zip,
     }

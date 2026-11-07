@@ -1,6 +1,6 @@
 // Appointments (salons and vets): a time booked with a person for a client — the salon's with a stylist for a
 // service, the vet's with a provider for a patient. The union of both, from templates/crm-{salon,vet}/backend/db/schema.ts.
-import { pgTable, text, decimal, timestamp, integer, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, decimal, timestamp, integer, index, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, teamMember } from './crm.ts'
@@ -32,6 +32,8 @@ export const appointment = pgTable('appointment', {
   cancelledAt: timestamp('cancelled_at'),
   /** The service's processing gap as it was when booked (salon): free for `processingMin` minutes from `processingAfterMin` in. Null = none. */
   processingAfterMin: integer('processing_after_min'),
+  /** Salon parity row 7 (service_segments): the steps in order [{ kind: service | processing | blocked | extra, minutes }]; wins over the single gap. */
+  segments: json('segments'),
   processingMin: integer('processing_min'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),

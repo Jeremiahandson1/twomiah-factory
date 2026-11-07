@@ -673,6 +673,13 @@
       "when": 1794026163167,
       "tag": "0095_contractor_payment_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1794027658491,
+      "tag": "0096_salon_service_segments",
+      "breakpoints": true
     }
   ]
 }

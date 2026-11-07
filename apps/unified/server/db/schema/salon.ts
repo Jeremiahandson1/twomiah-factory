@@ -133,6 +133,8 @@ export const serviceMenu = pgTable('service_menu', {
   bookableOnline: boolean('bookable_online').default(false).notNull(),  // offered on the public booking widget (SALON-N4)
   /** Processing time (colour): the stylist is free for `processingMin` minutes starting `processingAfterMin` minutes in. Null = hands-on throughout. */
   processingAfterMin: integer('processing_after_min'),
+  /** Salon parity row 7 (service_segments): the steps in order [{ kind: service | processing | blocked | extra, minutes }]; wins over the single gap. */
+  segments: json('segments'),
   processingMin: integer('processing_min'),
   /** This service's own no-show / late-cancel fee (salon parity row 4): whole cents or a percent of its price; null = the salon's fee. */
   noShowFeeCents: integer('no_show_fee_cents'),
@@ -327,6 +329,8 @@ export const appointmentItem = pgTable('appointment_item', {
   startOffsetMin: integer('start_offset_min').notNull(),
   durationMin: integer('duration_min').notNull(),
   processingAfterMin: integer('processing_after_min'),
+  /** Salon parity row 7 (service_segments): the steps in order [{ kind: service | processing | blocked | extra, minutes }]; wins over the single gap. */
+  segments: json('segments'),
   processingMin: integer('processing_min'),
   price: decimal('price', { precision: 10, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
