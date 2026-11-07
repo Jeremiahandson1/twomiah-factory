@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto'
 import { Netlify, NetlifyError, type FetchLike } from './netlify.ts'
 import { buildSpec, canonicalise, type SiteSpec } from './spec.ts'
 import { composeOnePage } from './compose.ts'
-import { buildSiteFiles } from './publish.ts'
+import { buildSiteFiles, type FunctionFormat } from './publish.ts'
 import { requireWebPresence, WEB_PRESENCE_PLAN_ID, downloadsOn } from './switch.ts'
 import { renderOnePage, type OnePageModel } from '../../../unified/server/site/onePage.ts'
 import { mintSignin, siteSecret, verifyRequest, signRequest } from './site/session.mjs'
@@ -157,7 +157,18 @@ async function setUp(d: Deps, tenantId: string, tenant: any): Promise<Provisione
 }
 
 /** The whole file set (first version of the page included) onto the site: used at set up and when the trade or the code changes. */
-export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePageModel): Promise<OnePageModel> {
+/**
+ * Which format this site's function is deployed in (publish.ts FunctionFormat). WEB_PRESENCE_FUNCTIONS_V2: 'all', or a comma list
+ * of site ids, so the current format is tried on chosen sites first; unset = the Lambda-style format every site has run since 10/29.
+ */
+export function functionFormatFor(env: Deps['env'], siteId: string): FunctionFormat {
+  const v = String(env.WEB_PRESENCE_FUNCTIONS_V2 || '').trim()
+  if (!v) return 'lambda'
+  if (v.toLowerCase() === 'all') return 'v2'
+  return v.split(',').map((x) => x.trim()).includes(siteId) ? 'v2' : 'lambda'
+}
+
+export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePageModel, o: { format?: FunctionFormat } = {}): Promise<OnePageModel> {
   const spec = specFor(d, tenant)
   const origin = (row.custom_domain && row.ssl_ok ? 'https://' + row.custom_domain : row.origin) as string
   let useModel = model
@@ -171,10 +182,10 @@ export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePag
     useModel = canonicalise(composed.model, spec, null).model
   }
   const rendered = await renderOnePage({ model: useModel!, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin, sellsDownload: sellsFor(d, tenant) })
-  const built = await buildSiteFiles(rendered, spec)
+  const built = await buildSiteFiles(rendered, spec, o.format ?? functionFormatFor(d.env, row.id))
   const nl = d.netlify()
   await nl.enableForms(row.netlify_site_id!)                // forms are found while THIS deploy is processed
-  await nl.deploy(row.netlify_site_id!, built.files, built.functions)
+  await nl.deploy(row.netlify_site_id!, built.files, built.functions, built.functionMeta ? { functionMeta: built.functionMeta } : {})
   return rendered.model
 }
 

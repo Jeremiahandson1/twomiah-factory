@@ -64,9 +64,9 @@ export function formsHtml(resumeExtraFields: number = 2): string {
 
 /** The function's source bundle: handler + entry + the first page, model and spec, as one file. Cached by content. */
 const bundleCache = new Map<string, string>()
-export async function bundleFunction(payload: { index: string; privacy: string; model: unknown; spec: unknown; css?: string; cssVersion?: string }): Promise<string> {
+export async function bundleFunction(payload: { index: string; privacy: string; model: unknown; spec: unknown; css?: string; cssVersion?: string }, format: FunctionFormat = 'lambda'): Promise<string> {
   const payloadSrc = `export const INITIAL = ${JSON.stringify({ index: payload.index, privacy: payload.privacy, model: payload.model, css: payload.css ?? '', cssVersion: payload.cssVersion ?? '' })};\nexport const SPEC = ${JSON.stringify(payload.spec)};\n`
-  const key = String(Bun.hash(payloadSrc)) + ':' + String(Bun.hash(['handler', 'entry', 'lambda', 'clean', 'shapes', 'session'].map((f) => readFileSync(join(SITE_DIR, f + '.mjs'), 'utf8')).join('\n')))
+  const key = format + ':' + String(Bun.hash(payloadSrc)) + ':' + String(Bun.hash(['handler', 'entry', 'entry-v2', 'lambda', 'clean', 'shapes', 'session'].map((f) => readFileSync(join(SITE_DIR, f + '.mjs'), 'utf8')).join('\n')))
   const hit = bundleCache.get(key)
   if (hit) return hit
   // The generated payload is written to a temp file and `./payload.mjs` is resolved to it. It was a virtual file
@@ -77,7 +77,7 @@ export async function bundleFunction(payload: { index: string; privacy: string; 
   let out: Awaited<ReturnType<typeof Bun.build>>
   try {
     out = await Bun.build({
-      entrypoints: [join(SITE_DIR, 'entry.mjs')],
+      entrypoints: [join(SITE_DIR, format === 'v2' ? 'entry-v2.mjs' : 'entry.mjs')],
       plugins: [{ name: 'site-payload', setup(b) {
         b.onResolve({ filter: /^\.\/payload\.mjs$/ }, () => ({ path: payloadFile }))
         b.onResolve({ filter: /^@netlify\/blobs$/ }, () => ({ path: Bun.resolveSync('@netlify/blobs', BLOBS_FROM) }))
@@ -95,10 +95,44 @@ export async function bundleFunction(payload: { index: string; privacy: string; 
   return code
 }
 
-export interface SiteFiles { files: Record<string, string | Uint8Array>; functions: Record<string, Uint8Array> }
+export interface SiteFiles { files: Record<string, string | Uint8Array>; functions: Record<string, Uint8Array>; functionMeta?: Record<string, FunctionMeta> }
+
+/**
+ * The two formats a site's function can be deployed in. 'lambda' (entry.mjs) is the one every site has run since 10/29; Netlify
+ * stops accepting it on July 1, 2027. 'v2' (entry-v2.mjs) is Netlify's current format.
+ */
+export type FunctionFormat = 'lambda' | 'v2'
+/** How Netlify's deploy API is told a function's format (as its CLI tells it: upload query + the deploy's functions_config). */
+export interface FunctionMeta { runtime: string; invocationMode?: string; buildData?: Record<string, unknown> }
+
+/**
+ * Netlify's bootstrap for current-format functions, packaged as its own CLI packages one (@netlify/zip-it-and-ship-it, read 11/07):
+ * the zip holds ___netlify-entry-point.mjs (handing the bundled function to the bootstrap's getLambdaHandler),
+ * ___netlify-bootstrap.mjs (@netlify/serverless-functions-api's getPath() file: one file, Node built-ins only),
+ * ___netlify-metadata.json, and the function. Uploaded with runtime nodejs22.x, invocation_mode stream, and the deploy's
+ * functions_config build_data { runtimeAPIVersion: 2, bootstrapVersion }.
+ */
+const V2_MAIN = FUNCTION_NAME + '.mjs'
+function v2Bootstrap(): { source: string; version: string } {
+  const entry = Bun.resolveSync('@netlify/serverless-functions-api', BLOBS_FROM)
+  const pkg = JSON.parse(readFileSync(join(dirname(entry), '..', 'package.json'), 'utf8'))
+  return { source: readFileSync(entry, 'utf8'), version: String(pkg.version) }
+}
+export function v2Zip(code: string): { zip: Uint8Array; meta: FunctionMeta } {
+  const boot = v2Bootstrap()
+  return {
+    zip: zip({
+      '___netlify-entry-point.mjs': "import * as bootstrap from './___netlify-bootstrap.mjs';export const handler = bootstrap.getLambdaHandler('./" + V2_MAIN + "')",
+      '___netlify-bootstrap.mjs': boot.source,
+      '___netlify-metadata.json': JSON.stringify({ bootstrap_version: boot.version, branch: 'main', version: 1 }),
+      [V2_MAIN]: code,
+    }),
+    meta: { runtime: 'nodejs22.x', invocationMode: 'stream', buildData: { runtimeAPIVersion: 2, bootstrapVersion: boot.version } },
+  }
+}
 
 /** Everything one deploy carries. */
-export async function buildSiteFiles(rendered: OnePageOutput, spec: SiteSpec): Promise<SiteFiles> {
+export async function buildSiteFiles(rendered: OnePageOutput, spec: SiteSpec, format: FunctionFormat = 'lambda'): Promise<SiteFiles> {
   const files: Record<string, string | Uint8Array> = {}
   for (const [p, c] of Object.entries(rendered.files)) {
     // The two pages and the stylesheet are the function's: an editor save replaces all three together, with no deploy. A deployed
@@ -118,6 +152,7 @@ export async function buildSiteFiles(rendered: OnePageOutput, spec: SiteSpec): P
   files['forms.html'] = formsHtml()
   files['_redirects'] = redirectsFile()
   files['_headers'] = headersFile()
-  const code = await bundleFunction({ index: rendered.files['index.html'], privacy: rendered.files['privacy/index.html'], model: rendered.model, spec, css: rendered.files['styles/main.css'], cssVersion: rendered.cssVersion })
+  const code = await bundleFunction({ index: rendered.files['index.html'], privacy: rendered.files['privacy/index.html'], model: rendered.model, spec, css: rendered.files['styles/main.css'], cssVersion: rendered.cssVersion }, format)
+  if (format === 'v2') { const v = v2Zip(code); return { files, functions: { [FUNCTION_NAME]: v.zip }, functionMeta: { [FUNCTION_NAME]: v.meta } } }
   return { files, functions: { [FUNCTION_NAME]: zip({ [FUNCTION_NAME + '.mjs']: code }) } }
 }
