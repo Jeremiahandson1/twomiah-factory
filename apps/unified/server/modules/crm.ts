@@ -298,6 +298,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // A picture on a quote line, kept only for a business with quote_line_images on (crm/billing/quoteLineImages.ts).
       lineImagesEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_line_images'),
       textLinesEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_text_lines'),
+      // Formula estimating (contractor parity row 9): parameters and line formulas, worked out on every save.
+      formulasEnabled: (companyId: string) => features.isFeatureEnabled(companyId, 'quote_formulas'),
       // The deposit a quote asks is raised when the office marks it approved; convert-to-invoice is the final invoice
       // once part of the quote was billed, crediting the deposit and progress invoices (crm/billing/quoteBilling.ts).
       onApproved: ({ companyId, quote: q }: any) => afterApproval(companyId, q.id),

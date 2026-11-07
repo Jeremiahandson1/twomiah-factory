@@ -63,6 +63,8 @@ export {
 } from './team/staffBalance'
 export type { StaffEntrySource, SettleRoute, StaffBalanceStore } from './team/staffBalance'
 export { createQuoteRoutes } from './invoicing/quotes'
+export { evaluate as evaluateFormula, workOut as workOutFormulas, cleanParameters, mergeParameters, FormulaError, isFormulaKey, type Parameter as FormulaParameter } from './invoicing/formulas'
+export { recalculateQuote, quoteHasFormulas, parametersFor } from './invoicing/quoteFormulas'
 export { isIncluded, includedLines, notIncludedLines, depositAmount, depositProblem, retotalQuote, chooseOptionalLine } from './invoicing/quoteOptions'
 export { priceFromMarkup, applyMarkups, groupBySection, hasStructure, sectionSummary } from './invoicing/quoteSections'
 export { proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, isPhotoAddress, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_OPTION_PHOTOS, CHOOSE_FIRST } from './invoicing/quoteOptions'

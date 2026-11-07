@@ -166,6 +166,8 @@ export const project = pgTable('project', {
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  /** Formula estimating (0091, row 9): the job's parameters, which every quote on it reads unless it sets its own. */
+  parameters: json('parameters'),
 }, (t) => [
   index('project_company_id_idx').on(t.companyId),
   index('project_status_idx').on(t.status),
@@ -441,6 +443,8 @@ export const quote = pgTable('quote', {
   salespersonId: text('salesperson_id').references(() => user.id, { onDelete: 'set null' }),
   // When the quote became a job (stamped by the convert route); the "converted" date basis of the team revenue report.
   convertedAt: timestamp('converted_at'),
+  /** Formula estimating (0091, contractor parity row 9; quote_formulas): the quote's own parameters [{ key, label, value, unit }]. */
+  parameters: json('parameters'),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_salesperson_idx').on(t.salespersonId),
@@ -493,6 +497,14 @@ export const quoteLineItem = pgTable('quote_line_item', {
   optionRole: text('option_role'),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
+  /**
+   * Formula estimating (0091, row 9; packages/tenant-backend invoicing/formulas.ts). `formula_key` is the name other lines read
+   * this line's quantity by; `quantity_formula` / `price_formula` work the quantity and unit price out from the parameters and
+   * other lines — the server writes the results into quantity and unit_price on every save.
+   */
+  formulaKey: text('formula_key'),
+  quantityFormula: text('quantity_formula'),
+  priceFormula: text('price_formula'),
 }, (t) => [
   index('quote_line_item_quote_id_idx').on(t.quoteId),
   index('quote_line_item_proposal_option_id_idx').on(t.proposalOptionId),
