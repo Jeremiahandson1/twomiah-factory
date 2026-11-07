@@ -708,6 +708,13 @@
       "when": 1794033849282,
       "tag": "0100_salon_phone_charge",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1794035159060,
+      "tag": "0101_booking_rwg_token",
+      "breakpoints": true
     }
   ]
 }

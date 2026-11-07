@@ -24,6 +24,7 @@ const openingText = (date: string, time: string) => {
   return `${day} · ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
 import { icsOf, bookedName } from './happenings.ts'
+import { RWG_FEATURE, cleanToken, rwgCookie } from './googleRedirect.ts'
 import { renderBody, escHtml } from '../site/render.ts'
 import { EMBED_CSP } from '../http/guards.ts'
 import type { SiteContext } from '../site/context.ts'
@@ -69,6 +70,15 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   const keep = (c: Context, sep: '?' | '&' = '?') => (embedded(c) ? sep + 'embed=1' : '')
   const top = (c: Context) => (embedded(c) ? ' target="_top"' : '')
 
+  /**
+   * Reserve with Google (row 23): a client who came from Google's Book button carries ?rwg_token=; it is kept 30 days (a new one replaces it)
+   * so the booking made in that window is reported to Google (googleRedirect.ts). Only with the salon's switch on.
+   */
+  async function keepReferral(c: Context, companyId: string) {
+    const token = cleanToken(c.req.query('rwg_token'))
+    if (token && (await deps.isFeatureEnabled(companyId, RWG_FEATURE).catch(() => false))) c.header('Set-Cookie', rwgCookie(token), { append: true })
+  }
+
   const closed = (c: Context, ctx: SiteContext) => html(c, ctx, `<section class="book-empty"><div class="container"><h1>Online booking is closed</h1><p>Please <a href="/contact">get in touch</a> to arrange a time.</p></div></section>`, 'Book online', '/book')
 
   // Cross-origin by design: it is loaded by the business's other website.
@@ -78,6 +88,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
 
   app.get('/book', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
+    await keepReferral(c, s.ctx.companyId)
     if (!s.settings.enabled) return closed(c, s.ctx)
     const services = await engine.listServices(s.ctx.companyId, { activeOnly: true })
     const body = !services.length
@@ -189,6 +200,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
 
   app.get('/book/:slug', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
+    await keepReferral(c, s.ctx.companyId)
     if (!s.settings.enabled) return closed(c, s.ctx)
     const svc = await engine.serviceBySlug(s.ctx.companyId, c.req.param('slug'))
     if (!engine.offered(svc)) return c.notFound()

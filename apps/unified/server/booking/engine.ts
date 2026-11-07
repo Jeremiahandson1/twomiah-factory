@@ -178,6 +178,8 @@ export interface BookInput {
   who?: string | null
   /** Row 9 (BookingAddOn.basket): more services after the first, in order, each with its own chosen person (or whoever is free). */
   also?: Array<{ service: string; who?: string | null }> | null
+  /** Reserve with Google (row 23): the referral token the client arrived with (googleRedirect.ts), reported once the booking stands. */
+  rwgToken?: string | null
 }
 
 /** A service after the first in a several-service booking: when it starts (minutes after the first) and who was asked for. */
@@ -1065,7 +1067,7 @@ export function createBookingEngine(deps: EngineDeps) {
         startAt, endAt, customerName: name, customerEmail: email, customerPhone: phone, customerAddress: address, customerZip: zip,
         customerNotes: String(input.notes || '').trim().slice(0, 2000) || null,
         status: formsFirst || takeDeposit || cardHold ? 'pending' : 'confirmed',
-        assignedUserId: firstWho, basket,
+        assignedUserId: firstWho, basket, rwgToken: customer && input.rwgToken ? String(input.rwgToken).slice(0, 1000) : null,
         source: opts.source ?? (customer ? 'public' : 'staff'),
         sourcePath: text(input.sourcePath, 500) ?? null, sourceReferrer: text(input.sourceReferrer, 1000) ?? null, sourceVariant: text(input.sourceVariant, 60) ?? null,
         token: newToken(),

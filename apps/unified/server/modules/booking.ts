@@ -20,6 +20,10 @@ import { createChairBooking } from '../crm/salon/onlineBooking.ts'
 import { createCalendars, PROVIDERS, type Calendars, type Provider } from '../booking/calendars.ts'
 import type { BookingTexts } from '../booking/texts.ts'
 import { ticked } from '../site/smsConsent.ts'
+import { getCookie } from 'hono/cookie'
+import { and, eq, isNull } from 'drizzle-orm'
+import { booking } from '../db/schema/index.ts'
+import { RWG_COOKIE, RWG_FEATURE, cleanToken, feedsFor, sendConversion } from '../booking/googleRedirect.ts'
 
 const FEATURE = 'online_booking'
 
@@ -60,11 +64,24 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: calendars.externalBusy,
     addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true })
       : deps.vertical.booking?.calendar === 'chair' ? createChairBooking({ cards: () => deps.bookingCard?.cards ?? null, isFeatureEnabled: deps.isFeatureEnabled, db: deps.db, storage: deps.storage, released: (co, contact) => deps.bookingForms?.released?.(co, contact) ?? Promise.resolve() }) : undefined,
-    onHappening: (h) => { void happen(h); void calendars.onHappening(h) },
+    onHappening: (h) => { void happen(h); void calendars.onHappening(h); void reportToGoogle(h) },
     // "Convert to job": numbered as the vertical's job module numbers its jobs — roofing's own (crm/roof/jobs.ts
     // ROOF-0001), everyone else's the shared module's default (packages/tenant-backend jobs.ts JOB-00001).
     jobs: deps.vertical.crm ? { numbering: deps.vertical.crm.roof ? { prefix: 'ROOF', pad: 4 } : { prefix: 'JOB', pad: 5 }, defaultType: deps.vertical.crm.jobs?.defaultType } : undefined,
   })
+  /**
+   * Reserve with Google (row 23): a booking a Google referral led to is reported once it stands (booking.created fires on confirmation),
+   * once — the row is claimed before the call. Only with the salon's switch on; nothing is sent without Twomiah's partner id.
+   */
+  async function reportToGoogle(h: { event: string; booking: any }) {
+    try {
+      if (h.event !== 'booking.created' || !h.booking?.rwgToken) return
+      if (!deps.isFeatureEnabled || !(await deps.isFeatureEnabled(h.booking.companyId, RWG_FEATURE))) return
+      const [mine] = await db.update(booking).set({ rwgReportedAt: new Date() }).where(and(eq(booking.id, h.booking.id), isNull(booking.rwgReportedAt))).returning({ id: booking.id })
+      if (!mine) return
+      if (!(await sendConversion(h.booking.rwgToken))) await db.update(booking).set({ rwgReportedAt: null }).where(eq(booking.id, h.booking.id))
+    } catch (e: any) { logger.warn('[reserve-with-google] conversion not sent', { error: e?.message }) }
+  }
   const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts, note: (b, svc) => engine.noteFor(b, svc) })
 
   // ── The owner's API ───────────────────────────────────────────────────────
@@ -76,6 +93,12 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.get('/settings', may('bookings:read'), async (c) => { const s = await engine.settingsOf(co(c)); return one(c, { ...s, goesToCustomer: engine.requireAddress(s) }) })
   admin.patch('/settings', may('bookings:settings'), (c) => guard(c, async () => one(c, await engine.updateSettings(co(c), await body(c)))))
   admin.post('/settings/feed-token', may('bookings:settings'), async (c) => one(c, await engine.rotateFeedToken(co(c))))
+  // Reserve with Google (row 23): this salon's three feeds as Google takes them, and what keeps Google from taking them.
+  admin.get('/google/feeds', may('bookings:settings'), async (c) => {
+    if (!deps.isFeatureEnabled || !(await deps.isFeatureEnabled(co(c), RWG_FEATURE))) return fail(c, 404, 'Not found')
+    c.header('Cache-Control', 'no-store')
+    return one(c, await feedsFor(db, engine, co(c)))
+  })
 
   admin.get('/services', may('bookings:read'), async (c) => { const rows = await engine.listServices(co(c)); return listAll(c, rows) })
   admin.post('/services', may('bookings:settings'), (c) => guard(c, async () => one(c, await engine.createService(co(c), await body(c)), 201)))
@@ -226,7 +249,9 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     setTimeout(pass, 60_000)
     setInterval(pass, 60 * 60 * 1000)
   }
-  return { engine, extras, admin, pub, webhooks, runJobs, startJobs, calendars }
+  /** Reserve with Google is switched on for this salon (row 23). */
+  const rwgOn = async (companyId: string) => !!deps.isFeatureEnabled && (await deps.isFeatureEnabled(companyId, RWG_FEATURE).catch(() => false))
+  return { engine, extras, admin, pub, webhooks, runJobs, startJobs, calendars, rwgOn }
 }
 
 /** The mounts, once the public router has its company (one company per tenant database). */
@@ -264,6 +289,8 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
       service: c.req.param('slug'), date: b.date, time: b.time, name: b.name, email: b.email, phone: b.phone, address: b.address, zip: b.zip, notes: b.notes,
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
       answers: answersOf(engine, b), smsConsent: ticked(b), who: b.who ? String(b.who) : null, also: alsoOf(b.also),
+      // Reserve with Google (row 23): the referral the client came by, kept only while the salon has it switched on.
+      rwgToken: (await m.rwgOn(id)) ? cleanToken(getCookie(c, RWG_COOKIE)) : null,
     }, { by: 'customer' })
     return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit, ...(r.card ? { needsCard: true } : {}), ...(r.forms ? { needsForms: true } : {}) }, 201)
   }) as Promise<Response>))
