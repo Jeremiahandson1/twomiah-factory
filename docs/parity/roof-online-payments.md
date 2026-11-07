@@ -28,8 +28,8 @@ Sources
 | 14 | One-tap "text payment request" from any invoice at any time — JobNimbus, Leap (scheduled requests) | Only the Invoiced-stage text and the invoice email exist. Parity needs a "Text this invoice" action on the invoice screen that sends the `/d/<token>` link through the shared sender, and optionally a scheduled send | **matches** (11/06 parity round, row 17; `invoice_text_requests`, hidden): **Text this invoice** beside any open invoice — its own pay link, now or at a time on the business's clock, and again every 1–30 days up to 6 texts (Leap's scheduled requests), through the scheduled texts (opt-out, 8:00–20:00, the business number); the texts not sent yet are cancelled once it is paid. Test: `roof-invoice-requests.test.ts`. |
 | 15 | Receipt to the customer and the sales rep after payment — JobNimbus; receipts — Leap | No payment-received receipt email was found in the payment code. Parity needs a receipt email on payment (invoice paid, amount, method) to the homeowner and the rep | **matches** (row 17): every payment — card, bank or typed in — is emailed its **receipt** (amount, how, invoice, what is still owed) to the homeowner and the job's sales rep, once. Test: `roof-invoice-requests.test.ts`. |
 | 16 | Collect a card in person on the phone — JobNimbus, Roofr | Not allowed: owner decision pending (rule 6, no card-taking on the phone) | **Not doing** (owner's) |
-| 17 | Platform fees passed to the customer — Roofr | A card surcharge is a legal question in several states and the roofer's own Stripe terms; not built | **Not doing** (owner's) |
-| 18 | Payments dashboard with funding status — Roofr; financial reporting — Leap | The roofer's own Stripe dashboard shows payouts; the CRM's invoice list and reports show what is paid | **Different by design** |
+| 17 | Platform fees passed to the customer — Roofr | A card surcharge is a legal question in several states and the roofer's own Stripe terms; not built | **matches** (11/06 parity round, row 18; `card_surcharge`, hidden): a card surcharge, off by default — refused in CA, CT, ME, MA, TX, OK and PR (owner 10/31: the disputed ones too); capped at 2% in CO, at the business's actual card rate in NY, NJ, NV and SD, and at 3% elsewhere (Visa); **credit cards only** (Stripe's card `funding`, read on the business's account), never debit or prepaid; shown before payment and on the invoice/receipt as its own untaxed line; the 30-day processor/brand notice confirmed before it can be on. Test: `roof-card-surcharge.test.ts`. |
+| 18 | Payments dashboard with funding status — Roofr; financial reporting — Leap | The roofer's own Stripe dashboard shows payouts; the CRM's invoice list and reports show what is paid | **matches** (row 18; `payments_overview`, hidden): **Card payments** in the CRM shows what is ready to pay out, what is still clearing and the recent payouts with their status, from the roofer's own Stripe account. Test: `roof-card-surcharge.test.ts`. |
 
 ## What this change builds
 - Collected on payment (`server/crm/roof/collected.ts`), run from every way money lands on an invoice: a payment typed in on the screen, a card or bank payment on the roofer's Stripe, and bulk "mark paid" (the shared bulk service takes an optional after-payment step, `packages/tenant-backend/src/bulk/bulk.ts`).
@@ -43,5 +43,15 @@ Roofing is **not offered** Online Payments yet: it is built and proven but not r
 `apps/unified/tests/signup-questions.test.ts`, flip the "not offered" assertion in `roof-online-payments.test.ts`, and edit
 the website signup page's `ASK_HIDDEN_FOR` (the owner's other session).
 
+## Release checklist — ready for the owner to flip (11/06, row 18)
+Nothing here is flipped; each is one edit:
+1. `packages/tenant-backend/src/featureRegistry.ts`: add `crm-roof` to `online_payments`' templates.
+2. `apps/unified/tests/signup-questions.test.ts`: drop `roofing` from `SIGNUP_PAGE_HIDES.online_payments`.
+3. `apps/unified/tests/roof-online-payments.test.ts`: flip the "not offered yet" assertion to "offered".
+4. The website signup page's `ASK_HIDDEN_FOR` (the owner's other session): stop hiding Online Payments for roofing.
+5. When wanted, un-hide the 11/06 roofing payment switches one by one after a live test: `portal_pay_options` (row 16),
+   `invoice_text_requests` (row 17), `card_surcharge` and `payments_overview` (row 18).
+
 ## Still needed for full parity (not in this change)
-Rows 6 (verify or add the amount box), 13, 14 and 15. Rows 16 and 17 are the owner's call.
+Row 16 (a card in person on the phone) is the owner's call. A surcharge line is untaxed; editing a paid invoice afterwards works
+its tax out on every line again (the invoice has no per-line tax flag).

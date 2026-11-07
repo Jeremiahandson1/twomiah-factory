@@ -371,6 +371,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: a card surcharge (roofing parity row 18; apps/unified server/data/cardSurcharge.ts — state rules).
+  { id: 'card_surcharge', name: 'Card surcharge', description: 'Pass the card fee on to customers who pay by credit card, where your state allows it: capped by state, never on debit or prepaid cards, shown before they pay and on the receipt', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: the payouts view (roofing parity row 18; apps/unified server/crm/roof/cardSurcharge.ts).
+  { id: 'payments_overview', name: 'Payments and payouts', description: 'See what is on its way to your bank and your recent payouts from Stripe, inside the CRM', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: text an invoice now or on a schedule, and payment receipts (roofing parity row 17; apps/unified server/crm/roof/invoiceRequests.ts).
   { id: 'invoice_text_requests', name: 'Text invoices and payment receipts', description: 'Text an invoice’s pay link now or on a schedule, again every few days until it is paid, and email a receipt to the homeowner and the rep for every payment', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: pay part of an invoice and pay toward an approved estimate from the customer's page (roofing parity row 16; tenant-backend portal.ts payOptions).
