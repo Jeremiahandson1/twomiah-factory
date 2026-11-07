@@ -43,6 +43,16 @@ const completeSchema = z.object({ note: z.string().trim().max(2000).optional(), 
  * What the crew sees of a work order — shared by the no-sign-in link (below) and the phone app's crew screen (roofing parity row 29,
  * crm/roof/crewOrders.ts): the work and nothing about the homeowner, the price, or any other record.
  */
+/**
+ * The words the APP put on a scope, in Spanish (roofing live test re-check 11/07): a work order made from a proposal starts "From signed
+ * proposal QTE-00001 — Roof replacement:" (data/workOrderTools.ts). What follows is the office's own words — the proposal's lines — and
+ * stays as written unless the office gives the Spanish scope (Send options); nothing is machine-translated (owner's decision, row 27).
+ */
+export function spanishLeadIn(scope: string | null): string | null {
+  if (!scope) return scope
+  return scope.replace(/^From signed proposal (\S+)( — [^\n]*?)?:/, (_m, num: string, name?: string) => `De la propuesta firmada ${num}${name || ''}:`)
+}
+
 export function createCrewView(d: CrmDeps) {
   const { db } = d
   const photoUrl = (token: string, id: string) => `/api/crew-link/${token}/photos/${id}`
@@ -56,7 +66,7 @@ export function createCrewView(d: CrmDeps) {
     const [co] = await db.select({ name: company.name, phone: company.phone, logo: company.logo }).from(company).where(eq(company.id, row.companyId)).limit(1)
     const open = !['completed', 'cancelled'].includes(row.status)
     return {
-      title: row.title, scope: row.language === 'es' && row.scopeEs ? row.scopeEs : row.scope, address: row.address, startDate: row.startDate, recipientName: row.recipientName,
+      title: row.title, scope: row.language === 'es' ? (row.scopeEs || spanishLeadIn(row.scope)) : row.scope, address: row.address, startDate: row.startDate, recipientName: row.recipientName,
       // Row 27: the page's language, and what the office lets the sub see.
       language: row.language === 'es' ? 'es' : 'en',
       status: row.status, company: { name: co?.name ?? null, phone: co?.phone ?? null, logo: co?.logo ?? null },

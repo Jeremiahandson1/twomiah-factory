@@ -458,6 +458,8 @@ export function createPermissions(deps: PermissionsDeps) {
 
   /** The hierarchy id in this vertical's own words — for messages people read, never for a decision. */
   function roleLabel(role: string): string {
+    // A vertical's own role name has its own word (roofing's Sales rep and Crew — re-check 11/07: Users read "Sales_rep"), before its rung's.
+    if (role && deps.roleLabels?.[role]) return deps.roleLabels[role]
     const id = normalizeRole(role)
     return deps.roleLabels?.[id] || DEFAULT_ROLE_LABELS[id] || (id ? id[0].toUpperCase() + id.slice(1) : id)
   }

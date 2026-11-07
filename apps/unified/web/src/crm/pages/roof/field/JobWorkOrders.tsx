@@ -43,6 +43,19 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
   const [orders, setOrders] = useState<WorkOrder[]>([])
   const [editing, setEditing] = useState<WorkOrder | 'new' | null>(null)
   const [busy, setBusy] = useState('')
+  // An accepted or started order keeps its scope; only its start moves (roofing live test re-check 11/07: the accepted order had no
+  // Edit at all, and the started one's Edit sent the whole form and was refused). The server takes a start-only change (workOrders.ts).
+  const [moveFor, setMoveFor] = useState<string | null>(null)
+  const [moveDate, setMoveDate] = useState('')
+  const moveStart = async (id: string) => {
+    if (!moveDate) { toast.error('Pick the new start date'); return }
+    setBusy(id + 'move')
+    try {
+      const r: any = await api.put(`/api/work-orders/${id}`, { startDate: moveDate })
+      toast.success(r?.rescheduleNotice ? `Start moved. ${r.rescheduleNotice}` : 'Start moved')
+      setMoveFor(null); await load()
+    } catch (err) { toast.error(errorText(err, 'Could not move the start')) } finally { setBusy('') }
+  }
   // Row 27 (work_order_send_options, not ready): email + CC, Spanish, approval, the sub's view and its length.
   const sendOpts = useAuth().hasFeature('work_order_send_options')
   const [optionsFor, setOptionsFor] = useState<string | null>(null)
@@ -123,11 +136,20 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
                 <div className="mt-2 flex flex-wrap items-center gap-3">
                   <button type="button" disabled={!!busy} onClick={() => act(o.id, 'send')} className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 hover:underline disabled:opacity-50 dark:text-orange-300"><Send className="w-3 h-3" /> {o.status === 'draft' ? 'Text to crew' : 'Text again'}</button>
                   {o.linkUrl && <button type="button" onClick={() => copy(o.linkUrl!)} className="inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:underline dark:text-slate-300"><Copy className="w-3 h-3" /> Copy link</button>}
-                  {o.status !== 'accepted' && <button type="button" onClick={() => setEditing(o)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Edit</button>}
+                  {['draft', 'sent', 'rejected'].includes(o.status) && <button type="button" onClick={() => setEditing(o)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Edit</button>}
+                  {['accepted', 'in_progress'].includes(o.status) && <button type="button" onClick={() => { setMoveFor(moveFor === o.id ? null : o.id); setMoveDate(o.startDate ? o.startDate.slice(0, 10) : '') }} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Change start date</button>}
                   <button type="button" disabled={!!busy} onClick={() => act(o.id, 'cancel')} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline disabled:opacity-50 dark:text-red-300"><X className="w-3 h-3" /> Cancel</button>
                   {sendOpts && <button type="button" onClick={() => setOptionsFor(optionsFor === o.id ? null : o.id)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Send options</button>}
                   {scheduling && ['sent', 'accepted'].includes(o.status) && <button type="button" onClick={() => markInProgress(o.id)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Mark in progress</button>}
                   {scheduling && <button type="button" onClick={() => { setChecklistFor(checklistFor === o.id ? null : o.id); setChecklistText((o.checklist || []).map((c) => c.text).join('\n')) }} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">On-site checklist</button>}
+                </div>
+              )}
+              {moveFor === o.id && (
+                <div className="mt-2 flex flex-wrap items-end gap-2 text-xs" data-testid="wo-move-start">
+                  <label className="block">New start date<input type="date" value={moveDate} onChange={(e) => setMoveDate(e.target.value)} className="mt-1 block rounded border px-2 py-1 bg-white dark:bg-slate-900 dark:border-slate-700" /></label>
+                  <button type="button" disabled={!!busy} onClick={() => moveStart(o.id)} className="rounded bg-orange-600 px-3 py-1.5 font-medium text-white disabled:opacity-50">Save start date</button>
+                  <button type="button" onClick={() => setMoveFor(null)} className="font-medium text-gray-700 hover:underline dark:text-slate-300">Cancel</button>
+                  <span className="w-full text-gray-500 dark:text-slate-400">The crew has accepted it, so only the start can change. They are texted the new date.</span>
                 </div>
               )}
               {scheduling && checklistFor === o.id && (
