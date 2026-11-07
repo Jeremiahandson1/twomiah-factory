@@ -123,6 +123,8 @@ export async function startCheckout(d: DownloadDeps, row: SiteRow, b: { saleId?:
     mode: 'payment',
     line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: cents, product_data: { name, ...(license ? { description: license } : {}) } } }],
     // The license is for one place: the buyer says which, and it is printed on the license.
+    // The owner's own discount codes (made in their Stripe dashboard as promotion codes) can be typed on Stripe's page.
+    allow_promotion_codes: true,
     custom_fields: [{ key: 'location', type: 'text', optional: false, label: { type: 'custom', custom: 'Where will this be used? (school or group, and city)' }, text: { maximum_length: 120 } }],
     metadata,
     payment_intent_data: { metadata, description: name },
@@ -144,7 +146,8 @@ export interface SaleOutcome { status: 'paid' | 'pending' | 'not_ours'; license?
 export async function recordSale(d: DownloadDeps, row: SiteRow, session: any): Promise<SaleOutcome> {
   const md = session?.metadata || {}
   if (md.wp_site !== row.id || !SALE_RE.test(String(md.wp_sale || ''))) return { status: 'not_ours' }
-  if (session.payment_status !== 'paid') return { status: 'pending' }
+  // 'no_payment_required': a code took the price to $0 — the buyer is owed the download as surely as a paying one.
+  if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') return { status: 'pending' }
   const saleId = String(md.wp_sale)
   const tenant = await tenantOf(d, row)
   const paidAt = new Date(Number(session.created) > 0 ? Number(session.created) * 1000 : d.now())
