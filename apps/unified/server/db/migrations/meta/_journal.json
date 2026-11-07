@@ -652,6 +652,13 @@
       "when": 1794018290255,
       "tag": "0092_contractor_client_portal",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1794019149901,
+      "tag": "0093_contractor_payment_schedule",
+      "breakpoints": true
     }
   ]
 }

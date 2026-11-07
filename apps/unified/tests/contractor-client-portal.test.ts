@@ -129,3 +129,43 @@ describe('client portal plus', () => {
     await setFeatures(ON)
   }, 90_000)
 })
+
+// Row 10b — the payment schedule: shares of the contract and fixed amounts, released into real invoices billed toward the
+// approved quote (credited on its final invoice), never past the contract; the client sees what is due and paid.
+describe('the payment schedule', () => {
+  test('a share of the contract and a fixed amount; release raises the invoice; paid is the invoice’s; never past the contract', async () => {
+    const q = (await t.db.insert(t.schema.quote).values({ companyId, number: 'QT-0001', name: 'Kitchen', contactId: ids.lee, projectId: ids.kitchen, status: 'approved', subtotal: '20000', total: '20000' } as any).returning())[0]
+    const add = async (b: any) => json(await owner(`/api/client-portal/${ids.kitchen}/payments`, { method: 'POST', json: b }))
+    expect((await add({ name: 'Deposit', amountType: 'percent', amount: 10 })).status).toBe(201)
+    const two = await add({ name: 'Cabinets set', amountType: 'fixed', amount: 5000, dueDate: '2026-12-15' })
+    expect(two.body.contract).toEqual({ value: 20000, source: 'quotes' })
+    expect(two.body.payments.map((p: any) => [p.name, p.amount, p.state])).toEqual([['Deposit', 2000, 'scheduled'], ['Cabinets set', 5000, 'scheduled']])
+    expect((await add({ name: 'Too much', amountType: 'percent', amount: 150 })).status).toBe(400)
+
+    await owner(`/api/client-portal/${ids.kitchen}/settings`, { method: 'PUT', json: { notify: { payments: true } } })
+    mails.length = 0
+    const dep = two.body.payments[0]
+    const r = await json(await owner(`/api/client-portal/payments/${dep.id}/release`, { method: 'POST' }))
+    expect(r.status).toBe(201)
+    expect(r.body.told).toBe('email')
+    expect(mails[0].subject).toBe('A payment is due: Deposit — Kitchen')
+    const [inv] = await t.db.select().from(t.schema.invoice).where(eq(t.schema.invoice.id, r.body.invoice.id)) as any[]
+    expect([Number(inv.total), inv.status, inv.contactId, inv.projectId, inv.billKind, inv.billedQuoteId]).toEqual([2000, 'sent', ids.lee, ids.kitchen, 'progress', q.id])
+    expect((await owner(`/api/client-portal/payments/${dep.id}/release`, { method: 'POST' })).status).toBe(409)
+    expect((await owner(`/api/client-portal/payments/${dep.id}`, { method: 'PUT', json: { name: 'x', amount: 1 } })).status).toBe(400)
+
+    let x = await json(await P('lee')(`/projects/${ids.kitchen}/extras`))
+    expect(x.body.payments.payments.map((p: any) => [p.name, p.state, p.invoiceId])).toEqual([['Deposit', 'due', inv.id], ['Cabinets set', 'scheduled', null]])
+    await t.db.update(t.schema.invoice).set({ amountPaid: '2000', status: 'paid' } as any).where(eq(t.schema.invoice.id, inv.id))
+    x = await json(await P('lee')(`/projects/${ids.kitchen}/extras`))
+    expect([x.body.payments.paid, x.body.payments.payments[0].state]).toEqual([2000, 'paid'])
+    expect(JSON.stringify(x.body.payments)).not.toMatch(/amountType|share/)
+
+    const big = await add({ name: 'Everything else', amountType: 'fixed', amount: 19000 })
+    const last = big.body.payments.find((p: any) => p.name === 'Everything else')
+    const over = await json(await owner(`/api/client-portal/payments/${last.id}/release`, { method: 'POST' }))
+    expect([over.status, over.body.error]).toEqual([400, 'Releasing 19000.00 would bill 21000.00 on a contract of 20000.00.'])
+    // another client never sees it
+    expect((await P('ann')(`/projects/${ids.kitchen}/extras`)).status).toBe(404)
+  }, 90_000)
+})

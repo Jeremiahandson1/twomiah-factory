@@ -11,6 +11,8 @@ type Settings = { schedule: 'off' | 'phases' | 'all'; scheduleWeeks: number | nu
 type Log = { id: string; date: string; workPerformed?: string | null; sharedWithClient?: boolean }
 type Doc = { id: string; name: string; sharedWithCustomer?: boolean }
 type Todo = { id: string; title: string; status: string; dueDate?: string | null; checklist?: Array<{ text: string; done: boolean }> }
+type Pay = { id: string; name: string; amountType: string; share: number | null; amount: number; dueDate: string | null; state: string; invoiceNumber: string | null }
+type Schedule = { contract: { value: number; source: string }; payments: Pay[]; scheduled: number; paid: number }
 type Comment = { id: string; taskId: string; taskName: string; body: string; fromClient: boolean; createdAt: string }
 
 const box = 'rounded-lg border border-gray-200 p-3 dark:border-slate-700'
@@ -21,6 +23,10 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
   const toast = useToast()
   const { known, can } = usePermissions()
   const mayChange = known && can('projects:update')
+  // The payment schedule raises invoices: the server asks invoices:create.
+  const mayBill = known && can('invoices:create')
+  const [pay, setPay] = useState<Schedule | null>(null)
+  const [payDraft, setPayDraft] = useState({ name: '', amountType: 'percent', amount: '', dueDate: '' })
   const [s, setS] = useState<Settings | null>(null)
   const [logs, setLogs] = useState<Log[]>([])
   const [docs, setDocs] = useState<Doc[]>([])
@@ -31,13 +37,15 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
 
   const load = useCallback(async () => {
     const pick = (r: any) => (Array.isArray(r) ? r : r?.data || [])
-    const [st, lg, dc, td, cm] = await Promise.all([
+    const [st, lg, dc, td, cm, ps] = await Promise.all([
       api.get(`/api/client-portal/${projectId}/settings`).catch(() => null),
       api.get(`/api/daily-logs?projectId=${projectId}&limit=50`).catch(() => ({ data: [] })),
       api.get(`/api/documents?projectId=${projectId}`).catch(() => ({ data: [] })),
       api.get(`/api/client-portal/${projectId}/todos`).catch(() => ({ data: [] })),
       api.get(`/api/client-portal/${projectId}/comments`).catch(() => ({ data: [] })),
+      api.get(`/api/client-portal/${projectId}/payments`).catch(() => null),
     ])
+    setPay(ps as Schedule | null)
     setS(st as Settings | null)
     setLogs(pick(lg).map((r: any) => r.dailyLog ?? r))
     setDocs(pick(dc))
@@ -74,6 +82,17 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
   const tell = async (what: 'schedule' | 'files') => {
     try { await api.post(`/api/client-portal/${projectId}/notify`, { what }); toast.success('The client was emailed') } catch (e) { fail(e, 'Could not reach the client') }
   }
+  const addPayment = async () => {
+    if (!payDraft.name.trim() || !(Number(payDraft.amount) > 0)) { toast.error('Give the payment a name and an amount'); return }
+    try {
+      setPay(await api.post(`/api/client-portal/${projectId}/payments`, { name: payDraft.name.trim(), amountType: payDraft.amountType, amount: Number(payDraft.amount), ...(payDraft.dueDate ? { dueDate: payDraft.dueDate } : {}) }) as Schedule)
+      setPayDraft({ name: '', amountType: 'percent', amount: '', dueDate: '' })
+    } catch (e) { fail(e, 'Could not add the payment') }
+  }
+  const release = async (p: Pay) => {
+    try { const r: any = await api.post(`/api/client-portal/payments/${p.id}/release`, {}); toast.success(`Invoice ${r?.invoice?.number || ''} raised and sent`); setPay(r?.schedule ?? null) } catch (e) { fail(e, 'Could not release it') }
+  }
+  const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
   const tick = (key: keyof Settings, label: string) => (
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!mayChange} checked={!!s[key]} onChange={(e) => save({ [key]: e.target.checked } as any)} />{label}</label>
   )
@@ -101,9 +120,9 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
             </select>
           )}
         </label>
-        <div className="flex flex-wrap gap-4">{tick('dailyLogs', 'Daily logs you share')}{tick('photos', 'Photos & files you share')}{tick('todos', 'Their to-dos')}</div>
+        <div className="flex flex-wrap gap-4">{tick('dailyLogs', 'Daily logs you share')}{tick('photos', 'Photos & files you share')}{tick('todos', 'Their to-dos')}{tick('payments', 'The payment schedule')}</div>
         <p className="text-sm font-medium mt-3 mb-2">Email them when</p>
-        <div className="flex flex-wrap gap-4">{mail('dailyLogs', 'a daily log is shared')}{mail('todos', 'a to-do is added')}</div>
+        <div className="flex flex-wrap gap-4">{mail('dailyLogs', 'a daily log is shared')}{mail('todos', 'a to-do is added')}{mail('payments', 'a payment is due')}</div>
         {mayChange && (
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => tell('schedule')} className="rounded-lg border px-3 py-1 text-sm dark:border-slate-600">Tell them the schedule changed</button>
@@ -131,6 +150,37 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
               <li key={dd.id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label={`Share ${dd.name}`} disabled={!mayChange} checked={!!dd.sharedWithCustomer} onChange={(e) => shareDoc(dd, e.target.checked)} />{dd.name}</label></li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {s.payments && pay && (
+        <div className={box} data-testid="payment-schedule-office">
+          <p className="text-sm font-medium">Payment schedule</p>
+          <p className={muted}>Contract {usd(pay.contract.value)}{pay.contract.source === 'estimate' ? ' (the estimated value: no quote approved yet)' : ''} · scheduled {usd(pay.scheduled)} · paid {usd(pay.paid)}</p>
+          <ul className="mt-2 space-y-1">
+            {pay.payments.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>{p.name}{p.share !== null ? <span className={muted}> · {p.share}%</span> : null}{p.dueDate ? <span className={muted}> · {formatDate(p.dueDate)}</span> : null}</span>
+                <span className="flex items-center gap-2">
+                  <span className="tabular-nums">{usd(p.amount)}</span>
+                  {p.state === 'scheduled'
+                    ? (mayBill && <button type="button" onClick={() => release(p)} className="rounded-lg border px-2 py-0.5 text-xs dark:border-slate-600">Release &amp; invoice</button>)
+                    : <span className={muted}>{p.state === 'paid' ? 'Paid' : p.state === 'void' ? 'Voided' : 'Due'}{p.invoiceNumber ? ` · ${p.invoiceNumber}` : ''}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {mayBill && (
+            <div className="mt-2 grid gap-2 sm:grid-cols-4">
+              <input aria-label="Payment name" value={payDraft.name} onChange={(e) => setPayDraft({ ...payDraft, name: e.target.value })} placeholder="Framing complete" className={input} />
+              <span className="flex gap-1">
+                <input aria-label="Payment amount" type="number" min="0" step="0.01" value={payDraft.amount} onChange={(e) => setPayDraft({ ...payDraft, amount: e.target.value })} className={`${input} w-24`} />
+                <select aria-label="Amount is" value={payDraft.amountType} onChange={(e) => setPayDraft({ ...payDraft, amountType: e.target.value })} className={input}><option value="percent">% of contract</option><option value="fixed">dollars</option></select>
+              </span>
+              <input aria-label="Payment due date" type="date" value={payDraft.dueDate} onChange={(e) => setPayDraft({ ...payDraft, dueDate: e.target.value })} className={input} />
+              <button type="button" onClick={addPayment} className="rounded-lg bg-orange-600 px-3 py-1 text-sm text-white hover:bg-orange-700">Add payment</button>
+            </div>
+          )}
         </div>
       )}
 

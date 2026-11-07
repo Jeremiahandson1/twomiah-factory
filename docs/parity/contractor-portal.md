@@ -54,7 +54,8 @@ Not in row 10: BT's weekly Client Update digest (a digest of the above; listed a
 ## Progress
 
 - 10a (built): items 1–4 and 6 — per-project settings over a company default, per-item sharing of daily logs and files, the schedule (phases / every task / weeks ahead) with comments both ways, daily logs with photos, client to-dos with checklists; emails on a shared daily log or a new to-do where the settings ask, and "tell the client" for the schedule and files; the office's preview of the client's page.
-- Left: 5 payment schedule, 7 documents to e-sign, 8 notifications for those two.
+- 10b (built): item 5 — the payment schedule (a share of the contract or a fixed amount, due on a date or at a milestone); releasing raises a real invoice, billed toward the approved quote so its final invoice credits it, never past the contract; the client sees paid / due / coming up and pays the released one through its invoice; emailed when a payment is due where asked.
+- Left: 7 documents to e-sign, and its notice.
 
 ## Sources
 

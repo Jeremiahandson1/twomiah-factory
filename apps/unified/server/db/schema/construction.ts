@@ -1127,3 +1127,28 @@ export const projectTaskComment = pgTable('project_task_comment', {
 }, (t) => [
   index('project_task_comment_project_id_idx').on(t.projectId),
 ])
+
+/**
+ * A project's payment schedule (0093, contractor parity row 10b; Buildertrend's draws / owner invoices, JobTread's payment
+ * schedule; client_portal_plus): the contract split into payments — a fixed amount or a share of the contract — due on a date or
+ * at a schedule milestone. The office releases one when it is due, which raises its invoice; the client sees the schedule and
+ * pays the released one online through the invoice. Paid is read from the invoice, never stored twice.
+ */
+export const projectPayment = pgTable('project_payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** 'fixed' (amount in dollars) | 'percent' (amount = % of the contract) */
+  amountType: text('amount_type').default('fixed').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  dueDate: timestamp('due_date'),
+  /** Due when this schedule task is done (a milestone), instead of on a date. */
+  milestoneTaskId: text('milestone_task_id').references(() => projectTask.id, { onDelete: 'set null' }),
+  invoiceId: text('invoice_id'),
+  releasedAt: timestamp('released_at'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_payment_project_id_idx').on(t.projectId),
+])

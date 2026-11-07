@@ -25,6 +25,7 @@ import { clientTodo, company as companyTable, contact, dailyLog, document, proje
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { createPaymentSchedule } from './paymentSchedule.ts'
 
 export const CLIENT_PORTAL_PLUS = 'client_portal_plus'
 const IMAGE = /^image\/(jpeg|png|webp|gif)$/
@@ -94,6 +95,9 @@ export function createClientPortal(d: CrmDeps) {
     } catch { return 'no-way' }
   }
 
+  // The payment schedule (row 10b, paymentSchedule.ts): it tells the client through the same settings.
+  const payments = createPaymentSchedule(d, tellClient)
+
   // ── what the client sees ───────────────────────────────────────────────────────────────────────
 
   const ownProject = async (cont: any, projectId: string) => {
@@ -104,7 +108,12 @@ export function createClientPortal(d: CrmDeps) {
   /** The project page's extra sections, as this client may see them. */
   async function view(companyId: string, projectId: string) {
     const s = await settingsFor(companyId, projectId)
-    const out: any = { sections: { schedule: s.schedule, dailyLogs: s.dailyLogs, photos: s.photos, todos: s.todos } }
+    const out: any = { sections: { schedule: s.schedule, dailyLogs: s.dailyLogs, photos: s.photos, todos: s.todos, payments: s.payments } }
+    // The payment schedule (row 10b): what is due, what is paid, and the released ones' invoices to pay online.
+    if (s.payments) {
+      const ps = await payments.scheduleFor(companyId, projectId)
+      if (ps && ps.payments.length) out.payments = { contract: ps.contract.value, paid: ps.paid, payments: ps.payments.filter((p) => p.state !== 'void').map(({ id, name, amount, dueDate, milestone, state, invoiceId, invoiceNumber, balance }) => ({ id, name, amount, dueDate, milestone: milestone ? { name: milestone.name, done: milestone.done } : null, state, invoiceId, invoiceNumber, balance })) }
+    }
     if (s.schedule !== 'off') {
       let tasks = await db.select().from(projectTask).where(and(eq(projectTask.companyId, companyId), eq(projectTask.projectId, projectId))).orderBy(asc(projectTask.startDate), asc(projectTask.createdAt)) as any[]
       if (s.schedule === 'phases') tasks = tasks.filter((t) => !t.parentId)
@@ -208,6 +217,8 @@ export function createClientPortal(d: CrmDeps) {
       await next()
     })
     const mine = async (c: any, projectId: string) => (await db.select({ id: project.id }).from(project).where(and(eq(project.id, projectId), eq(project.companyId, (c.get('user') as any).companyId))).limit(1))[0]
+
+    payments.routes(app)
 
     app.get('/defaults', requirePermission('projects:read'), async (c) => one(c, shape(await defaultRow((c.get('user') as any).companyId))))
     app.put('/defaults', requirePermission('projects:update'), async (c) => {

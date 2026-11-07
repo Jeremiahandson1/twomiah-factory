@@ -4,20 +4,22 @@
 // crm/projects/clientPortal.ts behind /api/portal/p/:token/projects/:id/extras; it answers only what this client may see.
 import React, { useCallback, useEffect, useState } from 'react'
 import { usePortal } from './PortalContext'
-import { formatDate } from './common'
+import { formatDate, PLink } from './common'
 
 type Comment = { id: string; body: string; fromClient: boolean; createdAt: string | null }
 type Task = { id: string; name: string; startDate: string | null; endDate: string | null; progress: number; status: string; comments: Comment[] }
 type Log = { id: string; date: string | null; weather: string | null; workPerformed: string | null; workCompleted: string | null; photos: Array<{ id: string; caption: string | null }> }
 type FileRow = { id: string; name: string; type: string; mimeType: string | null; createdAt: string | null; image: boolean }
 type Todo = { id: string; title: string; notes: string | null; checklist: Array<{ text: string; done: boolean }>; dueDate: string | null; status: string; completedAt: string | null }
-export type ProjectExtras = { sections: { schedule: string; dailyLogs: boolean; photos: boolean; todos: boolean }; schedule?: Task[]; dailyLogs?: Log[]; files?: FileRow[]; todos?: Todo[] }
+type Payment = { id: string; name: string; amount: number; dueDate: string | null; milestone: { name: string; done: boolean } | null; state: 'scheduled' | 'due' | 'paid'; invoiceId: string | null; invoiceNumber: string | null; balance: number | null }
+export type ProjectExtras = { sections: { schedule: string; dailyLogs: boolean; photos: boolean; todos: boolean; payments?: boolean }; schedule?: Task[]; dailyLogs?: Log[]; files?: FileRow[]; todos?: Todo[]; payments?: { contract: number; paid: number; payments: Payment[] } }
+const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
 const h3 = 'font-semibold text-gray-900 mb-3 dark:text-slate-100'
 const muted = 'text-sm text-gray-500 dark:text-slate-400'
 
 export function PortalProjectExtras({ projectId }: { projectId: string }) {
-  const { fetch: portalFetch, url } = usePortal()
+  const { fetch: portalFetch, url, token } = usePortal()
   const [x, setX] = useState<ProjectExtras | null>(null)
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [err, setErr] = useState('')
@@ -64,6 +66,28 @@ export function PortalProjectExtras({ projectId }: { projectId: string }) {
                     ))}
                   </ul>
                 )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {x.payments && (
+        <div className="p-6 border-b dark:border-slate-700" data-testid="client-payments">
+          <h3 className={h3}>Payment schedule</h3>
+          <p className={muted}>{usd(x.payments.paid)} paid of {usd(x.payments.contract)}</p>
+          <ul className="mt-3 divide-y dark:divide-slate-800">
+            {x.payments.payments.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
+                  <p className={muted}>{p.milestone ? `When ${p.milestone.name} is done${p.milestone.done ? ' (done)' : ''}` : p.dueDate ? `Due ${formatDate(p.dueDate)}` : 'Date to be set'}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="tabular-nums text-gray-900 dark:text-slate-100">{usd(p.amount)}</span>
+                  {p.state === 'paid' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 dark:bg-green-950/40 dark:text-green-300">Paid</span>}
+                  {p.state === 'scheduled' && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-slate-800 dark:text-slate-200">Coming up</span>}
+                  {p.state === 'due' && p.invoiceId && <PLink to={`/portal/${token}/invoices/${p.invoiceId}`} className="rounded-lg bg-orange-600 px-3 py-1 text-sm text-white hover:bg-orange-700">Pay {usd(p.balance ?? p.amount)}</PLink>}
+                </div>
               </li>
             ))}
           </ul>
