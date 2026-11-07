@@ -27,6 +27,13 @@ describe('the drift check itself', () => {
     expect(driftBetween(base({ a: 1, c: true }), base({ a: 1 }))).toEqual(['GET /api/x: field $.c gone'])
     expect(shapeOf({ rows: [{ id: 1 }, { id: 2, note: 'x' }] }).get('$.rows[].note')).toBe('string')
   })
+  test('a list empty in one recording says nothing about its rows; a list that is gone, or rows that changed, still are drift', () => {
+    const base = (body: unknown): DemoData => ({ trade: 't', recordedOn: '2026-10-30', page: {} as any, responses: { 'GET /api/x': { status: 200, body } } })
+    expect(driftBetween(base({ data: [] }), base({ data: [{ id: 'a', n: 1 }] }))).toEqual([])
+    expect(driftBetween(base({ data: [{ id: 'a', n: 1 }] }), base({ data: [] }))).toEqual([])
+    expect(driftBetween(base({ data: [{ n: 1 }] }), base({ data: [{ n: 1, m: 2 }] }))).toEqual(['GET /api/x: new field $.data[].m (number)'])
+    expect(driftBetween(base({ data: [] }), base({}))).toEqual(['GET /api/x: field $.data gone'])
+  })
 })
 
 describe('the committed data is current', () => {

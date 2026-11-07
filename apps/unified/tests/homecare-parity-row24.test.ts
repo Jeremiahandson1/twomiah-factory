@@ -10,7 +10,7 @@ import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { createHomecareCore } from '../server/crm/homecare/core/index.ts'
 import { checkQuestions, checkVisitForm } from '../server/crm/homecare/core/supervisory.ts'
-import { ymdIn, hmsIn } from '../server/crm/homecare/core/agencyTime.ts'
+import { ymdIn, hmsIn, addDays } from '../server/crm/homecare/core/agencyTime.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = ''
@@ -21,7 +21,8 @@ const texts: any[] = []
 const emails: any[] = []
 const TZ = 'America/Chicago'
 const SIG = 'data:image/png;base64,iVBORw0KGgo='
-const day = (offset: number) => ymdIn(new Date(Date.now() + offset * 86_400_000), TZ)
+// Calendar days on the agency's clock, not 24-hour steps: across a clock change those land a day off late in the evening (11/06).
+const day = (offset: number) => addDays(ymdIn(new Date(), TZ), offset)
 /** The agency's day and HH:MM `hours` from now. */
 const at = (hours: number) => { const x = new Date(Date.now() + hours * 3600_000); return { date: ymdIn(x, TZ), time: hmsIn(x, TZ).slice(0, 5) } }
 const login = async (email: string, password: string) =>

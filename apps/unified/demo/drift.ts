@@ -63,6 +63,19 @@ function byTemplate(data: DemoData): Map<string, TemplateShape> {
   return out
 }
 
+/**
+ * A path inside a list that was empty in a recording: that recording says nothing about what the list's rows hold, so a row field
+ * found only in the other is not drift. (The home care audit log, read for "today", was empty when recorded in the evening and had
+ * rows after midnight: every field of a row read as new, 11/07.)
+ */
+function insideEmptyList(paths: Map<string, string>, p: string): boolean {
+  for (let i = p.indexOf('[]'); i !== -1; i = p.indexOf('[]', i + 2)) {
+    const list = p.slice(0, i)
+    if (paths.get(list) === 'array' && ![...paths.keys()].some((k) => k.startsWith(list + '[]'))) return true
+  }
+  return false
+}
+
 /** What is different between the committed data and a fresh recording, as sentences. Empty: the demo's data is current. */
 export function driftBetween(committed: DemoData, fresh: DemoData): string[] {
   const was = byTemplate(committed), now = byTemplate(fresh)
@@ -76,10 +89,10 @@ export function driftBetween(committed: DemoData, fresh: DemoData): string[] {
     if (sa !== sb) found.push(`${t}: answered ${sa}, now ${sb}`)
     for (const [p, type] of b.paths) {
       const old = a.paths.get(p)
-      if (old === undefined) found.push(`${t}: new field ${p} (${type})`)
+      if (old === undefined) { if (!insideEmptyList(a.paths, p)) found.push(`${t}: new field ${p} (${type})`) }
       else if (old !== 'null' && type !== 'null' && old !== type) found.push(`${t}: ${p} was ${old}, now ${type}`)
     }
-    for (const p of a.paths.keys()) if (!b.paths.has(p)) found.push(`${t}: field ${p} gone`)
+    for (const p of a.paths.keys()) if (!b.paths.has(p) && !insideEmptyList(b.paths, p)) found.push(`${t}: field ${p} gone`)
   }
   return found
 }
