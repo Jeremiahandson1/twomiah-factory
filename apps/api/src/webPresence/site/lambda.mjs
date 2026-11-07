@@ -47,6 +47,11 @@ export function strongReads(store) {
  */
 export function purger(context, siteID, fetchImpl = fetch) {
   const token = context && context.clientContext && context.clientContext.custom && context.clientContext.custom.purge_api_token
+  return purgeWith(token, siteID, fetchImpl)
+}
+
+/** The purge itself, given the token (a Lambda-style function's from its context; a current-format function's from its env). */
+export function purgeWith(token, siteID, fetchImpl = fetch) {
   if (!token || !siteID) return null
   return async (tags) => {
     try {

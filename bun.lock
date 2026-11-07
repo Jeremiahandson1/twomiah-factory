@@ -119,6 +119,7 @@
       "dependencies": {
         "@aws-sdk/client-s3": "^3.658.0",
         "@netlify/blobs": "^11.1.7",
+        "@netlify/serverless-functions-api": "2.29.1",
         "@paralleldrive/cuid2": "^2.2.2",
         "@stripe/react-stripe-js": "^2.5.0",
         "@stripe/stripe-js": "^3.0.0",
@@ -817,6 +818,10 @@
     "@netlify/otel": ["@netlify/otel@7.0.6", "", { "dependencies": { "@opentelemetry/api": "1.9.1", "@opentelemetry/core": "2.12.0", "@opentelemetry/instrumentation": "^0.223.0", "@opentelemetry/resources": "2.12.0", "@opentelemetry/sdk-trace-node": "2.12.0" } }, "sha512-PUE0NwWiXU2xh64WNb2y5cFFjkn3CvMH5ReL1zL8M9cue3BmEpqpCb1VPdsnrMtZdatjqmGDND8ACmGdrR/THg=="],
 
     "@netlify/runtime-utils": ["@netlify/runtime-utils@3.0.0", "", {}, "sha512-OHo40+V3QZkR+UrDjqhN+LekrAby/dSSJxsvyYs9i88E/mSl3goB/ysoL+VYROm190egxmQyRYlHK7vL4GeHBQ=="],
+
+    "@netlify/serverless-functions-api": ["@netlify/serverless-functions-api@2.29.1", "", { "dependencies": { "@netlify/types": "^2.8.0" } }, "sha512-zJVbVA+3agC2WgqE1rhI3gKbUOsez5iE0NqxTIPXc3kgIRv6/FKgw84fvxPpQYCK5C7l/qePKkJFvoSy33nl+A=="],
+
+    "@netlify/types": ["@netlify/types@2.8.0", "", {}, "sha512-8/g0Pt6y6wXj5Ia5eeYLiXhRfWeqZXGXpGFeCiiQdUOem+FPtXdA4+YdGxqzWc7D0AvptKSO01KGeeVWHSu8Kg=="],
 
     "@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 
