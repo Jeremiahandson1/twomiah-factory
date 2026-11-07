@@ -141,7 +141,11 @@ describe('the published page', () => {
     expect(c.sections.find((s: any) => s.id === 'gallery').variant).toBe('slideshow')
     const html = String((await draw('roofing', c)).files['index.html'])
     expect((html.match(/class="gallery-slideshow__slide"/g) || []).length).toBe(3)
-    for (const n of [1, 2, 3]) expect(html).toContain('<figcaption class="gallery-slideshow__caption">Page ' + n + '</figcaption>')
+    for (const n of [1, 2, 3]) {
+      expect(html).toContain('<figcaption class="gallery-slideshow__caption">Page ' + n + '<span class="gallery-slideshow__hint">Tap to see it full size</span></figcaption>')
+      // each photo opens full size in its own tab
+      expect(html).toContain('<a class="gallery-slideshow__open" href="/media?h=' + String(n).repeat(40) + '" target="_blank" rel="noopener" aria-label="Open full size: Page ' + n + ' (opens in a new tab)">')
+    }
     expect(html).toMatch(/gallery-slideshow__controls" hidden data-controls/)         // the arrows appear only when the script runs
     expect(html).not.toMatch(/setInterval|autoplay/i)
     expect(String((await draw('roofing', c)).files['styles/main.css'])).toContain('.gallery-slideshow__track')
