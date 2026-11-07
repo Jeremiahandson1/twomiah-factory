@@ -139,6 +139,22 @@ describe('the callback', () => {
     }
   })
 
+  test('a second "Link" that brings back the account this business ALREADY holds: nothing is withdrawn, the link stands (11/07 double tap)', async () => {
+    for (const status of [409, 410, 0]) {
+      const linked = { ...A, stripe_connect_account_id: 'acct_LINKED' }
+      const w = world({ deliver: () => ({ ok: false, status }) })
+      w.deps.findTenant = async (id) => (id === A.id ? linked : null)
+      expect(await handleCallback({ code: 'ac_2', state: stateFor(A) }, w.deps)).toEqual({ kind: 'redirect', location: `${RETURN}?stripe=already_connected` })
+      expect(w.stripeCalls.find((c) => c.url === STRIPE_DEAUTHORIZE_URL)).toBeUndefined()
+      expect(w.recorded).toHaveLength(0)
+    }
+    // a DIFFERENT account offered to a business that holds one: still withdrawn (nobody here holds it)
+    const w = world({ deliver: () => ({ ok: false, status: 409 }) })
+    w.deps.findTenant = async (id) => (id === A.id ? { ...A, stripe_connect_account_id: 'acct_OTHER' } : null)
+    await handleCallback({ code: 'ac_3', state: stateFor(A) }, w.deps)
+    expect(w.stripeCalls.find((c) => c.url === STRIPE_DEAUTHORIZE_URL)).toBeTruthy()
+  })
+
   test('a state naming a business the Factory does not know: refused', async () => {
     const w = world()
     const ghost = signState({ t: 'cccccccc-0000-0000-0000-000000000003', u: 'x', n: NONCE, r: RETURN }, cfg.stateSecret)

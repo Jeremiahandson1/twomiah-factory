@@ -166,7 +166,7 @@ export async function deauthorizeAccount(accountId: string, cfg: StripeOAuthConf
   }
 }
 
-export interface CallbackTenant { id: string; slug?: string | null; engine?: string | null; render_backend_url?: string | null; factory_sync_key?: string | null }
+export interface CallbackTenant { id: string; slug?: string | null; engine?: string | null; render_backend_url?: string | null; factory_sync_key?: string | null; stripe_connect_account_id?: string | null }
 
 export interface CallbackDeps {
   config: StripeOAuthConfig
@@ -218,11 +218,18 @@ export async function handleCallback(query: Record<string, string | undefined>, 
 
   const res = await d.deliver(tenant, { nonce: st.n, userId: st.u, accountId: ex.accountId }).catch((e: any) => ({ ok: false, status: 0, error: e?.message || 'unreachable' }))
   if (!res.ok) {
+    const outcome: LinkOutcome = res.status === 409 ? 'already_connected' : res.status === 403 ? 'not_allowed' : res.status === 410 ? 'expired' : 'failed'
+    // The SAME account this business already has linked (a second "Link Stripe" — a double tap, or a page that still showed the
+    // button): Stripe hands back that account again, and withdrawing access here would cut the live link (11/07: The Hobby
+    // Starter's first link was undone 35 seconds later this way). Nothing is withdrawn; the link stands.
+    if (tenant.stripe_connect_account_id && tenant.stripe_connect_account_id === ex.accountId) {
+      log('business already holds this account; kept', { tenant: tenant.slug || tenant.id, status: res.status })
+      return back(st.r, 'already_connected')
+    }
     // The business would not take it (its sign-in was replaced or used, the admin is no longer an admin, it is already
-    // connected) or could not be reached: the platform must not keep access to an account nobody here holds.
+    // connected to another account) or could not be reached: the platform must not keep access to an account nobody here holds.
     const undo = await deauthorizeAccount(ex.accountId, d.config, d.fetch)
     log('business refused the account; access withdrawn', { tenant: tenant.slug || tenant.id, status: res.status, deauthorized: undo.ok })
-    const outcome: LinkOutcome = res.status === 409 ? 'already_connected' : res.status === 403 ? 'not_allowed' : res.status === 410 ? 'expired' : 'failed'
     return back(st.r, outcome)
   }
   await d.record(tenant.id, ex.accountId).catch((e: any) => log('record failed', { tenant: tenant.slug || tenant.id, error: e?.message }))

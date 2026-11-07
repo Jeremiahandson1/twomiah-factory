@@ -260,6 +260,10 @@ export async function stripeStart(d: DownloadDeps, row: SiteRow, b: { nonce?: un
   const nonce = String(b.nonce || '')
   if (!/^[A-Za-z0-9_-]{24,128}$/.test(nonce)) throw new DownloadError(400, 'That did not look right.')
   if (row.status !== 'live' && row.status !== 'canceling') throw new DownloadError(409, 'This site is not live.')
+  // One link at a time, decided by the Factory's record (always current) — not the site's store, which can answer an old copy for
+  // about a minute after the link and show the button again (11/07: a second tap undid a good link). Disconnect first to change it.
+  const tenant = await tenantOf(d, row)
+  if (/^acct_/.test(String(tenant.stripe_connect_account_id || ''))) throw new DownloadError(409, 'Your Stripe account is already linked. Reload this page to see it.')
   const state = signState({ t: row.tenant_id, u: 'site:' + row.id, n: nonce, r: publicOrigin(row) + '/edit/' }, cfg.stateSecret)
   return { url: authorizeUrl(cfg, state) }
 }

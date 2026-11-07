@@ -107,7 +107,7 @@
       state.model = r.d.model; state.spec = r.d.spec; state.dirty = false;
       if (back && STRIPE_OUTCOME[back[1]] && state.spec.caps && state.spec.caps.download) {
         state.tab = 'sell'; state.msg = { text: STRIPE_OUTCOME[back[1]][0], bad: STRIPE_OUTCOME[back[1]][1] };
-        if (back[1] === 'linked') state.dirty = true;
+        if (back[1] === 'linked') { state.dirty = true; sell.justLinked = true; }
       }
       render();
     });
@@ -352,6 +352,9 @@
     Promise.all([api('/api/stripe'), api('/api/download/file'), api('/api/sales')]).then(function (rs) {
       if (rs.some(function (r) { return r.status === 401; })) return signedOut('Your session ended. Sign in again with a new link.');
       sell.stripe = rs[0].ok ? rs[0].d : { error: true };
+      // Just back from Stripe with "linked": the site's store can still answer the old "not linked" for about a minute — trust the
+      // Factory's answer that brought us here, so the button is not offered again.
+      if (sell.justLinked && sell.stripe && !sell.stripe.error && !sell.stripe.connected) sell.stripe = { connected: true };
       sell.file = rs[1].ok ? rs[1].d.file : null;
       sell.sales = rs[2].ok ? rs[2].d.sales : [];
       sell.perLink = (rs[2].ok && rs[2].d.perLink) || 5;
@@ -379,9 +382,9 @@
             h('button', { class: 'primary', disabled: sell.busy, onclick: function () {
               sell.busy = true; render();
               api('/api/stripe/start', { method: 'POST' }).then(function (r) {
-                sell.busy = false;
-                if (r.ok && r.d.url && /^https:\/\/connect\.stripe\.com\//.test(r.d.url)) { if (state.dirty && !confirm('You have changes that are not saved. Leave to link Stripe anyway?')) { render(); return; } state.dirty = false; window.location.href = r.d.url; }
-                else sellOut(r.d.error || 'Linking Stripe is not available just now.', true);
+                // Leaving for Stripe: the button stays locked (a second tap would start a second sign-in).
+                if (r.ok && r.d.url && /^https:\/\/connect\.stripe\.com\//.test(r.d.url)) { if (state.dirty && !confirm('You have changes that are not saved. Leave to link Stripe anyway?')) { sell.busy = false; render(); return; } state.dirty = false; window.location.href = r.d.url; }
+                else { sell.busy = false; sellOut(r.d.error || 'Linking Stripe is not available just now.', true); }
               });
             } }, 'Link my Stripe account'))));
     // 2. The file
