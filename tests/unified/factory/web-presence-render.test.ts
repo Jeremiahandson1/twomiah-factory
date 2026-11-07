@@ -60,6 +60,8 @@ describe('the menu and logo size are cleaned like everything else', () => {
     expect(ok.menu).toEqual({ home: true }); expect(ok.business.logoSize).toBe('xlarge')
     expect(ok.sections[0].menu).toBe('Club Starter Kit'); expect('menu' in ok.sections[1]).toBe(false)
     expect('logoSize' in cleanModel({ ...model, business: { ...model.business, logoSize: 'standard' } }, spec).business).toBe(false)
+    const nm = cleanModel({ ...model, sections: model.sections.map((s: any, k: number) => (k === 0 ? { ...s, noMenu: true, menu: 'x' } : k === 1 ? { ...s, noMenu: 'yes' } : s)) }, spec)
+    expect(nm.sections[0].noMenu).toBe(true); expect('menu' in nm.sections[0]).toBe(false); expect('noMenu' in nm.sections[1]).toBe(false)
   })
 })
 
@@ -97,6 +99,10 @@ describe('the published page', () => {
     expect(own.length).toBeLessThanOrEqual(6)
     const hidden = nav(String((await draw('roofing', { ...model, sections: sections.map((s: any) => (s.id === 'services' ? { ...s, hidden: true } : s)) })).files['index.html']))
     expect(hidden.join()).not.toMatch(/Club Starter Kit/)
+    const out = nav(String((await draw('roofing', { ...model, sections: sections.map((s: any) => (s.id === 'services' ? { ...s, noMenu: true } : s)) })).files['index.html']))
+    expect(out.join()).not.toMatch(/#services/)
+    const page = String((await draw('roofing', { ...model, sections: sections.map((s: any) => (s.id === 'services' ? { ...s, noMenu: true } : s)) })).files['index.html'])
+    expect(page).toMatch(/id="services"/)                                   // still on the page
   })
   test("logo size: the owner's pick sets the header logo's height; none leaves the design's own 44px", async () => {
     const { model } = first('roofing')

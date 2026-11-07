@@ -22,7 +22,7 @@ function libraryPhotosIn(value: unknown, found: string[] = []): string[] {
   return found
 }
 
-export interface OnePageSection { id: string; type: string; variant: string; hidden?: boolean; /** The owner's word for it in the top menu. */ menu?: string; data: Record<string, any> }
+export interface OnePageSection { id: string; type: string; variant: string; hidden?: boolean; /** The owner's word for it in the top menu. */ menu?: string; /** Kept out of the top menu (still on the page). */ noMenu?: boolean; data: Record<string, any> }
 export interface OnePageModel {
   business: { name: string; phone?: string; email?: string; address?: string; city?: string; state?: string; zip?: string; tagline?: string; hours?: Record<string, any>; serviceAreas?: string[]; logo?: string; logoSize?: 'large' | 'xlarge' }
   look: { design?: string; palette?: Record<string, string>; style?: Record<string, string> }
@@ -167,7 +167,7 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   for (const s of m.sections) {
     const c = i.caps[s.id]
     const word = String(s.menu || '').trim() || c?.nav
-    if (!c || !word || !shown(i, s, forms)) continue
+    if (!c || !word || s.noMenu || !shown(i, s, forms)) continue
     if (nav.length < MENU_MAX) nav.push({ label: word, href: '#' + c.anchor })
   }
   const hasContact = sections.some((s) => s.type === 'contact')

@@ -273,8 +273,11 @@
         if (cap) {
           var mid = 'menu-' + s.id, mw = h('input', { id: mid, type: 'text', maxlength: 24, placeholder: cap.nav || 'Not in the menu' }); mw.value = s.menu || '';
           mw.addEventListener('input', function () { if (mw.value.trim()) s.menu = mw.value; else delete s.menu; touch(); });
+          var out = h('input', { type: 'checkbox', checked: !!s.noMenu, onchange: function (e) { if (e.target.checked) s.noMenu = true; else delete s.noMenu; mw.disabled = !!s.noMenu; touch(); } });
+          mw.disabled = !!s.noMenu;
           card.appendChild(h('div', null, h('label', { for: mid }, 'Word in the top menu (optional)'), mw,
-            h('p', { class: 'hint' }, cap.nav ? 'Leave it blank to use "' + cap.nav + '".' : 'Give it a word to put this section in the menu.')));
+            h('p', { class: 'hint' }, cap.nav ? 'Leave it blank to use "' + cap.nav + '".' : 'Give it a word to put this section in the menu.'),
+            h('label', null, out, ' Leave this section out of the top menu')));
         }
         card.appendChild(fields(sp.shapes[s.type], s.data));
         card.appendChild(h('p', null, h('button', { type: 'button', class: 'danger', onclick: function () { if (confirm('Take "' + title + '" off the page? What you wrote in it is lost.')) { secs.splice(i, 1); touch(); render(); } } }, 'Remove from page')));

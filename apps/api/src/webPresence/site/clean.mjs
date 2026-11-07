@@ -191,7 +191,8 @@ export function cleanModel(raw, spec, prev = null) {
     // `hidden` defaults to shown: a section saved before the toggle existed is never hidden by it (Potato lesson 2).
     // The word for this section in the top menu, when the owner chose one (none = the section's usual word, if it has one).
     const menuWord = cleanLine(s.menu, 24)
-    clean.sections.push({ id, type, variant, hidden: s.hidden === true, ...(menuWord ? { menu: menuWord } : {}), data: cleanShape(SHAPES[type], s.data) })
+    // …or kept out of the menu altogether (the section stays on the page).
+    clean.sections.push({ id, type, variant, hidden: s.hidden === true, ...(s.noMenu === true ? { noMenu: true } : menuWord ? { menu: menuWord } : {}), data: cleanShape(SHAPES[type], s.data) })
   }
   if (JSON.stringify(clean).length > LIMITS.modelBytes) return { ...clean, sections: [], tooBig: true }
   return clean
