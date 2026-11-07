@@ -89,6 +89,17 @@ export interface ProposalOption {
 }
 export interface ProposalSet { index: number; name: string; kind: 'one' | 'any'; options: ProposalOption[]; chosenOptionIds: string[]; needsChoice: boolean }
 
+/**
+ * What an app adds to a quote's page (the unified app's financing, roofing parity row 30): a line under each option's price,
+ * and word of each change to the quote (a choice, an upgrade, a signature) so its own sections can read again. Nothing
+ * provided, nothing shown — every other app's page is as it was.
+ */
+export interface QuoteExtras {
+  optionFooter?: (option: ProposalOption) => React.ReactNode
+  onChange?: (quote: { total?: unknown; status?: string; needsChoice: boolean }) => void
+}
+export const QuoteExtrasContext = React.createContext<QuoteExtras>({})
+
 /** The sets as answered; a quote answered before sets existed (options only) is one pick-one set. */
 const setsOf = (proposal: NonNullable<PortalQuoteData['proposal']>): ProposalSet[] => {
   if (proposal.sets && proposal.sets.length) return proposal.sets
@@ -103,6 +114,7 @@ const setsOf = (proposal: NonNullable<PortalQuoteData['proposal']>): ProposalSet
 function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { proposal: NonNullable<PortalQuoteData['proposal']>; canRespond: boolean; busy: boolean; onChoose: (id: string, chosen: boolean) => void; onUpgrade: (lineItemId: string, selected: boolean) => void }) {
   const sets = setsOf(proposal)
   const many = sets.length > 1
+  const { optionFooter } = React.useContext(QuoteExtrasContext)
   return (
     <div className="p-6 border-b dark:border-slate-700 space-y-6" data-testid="quote-options">
       {sets.map((s) => {
@@ -149,6 +161,7 @@ function ProposalOptions({ proposal, canRespond, busy, onChoose, onUpgrade }: { 
                   <div className="mt-auto pt-4">
                     <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{additive ? `+ ${moneyShort(op.addPrice ?? op.price)}` : moneyShort(op.price)}</p>
                     {!additive && Number(op.deposit || 0) > 0 && <p className="text-sm text-gray-600 dark:text-slate-400">Deposit on approval: {moneyShort(op.deposit)}</p>}
+                    {!additive && optionFooter?.(op)}
                     {canRespond
                       ? <button type="button" disabled={busy} onClick={() => onChoose(op.id, additive ? !op.chosen : true)} aria-pressed={!!op.chosen} className={op.chosen ? `${btnSuccess} mt-2 w-full justify-center` : `${btnSecondary} mt-2 w-full justify-center`}>
                           {op.chosen ? <><CheckCircle className="w-4 h-4" /> {additive ? 'Added — tap to remove' : 'Your choice'}</> : additive ? 'Add this' : 'Choose this option'}
@@ -231,6 +244,12 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
   useEffect(() => {
     portalFetch(`/quotes/${quoteId}`).then(setQuote).catch((e) => setError((e as Error).message)).finally(() => setLoading(false))
   }, [portalFetch, quoteId])
+  // An app's own sections under the quote follow its changes (QuoteExtras.onChange).
+  const { onChange: extrasChange } = React.useContext(QuoteExtrasContext)
+  const needsChoiceNow = !!(quote as any)?.proposal?.needsChoice
+  useEffect(() => {
+    if (quote) extrasChange?.({ total: (quote as any).total, status: quote.status, needsChoice: needsChoiceNow })
+  }, [quote && (quote as any).total, quote?.status, needsChoiceNow]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const approve = async (sig: SignatureData) => {
     setBusy(true); setShowSign(false); setError('')

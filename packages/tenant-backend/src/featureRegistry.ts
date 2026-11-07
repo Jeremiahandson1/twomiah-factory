@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY (on top of consumer_financing, itself not ready until the lender partner agreement): financing beside each proposal option (roofing parity row 30; apps/unified server/crm/financing/).
+  { id: 'proposal_financing', name: 'Financing on each proposal option', description: 'Each Good / Better / Best option shows its own estimated monthly payment, and the customer applies once they have chosen', category: 'Finance', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: the crew's work orders in the phone app (roofing parity row 29; apps/unified server/crm/roof/crewOrders.ts).
   { id: 'crew_app', name: 'Crew work orders in the phone app', description: 'A crew member signed in to the phone app sees their crew’s work orders and accepts, turns down, starts and finishes them — with no signal too', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: crew scheduling and on site (roofing parity row 28; apps/unified server/data/crewScheduling.ts).

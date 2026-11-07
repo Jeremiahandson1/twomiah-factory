@@ -12,8 +12,8 @@
 //   · without them: the business's own prequalification link (public; every Wisetack merchant has one). The application
 //     is recorded as `not_started`; the lender reports nothing back for it, so the office updates it by hand.
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { invoiceBalance, recordInvoicePayment, publicApiBase } from '@twomiah/tenant-backend'
-import { company, contact, financingApplication, financingEvent, invoice, job, payment, quote } from '../../db/schema/index.ts'
+import { invoiceBalance, recordInvoicePayment, publicApiBase, proposalView } from '@twomiah/tenant-backend'
+import { company, contact, financingApplication, financingEvent, invoice, job, payment, quote, quoteLineItem, quoteProposalOption } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import { DISCLOSURE, FINAL, LENDER, moves, monthlyPayment, normalizeStatus, wisetack as lender, type FinancingStatus } from './lender.ts'
 
@@ -44,6 +44,23 @@ export function offerFor(amount: number): Offer | null {
   const a = Math.round(Number(amount) * 100) / 100
   if (!Number.isFinite(a) || a < LENDER.minAmount || a > LENDER.maxAmount) return null
   return { lender: LENDER.name, amount: a, asLowAs: monthlyPayment(a, LENDER.exampleApr, LENDER.exampleTermMonths), apr: LENDER.exampleApr, termMonths: LENDER.exampleTermMonths, disclosure: DISCLOSURE }
+}
+
+/** One option's estimate: the monthly payment on its whole price at the lender's example terms. */
+export interface OptionOffer { asLowAs: number; apr: number; termMonths: number; amount: number }
+/**
+ * Financing beside each option of a proposal (roofing parity row 30; Roofr and Leap show a monthly figure on each
+ * package): for every option the customer picks one of, the estimate on that option's whole price — none on an add-on
+ * (its price is what it adds, not a job) and none outside the lender's range. Keyed by option id.
+ */
+export function optionOffersFor(options: Array<{ id: string; setKind?: string | null; price: string | number }>): Record<string, OptionOffer> {
+  const out: Record<string, OptionOffer> = {}
+  for (const o of options) {
+    if (o.setKind === 'any') continue
+    const offer = offerFor(Number(o.price))
+    if (offer) out[o.id] = { asLowAs: offer.asLowAs, apr: offer.apr, termMonths: offer.termMonths, amount: offer.amount }
+  }
+  return out
 }
 
 export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger' | 'services'>) {
@@ -123,6 +140,22 @@ export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger' | 'servi
     if (!doc.contactId) return { offer: null, reason: `Add the customer to this ${kind} first.`, connected }
     const offer = offerFor(doc.amount)
     return { offer, reason: offer ? null : `${LENDER.name} lends on jobs of $${LENDER.minAmount.toLocaleString('en-US')} to $${LENDER.maxAmount.toLocaleString('en-US')}.`, connected }
+  }
+
+  /**
+   * The estimate on each option of a quote's proposal (row 30), and whether the customer still has to choose — an
+   * application is for one price, so Apply waits for the choice. Null when the quote has no options.
+   */
+  async function optionOffers(companyId: string, quoteId: string) {
+    const doc = await documentOf(companyId, 'quote', quoteId)
+    const [q] = await db.select().from(quote).where(and(eq(quote.id, quoteId), eq(quote.companyId, companyId))).limit(1)
+    const view = q ? await proposalView(db, { quote, quoteLineItem, quoteProposalOption }, q as any) : null
+    if (!view) return null
+    const connected = !!(await connection(companyId))
+    return {
+      lender: LENDER.name, disclosure: DISCLOSURE, connected, needsChoice: view.needsChoice,
+      options: connected && !doc.closed && doc.contactId ? optionOffersFor(view.options) : {},
+    }
   }
 
   // ── Applications ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -298,7 +331,7 @@ export function createFinancingService(d: Pick<CrmDeps, 'db' | 'logger' | 'servi
     return { status: 200, body: { processed: true, duplicate: !inserted.length, applicationId: app.id, status: current.status, paymentId: settled?.paymentId ?? null } }
   }
 
-  return { connection, connect, disconnect, status, documentOf, offerOn, open, list, applicationOf, send, setStatus, settle, recordPayment, webhook }
+  return { connection, connect, disconnect, status, documentOf, offerOn, optionOffers, open, list, applicationOf, send, setStatus, settle, recordPayment, webhook }
 }
 
 export type FinancingService = ReturnType<typeof createFinancingService>
