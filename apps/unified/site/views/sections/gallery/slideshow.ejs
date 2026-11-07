@@ -1,9 +1,11 @@
 <%
   // Slideshow: one photo at a time with its caption (a product preview: a page of the guide, a slide, a worksheet). Built like the
   // reviews carousel to need no script: the track is a native scroll-snap strip, so without JavaScript every photo is reachable by
-  // swiping or scrolling. The inline script only adds previous/next, the dots and the arrow keys. It never moves by itself (no
+  // swiping or scrolling. The inline script adds previous/next, the dots and the arrow keys. It never moves by itself (no
   // autoplay), and scrolls smoothly only for a visitor who has not asked for reduced motion. Offered with two or more photos
   // (server/site/layouts.ts).
+  // A photo opens LARGE in a viewer over the page (readable at once: no new tab, no second click to zoom), with previous/next and
+  // a close button; Esc closes and the visitor is back where they were. With no script, the photo is a plain link to itself.
   const heading = data.heading || ''
   const intro = data.intro || ''
   const photos = Array.isArray(data.photos) ? data.photos.filter(function (p) { return p && p.url }) : []
@@ -20,9 +22,8 @@
       <% photos.forEach(function (p, i) { %>
         <li class="gallery-slideshow__slide" role="group" aria-roledescription="slide" aria-label="<%= i + 1 %> of <%= photos.length %>">
           <figure class="gallery-slideshow__figure">
-            <%/* Each photo opens full size in its own tab (pinch or zoom to read a page): a plain link, no script needed. */%>
-            <a class="gallery-slideshow__open" href="<%= p.url %>" target="_blank" rel="noopener" aria-label="Open full size<%= p.caption ? ': ' + p.caption : '' %> (opens in a new tab)"><img src="<%= p.url %>" alt="<%= p.alt || p.caption || '' %>" <%= i === 0 ? '' : 'loading="lazy"' %>></a>
-            <figcaption class="gallery-slideshow__caption"><% if (p.caption) { %><%= p.caption %><% } %><span class="gallery-slideshow__hint">Tap to see it full size</span></figcaption>
+            <a class="gallery-slideshow__open" href="<%= p.url %>" data-open="<%= i %>" aria-label="See it large<%= p.caption ? ': ' + p.caption : '' %>"><img src="<%= p.url %>" alt="<%= p.alt || p.caption || '' %>" <%= i === 0 ? '' : 'loading="lazy"' %>></a>
+            <figcaption class="gallery-slideshow__caption"><% if (p.caption) { %><%= p.caption %><% } %><span class="gallery-slideshow__hint">Tap to see it large</span></figcaption>
           </figure>
         </li>
       <% }) %>
@@ -37,28 +38,67 @@
       </div>
     <% } %>
   </div>
-  <% if (photos.length > 1) { %>
+  <div class="gallery-viewer" role="dialog" aria-modal="true" aria-label="<%= heading || 'Photos' %>, large" hidden data-viewer>
+    <div class="gallery-viewer__bar">
+      <span class="gallery-viewer__caption" data-viewer-caption aria-live="polite"></span>
+      <span class="gallery-viewer__actions">
+        <% if (photos.length > 1) { %><button type="button" class="gallery-viewer__btn" data-viewer-prev aria-label="Previous photo"><span aria-hidden="true">&larr;</span></button><button type="button" class="gallery-viewer__btn" data-viewer-next aria-label="Next photo"><span aria-hidden="true">&rarr;</span></button><% } %>
+        <button type="button" class="gallery-viewer__btn" data-viewer-close aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </span>
+    </div>
+    <div class="gallery-viewer__scroll" data-viewer-scroll><img class="gallery-viewer__img" alt="" data-viewer-img></div>
+  </div>
   <script>(function () {
     var root = document.currentScript.parentElement;
     var track = root.querySelector('[data-track]'), controls = root.querySelector('[data-controls]');
-    if (!track || !controls) return;
-    var slides = track.children, dots = controls.querySelectorAll('[data-dot]');
-    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    controls.hidden = false;
+    var slides = track.children, calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     function at() { return Math.max(0, Math.min(slides.length - 1, Math.round(track.scrollLeft / (slides[0].offsetWidth || 1)))); }
     function go(i) { i = (i + slides.length) % slides.length; track.scrollTo({ left: slides[i].offsetLeft - slides[0].offsetLeft, behavior: calm ? 'auto' : 'smooth' }); }
-    function mark() { var i = at(); for (var d = 0; d < dots.length; d++) dots[d].setAttribute('aria-current', d === i ? 'true' : 'false'); }
-    track.addEventListener('scroll', function () { window.requestAnimationFrame(mark); }, { passive: true });
-    controls.querySelector('[data-prev]').addEventListener('click', function () { go(at() - 1); });
-    controls.querySelector('[data-next]').addEventListener('click', function () { go(at() + 1); });
-    for (var d = 0; d < dots.length; d++) (function (n) { dots[n].addEventListener('click', function () { go(n); }); })(d);
-    track.addEventListener('keydown', function (e) {
-      if (e.key === 'ArrowRight') { e.preventDefault(); go(at() + 1); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at() - 1); }
-      else if (e.key === 'Home') { e.preventDefault(); go(0); }
-      else if (e.key === 'End') { e.preventDefault(); go(slides.length - 1); }
+    if (controls) {
+      var dots = controls.querySelectorAll('[data-dot]');
+      controls.hidden = false;
+      var mark = function () { var i = at(); for (var d = 0; d < dots.length; d++) dots[d].setAttribute('aria-current', d === i ? 'true' : 'false'); };
+      track.addEventListener('scroll', function () { window.requestAnimationFrame(mark); }, { passive: true });
+      controls.querySelector('[data-prev]').addEventListener('click', function () { go(at() - 1); });
+      controls.querySelector('[data-next]').addEventListener('click', function () { go(at() + 1); });
+      for (var d = 0; d < dots.length; d++) (function (n) { dots[n].addEventListener('click', function () { go(n); }); })(d);
+      track.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); go(at() + 1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at() - 1); }
+        else if (e.key === 'Home') { e.preventDefault(); go(0); }
+        else if (e.key === 'End') { e.preventDefault(); go(slides.length - 1); }
+      });
+      window.addEventListener('resize', mark);
+    }
+    // The viewer: the photo large over the page, readable at once.
+    var viewer = root.querySelector('[data-viewer]'), vimg = root.querySelector('[data-viewer-img]'), vcap = root.querySelector('[data-viewer-caption]');
+    var vscroll = root.querySelector('[data-viewer-scroll]'), links = root.querySelectorAll('[data-open]'), shown = 0, from = null;
+    function show(i) {
+      shown = (i + links.length) % links.length;
+      var a = links[shown], im = a.querySelector('img'), cap = a.parentElement.querySelector('.gallery-slideshow__caption');
+      vimg.src = a.getAttribute('href'); vimg.alt = im ? im.alt : '';
+      vcap.textContent = (cap && cap.firstChild && cap.firstChild.nodeType === 3 ? cap.firstChild.nodeValue : '') + (links.length > 1 ? '  (' + (shown + 1) + ' of ' + links.length + ')' : '');
+      vscroll.scrollTop = 0;
+    }
+    function open(i) { from = document.activeElement; show(i); viewer.hidden = false; document.documentElement.classList.add('gallery-viewer-open'); viewer.querySelector('[data-viewer-close]').focus(); }
+    function close() { viewer.hidden = true; document.documentElement.classList.remove('gallery-viewer-open'); go(shown); if (from && from.focus) from.focus(); }
+    for (var k = 0; k < links.length; k++) (function (n) { links[n].addEventListener('click', function (e) { e.preventDefault(); open(n); }); })(k);
+    viewer.querySelector('[data-viewer-close]').addEventListener('click', close);
+    var vp = viewer.querySelector('[data-viewer-prev]'), vn = viewer.querySelector('[data-viewer-next]');
+    if (vp) vp.addEventListener('click', function () { show(shown - 1); });
+    if (vn) vn.addEventListener('click', function () { show(shown + 1); });
+    // A click on the dark space around the photo closes; a click on the photo does not.
+    vscroll.addEventListener('click', function (e) { if (e.target === vscroll) close(); });
+    viewer.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      else if (e.key === 'ArrowRight' && links.length > 1) { e.preventDefault(); show(shown + 1); }
+      else if (e.key === 'ArrowLeft' && links.length > 1) { e.preventDefault(); show(shown - 1); }
+      else if (e.key === 'Tab') {
+        // Focus stays in the viewer while it is open.
+        var f = viewer.querySelectorAll('button'), first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     });
-    window.addEventListener('resize', mark);
   })();</script>
-  <% } %>
 </section>

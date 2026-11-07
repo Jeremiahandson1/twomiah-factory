@@ -142,11 +142,17 @@ describe('the published page', () => {
     const html = String((await draw('roofing', c)).files['index.html'])
     expect((html.match(/class="gallery-slideshow__slide"/g) || []).length).toBe(3)
     for (const n of [1, 2, 3]) {
-      expect(html).toContain('<figcaption class="gallery-slideshow__caption">Page ' + n + '<span class="gallery-slideshow__hint">Tap to see it full size</span></figcaption>')
-      // each photo opens full size in its own tab
-      expect(html).toContain('<a class="gallery-slideshow__open" href="/media?h=' + String(n).repeat(40) + '" target="_blank" rel="noopener" aria-label="Open full size: Page ' + n + ' (opens in a new tab)">')
+      expect(html).toContain('<figcaption class="gallery-slideshow__caption">Page ' + n + '<span class="gallery-slideshow__hint">Tap to see it large</span></figcaption>')
+      // each photo opens large in the viewer over the page (a plain link to itself with no script); never a new tab
+      expect(html).toContain('<a class="gallery-slideshow__open" href="/media?h=' + String(n).repeat(40) + '" data-open="' + (n - 1) + '" aria-label="See it large: Page ' + n + '">')
     }
     expect(html).toMatch(/gallery-slideshow__controls" hidden data-controls/)         // the arrows appear only when the script runs
+    // no new tab from the slideshow (the page may have other links that open one: the footer's photo credits)
+    const show = html.slice(html.indexOf('<section class="gallery-section gallery-slideshow"'), html.indexOf('</section>', html.indexOf('<section class="gallery-section gallery-slideshow"')))
+    expect(show.length).toBeGreaterThan(100)
+    expect(show).not.toContain('target="_blank"')
+    expect(html).toMatch(/<div class="gallery-viewer" role="dialog" aria-modal="true" aria-label="Take a look inside, large" hidden data-viewer>/)
+    expect(html).toContain('data-viewer-close aria-label="Close"')
     expect(html).not.toMatch(/setInterval|autoplay/i)
     expect(String((await draw('roofing', c)).files['styles/main.css'])).toContain('.gallery-slideshow__track')
     // one frame for every photo (the same size on every slide), each fitted inside it whole
