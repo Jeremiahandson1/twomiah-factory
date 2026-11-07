@@ -69,8 +69,8 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Leader feature | Twomiah | Mark |
 |---|---|---|
 | Save any project as a template; start one from it (phases, to-dos, punch-list starter) | built (`project_templates`) | built |
-| Template carries budget lines and selections; tick which parts to import | not stated, not found | not built |
-| Task dependencies carried over | owner's decision: not now | not built |
+| Template carries budget lines and selections; tick which parts to import | built (`template_parts`, row 7b): budget lines, selections and shared allowances kept; ticks on saving and on starting | built |
+| Task dependencies carried over | built (`template_parts`, row 7b): task links and lag kept and recreated with the tasks | built |
 
 ## Navigation and pages
 

@@ -995,3 +995,67 @@ export const projectTemplatePunchItem = pgTable('project_template_punch_item', {
 }, (t) => [
   index('project_template_punch_item_template_id_idx').on(t.templateId),
 ])
+
+// ── what else a template carries (0090, contractor parity row 7b; feature template_parts, not ready) ─────────────────────
+// Buildertrend / JobTread templates carry the budget, the selections and the schedule's links; each part is ticked on saving
+// and again on starting. Never the money that was spent, who chose what, or the client.
+
+/** A budget line by cost code, as the project's budget had it when saved (crm/billing/quoteBudget.ts budgetFor). */
+export const projectTemplateBudgetLine = pgTable('project_template_budget_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  costCode: text('cost_code').notNull(),
+  estimatedCost: decimal('estimated_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  estimatedPrice: decimal('estimated_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_budget_line_template_id_idx').on(t.templateId),
+])
+
+/** A shared allowance the template's selections are chosen against (project_allowance). */
+export const projectTemplateAllowance = pgTable('project_template_allowance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  costCode: text('cost_code'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_allowance_template_id_idx').on(t.templateId),
+])
+
+/** A selection to be made (project_selection), without what was chosen: its allowance, quantity and when it is due. */
+export const projectTemplateSelection = pgTable('project_template_selection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  /** The template's shared allowance it sits under, by this template's ids. */
+  allowanceId: text('allowance_id'),
+  categoryId: text('category_id').references(() => selectionCategory.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  location: text('location'),
+  allowance: decimal('allowance', { precision: 12, scale: 2 }),
+  quantity: integer('quantity').default(1),
+  unit: text('unit').default('each'),
+  /** Days after the project's start that it is due; none, no due date. */
+  dueOffsetDays: integer('due_offset_days'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_selection_template_id_idx').on(t.templateId),
+])
+
+/** A link between two of the template's tasks (task_dependency), by this template's task ids. */
+export const projectTemplateDependency = pgTable('project_template_dependency', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  predecessorId: text('predecessor_id').notNull(),
+  successorId: text('successor_id').notNull(),
+  type: text('type').default('finish_to_start').notNull(),
+  lagDays: integer('lag_days').default(0).notNull(),
+}, (t) => [
+  index('project_template_dependency_template_id_idx').on(t.templateId),
+])

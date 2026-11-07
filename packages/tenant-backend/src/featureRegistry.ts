@@ -71,6 +71,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'punch_lists', name: 'Punch Lists', description: 'Punch list tracking', category: 'Construction', core: false, templates: ['crm'] },
   // NOT READY until the owner has tested it: one allowance covering several selections, overages to the revised budget and WIP (contractor parity row 7).
   { id: 'shared_allowances', name: 'Shared allowances', description: 'One allowance covers several selections; what they go over is raised as a change order and shows on the revised budget and the WIP report', category: 'Construction', core: false, templates: ['crm'], hidden: true },
+  // NOT READY until the owner has tested it: templates carry the budget, the selections and the schedule's links, ticked on saving and starting (contractor parity row 7b).
+  { id: 'template_parts', name: 'Templates: budget, selections and links', description: 'A project template also keeps the budget lines, the selections and allowances and the links between tasks; tick which parts to keep and which to bring in', category: 'Construction', core: false, templates: ['crm'], hidden: true },
   { id: 'project_templates', name: 'Project Templates', description: 'Save a project as a template — its schedule and starter punch list — and start the next one from it', category: 'Construction', core: false, templates: ['crm'], hidden: true },
   { id: 'daily_logs', name: 'Daily Logs', description: 'Field daily log reports', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'inspections', name: 'Inspections', description: 'Quality inspections', category: 'Construction', core: false, templates: ['crm'] },

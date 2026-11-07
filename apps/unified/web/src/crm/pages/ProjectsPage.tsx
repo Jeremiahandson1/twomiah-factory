@@ -47,6 +47,8 @@ export default function ProjectsPage() {
   const { can, hasFeature } = useAuth();
   // Project templates (feature project_templates): start from one, save a project as one. Both gated server-side the same way.
   const templatesOn = hasFeature('project_templates') && can('projects:read');
+  // Row 7b (template_parts): the budget, selections and task links ride along, each part ticked on saving and on starting.
+  const partsOn = templatesOn && hasFeature('template_parts');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Detail pages link here as /crm/projects?edit=<id>. Open that record's edit
@@ -79,7 +81,9 @@ export default function ProjectsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
-  const [templates, setTemplates] = useState<Array<{ id: string; name: string; taskCount: number; punchItemCount: number }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; taskCount: number; punchItemCount: number; budgetLineCount?: number; selectionCount?: number; linkCount?: number }>>([]);
+  const [keep, setKeep] = useState({ includePunchList: true, includeBudget: true, includeSelections: true, includeLinks: true });
+  const [bring, setBring] = useState({ schedule: true, punchList: true, budget: true, selections: true });
   const [templateId, setTemplateId] = useState('');
   // "Save as template": the project being saved, and the name asked for.
   const [saveFrom, setSaveFrom] = useState<Record<string, unknown> | null>(null);
@@ -109,7 +113,7 @@ export default function ProjectsPage() {
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
-  const openCreate = (contactId = '') => { setEditing(null); setTemplateId(''); setForm({ ...initialForm, contactId }); setModalOpen(true); };
+  const openCreate = (contactId = '') => { setEditing(null); setTemplateId(''); setBring({ schedule: true, punchList: true, budget: true, selections: true }); setForm({ ...initialForm, contactId }); setModalOpen(true); };
 
   // A lead that has just become a contact starts a project from the Lead Inbox (/crm/projects?new=1&contactId=…): the form
   // opens with that person chosen. Their record is fetched if the first page of the picker does not hold them.
@@ -140,9 +144,9 @@ export default function ProjectsPage() {
       const payload = { ...form, estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : undefined, budget: form.budget ? Number(form.budget) : undefined };
       if (editing) { await api.projects.update(editing.id as string, payload); toast.success('Project updated'); }
       else if (templateId) {
-        const r: any = await api.post(`/api/project-templates/${templateId}/start`, payload);
+        const r: any = await api.post(`/api/project-templates/${templateId}/start`, partsOn ? { ...payload, import: bring } : payload);
         const got = r?.copied || { tasks: 0, punchItems: 0 };
-        toast.success(`Project created from the template — ${got.tasks} schedule ${got.tasks === 1 ? 'task' : 'tasks'}, ${got.punchItems} punch ${got.punchItems === 1 ? 'item' : 'items'}`);
+        toast.success(`Project created from the template — ${got.tasks} schedule ${got.tasks === 1 ? 'task' : 'tasks'}, ${got.punchItems} punch ${got.punchItems === 1 ? 'item' : 'items'}${partsOn ? `, ${got.budgetLines ?? 0} budget ${got.budgetLines === 1 ? 'line' : 'lines'}, ${got.selections ?? 0} ${got.selections === 1 ? 'selection' : 'selections'}` : ''}`);
         if (r?.leftOut?.length) toast.error(`Not copied: ${r.leftOut.join('; ')}`);
       }
       else { await api.projects.create(payload); toast.success('Project created'); }
@@ -154,9 +158,10 @@ export default function ProjectsPage() {
   const saveTemplate = async () => {
     if (!saveFrom || !templateName.trim()) { toast.error('Name the template'); return; }
     try {
-      const r: any = await api.post('/api/project-templates/from-project', { projectId: saveFrom.id, name: templateName.trim() });
+      const r: any = await api.post('/api/project-templates/from-project', { projectId: saveFrom.id, name: templateName.trim(), ...(partsOn ? keep : {}) });
       toast.success(`Saved "${r?.name || templateName.trim()}" — ${r?.taskCount ?? 0} schedule ${r?.taskCount === 1 ? 'task' : 'tasks'}, ${r?.punchItemCount ?? 0} punch ${r?.punchItemCount === 1 ? 'item' : 'items'}`);
       if (r?.punchListLeftOut) toast.error('The punch list was left out — you cannot read punch lists, or Punch Lists is off.');
+      if (r?.leftOut?.length) toast.error(`Not kept: ${r.leftOut.join('; ')}`);
       setSaveFrom(null); setTemplateName(''); loadTemplates();
     } catch (err) { toast.error((err as Error).message); }
   };
@@ -206,6 +211,17 @@ export default function ProjectsPage() {
                 {templates.map((t) => <option key={t.id} value={t.id}>{t.name} — {t.taskCount} {t.taskCount === 1 ? 'task' : 'tasks'}, {t.punchItemCount} punch {t.punchItemCount === 1 ? 'item' : 'items'}</option>)}
               </select>
               {templateId && <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">The schedule is placed from the start date below{form.startDate ? '' : ' — pick one to give the tasks dates'}.</p>}
+              {templateId && partsOn && (
+                <fieldset className="mt-2" data-testid="template-import">
+                  <legend className="text-sm font-medium">Bring in</legend>
+                  <div className="mt-1 flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bring.schedule} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBring({ ...bring, schedule: e.target.checked })} />Schedule and its links</label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bring.punchList} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBring({ ...bring, punchList: e.target.checked })} />Punch list</label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bring.budget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBring({ ...bring, budget: e.target.checked })} />Budget</label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={bring.selections} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBring({ ...bring, selections: e.target.checked })} />Selections and allowances</label>
+                  </div>
+                </fieldset>
+              )}
             </div>
           )}
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
@@ -227,6 +243,18 @@ export default function ProjectsPage() {
         <p className="mb-3 text-sm text-gray-700 dark:text-slate-200">Keeps this project's schedule (phases, milestones and tasks, by days from the start) and its punch list as a starting point. Who was assigned, progress, money and documents are not kept.</p>
         <label className="block text-sm font-medium mb-1" htmlFor="template-name">Template name</label>
         <input id="template-name" value={templateName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTemplateName(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+        {partsOn && (
+          <fieldset className="mt-4" data-testid="template-keep">
+            <legend className="text-sm font-medium">Also keep</legend>
+            <p className="text-xs text-gray-600 dark:text-slate-300">The schedule is always kept. What was chosen, spent or billed never is.</p>
+            <div className="mt-1 flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={keep.includeLinks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setKeep({ ...keep, includeLinks: e.target.checked })} />Links between tasks</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={keep.includePunchList} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setKeep({ ...keep, includePunchList: e.target.checked })} />Punch list</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={keep.includeBudget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setKeep({ ...keep, includeBudget: e.target.checked })} />Budget lines</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={keep.includeSelections} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setKeep({ ...keep, includeSelections: e.target.checked })} />Selections and allowances</label>
+            </div>
+          </fieldset>
+        )}
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setSaveFrom(null)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={saveTemplate}>Save template</Button></div>
       </Modal>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Project" message={`Delete "${toDelete?.name as string}"?`} confirmText="Delete" />
