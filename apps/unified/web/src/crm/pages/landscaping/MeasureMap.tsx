@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 import { api } from '../../../api'
-import { useToast, useMayWrite } from '../../../shared'
+import { useToast, useMayWrite, useAuth } from '../../../shared'
 import { loadGooglePlaces } from '../roof/lib/AddressAutocomplete'
 
 const TYPES: Array<{ value: string; label: string; color: string }> = [
@@ -50,6 +50,9 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
   const [corners, setCorners] = useState(0)
   const [saving, setSaving] = useState(false)
   const typeRef = useRef(areaType); typeRef.current = areaType
+  // Row 3 (aerial_detect, not ready): outlines found from the air, shown to check and edit; kept only by Save.
+  const detectOn = useAuth().hasFeature('aerial_detect')
+  const [detecting, setDetecting] = useState(false)
   const drawingRef = useRef(drawing); drawingRef.current = drawing
 
   const addPolygon = (type: string, m: 'add' | 'cut', path: Array<{ lat: number; lng: number }>, label = ''): Shape => {
@@ -123,6 +126,23 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
   const totals = new Map<string, number>()
   for (const s of shapes) totals.set(s.areaType, (totals.get(s.areaType) ?? 0) + (s.mode === 'cut' ? -1 : 1) * sqftOf(pathOf(s.polygon)))
 
+  const detect = async () => {
+    const map = mapRef.current
+    if (!map) return
+    setDetecting(true)
+    try {
+      const c = map.getCenter(), b = map.getBounds()
+      const out: any = await api.post(`/api/area-pricing/sites/${siteId}/detect`, {
+        center: { lat: c.lat(), lng: c.lng() },
+        bounds: b ? { north: b.getNorthEast().lat(), east: b.getNorthEast().lng(), south: b.getSouthWest().lat(), west: b.getSouthWest().lng() } : null,
+      })
+      const found: Shape[] = ((out?.shapes ?? []) as any[]).map((r) => addPolygon(r.areaType, 'add', (r.path as number[][]).map(([lat, lng]) => ({ lat, lng })), r.label || ''))
+      setShapes((all) => [...all, ...found])
+      toast.success(found.length ? `${found.length} area${found.length === 1 ? '' : 's'} found by ${out.provider} — check each, adjust the corners, then Save` : 'No areas were found here')
+    } catch (e) { toast.error(errorText(e, 'Could not find the areas')) }
+    finally { setDetecting(false) }
+  }
+
   const save = async () => {
     setSaving(true)
     try {
@@ -149,6 +169,7 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
           {!drawing
             ? <button onClick={startDrawing} className="btn-secondary" disabled={ready !== 'ok'}>Draw a shape</button>
             : <><button onClick={finish} className="btn-primary" disabled={corners < 3}>Finish shape ({corners} corners)</button><button onClick={cancelDraft} className="btn-secondary">Cancel</button></>}
+          {detectOn && !drawing && <button onClick={detect} className="btn-secondary" disabled={ready !== 'ok' || detecting}>{detecting ? 'Looking…' : 'Find areas automatically'}</button>}
         </div>
       )}
       <div ref={box} className="h-96 w-full rounded-lg border dark:border-slate-700 bg-gray-100 dark:bg-slate-800" aria-label="Satellite map of the property" />
@@ -159,7 +180,7 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
           <ul className="divide-y dark:divide-slate-700 text-sm">
             {shapes.map((s) => (
               <li key={s.key} className="flex items-center justify-between py-1">
-                <span><span className="inline-block w-3 h-3 rounded-sm mr-2 align-middle" style={{ background: s.mode === 'cut' ? '#dc2626' : colorOf(s.areaType) }} />{labelOf(s.areaType)}{s.mode === 'cut' ? ' (cut out)' : ''} · {sqftOf(pathOf(s.polygon)).toLocaleString()} sq ft</span>
+                <span><span className="inline-block w-3 h-3 rounded-sm mr-2 align-middle" style={{ background: s.mode === 'cut' ? '#dc2626' : colorOf(s.areaType) }} />{labelOf(s.areaType)}{s.mode === 'cut' ? ' (cut out)' : ''}{s.label ? ` — ${s.label}` : ''} · {sqftOf(pathOf(s.polygon)).toLocaleString()} sq ft</span>
                 {mayMeasure && <button aria-label="Delete shape" onClick={() => remove(s.key)} className="p-1 text-red-600 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>}
               </li>
             ))}
