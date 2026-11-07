@@ -357,7 +357,7 @@ describe("the owner's side", () => {
 
 describe('linking Stripe', () => {
   test("start: Stripe's sign-in, signed state naming this business and coming back to this site's editor", async () => {
-    const w = await world()
+    const w = await world({ account: null })
     const r = await w.call('/api/stripe/start', { method: 'POST', headers: await w.owner() })
     expect(r.status).toBe(200)
     const url = new URL((await json(r)).url)
@@ -366,8 +366,19 @@ describe('linking Stripe', () => {
     expect(st).toMatchObject({ t: 't-1', u: 'site:site-1', r: ORIGIN + '/edit/' })
     expect(JSON.parse(w.store.m.get('stripe-nonce')).h).not.toContain(st.n)        // only its hash is kept
   })
+  test("a business the Factory already holds a Stripe account for cannot start a second link (a double tap, a stale button): told, and nothing started", async () => {
+    const w = await world()                                            // linked: acct_owner1 on the Factory's record
+    w.store.m.set('stripe', JSON.stringify({ connected: false }))      // …while the site's own store still says not (its old copy)
+    const r = await w.call('/api/stripe/start', { method: 'POST', headers: await w.owner() })
+    expect(r.status).toBe(502)
+    expect((await json(r)).error).toBe('Your Stripe account is already linked. Reload this page to see it.')
+    await expect(stripeStart(w.d, ROW as any, { nonce: 'n'.repeat(32) })).rejects.toMatchObject({ status: 409 })
+    // after a disconnect, a link can be started again
+    await stripeDisconnect(w.d, ROW as any)
+    expect((await stripeStart(w.d, ROW as any, { nonce: 'n'.repeat(32) })).url).toMatch(/^https:\/\/connect\.stripe\.com\//)
+  })
   test('the result lands only with the nonce this site started, once; an already-linked site refuses a second account', async () => {
-    const w = await world()
+    const w = await world({ account: null })
     await w.call('/api/stripe/start', { method: 'POST', headers: await w.owner() })
     const st = verifyState(new URL((await json(await w.call('/api/stripe/start', { method: 'POST', headers: await w.owner() }))).url).searchParams.get('state'), OAUTH.stateSecret, NOW)!
     expect((await deliverStripeLink(w.d, 't-1', { nonce: 'x'.repeat(32), userId: 'site:site-1', accountId: 'acct_1' })).status).toBe(410)
