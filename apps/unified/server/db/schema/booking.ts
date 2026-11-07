@@ -234,6 +234,12 @@ export const booking = pgTable('booking', {
   paymentIntentId: text('payment_intent_id'),
   depositPaidAt: timestamp('deposit_paid_at'),
   tipAmount: money('tip_amount'),
+  /**
+   * Several services booked at once online (salon parity row 9; online_multi_service): each service in order, its booking service, minutes
+   * from the start, length, and the person doing it. Null = one service (service_id, assigned_user_id). The first is the booking's own
+   * service; each holds only its own person for its own stretch.
+   */
+  basket: json('basket').$type<Array<{ serviceId: string; offsetMin: number; durationMin: number; userId: string | null; requested?: boolean; /** As booked, for the messages. */ name?: string }>>(),
   // When each message about this booking went, so none goes twice.
   reminderEmailSentAt: timestamp('reminder_email_sent_at'),
   reminderSmsSentAt: timestamp('reminder_sms_sent_at'),

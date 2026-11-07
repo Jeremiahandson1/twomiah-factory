@@ -15,7 +15,7 @@ import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord
 import { processingProblem, piecesOf, touch, segmentsProblem, asSegments, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
 import { findBlock } from './bookBlocks.ts'
-import { carryToBooking } from './onlineBooking.ts'
+import { carryToBooking, carryServicesToBooking } from './onlineBooking.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -631,6 +631,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       throw err
     }
     const [row] = await db.select().from(appointment).where(eq(appointment.id, existing.id)).limit(1)
+    // Booked online: the booking holds the visit as it now is (row 9's basket), so online times hold each stylist for their own service.
+    await carryServicesToBooking(db, { id: existing.id, companyId: currentUser.companyId, startTime: row.startTime, endTime: row.endTime }, itemList.map((i) => ({ serviceId: i.serviceId, stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId, offset: i.offset, duration: i.duration, requested: i.requested, name: i.name })))
     await audit.log({ action: 'update', entity: 'appointment', entityId: existing.id, metadata: { services: itemList.map((i) => i.name) }, req: { user: currentUser } })
     d.realtime.emitToCompany(currentUser.companyId, d.realtime.EVENTS.REFRESH, { entity: 'appointment' })
     return one(c, { ...named(row), items: (await itemsOf(currentUser.companyId, [existing.id])).get(existing.id) })

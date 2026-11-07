@@ -694,6 +694,13 @@
       "when": 1794029282821,
       "tag": "0098_salon_record_per_service",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1794031513237,
+      "tag": "0099_booking_basket",
+      "breakpoints": true
     }
   ]
 }

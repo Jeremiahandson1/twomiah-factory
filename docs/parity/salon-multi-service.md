@@ -20,7 +20,7 @@ Vagaro, Boulevard, GlossGenius and Mindbody: no help-centre page on multi-servic
 | Tips split by each staff member's share (Square) | Built with row 10 (10/31): split by the value of each stylist's services, editable on the sale; see salon-chair-checkout.md. Proof: `tests/salon-tip-split.test.ts` | Built |
 | A client's request for a team member marked on the service (Fresha's heart) | Row 8 (11/06, `visit_editing`): a heart per service (`appointment_item.requested_stylist`), on New Appointment and in Edit services. Proof: `tests/salon-visit-editing*.test.ts` | Built |
 | Edit one service of a booked visit | Row 8 (11/06, `visit_editing`): "Edit services" on a booked visit — add, remove, re-time, re-assign — `PUT /api/appointments/:id/services`, with a new visit's clash (its own time ignored), blocked-time and own-chair checks; refused once the visit is done (VISIT_CLOSED). Off, the old 409 VISIT_HAS_SERVICES stands | Built |
-| Online booking of several services at once | Online booking still takes one service | **Not built** |
+| Online booking of several services at once (Fresha, Vagaro, Square) | Row 9 (11/07, `online_multi_service` with `multi_service_visits`): "+ Add another service" on the booking page, up to 4 services, each after the one before, each with its own stylist or whoever is free. Only times where every service fits are offered; the booking is one visit on the Book with a line per service, each stylist held only for their own; deposits are summed, a card or forms asked for any service are asked for the booking; the price is the sum. Moving it online is refused in words (call us); the desk moves it. A desk edit of its services carries to the booking. Proof: `tests/salon-online-several*.test.ts` | Built |
 | One visit record per service (each stylist's own formula) | Row 8 (11/06, `visit_editing`): closing the visit writes one record per service with its own stylist (`service_record.appointment_item_id`; unique per appointment + service). Visit counts (lapsed clients, visit spans, chair takings, the month's visits) count a visit once | Built |
 
 ## Decisions and limits to know
@@ -28,5 +28,6 @@ Vagaro, Boulevard, GlossGenius and Mindbody: no help-centre page on multi-servic
 - **Off by default.** `multi_service_visits` is registered not-ready (hidden). Until a salon is given it the server refuses a list of services (409 FEATURE_OFF) and the screen shows no "add another service" link.
 - The visit's own row carries the first service and stylist, and the whole span and price, so every existing report and screen still reads it.
 - Loyalty is awarded once on the visit total.
+- **Row 9 is off by default** (`online_multi_service`, not ready) and needs `multi_service_visits`. Online the services run one after another; two at the same time is a desk booking.
 - **Row 8 is off by default** (`visit_editing`, not ready). Two services may start at the same minute only with different stylists; the same stylist twice at once is refused in words.
 - Proving test: `apps/unified/tests/salon-multi-service.test.ts` — fails without the change (the list is ignored and a plain appointment is booked).
