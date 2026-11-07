@@ -4,7 +4,7 @@
 // with steps is offered around a booking already sitting in its own processing, the way the desk can. Off: as before.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
-import { tzParts } from '@twomiah/tenant-backend'
+import { addDays, tzParts } from '@twomiah/tenant-backend'
 import { bootTenant, seedOwner } from './harness.ts'
 import { segmentsOf, heldMinutes, segmentsProblem, piecesOf } from '../server/crm/salon/segments.ts'
 
@@ -37,7 +37,8 @@ describe('salon steps', () => {
     return { status: r.status, body }
   }
   const features = async (list: string[]) => { await t.db.update(t.schema.company).set({ enabledFeatures: list } as any).where(eq(t.schema.company.id, co)); t.services.features.forgetFeatures() }
-  const next = (from: number, weekday: number) => { const d = new Date(Date.now() + from * 86_400_000); while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10) }
+  // The salon's own calendar: `from` days after today there, then on to the weekday (a UTC day is tomorrow every Chicago evening).
+  const next = (from: number, weekday: number) => { let d = addDays(tzParts(new Date(), TZ).date, from); while (new Date(`${d}T12:00:00Z`).getUTCDay() !== weekday) d = addDays(d, 1); return d }
   const wall = (day: string, hm: string) => {
     const guess = new Date(`${day}T${hm}:00Z`)
     const parts = tzParts(guess, TZ)

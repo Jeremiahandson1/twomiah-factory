@@ -108,6 +108,7 @@ describe('row 16: pay from the estimate', () => {
       expect((await json(await t.call(`/api/portal/d/${inv.token}/invoices/${inv.id}`))).body.partPayment).toBeUndefined()
     } finally { await setFeatures(['portal_pay_options']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'portal_pay_options') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    // Opened to the general contractor's CRM too (contractor parity row 12, crm/billing/paymentTools.ts).
+    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof', 'crm']])
   })
 })
