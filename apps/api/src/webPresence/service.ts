@@ -9,7 +9,7 @@ import { Netlify, NetlifyError, type FetchLike } from './netlify.ts'
 import { buildSpec, canonicalise, type SiteSpec } from './spec.ts'
 import { composeOnePage } from './compose.ts'
 import { buildSiteFiles } from './publish.ts'
-import { requireWebPresence, WEB_PRESENCE_PLAN_ID } from './switch.ts'
+import { requireWebPresence, WEB_PRESENCE_PLAN_ID, downloadsOn } from './switch.ts'
 import { renderOnePage, type OnePageModel } from '../../../unified/server/site/onePage.ts'
 import { mintSignin, siteSecret, verifyRequest, signRequest } from './site/session.mjs'
 import { effectiveForms } from './site/clean.mjs'
@@ -40,7 +40,12 @@ export interface Deps {
   cancelSubscriptionNow?: (subscriptionId: string) => Promise<void>
 }
 
-const TENANT_COLUMNS = 'id, name, slug, email, admin_email, industry, city, state, phone, plan, preview_premium_pages, primary_color, intake_data, factory_sync_key, stripe_subscription_id, billing_status, status'
+const TENANT_COLUMNS = 'id, name, slug, email, admin_email, industry, city, state, phone, plan, preview_premium_pages, primary_color, intake_data, factory_sync_key, stripe_subscription_id, billing_status, status, stripe_connect_account_id'
+
+/** What the trade's spec offers, with "Sell a download" while its switch is on. */
+const specFor = (d: Pick<Deps, 'env'>, tenant: any) => buildSpec(tenant.industry, { downloads: downloadsOn(d.env) })
+/** Whether the page draws its "Sell a download" section: the switch on AND the owner's Stripe account linked (no dead Buy button). */
+const sellsFor = (d: Pick<Deps, 'env'>, tenant: any) => downloadsOn(d.env) && /^acct_/.test(String(tenant.stripe_connect_account_id || ''))
 
 export function factoryUrl(env: Deps['env']): string {
   return String(env.TWOMIAH_FACTORY_URL || env.FACTORY_PUBLIC_URL || '').replace(/\/+$/, '')
@@ -154,7 +159,7 @@ async function setUp(d: Deps, tenantId: string, tenant: any): Promise<Provisione
 
 /** The whole file set (first version of the page included) onto the site: used at set up and when the trade or the code changes. */
 export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePageModel): Promise<OnePageModel> {
-  const spec = buildSpec(tenant.industry)
+  const spec = specFor(d, tenant)
   const origin = (row.custom_domain && row.ssl_ok ? 'https://' + row.custom_domain : row.origin) as string
   let useModel = model
   if (!useModel) {
@@ -166,7 +171,7 @@ export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePag
     )
     useModel = canonicalise(composed.model, spec, null).model
   }
-  const rendered = await renderOnePage({ model: useModel!, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin })
+  const rendered = await renderOnePage({ model: useModel!, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin, sellsDownload: sellsFor(d, tenant) })
   const built = await buildSiteFiles(rendered, spec)
   const nl = d.netlify()
   await nl.enableForms(row.netlify_site_id!)                // forms are found while THIS deploy is processed
@@ -212,11 +217,11 @@ export async function verifySiteRequest(d: Deps, h: { site?: string; ts?: string
 export async function renderForSite(d: Deps, row: SiteRow, payload: { model: unknown; prev?: any }) {
   if (!['live', 'creating', 'canceling'].includes(row.status)) throw new Error('This site is not taking changes')
   const tenant = await loadTenant(d, row.tenant_id)
-  const spec = buildSpec(tenant.industry)
+  const spec = specFor(d, tenant)
   const { model, notes } = canonicalise(payload.model, spec, payload.prev ?? null)
   if ((model as any).tooBig) return { status: 400, body: { error: 'That is too much for one page. Remove something and try again.' } }
   const origin = (row.custom_domain && row.ssl_ok ? 'https://' + row.custom_domain : row.origin) as string
-  const out = await renderOnePage({ model: model as OnePageModel, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin })
+  const out = await renderOnePage({ model: model as OnePageModel, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin, sellsDownload: sellsFor(d, tenant) })
   const before = effectiveForms(payload.prev || { sections: [], forms: {} }), after = out.forms
   const inboxChanged = (a: any, b: any) => (a?.forms?.lead?.inbox || '') !== (b?.forms?.lead?.inbox || '') || (a?.forms?.hiring?.inbox || '') !== (b?.forms?.hiring?.inbox || '')
   if (before.lead !== after.lead || before.hiring !== after.hiring || inboxChanged(payload.prev, out.model)) {

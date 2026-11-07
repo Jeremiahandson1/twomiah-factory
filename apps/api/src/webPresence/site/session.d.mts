@@ -12,3 +12,6 @@ export function signRequest(secret: string, ts: string, body: string): Promise<s
 export function verifyRequest(secret: string, ts: string, body: string, sig: string, now?: number, skewSec?: number): Promise<boolean>
 export function rateLimit(store: { get(k: string): Promise<string | null>; set(k: string, v: string): Promise<void> }, key: string, limit: number, windowSec: number, now?: number): Promise<{ allowed: boolean; remaining: number }>
 export function hashAddr(secret: string, addr: string): Promise<string>
+export const DOWNLOAD_TTL_SEC: number
+export function mintDownload(secret: string, siteId: string, saleId: string, now?: number, ttlSec?: number): Promise<string>
+export function verifyDownload(secret: string, token: string, siteId: string, now?: number): Promise<{ ok: boolean; error?: string; saleId: string; exp: number }>

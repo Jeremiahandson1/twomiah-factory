@@ -8,4 +8,6 @@
 // switch), which no other site sets.
 export const WEB_PRESENCE_SECTIONS: ReadonlySet<string> = new Set([
   'hours/simple', 'banner/announcement', 'hiring/form', 'spot/today', 'spot/places', 'events/dated', 'partners/wall', 'products/featured', 'steps/list', 'social/links',
+  // Sell a download: its Buy button posts to the Web presence site's own function (/api/buy).
+  'download/buy',
 ])

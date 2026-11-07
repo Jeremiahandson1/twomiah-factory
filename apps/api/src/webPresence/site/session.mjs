@@ -5,6 +5,7 @@
 //
 //   sign-in link  v1.<payload>.<sig>   payload { s: site id, e: expiry, j: single-use id }   15 minutes, used once
 //   session       v1.<payload>.<sig>   payload { s: site id, e: expiry, i: session id }       12 hours, revocable (sign-out)
+//   download      v1.<payload>.<sig>   payload { s: site id, d: sale id, e: expiry }           7 days, one sale, refund ends it
 //   request       HMAC over `${ts}.${body}` — the site's function asking the Factory to render (stateless; nothing stored there)
 const enc = new TextEncoder()
 const b64u = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -70,6 +71,24 @@ export async function verifySession(secret, token, siteId, now = Date.now()) {
   if (p.s !== siteId) return { ok: false, error: 'wrong site' }
   if (!(p.e > Math.floor(now / 1000))) return { ok: false, error: 'expired' }
   return { ok: true, sid: p.i, exp: p.e }
+}
+
+/**
+ * A buyer's download link: bound to this site and to ONE sale, and it expires (7 days). Made by the Factory (which can compute the
+ * site's secret) when a sale is paid or the owner re-sends it; checked by the site, which also checks the sale is not refunded and
+ * counts the downloads. It carries no buyer detail, only the sale's id.
+ */
+export const DOWNLOAD_TTL_SEC = 7 * 24 * 60 * 60
+export async function mintDownload(secret, siteId, saleId, now = Date.now(), ttlSec = DOWNLOAD_TTL_SEC) {
+  return mint(secret, { k: 'dl', s: siteId, d: String(saleId), e: Math.floor(now / 1000) + ttlSec })
+}
+/** { ok:true, saleId, exp } or { ok:false, error:'invalid'|'expired'|'wrong site' }. */
+export async function verifyDownload(secret, token, siteId, now = Date.now()) {
+  const p = await open(secret, token)
+  if (!p || p.k !== 'dl' || typeof p.d !== 'string' || !p.d) return { ok: false, error: 'invalid' }
+  if (p.s !== siteId) return { ok: false, error: 'wrong site' }
+  if (!(p.e > Math.floor(now / 1000))) return { ok: false, error: 'expired' }
+  return { ok: true, saleId: p.d, exp: p.e }
 }
 
 /** The signature a site's function puts on a request to the Factory. */
