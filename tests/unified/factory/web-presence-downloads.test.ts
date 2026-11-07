@@ -193,6 +193,7 @@ describe('buying', () => {
     expect(m.account).toBe('acct_owner1')
     expect(m.params.line_items[0].price_data).toMatchObject({ currency: 'usd', unit_amount: 9900, product_data: { name: 'Starter Kit', description: 'Single-location license' } })
     expect(m.params.custom_fields[0]).toMatchObject({ key: 'location', optional: false })
+    expect(m.params.allow_promotion_codes).toBe(true)                 // the owner's own discount codes can be entered
     expect(m.params.metadata).toMatchObject({ wp_site: 'site-1', wp_product: 'Starter Kit' })
     expect(m.params.payment_intent_data.metadata).toEqual(m.params.metadata)
     expect(m.params.success_url).toBe(ORIGIN + '/thanks?s={CHECKOUT_SESSION_ID}')
@@ -220,6 +221,19 @@ describe('buying', () => {
 })
 
 describe('a sale', () => {
+  test('a code that takes the price to $0 ("no payment required") still delivers: license, link, both emails; unpaid does not', async () => {
+    const w = await world(); w.linked(); w.withFile()
+    const r = await w.call('/api/buy', { method: 'POST', body: new URLSearchParams({}) })
+    const id = new URL(r.headers.get('location')!).pathname.split('/').pop()!
+    const s = w.stripe.pay(id); s.payment_status = 'unpaid'
+    expect((await handleConnectEvent(w.d, { id: 't-1', stripe_connect_account_id: 'acct_owner1' }, { type: 'checkout.session.completed', data: { object: s } })).status).toBe(200)
+    expect(w.mail).toHaveLength(0)
+    s.payment_status = 'no_payment_required'; s.amount_total = 0
+    await handleConnectEvent(w.d, { id: 't-1', stripe_connect_account_id: 'acct_owner1' }, { type: 'checkout.session.completed', data: { object: s } })
+    const sale = JSON.parse(w.store.m.get('sale:' + s.metadata.wp_sale))
+    expect(sale).toMatchObject({ amountCents: 0, refunded: false }); expect(sale.license).toMatch(/^THS-/)
+    expect(w.mail.map((m) => m.to)).toEqual(['pat@school.test', 'owner@hobby.test'])
+  })
   test('recorded once from Stripe\'s word: license, buyer, where it is licensed for; one email each, however many deliveries', async () => {
     const w = await world(); w.linked(); w.withFile()
     const { s, saleId } = await sell(w)
