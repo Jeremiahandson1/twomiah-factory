@@ -5,7 +5,7 @@
 // Nothing about a site lives anywhere but that site's Blobs. The Factory is asked to DRAW the page from a save (it holds the
 // renderer) and keeps nothing of what it is sent.
 import { cleanLead, cleanApplication, checkResume, checkImage, effectiveForms, RESUME_TYPES, checkDownload, downloadOffer, cleanLine, cleanEmail, cleanLocation } from './clean.mjs'
-import { verifySignin, mintSession, verifySession, signRequest, verifyRequest, rateLimit, hashAddr, randomId, verifyDownload, hmac } from './session.mjs'
+import { verifySignin, mintSession, verifySession, signRequest, verifyRequest, rateLimit, hashAddr, randomId, verifyDownload, hmac, hashPassword, checkPassword, PASSWORD_MIN, PASSWORD_MAX } from './session.mjs'
 import { LIMITS } from './shapes.mjs'
 import { routeOf } from './routes.mjs'
 
@@ -127,9 +127,35 @@ export function createHandler(deps) {
     // needed a strong read, which this function's store cannot do — entry.mjs.)
     const first = await store.set('used:' + v.jti, String(v.exp), { onlyIfNew: true })
     if (first && first.modified === false) return json({ error: 'That link was already used. Ask for a new one.' }, 401)
-    const ses = await mintSession(secret, siteId, now())
-    return json({ ok: true }, 200, { 'set-cookie': `${COOKIE}=${encodeURIComponent(ses)}; Path=/; Max-Age=${12 * 3600}; HttpOnly; Secure; SameSite=Strict` })
+    return json({ ok: true }, 200, { 'set-cookie': sessionCookie(await mintSession(secret, siteId, now())) })
   }
+  // ── the password (Potato-Potahto's manager passcode, done properly: hashed, rate limited, set by the owner) ──
+  const sessionCookie = (ses) => `${COOKIE}=${encodeURIComponent(ses)}; Path=/; Max-Age=${12 * 3600}; HttpOnly; Secure; SameSite=Strict`
+  const getPassword = async () => { const raw = await kv.get('pw'); if (!raw) return null; try { return JSON.parse(raw) } catch { return null } }
+  async function login(req) {
+    if (!secret || !siteId) return json({ error: 'This site is not set up for sign-in.' }, 503)
+    // Per address, and for the whole site (many addresses guessing at once).
+    if (!(await limited(req, 'login', 8, 15 * 60)) || !(await rateLimit(kv, 'login-site', 40, 15 * 60, now())).allowed) return json({ error: 'Too many tries. Please wait 15 minutes, or use the emailed link.' }, 429)
+    let body = null
+    try { body = await req.json() } catch { /* below */ }
+    const password = String((body && body.password) || '')
+    const rec = await getPassword()
+    if (!rec) return json({ error: 'No password is set for this page yet. Use the emailed link, then set one.' }, 401)
+    if (!password || password.length > PASSWORD_MAX || !(await checkPassword(password, rec))) return json({ error: 'That password is not right.' }, 401)
+    return json({ ok: true }, 200, { 'set-cookie': sessionCookie(await mintSession(secret, siteId, now())) })
+  }
+  async function setPassword(req) {
+    const a = await authed(req); if (a.err) return a.err
+    if (!(await limited(req, 'setpw', 10, 3600))) return json({ error: 'Too many changes. Please wait a little.' }, 429)
+    let body = null
+    try { body = await req.json() } catch { /* below */ }
+    const password = String((body && body.password) || '')
+    if (password.length < PASSWORD_MIN) return json({ error: 'Use at least ' + PASSWORD_MIN + ' characters.' }, 400)
+    if (password.length > PASSWORD_MAX) return json({ error: 'That is too long.' }, 400)
+    await kv.set('pw', JSON.stringify(await hashPassword(password)))
+    return json({ ok: true })
+  }
+
   async function signout(req) {
     const a = await authed(req)
     if (a.err) return json({ ok: true }, 200, { 'set-cookie': `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict` })
@@ -605,7 +631,9 @@ export function createHandler(deps) {
       if (r === 'api/domain/status' && m === 'GET') return await domainProxy(req, 'status')
       if (r === 'api/domain/attach' && m === 'POST') return await domainProxy(req, 'attach')
       if (r === 'api/domain/buy' && m === 'POST') return await domainProxy(req, 'buy')
-      if (r === 'api/me' && m === 'GET') return json({ signedIn: !!(await session(req)) })
+      if (r === 'api/me' && m === 'GET') { const sIn = !!(await session(req)); return json({ signedIn: sIn, ...(sIn ? { hasPassword: !!(await getPassword()) } : {}) }) }
+      if (r === 'api/login' && m === 'POST') return await login(req)
+      if (r === 'api/password' && m === 'POST') return await setPassword(req)
       if (r === 'api/buy' && m === 'POST') return await buy(req)
       if (r === 'thanks' && (m === 'GET' || m === 'HEAD')) return await thanks(req, u)
       if (r === 'download' && m === 'GET') return await download(req, u)

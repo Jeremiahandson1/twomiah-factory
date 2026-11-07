@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, test, expect } from 'bun:test'
 import { createHandler } from '../../../apps/api/src/webPresence/site/handler.mjs'
 import { blobsContext, strongReads, purger } from '../../../apps/api/src/webPresence/site/lambda.mjs'
-import { siteSecret, mintSignin, mintSession, signRequest, verifyRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
+import { siteSecret, mintSignin, mintSession, signRequest, verifyRequest, hashPassword, checkPassword } from '../../../apps/api/src/webPresence/site/session.mjs'
 
 const MASTER = 'master-key-for-tests'
 
@@ -530,5 +530,70 @@ describe("the function's Blobs connection and the CDN clearing (lambda.mjs)", ()
     expect(JSON.parse(sent[0].init.body)).toEqual({ site_id: 'nsite-1', cache_tags: ['wp-page'] })
     expect(await purger({ clientContext: { custom: { purge_api_token: 'pt-1' } } }, 'nsite-1', (async () => { throw new Error('x') }) as any)!(['wp-page'])).toBe(false)
     expect(purger({}, 'nsite-1')).toBeNull(); expect(purger({ clientContext: { custom: { purge_api_token: 'pt' } } }, '')).toBeNull()
+  })
+})
+
+describe('the password (a manager passcode, as on Potato-Potahto — hashed, rate limited, set by the owner)', () => {
+  const login = (s: any, password: string, ip = '1.2.3.4') => s.call('api/login', post({ password }), { 'x-wp': '1', 'x-nf-client-connection-ip': ip })
+  test('none set yet: signing in with one is refused, and the owner is told to use the emailed link', async () => {
+    const s = await site()
+    const r = await login(s, 'anything at all')
+    expect(r.status).toBe(401); expect((await r.json()).error).toMatch(/No password is set/)
+  })
+  test('setting one needs a session and 10+ characters; it is stored only as a salted hash', async () => {
+    const s = await site()
+    expect((await s.call('api/password', post({ password: 'correct horse battery' }))).status).toBe(401)
+    expect((await s.call('api/password', post({ password: 'short' }), await s.authed())).status).toBe(400)
+    expect((await s.call('api/password', post({ password: 'correct horse battery' }), await s.authed())).status).toBe(200)
+    const rec = JSON.parse(s.store.m.get('pw'))
+    expect(Object.keys(rec).sort()).toEqual(['hash', 'rounds', 'salt', 'v'])
+    expect(rec.rounds).toBeGreaterThanOrEqual(210000)
+    expect(JSON.stringify(rec)).not.toContain('correct horse')
+  })
+  test('the right password signs in (a session that opens the editor); a wrong one does not', async () => {
+    const s = await site()
+    await s.call('api/password', post({ password: 'correct horse battery' }), await s.authed())
+    const bad = await login(s, 'correct horse batterY')
+    expect(bad.status).toBe(401); expect(bad.headers.get('set-cookie')).toBeNull()
+    const ok = await login(s, 'correct horse battery')
+    expect(ok.status).toBe(200)
+    const cookie = ok.headers.get('set-cookie')!
+    expect(cookie).toMatch(/wp_s=.*HttpOnly.*Secure.*SameSite=Strict/)
+    const model = await s.call('api/model', { method: 'GET' }, { cookie: cookie.split(';')[0], 'x-wp': '1' })
+    expect(model.status).toBe(200)
+  })
+  test('guessing is stopped: 8 tries per address in 15 minutes, and 40 for the whole site', async () => {
+    const s = await site()
+    await s.call('api/password', post({ password: 'correct horse battery' }), await s.authed())
+    let last = 0
+    for (let i = 0; i < 9; i++) last = (await login(s, 'wrong guess ' + i)).status
+    expect(last).toBe(429)
+    expect((await login(s, 'correct horse battery')).status).toBe(429)                 // even the right one, from that address, waits
+    expect((await login(s, 'correct horse battery', '5.6.7.8')).status).toBe(200)      // another address is not blocked by it
+  })
+  test('"am I signed in" says whether a password is set — only to someone signed in', async () => {
+    const s = await site()
+    expect(await (await s.call('api/me', { method: 'GET' })).json()).toEqual({ signedIn: false })
+    expect(await (await s.call('api/me', { method: 'GET' }, await s.authed())).json()).toEqual({ signedIn: true, hasPassword: false })
+    await s.call('api/password', post({ password: 'correct horse battery' }), await s.authed())
+    expect(await (await s.call('api/me', { method: 'GET' }, await s.authed())).json()).toEqual({ signedIn: true, hasPassword: true })
+  })
+  test('the emailed link still signs in (the "forgot password" way), and a session from it can set a new password', async () => {
+    const s = await site()
+    await s.call('api/password', post({ password: 'first password here' }), await s.authed())
+    const tok = await mintSignin(s.secret, 'site-a', s.t.now)
+    const viaLink = await s.call('api/signin', post({ token: tok }))
+    expect(viaLink.status).toBe(200)
+    const cookie = viaLink.headers.get('set-cookie')!.split(';')[0]
+    expect((await s.call('api/password', post({ password: 'second password here' }), { cookie, 'x-wp': '1' })).status).toBe(200)
+    expect((await login(s, 'first password here')).status).toBe(401)
+    expect((await login(s, 'second password here')).status).toBe(200)
+  })
+  test('hashPassword / checkPassword: a fresh salt each time; the wrong password, or a damaged record, never passes', async () => {
+    const a = await hashPassword('same password 123', 1000), b = await hashPassword('same password 123', 1000)
+    expect(a.salt).not.toBe(b.salt); expect(a.hash).not.toBe(b.hash)
+    expect(await checkPassword('same password 123', a)).toBe(true)
+    expect(await checkPassword('same password 124', a)).toBe(false)
+    for (const rec of [null, {}, { ...a, v: 2 }, { ...a, hash: 1 }, { ...a, rounds: 0 }]) expect(await checkPassword('same password 123', rec)).toBe(false)
   })
 })

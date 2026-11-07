@@ -15,3 +15,8 @@ export function hashAddr(secret: string, addr: string): Promise<string>
 export const DOWNLOAD_TTL_SEC: number
 export function mintDownload(secret: string, siteId: string, saleId: string, now?: number, ttlSec?: number): Promise<string>
 export function verifyDownload(secret: string, token: string, siteId: string, now?: number): Promise<{ ok: boolean; error?: string; saleId: string; exp: number }>
+export const PASSWORD_ROUNDS: number
+export const PASSWORD_MIN: number
+export const PASSWORD_MAX: number
+export function hashPassword(password: string, rounds?: number): Promise<{ v: number; salt: string; rounds: number; hash: string }>
+export function checkPassword(password: string, rec: any): Promise<boolean>
