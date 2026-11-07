@@ -26,6 +26,7 @@ import { useVertical } from '../../src/vertical/VerticalContext'
 import { cashCents, declaredBody } from '../../src/trades/shiftRequests'
 import { tapPlace } from '../../src/location/tapPlace'
 import { Screen, Card, DText, Badge, Button, Chip, ChipRow, TextField, space } from '../../src/design'
+import { clockInExtras } from '../../src/trades/contractor'
 
 const two = (n: number) => String(n).padStart(2, '0')
 const elapsed = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${two(Math.floor(s / 3600))}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}` }
@@ -46,6 +47,12 @@ export default function ClockScreen() {
   const [active, setActive] = useState<any>(null)
   const [jobs, setJobs] = useState<Array<{ id: string; title: string; number?: string }>>([])
   const [jobId, setJobId] = useState<string | null>(null)
+  // The contractor's clock (row 11, contractor_phone): hours against a project and one of its cost codes.
+  const byProject = hasFeature('contractor_phone') && hasFeature('projects')
+  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [codes, setCodes] = useState<string[]>([])
+  const [costCode, setCostCode] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,8 +66,18 @@ export default function ClockScreen() {
     const [a, j] = await Promise.all([get('/api/time/active'), get('/api/jobs/today')])
     if (a.ok) setActive(a.data || null)
     if (j.ok) { const rows = Array.isArray(j.data) ? j.data : j.data?.data; if (Array.isArray(rows)) setJobs(rows.map((r: any) => ({ id: r.id, title: r.title, number: r.number }))) }
+    if (byProject) {
+      const p = await get('/api/projects?status=active&limit=50')
+      if (p.ok) { const rows = Array.isArray(p.data) ? p.data : p.data?.data; if (Array.isArray(rows)) setProjects(rows.map((r: any) => ({ id: r.id, name: r.name || r.number }))) }
+    }
     setLoaded(true)
-  }, [])
+  }, [byProject])
+  // A project chosen: its cost codes, by name (the server's /api/project-phone answers names only).
+  useEffect(() => {
+    setCostCode(null); setCodes([])
+    if (!projectId) return
+    void get(`/api/project-phone/${projectId}/cost-codes`).then((r) => { if (r.ok && Array.isArray(r.data?.codes)) setCodes(r.data.codes) })
+  }, [projectId])
   useEffect(() => { void load() }, [load])
   // What is waiting changes (sent, refused): read the server's clock again.
   const sig = queue.filter((q) => q.recordKey === clockKey(userId)).map((q) => `${q.id}:${q.state}`).join(',')
@@ -77,7 +94,7 @@ export default function ClockScreen() {
     const cents = which === 'out' && declares ? cashCents(cash) : null
     if (cents !== null && !Number.isFinite(cents)) { setBusy(false); setProblem('Type the cash tips in dollars, like 12.50, or leave the box empty.'); return }
     const r = which === 'in'
-      ? await post('/api/time/clock-in', tapBody(tapped, { ...where, source: 'phone', ...(jobId ? { jobId } : {}) }), { ...key, label: 'Clock in' })
+      ? await post('/api/time/clock-in', tapBody(tapped, { ...where, source: 'phone', ...clockInExtras(jobId, byProject ? projectId : null, costCode) }), { ...key, label: 'Clock in' })
       : await post('/api/time/clock-out', tapBody(tapped, { ...where, ...(note.trim() ? { description: note.trim() } : {}) }), { ...key, label: 'Clock out' })
     // The cash tips ride the same record key, so they are sent after the clock-out and land on the night it was tapped.
     let tipSaved = false
@@ -146,6 +163,24 @@ export default function ClockScreen() {
                     <Chip label="No job" selected={!jobId} onPress={() => setJobId(null)} />
                     {jobs.map((j) => <Chip key={j.id} label={j.title} selected={jobId === j.id} onPress={() => setJobId(j.id)} />)}
                   </ChipRow>
+                </View>
+              ) : null}
+              {byProject && projects.length ? (
+                <View style={{ gap: space[1] }}>
+                  <DText variant="captionStrong" tone="textSecondary">Which project? (optional)</DText>
+                  <ChipRow>
+                    <Chip label="No project" selected={!projectId} onPress={() => setProjectId(null)} />
+                    {projects.map((p) => <Chip key={p.id} label={p.name} selected={projectId === p.id} onPress={() => setProjectId(p.id)} />)}
+                  </ChipRow>
+                  {projectId && codes.length ? (
+                    <>
+                      <DText variant="captionStrong" tone="textSecondary">Cost code</DText>
+                      <ChipRow>
+                        <Chip label="None" selected={!costCode} onPress={() => setCostCode(null)} />
+                        {codes.map((c) => <Chip key={c} label={c} selected={costCode === c} onPress={() => setCostCode(c)} />)}
+                      </ChipRow>
+                    </>
+                  ) : null}
                 </View>
               ) : null}
               <Button size="lg" fullWidth label="Clock in" icon="play" loading={busy} onPress={() => tap('in')} />

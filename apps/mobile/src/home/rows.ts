@@ -5,10 +5,11 @@ const money = (v: unknown) => `$${(Number(v) || 0).toLocaleString('en-US', { min
 const words = (s: unknown) => String(s ?? '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 const day = (v: unknown) => { const d = new Date(String(v ?? '')); return Number.isNaN(d.getTime()) ? undefined : d.toLocaleDateString() }
 
-export function rowView(tileId: string, r: any, i: number): RowView {
+/** `projectScreens`: the business has the contractor's project screens on (contractor_phone): a project row opens its page. */
+export function rowView(tileId: string, r: any, i: number, opts: { projectScreens?: boolean } = {}): RowView {
   switch (tileId) {
     case 'active-projects':
-      return { key: r.id, title: r.name || r.number || 'Project', subtitle: [r.number, r.city].filter(Boolean).join(' · ') || undefined, badge: words(r.status) }
+      return { key: r.id, title: r.name || r.number || 'Project', subtitle: [r.number, r.city].filter(Boolean).join(' · ') || undefined, badge: words(r.status), ...(opts.projectScreens ? { to: `/(details)/t/con-projects/${r.id}` } : {}) }
     case 'inventory':
       return { key: r.id, title: [r.year, r.make, r.modelName].filter(Boolean).join(' ') || 'Unit', subtitle: r.stockNumber ? `Stock ${r.stockNumber}` : undefined,
         meta: r.internetPrice ? money(r.internetPrice) : undefined, to: `/(details)/unit/${r.id}` }

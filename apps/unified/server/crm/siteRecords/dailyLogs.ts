@@ -140,6 +140,31 @@ export function createDailyLogRoutes(d: CrmDeps) {
     return one(c, log, 201)
   })
 
+  /**
+   * TODAY'S LOG FROM THE PHONE (contractor parity row 11; Buildertrend / JobTread's mobile daily logs). The phone's offline queue
+   * may send a save twice (it is at-least-once), so this is "my log for this project today": it files it, or — the same person, the
+   * same project, the same day (rule 4) — writes what is sent over the one already filed, inside rule 2's window. It answers the
+   * log either way, so a retry after a lost reply is the same log, never a second one and never a 409.
+   */
+  app.put('/mine/:projectId/today', requirePermission('daily-logs:create'), async (c) => {
+    const me = c.get('user') as any
+    const projectId = c.req.param('projectId')
+    const data = partialOf(schema).parse({ ...(await c.req.json().catch(() => ({}))), projectId })
+    const [p] = await db.select({ id: project.id }).from(project).where(and(eq(project.id, projectId), eq(project.companyId, me.companyId))).limit(1)
+    if (!p) return fail(c, 404, 'Project not found')
+    const tz = await companyTimeZone(db, me.companyId)
+    const today = dayIn(tz, new Date())
+    const mine: any[] = await db.select().from(dailyLog).where(and(eq(dailyLog.companyId, me.companyId), eq(dailyLog.projectId, projectId), eq(dailyLog.userId, me.userId)))
+    const filed = mine.find((l) => markerDay(new Date(l.date)) === today)
+    const { date: _d, projectId: _p, ...fields } = data as any
+    if (filed) {
+      const [row] = await db.update(dailyLog).set({ ...fields, updatedAt: new Date() }).where(eq(dailyLog.id, filed.id)).returning()
+      return one(c, withUrls(row))
+    }
+    const [row] = await db.insert(dailyLog).values({ ...fields, projectId, date: dayMarker(today), companyId: me.companyId, userId: me.userId }).returning()
+    return one(c, withUrls(row), 201)
+  })
+
   app.put('/:id', requirePermission('daily-logs:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')

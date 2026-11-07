@@ -1,5 +1,6 @@
 /** A trade's list screen, drawn from its spec (kit.ts): chips, search, rows that open the detail, list-level actions. */
 import React, { useMemo, useState } from 'react'
+import { fillPath } from './kit'
 import { View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Screen, Group, ListRow, EmptyState, SkeletonRows, Button, ChipRow, Chip, SearchField, space } from '../design'
@@ -25,7 +26,10 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
     if (!spec) return null
     const query = fillDates({ ...(spec.list.query || {}), ...(spec.chips?.find((c) => c.id === chip)?.query || {}), ...(params || {}) })
     if (spec.search && q.trim()) query[spec.search.param] = q.trim()
-    return reqUrl({ path: spec.list.path, query })
+    // A path that names a parameter (/api/selections/project/{projectId}) takes it from the list's params, not the query.
+    const path = fillPath(spec.list.path, query)
+    if (!path) return null
+    return reqUrl({ path, query })
   }, [spec, chip, q, params])
   const { rows, total, loading, error, refresh, loadMore } = useList(spec && mayUse(spec, can, hasFeature) ? url : null, 25, spec?.pick)
   if (!spec) return <Screen title="Not found"><EmptyState icon="alert-circle" title="This screen is not available" body="Open it again from the home screen." /></Screen>

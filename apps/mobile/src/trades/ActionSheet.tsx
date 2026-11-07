@@ -1,11 +1,12 @@
 /** The sheet every kit write goes through: the words that say what will happen (confirm), the inputs, the button — and the server's own refusal shown as it came. */
 import React, { useEffect, useState } from 'react'
-import { PanResponder, View } from 'react-native'
+import { Image, PanResponder, View } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { BottomSheet, Button, DText, TextField, Chip, space } from '../design'
 import { api, get } from '../api/client'
 import { useToast } from '../components/ToastProvider'
 import { useOfflineApi } from '../offline/useOfflineApi'
-import { unwrap, type Action } from './kit'
+import { unwrap, photoUris, type Action } from './kit'
 import { useVertical } from '../vertical/VerticalContext'
 
 /** A 'levels' value is a JSON list of percents; anything else reads as none. */
@@ -68,6 +69,14 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
     }
   }, [action, row])
   useEffect(() => { if (action) setValues(Object.fromEntries((action.inputs || []).map((i) => [i.id, i.initial?.(row) ?? '']))) }, [action, row])
+  // Pictures for a 'photos' input: the camera's file addresses, kept as a JSON list in the value (kit.ts photoUris).
+  const addPhoto = async (id: string, camera: boolean) => {
+    const ask = camera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (ask.status !== 'granted') { toast.show(camera ? 'Camera access is needed. Allow it in your phone’s settings.' : 'Photo access is needed. Allow it in your phone’s settings.', 'warning'); return }
+    const r = camera ? await ImagePicker.launchCameraAsync({ quality: 0.7 }) : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsMultipleSelection: true, selectionLimit: 10 } as any)
+    if (r.canceled) return
+    setValues((v) => ({ ...v, [id]: JSON.stringify([...photoUris(v[id]), ...r.assets.map((a) => a.uri)].slice(0, 20)) }))
+  }
   const run = async () => {
     if (!action) return
     const missing = (action.inputs || []).find((i) => i.required && !String(values[i.id] ?? '').trim())
@@ -101,6 +110,21 @@ export function ActionSheet({ action, row, onClose, onDone }: { action: Action |
               {!offered[inp.id] ? <DText variant="callout" tone="textSecondary">{inp.options.loading ?? 'Getting prices…'}</DText>
                 : offered[inp.id].none ? <DText variant="callout" tone="textSecondary">{offered[inp.id].none}</DText>
                 : <View style={{ gap: space[2] }}>{Object.keys(offered[inp.id].map).map((c) => <Button key={c} label={c} variant={values[inp.id] === c ? 'primary' : 'secondary'} fullWidth onPress={() => setValues((v) => ({ ...v, [inp.id]: c }))} />)}</View>}</View>
+          ) : inp.kind === 'photos' ? (
+            <View key={inp.id} style={{ gap: space[2] }}><DText variant="bodyStrong">{inp.label}</DText>
+              {photoUris(values[inp.id]).length ? (
+                <Wrap>{photoUris(values[inp.id]).map((u, i) => (
+                  <View key={u} style={{ alignItems: 'center', gap: space[1] }}>
+                    <Image source={{ uri: u }} style={{ width: 72, height: 72, borderRadius: 8 }} accessibilityLabel={`Photo ${i + 1}`} />
+                    <Button label="Remove" variant="ghost" onPress={() => setValues((v) => ({ ...v, [inp.id]: JSON.stringify(photoUris(v[inp.id]).filter((x) => x !== u)) }))} />
+                  </View>
+                ))}</Wrap>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: space[2] }}>
+                <Button label="Take a photo" icon="camera" variant="secondary" onPress={() => { void addPhoto(inp.id, true) }} />
+                <Button label="Pick photos" icon="images" variant="secondary" onPress={() => { void addPhoto(inp.id, false) }} />
+              </View>
+            </View>
           ) : inp.kind === 'choice' ? (
             <View key={inp.id} style={{ gap: space[1] }}><DText variant="bodyStrong">{inp.label}</DText>
               <Wrap>{(inp.choices || []).map((c) => <Chip key={c} label={c.replace(/_/g, ' ')} selected={values[inp.id] === c} onPress={() => setValues((v) => ({ ...v, [inp.id]: c }))} />)}</Wrap></View>
