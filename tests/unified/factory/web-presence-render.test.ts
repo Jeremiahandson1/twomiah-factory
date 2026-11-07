@@ -147,7 +147,10 @@ describe('the published page', () => {
       expect(html).toContain('<a class="gallery-slideshow__open" href="/media?h=' + String(n).repeat(40) + '" data-open="' + (n - 1) + '" aria-label="See it large: Page ' + n + '">')
     }
     expect(html).toMatch(/gallery-slideshow__controls" hidden data-controls/)         // the arrows appear only when the script runs
-    expect(html).not.toContain('target="_blank"')
+    // no new tab from the slideshow (the page may have other links that open one: the footer's photo credits)
+    const show = html.slice(html.indexOf('<section class="gallery-section gallery-slideshow"'), html.indexOf('</section>', html.indexOf('<section class="gallery-section gallery-slideshow"')))
+    expect(show.length).toBeGreaterThan(100)
+    expect(show).not.toContain('target="_blank"')
     expect(html).toMatch(/<div class="gallery-viewer" role="dialog" aria-modal="true" aria-label="Take a look inside, large" hidden data-viewer>/)
     expect(html).toContain('data-viewer-close aria-label="Close"')
     expect(html).not.toMatch(/setInterval|autoplay/i)
