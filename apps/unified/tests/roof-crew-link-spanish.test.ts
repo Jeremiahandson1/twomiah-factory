@@ -31,3 +31,10 @@ test('a Spanish crew page has no English fixed words left', async () => {
   for (const en of ['Add photos', 'Work order', 'Your photos', 'Photos from the office', 'Mark this work done']) expect(text).not.toContain(en)
   expect(el.querySelector('img')?.getAttribute('alt')).toBe('Foto del trabajo')
 })
+
+test('the lead-in the app puts on a scope made from a proposal is Spanish; the office words after it stay as written', async () => {
+  const { spanishLeadIn } = await import('../server/crm/roof/crewLink.ts')
+  expect(spanishLeadIn('From signed proposal QTE-00001 — Roof replacement:\n• Tear off')).toBe('De la propuesta firmada QTE-00001 — Roof replacement:\n• Tear off')
+  expect(spanishLeadIn('Just the office text')).toBe('Just the office text')
+  expect(spanishLeadIn(null)).toBeNull()
+})

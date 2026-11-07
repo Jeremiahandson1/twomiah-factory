@@ -332,7 +332,7 @@ export function createWorkOrderRoutes(d: CrmDeps) {
     const onlyStart = !!raw && typeof raw === 'object' && Object.keys(raw).every((k) => k === 'startDate')
     const reschedulable = ['accepted', 'in_progress'].includes(row.status) && onlyStart && data.startDate !== undefined
     if (!['draft', 'sent', 'rejected'].includes(row.status) && !reschedulable) {
-      return fail(c, 409, row.status === 'accepted' ? 'The crew has accepted it. You can still move its start date; cancel it and make a new one if the work has changed.' : `A ${row.status} work order cannot be changed.`, 'wrong_status')
+      return fail(c, 409, row.status === 'accepted' ? 'The crew has accepted it. You can still move its start date; cancel it and make a new one if the work has changed.' : `A work order that is ${({ in_progress: 'in progress', completed: 'done', cancelled: 'cancelled' } as Record<string, string>)[row.status] || String(row.status).replace(/_/g, ' ')} cannot be changed${['in_progress'].includes(row.status) ? ' — only its start date can move' : ''}.`, 'wrong_status')
     }
     if (data.price !== undefined && !(await maySeePrice(c))) return fail(c, 403, 'What a crew is paid is the shop\u2019s cost. Ask an owner or manager to change the price.', 'work_order_price_not_permitted')
     const set: Record<string, unknown> = { updatedAt: new Date() }

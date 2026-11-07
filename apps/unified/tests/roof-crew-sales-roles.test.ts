@@ -31,6 +31,8 @@ test('a Crew login reads the price list without its prices, and its menu has no 
   const signed = await login('crew@roofer.example', PASS)
   tok.crew = signed.accessToken
   expect(signed.permissions).not.toContain('prices:read')
+  // Its own word, not the code (re-check 11/07: Users read "Sales_rep").
+  expect(signed.user.roleLabel).toBe('Crew')
   const perms = await json(await call('crew', '/api/auth/permissions'))
   expect(perms.body.role).toBe('field')
   const items = await json(await call('crew', '/api/pricebook/items'))
@@ -46,6 +48,7 @@ test('a Sales rep quotes from the prices (but not the cost), as Field always has
   const signed = await login('sales_rep@roofer.example', PASS)
   tok.rep = signed.accessToken
   expect(signed.permissions).toContain('prices:read')
+  expect(signed.user.roleLabel).toBe('Sales rep')
   const list = ((await json(await call('rep', '/api/pricebook/items'))).body.data)
   expect(Number(list[0].price)).toBe(180)
   expect(list[0].cost).toBeUndefined()

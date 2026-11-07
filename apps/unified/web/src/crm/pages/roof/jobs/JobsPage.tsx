@@ -348,7 +348,8 @@ export default function JobsPage() {
       {/* Create Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+          {/* Scrolls inside the window: with the insurance boxes the form ran past the bottom and Create Job could not be reached (re-check 11/07). */}
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()} data-testid="new-job-dialog">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Briefcase className="w-5 h-5 text-blue-600 dark:text-blue-400" /> New Job
             </h2>
