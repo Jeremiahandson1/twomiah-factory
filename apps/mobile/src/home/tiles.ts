@@ -72,6 +72,10 @@ const jobsFamily = (jobsToday: string): TileDef[] => [
 
 // ── roofing ─────────────────────────────────────────────────────────────────────────────────────────────────
 const ROOF: TileDef[] = [
+  // Roofing parity row 29 (crew_app, not ready): a crew member's own work orders — what needs an answer, what is going.
+  { id: 'my-work-orders', label: 'My work orders', icon: 'clipboard', tone: 'accent', any: ['jobs:read'], feature: 'crew_app', source: '/api/crew-orders',
+    value: (b) => (Array.isArray(b?.data) ? b.data.filter((o: any) => o.status !== 'completed').length : undefined),
+    opens: "your crew's work orders", list: { path: '/api/crew-orders' }, screen: 'trade', spec: 'roof-crew-orders', total: paged, banner: 'My work orders' },
   { id: 'new-leads', label: 'New leads', icon: 'person-add', tone: 'accent', any: ['leads:read'], source: STATS, value: (s) => s?.newLeads,
     opens: 'the new leads', list: { path: '/api/dashboard/new-leads' }, screen: 'new-leads', total: paged, banner: 'New leads' },
   { id: 'inspections-today', label: 'Inspections today', icon: 'search', tone: 'info', any: ['jobs:read'], source: STATS, value: (s) => s?.jobs?.inspectionsToday,

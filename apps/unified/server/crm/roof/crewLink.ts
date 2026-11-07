@@ -39,26 +39,12 @@ const rejectSchema = z.object({ name: nameSchema, reason: z.string().trim().min(
 const acceptSchema = z.object({ name: nameSchema })
 const completeSchema = z.object({ note: z.string().trim().max(2000).optional(), name: z.string().trim().max(80).optional() })
 
-export function createCrewLinkRoutes(d: CrmDeps) {
+/**
+ * What the crew sees of a work order — shared by the no-sign-in link (below) and the phone app's crew screen (roofing parity row 29,
+ * crm/roof/crewOrders.ts): the work and nothing about the homeowner, the price, or any other record.
+ */
+export function createCrewView(d: CrmDeps) {
   const { db } = d
-  const app = new Hono<AppEnv & { Variables: { wo: any } }>()
-  // Guessing: an address that keeps missing is shut out and gets the same "not valid" a wrong token gets (never a 429).
-  const guesses = createGuessLimiter(TOKEN_GUESS_WINDOW_MS, TOKEN_GUESS_MAX)
-
-  // Every door below: the token names the work order (c.get('wo')), or the door is shut.
-  app.use('/:token', tokenGate)
-  app.use('/:token/*', tokenGate)
-  async function tokenGate(c: any, next: any) {
-    const token = c.req.param('token')
-    if (guesses.shut(c)) return fail(c, 404, 'This link is not valid.')
-    if (!isDocumentToken(token)) { guesses.miss(c); return fail(c, 404, 'This link is not valid.') }
-    const [row] = await db.select().from(workOrder).where(eq(workOrder.publicToken, token)).limit(1)
-    if (!row) { guesses.miss(c); return fail(c, 404, 'This link is not valid.') }
-    if (row.tokenExpiresAt && new Date(row.tokenExpiresAt) < new Date()) return fail(c, 410, 'This link has run out. Ask the office to send you a new one.', 'link_expired')
-    c.set('wo', row)
-    await next()
-  }
-
   const photoUrl = (token: string, id: string) => `/api/crew-link/${token}/photos/${id}`
 
   /** What the crew sees: the work and nothing about the homeowner, the price, or any other record. */
@@ -89,6 +75,31 @@ export function createCrewLinkRoutes(d: CrmDeps) {
       cancelled: row.status === 'cancelled', open,
     }
   }
+  return crewView
+}
+
+export function createCrewLinkRoutes(d: CrmDeps) {
+  const { db } = d
+  const app = new Hono<AppEnv & { Variables: { wo: any } }>()
+  // Guessing: an address that keeps missing is shut out and gets the same "not valid" a wrong token gets (never a 429).
+  const guesses = createGuessLimiter(TOKEN_GUESS_WINDOW_MS, TOKEN_GUESS_MAX)
+
+  // Every door below: the token names the work order (c.get('wo')), or the door is shut.
+  app.use('/:token', tokenGate)
+  app.use('/:token/*', tokenGate)
+  async function tokenGate(c: any, next: any) {
+    const token = c.req.param('token')
+    if (guesses.shut(c)) return fail(c, 404, 'This link is not valid.')
+    if (!isDocumentToken(token)) { guesses.miss(c); return fail(c, 404, 'This link is not valid.') }
+    const [row] = await db.select().from(workOrder).where(eq(workOrder.publicToken, token)).limit(1)
+    if (!row) { guesses.miss(c); return fail(c, 404, 'This link is not valid.') }
+    if (row.tokenExpiresAt && new Date(row.tokenExpiresAt) < new Date()) return fail(c, 410, 'This link has run out. Ask the office to send you a new one.', 'link_expired')
+    c.set('wo', row)
+    await next()
+  }
+
+  const crewView = createCrewView(d)
+  const photoUrl = (token: string, id: string) => `/api/crew-link/${token}/photos/${id}`
 
   async function jobNoteFor(row: any, body: string) {
     const [jobRow] = await db.select().from(job).where(and(eq(job.id, row.jobId), eq(job.companyId, row.companyId))).limit(1)

@@ -369,6 +369,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  // NOT READY until the owner has tested it: the crew's work orders in the phone app (roofing parity row 29; apps/unified server/crm/roof/crewOrders.ts).
+  { id: 'crew_app', name: 'Crew work orders in the phone app', description: 'A crew member signed in to the phone app sees their crew’s work orders and accepts, turns down, starts and finishes them — with no signal too', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: crew scheduling and on site (roofing parity row 28; apps/unified server/data/crewScheduling.ts).
   { id: 'crew_scheduling', name: 'Crew scheduling and on site', description: 'Sent work orders on the schedule, the crew texted when one moves, I’m here / Leaving for now with office alerts, an on-site checklist, an in-progress status, and each crew’s trades and certificates with their expiry', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: work order send options (roofing parity row 27; apps/unified server/crm/roof/workOrders.ts).

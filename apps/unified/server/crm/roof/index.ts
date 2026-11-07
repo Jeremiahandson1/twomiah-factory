@@ -22,6 +22,7 @@ import { createJobBooksRoutes } from './jobBooks.ts'
 import { createWorksheetRoutes } from './worksheetRoutes.ts'
 import { createInvoiceRequestRoutes } from './invoiceRequests.ts'
 import { createCardPaymentRoutes } from './cardSurcharge.ts'
+import { createCrewOrderRoutes } from './crewOrders.ts'
 import { REQUESTS_FEATURE, cancelWhenPaid, sendReceipts } from '../../data/invoiceRequests.ts'
 import { invoice as invoiceTable } from '../../db/schema/index.ts'
 
@@ -67,6 +68,8 @@ export function roofMounts(d: CrmDeps): Mount[] {
     { path: '/api/invoice-requests', access: 'user', router: createInvoiceRequestRoutes(d) },
     // Row 18: the card surcharge setting and the payouts view (card_surcharge / payments_overview, read per request).
     { path: '/api/card-payments', access: 'user', router: createCardPaymentRoutes(d) },
+    // Row 29: a crew member's work orders in the phone app (crew_app, read per request).
+    { path: '/api/crew-orders', access: 'user', router: createCrewOrderRoutes(d) },
     // The stage names (pipeline_boards) and, row 19, the company's own boards (pipeline_custom_boards): each route asks its own switch.
     { path: '/api/roof-pipeline', access: 'user', feature: ['pipeline_boards', 'pipeline_custom_boards', 'pipeline_statuses'], router: createPipelineRoutes(d) },
     ...inspectionMounts(d),
