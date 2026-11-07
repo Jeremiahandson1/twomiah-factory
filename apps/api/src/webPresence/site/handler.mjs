@@ -30,8 +30,16 @@ function cookieOf(req, name) {
 }
 
 /** createHandler({ store, env, fetchImpl, now, initial, spec, editorHtml }) → async (Request) => Response */
+/** The CDN tag on this site's pages (the page and its privacy page): a save clears exactly these. */
+const PAGE_TAG = 'wp-page'
+
 export function createHandler(deps) {
   const { store, env, fetchImpl = fetch, initial, spec } = deps
+  // fresh: every read is strong (entry.mjs). purge: clears tagged pages at the CDN. Both together let a page be cached until the next
+  // save; without either, a page is cached for a minute at most.
+  const fresh = deps.fresh === true, purge = typeof deps.purge === 'function' ? deps.purge : null
+  const longCache = fresh && !!purge
+  const clearPages = async () => { if (purge) { try { await purge([PAGE_TAG]) } catch { /* the minute-long cache, or the next save */ } } }
   const now = deps.now || (() => Date.now())
   const siteId = String(env.WP_SITE_ID || '')
   const secret = String(env.WP_SECRET || '')
@@ -70,8 +78,14 @@ export function createHandler(deps) {
   async function page(which) {
     const saved = await kv.get(which === 'privacy' ? 'privacy' : 'page')
     const body = saved || (which === 'privacy' ? initial.privacy : initial.index)
-    // The CDN may keep a copy for a minute: an edit shows within a minute, and a visit costs a function run only when it expires.
-    return html(body, 200, { 'cache-control': 'public, max-age=0, must-revalidate', 'netlify-cdn-cache-control': 'public, max-age=60, stale-while-revalidate=600' })
+    // Tagged, so a save clears it from the CDN at once (clearPages). Kept until then (a day at most) when reads are strong and the
+    // clearing is available; otherwise a minute, with no stale tail. Browsers always ask again.
+    return html(body, 200, {
+      'cache-control': 'public, max-age=0, must-revalidate',
+      'netlify-cdn-cache-control': longCache ? 'public, durable, max-age=86400' : 'public, max-age=60',
+      'netlify-cache-tag': PAGE_TAG,
+      'x-wp-read': fresh ? 'strong' : 'eventual',
+    })
   }
 
   // The page's stylesheet: the one saved with the page (the editor's last save, or the Factory's adopt), else the one deployed with
@@ -174,6 +188,7 @@ export function createHandler(deps) {
     await kv.set('model', JSON.stringify(out.model))
     await kv.set('page', out.files['index.html'])
     await kv.set('privacy', out.files['privacy/index.html'] || initial.privacy)
+    await clearPages()
     return json({ ok: true, model: out.model, notes: out.notes || [] })
   }
 
@@ -309,6 +324,7 @@ export function createHandler(deps) {
     await kv.set('model', JSON.stringify(b.model))
     await kv.set('page', b.page)
     if (typeof b.privacy === 'string') await kv.set('privacy', b.privacy)
+    await clearPages()
     return json({ ok: true })
   }
 
