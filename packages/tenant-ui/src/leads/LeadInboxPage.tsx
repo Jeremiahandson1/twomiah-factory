@@ -216,11 +216,11 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
         <form onSubmit={(e) => { e.preventDefault(); saveLead() }} data-testid="add-lead-form" style={{ border: `1px solid ${c.inputBorder}`, borderRadius: 8, padding: 16, marginBottom: 16, background: c.surface, display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           {([['name', 'Name *', 'text'], ['phone', 'Phone', 'tel'], ['email', 'Email', 'email'], ['jobType', jobTypeLabel, 'text'], ['location', 'Address or area', 'text']] as Array<[keyof typeof NEW_LEAD, string, string]>).map(([k, label, type]) => (
             <label key={k} style={{ display: 'grid', gap: 4, fontSize: 13 }}>{label}
-              <input type={type} value={adding[k]} onChange={(e) => setAdding({ ...adding, [k]: e.target.value })} style={{ padding: '8px 10px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text }} />
+              <input type={type} value={adding[k]} onChange={(e) => { const v = e.target.value; setAdding((s) => (s ? { ...s, [k]: v } : s)) }} style={{ padding: '8px 10px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text }} />
             </label>
           ))}
           <label style={{ display: 'grid', gap: 4, fontSize: 13, gridColumn: '1 / -1' }}>What they need
-            <textarea rows={2} value={adding.description} onChange={(e) => setAdding({ ...adding, description: e.target.value })} style={{ padding: '8px 10px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text }} />
+            <textarea rows={2} value={adding.description} onChange={(e) => { const v = e.target.value; setAdding((s) => (s ? { ...s, description: v } : s)) }} style={{ padding: '8px 10px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text }} />
           </label>
           <div style={{ display: 'flex', gap: 8, gridColumn: '1 / -1' }}>
             <button type="submit" disabled={busy === 'add'} style={btn()}>Save lead</button>

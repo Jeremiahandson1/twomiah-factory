@@ -372,7 +372,7 @@ export default function JobsPage() {
                   {([['insuranceCompany', 'Insurance company', 'e.g. State Farm', 'text'], ['claimNumber', 'Claim number', '', 'text'], ['adjusterName', 'Adjuster', '', 'text'], ['adjusterPhone', 'Adjuster phone', '', 'tel'], ['dateOfLoss', 'Date of loss', '', 'date']] as Array<[keyof JobForm, string, string, string]>).map(([k, label, ph, type]) => (
                     <div key={k}>
                       <label htmlFor={`roof-new-${k}`} className="text-xs text-gray-500 block mb-1 dark:text-slate-400">{label}</label>
-                      <input id={`roof-new-${k}`} type={type} placeholder={ph} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                      <input id={`roof-new-${k}`} type={type} placeholder={ph} value={form[k]} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, [k]: v })) }} className="w-full text-sm border rounded-lg px-3 py-2" />
                     </div>
                   ))}
                 </fieldset>
