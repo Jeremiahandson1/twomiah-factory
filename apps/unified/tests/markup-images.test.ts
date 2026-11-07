@@ -19,8 +19,9 @@ const PNG = await sharp({ create: { width: 8, height: 8, channels: 3, background
 const picForm = (file: File = new File([new Uint8Array(PNG)], 'tile.png', { type: 'image/png' })) => { const fd = new FormData(); fd.append('file', file); return fd }
 
 describe('the features', () => {
-  // Pictures on quote lines are also landscaping's (landscaping parity row 7, Jobber Grow line images).
-  test.each([['markup_defaults', ['crm']], ['quote_line_images', ['crm', 'crm-landscaping']]] as const)('%s is registered, not ready, and offered to %p', (id, templates) => {
+  // Pictures on quote lines are also landscaping's (landscaping parity row 7, Jobber Grow line images); markup defaults too (row 27:
+  // the active budget's markups fill them).
+  test.each([['markup_defaults', ['crm', 'crm-landscaping']], ['quote_line_images', ['crm', 'crm-landscaping']]] as const)('%s is registered, not ready, and offered to %p', (id, templates) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
     expect(f.hidden).toBe(true)

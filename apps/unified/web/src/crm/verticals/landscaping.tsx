@@ -4,7 +4,7 @@
 // VerticalSettings.screens.
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { Route as RouteIcon, Ruler, Snowflake, MessageSquareText } from 'lucide-react'
+import { Route as RouteIcon, Ruler, Snowflake, MessageSquareText, Calculator } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -12,6 +12,7 @@ const RecurringRoutesPage = page(() => import('../pages/landscaping/RecurringRou
 const AreaPricingPage = page(() => import('../pages/landscaping/AreaPricingPage'))
 const SnowBillingPage = page(() => import('../pages/landscaping/SnowBillingPage'))
 const VisitMessagesPage = page(() => import('../pages/landscaping/VisitMessagesPage'))
+const BudgetPage = page(() => import('../pages/landscaping/BudgetPage'))
 
 /** Routes inside /crm (behind the CRM's first-run gate), as <Route path="…" element={…} /> with a key. */
 export const routes: ReactElement[] = [
@@ -19,6 +20,7 @@ export const routes: ReactElement[] = [
   <Route key="landscaping-area" path="area-pricing" element={<AreaPricingPage />} />,
   <Route key="landscaping-snow" path="snow-billing" element={<SnowBillingPage />} />,
   <Route key="landscaping-visit-messages" path="visit-messages" element={<VisitMessagesPage />} />,
+  <Route key="landscaping-budget" path="budget" element={<BudgetPage />} />,
 ]
 
 /**
@@ -32,4 +34,6 @@ export const nav: NavItem[] = [
   { to: '/crm/snow-billing', icon: Snowflake, label: 'Snow Billing', features: ['snow_billing'], permission: 'invoices:read' },
   // Rows 26 and 31 (visit_message_tools, not ready): every visit-done message, its wording, and the customer's rating. Reads ask jobs:read.
   { to: '/crm/visit-messages', icon: MessageSquareText, label: 'Visit messages', features: ['visit_message_tools'], permission: 'jobs:read' },
+  // Row 27 (company_budget, not ready): the owner's operating budget and the markups it gives. Reads ask margin:read.
+  { to: '/crm/budget', icon: Calculator, label: 'Budget', features: ['company_budget'], permission: 'margin:read' },
 ]

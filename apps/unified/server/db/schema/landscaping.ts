@@ -3,6 +3,7 @@
 import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { isNull } from 'drizzle-orm'
+import { budgetIsActive } from '../../data/indexWhere.ts'
 import { company, user } from './core.ts'
 import { contact, invoice, invoiceLineItem, job } from './crm.ts'
 import { site } from './trades.ts'
@@ -407,4 +408,35 @@ export const recurringRouteTemplate = pgTable('recurring_route_template', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('recurring_route_template_company_id_idx').on(t.companyId),
+])
+
+// The company's operating budget for a year (landscaping parity row 27; LMN's budget → overhead recovery → markup; feature
+// company_budget, not ready). `lines`: [{ section, name, amount?, count?, hours?, wage?, prevAmount? }] — section is sales, labor,
+// equipment, materials, subs, overhead or overhead_wage. A budget is a draft until activated; the active one for a year is locked
+// (change it by copying it to a new draft). The rates come from data/companyBudget.ts and fill the quote form's markup defaults.
+export const companyBudget = pgTable('company_budget', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  year: integer('year').notNull(),
+  name: text('name').notNull(),
+  status: text('status').default('draft').notNull(), // draft, active, archived
+  method: text('method').default('mors').notNull(), // mors, flh, sors
+  profitPct: decimal('profit_pct', { precision: 6, scale: 2 }).default('10').notNull(),
+  laborBurdenPct: decimal('labor_burden_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  overheadBurdenPct: decimal('overhead_burden_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  overtimePct: decimal('overtime_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  overtimeMultiplier: decimal('overtime_multiplier', { precision: 4, scale: 2 }).default('1.5').notNull(),
+  unbillablePct: decimal('unbillable_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  // MORS: the overhead recovered on each of these (the rest is recovered on labor).
+  materialsMarkupPct: decimal('materials_markup_pct', { precision: 6, scale: 2 }).default('10').notNull(),
+  equipmentMarkupPct: decimal('equipment_markup_pct', { precision: 6, scale: 2 }).default('25').notNull(),
+  subsMarkupPct: decimal('subs_markup_pct', { precision: 6, scale: 2 }).default('5').notNull(),
+  lines: json('lines').default([]).notNull(),
+  activatedAt: timestamp('activated_at'),
+  activatedById: text('activated_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('company_budget_company_id_idx').on(t.companyId),
+  uniqueIndex('company_budget_active_year_idx').on(t.companyId, t.year).where(budgetIsActive),
 ])

@@ -10,6 +10,7 @@ import { createRecurringRouteRoutes } from './recurringRoutes.ts'
 import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createRainDayRoutes } from './rainDay.ts'
 import { createRouteTemplateRoutes } from './routeTemplates.ts'
+import { createCompanyBudgetRoutes } from './companyBudget.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
 import { photoMarkupMounts } from '../roof/photoMarkup/index.ts'
@@ -71,6 +72,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     // Drawing on a visit's photos from the phone (landscaping parity row 9; roofing's photo_markup, not ready). Roofing mounts the same
     // route itself (crm/roof/index.ts), so it is mounted here only where roofing's add-on is not.
     ...(d.settings?.roof ? [] : photoMarkupMounts(d)),
+    // Row 27: the operating budget → overhead recovery → markup (LMN). NOT READY (hidden; company_budget read per request).
+    { path: '/api/budgets', access: 'user', router: createCompanyBudgetRoutes(d) },
     { path: '/api/sites', access: 'user', feature: ['snow_billing', 'area_pricing', 'recurring_routes'], router: createSiteRoutes(d) },
   ]
 }
