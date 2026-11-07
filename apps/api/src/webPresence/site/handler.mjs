@@ -474,6 +474,42 @@ export function createHandler(deps) {
       'cache-control': 'private, no-store', 'x-robots-tag': 'noindex, nofollow', 'content-security-policy': "default-src 'none'; sandbox", ...SECURITY } })
   }
 
+  // ── a free download (a guide, a checklist): any site, no Stripe, no sale ──
+  // The owner uploads one PDF or ZIP (the same checks as a paid file); anyone can download it at /free, so any button can link there.
+  const FREE_TAG = 'wp-free'
+  const freeInfo = async () => { const m = await store.getWithMetadata('free:file', { type: 'arrayBuffer' }); return m && m.metadata && m.metadata.name ? { ...m.metadata } : null }
+  async function free(req) {
+    if (!(await limited(req, 'free', 60, 3600))) return notice('Please wait a moment', '<p>Too many downloads from here. Please try again later.</p>', 429)
+    const got = await store.getWithMetadata('free:file', { type: 'arrayBuffer' })
+    if (!got || !got.data || !got.metadata || !got.metadata.name) return notice('Nothing to download yet', '<p>This free download is not available right now.</p>', 404)
+    await count('free')
+    return new Response(got.data, { status: 200, headers: {
+      'content-type': got.metadata.mime || 'application/octet-stream', 'content-disposition': `attachment; filename="${String(got.metadata.name).replace(/[^A-Za-z0-9_.-]/g, '_')}"`,
+      'cache-control': 'public, max-age=0, must-revalidate', 'netlify-cdn-cache-control': 'public, max-age=86400', 'netlify-cache-tag': FREE_TAG,
+      'content-security-policy': "default-src 'none'; sandbox", ...SECURITY } })
+  }
+  async function freeFileRoute(req) {
+    const a = await authed(req); if (a.err) return a.err
+    if (req.method === 'GET') return json({ file: await freeInfo() })
+    if (req.method === 'DELETE') {
+      await store.delete('free:file')
+      if (purge) { try { await purge([FREE_TAG]) } catch { /* a day's cache at most */ } }
+      return json({ ok: true, file: null })
+    }
+    if (!(await limited(req, 'freefile', 20, 3600))) return json({ error: 'Too many uploads. Please wait a little.' }, 429)
+    const limit = LIMITS.downloadBytes
+    if (Number(req.headers.get('content-length') || 0) > limit + 1024) return json({ error: 'The file can be at most ' + Math.round(limit / 1_000_000) + ' MB.' }, 413)
+    const bytes = new Uint8Array(await req.arrayBuffer())
+    let name = ''
+    try { name = decodeURIComponent(req.headers.get('x-file-name') || '') } catch { name = '' }
+    const chk = checkDownload(bytes, name)
+    if (!chk.ok) return json({ error: chk.error }, 415)
+    const meta = { name: chk.name, mime: chk.mime, size: bytes.length, at: new Date(now()).toISOString() }
+    await store.set('free:file', bytes, { metadata: meta })
+    if (purge) { try { await purge([FREE_TAG]) } catch { /* a day's cache at most */ } }
+    return json({ ok: true, file: meta })
+  }
+
   // The owner's file: what is on file (GET), or a new one (POST, the raw bytes; its name in x-file-name).
   async function fileRoute(req) {
     if (!selling()) return json({ error: 'Not found' }, 404)
@@ -638,6 +674,8 @@ export function createHandler(deps) {
       if (r === 'thanks' && (m === 'GET' || m === 'HEAD')) return await thanks(req, u)
       if (r === 'download' && m === 'GET') return await download(req, u)
       if (r === 'api/download/file' && (m === 'GET' || m === 'POST')) return await fileRoute(req)
+      if (r === 'free' && (m === 'GET' || m === 'HEAD')) return await free(req)
+      if (r === 'api/free/file' && (m === 'GET' || m === 'POST' || m === 'DELETE')) return await freeFileRoute(req)
       if (r === 'api/sales' && m === 'GET') return await sales(req)
       if (r === 'api/sales.csv' && m === 'GET') return await salesCsv(req)
       if (r === 'api/sales/resend' && m === 'POST') return await resend(req)

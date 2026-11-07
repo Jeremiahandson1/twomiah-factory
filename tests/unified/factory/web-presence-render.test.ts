@@ -146,6 +146,14 @@ describe('the published page', () => {
     expect(html).not.toMatch(/setInterval|autoplay/i)
     expect(String((await draw('roofing', c)).files['styles/main.css'])).toContain('.gallery-slideshow__track')
   })
+  test("the Starter Kit's introduction: a blank line starts a new paragraph, each escaped", async () => {
+    const { model } = first('roofing')
+    const nl = String.fromCharCode(10)
+    const kit = { id: 'download', type: 'download', variant: 'buy', data: { heading: 'The kit', intro: 'First <b>part</b>.' + nl + nl + 'Second part.', name: 'Kit', price: '99' } }
+    const html = String((await renderOnePage({ model: { ...model, sections: [...model.sections, kit] }, vertical: unifiedVerticalOf('roofing'), caps: capsOf('roofing'), origin: 'https://acme.netlify.app', sellsDownload: true })).files['index.html'])
+    expect(html).toContain('<p class="section-intro">First &lt;b&gt;part&lt;/b&gt;.</p>')
+    expect(html).toContain('<p class="section-intro">Second part.</p>')
+  })
   test('adding a section stays on the one page', async () => {
     const { model } = first('roofing')
     const spec = buildSpec('roofing')

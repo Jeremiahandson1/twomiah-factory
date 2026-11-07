@@ -18,6 +18,7 @@ function blobs() {
     // As Netlify Blobs answers: `onlyIfNew` writes only a new key and says whether it did.
     set: async (k: string, v: any, o?: any) => { if (o?.onlyIfNew && m.has(k)) return { modified: false }; m.set(k, v); if (o?.metadata) meta.set(k, o.metadata); return { modified: true } },
     getWithMetadata: async (k: string) => (m.has(k) ? { data: m.get(k), metadata: meta.get(k) } : null),
+    delete: async (k: string) => { m.delete(k); meta.delete(k) },
   }
 }
 const model = (over: any = {}) => ({
@@ -595,5 +596,49 @@ describe('the password (a manager passcode, as on Potato-Potahto — hashed, rat
     expect(await checkPassword('same password 123', a)).toBe(true)
     expect(await checkPassword('same password 124', a)).toBe(false)
     for (const rec of [null, {}, { ...a, v: 2 }, { ...a, hash: 1 }, { ...a, rounds: 0 }]) expect(await checkPassword('same password 123', rec)).toBe(false)
+  })
+})
+
+describe('a free download (a guide anyone can have): any site, no Stripe, no sale', () => {
+  const pdf = (n = 400) => { const b = new Uint8Array(n); b.set([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37], 0); return b }
+  const upload = (s: any, bytes: Uint8Array, name: string, headers: Record<string, string>) => s.call('api/free/file', { method: 'POST', body: bytes }, { ...headers, 'content-type': 'application/octet-stream', 'x-file-name': encodeURIComponent(name) })
+  test('nothing uploaded: /free says so (404), and the owner sees no file', async () => {
+    const s = await site()
+    const r = await s.call('free', { method: 'GET' })
+    expect(r.status).toBe(404); expect(await r.text()).toContain('Nothing to download yet')
+    expect(await (await s.call('api/free/file', { method: 'GET' }, await s.authed())).json()).toEqual({ file: null })
+  })
+  test('only a signed-in owner uploads; then anyone downloads it, as an attachment under a clean name', async () => {
+    const s = await site()
+    expect((await upload(s, pdf(), 'guide.pdf', {})).status).toBe(401)
+    const up = await upload(s, pdf(), '10 Things Every Card Collector Should Know!.pdf', await s.authed())
+    expect(up.status).toBe(200)
+    const meta = (await up.json()).file
+    expect(meta).toMatchObject({ name: '10-Things-Every-Card-Collector-Should-Know.pdf', mime: 'application/pdf', size: 400 })
+    const r = await s.call('free', { method: 'GET' })
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toBe('application/pdf')
+    expect(r.headers.get('content-disposition')).toBe('attachment; filename="10-Things-Every-Card-Collector-Should-Know.pdf"')
+    expect(new Uint8Array(await r.arrayBuffer()).slice(0, 4)).toEqual(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+  })
+  test('a file that is not really a PDF or ZIP is refused', async () => {
+    const s = await site()
+    expect((await upload(s, new TextEncoder().encode('just some text pretending'), 'guide.pdf', await s.authed())).status).toBe(415)
+    expect((await upload(s, pdf(), 'guide.exe', await s.authed())).status).toBe(415)
+  })
+  test('works on a site that sells nothing (no "Sell a download" switch, no Stripe)', async () => {
+    const s = await site()                                   // the harness spec has no download capability
+    expect((await upload(s, pdf(), 'guide.pdf', await s.authed())).status).toBe(200)
+    expect((await s.call('free', { method: 'GET' })).status).toBe(200)
+  })
+  test('replacing or removing it clears the cached copy at the CDN; removing needs the owner', async () => {
+    const tags: string[][] = []
+    const s = await site('site-a', { purge: async (t) => { tags.push(t); return true } })
+    await upload(s, pdf(), 'guide.pdf', await s.authed())
+    expect(tags).toEqual([['wp-free']])
+    expect((await s.call('api/free/file', { method: 'DELETE' })).status).toBe(401)
+    expect((await s.call('api/free/file', { method: 'DELETE' }, await s.authed())).status).toBe(200)
+    expect(tags).toEqual([['wp-free'], ['wp-free']])
+    expect((await s.call('free', { method: 'GET' })).status).toBe(404)
   })
 })
