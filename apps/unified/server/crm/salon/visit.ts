@@ -50,9 +50,32 @@ export function createVisitClosing(d: CrmDeps, checkout: ReturnType<typeof creat
       const inv = await checkout.ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price, lines, actor })
       invoiceId = inv?.id || null
     } catch (e) { warn('sale not created', e) }
+    // Row 8 (visit_editing): a visit with several services gets ONE record per service — its own stylist, service and price — so each
+    // stylist writes their own formula on their own record. Written once each (by the service it is for); a record already logged for a
+    // service is kept. Off, or one service: the one record, as before.
+    let perService = false
+    try {
+      if (await d.features.isFeatureEnabled(row.companyId, 'visit_editing')) {
+        const items = await db.select().from(appointmentItem).where(and(eq(appointmentItem.appointmentId, row.id), eq(appointmentItem.companyId, row.companyId))).orderBy(asc(appointmentItem.position)) as any[]
+        if (items.length > 1) {
+          perService = true
+          const had = await db.select({ itemId: serviceRecord.appointmentItemId, serviceId: serviceRecord.serviceId }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))) as any[]
+          const start = new Date(row.startTime).getTime()
+          for (const it of items) {
+            if (had.some((h) => h.itemId === it.id)) continue
+            await db.insert(serviceRecord).values({
+              id: createId(), contactId: row.contactId, appointmentId: row.id, appointmentItemId: it.id,
+              stylistId: it.stylistId || null, stylistMemberId: it.stylistMemberId || null, serviceId: it.serviceId || null,
+              performedAt: new Date(start + Number(it.startOffsetMin || 0) * 60_000), formula: [], priceCharged: it.price != null ? String(it.price) : null,
+              notes: AUTO_VISIT_NOTE, companyId: row.companyId,
+            } as any)
+          }
+        }
+      }
+    } catch (e) { warn('per-service visit records not created', e) }
     // A completed appointment IS a visit: write the service record once (a logged service already wrote it).
     try {
-      const [rec] = await db.select({ id: serviceRecord.id }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))).limit(1)
+      const [rec] = perService ? [{ id: 'per-service' }] : await db.select({ id: serviceRecord.id }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))).limit(1)
       if (!rec) {
         await db.insert(serviceRecord).values({
           id: createId(), contactId: row.contactId, appointmentId: row.id,

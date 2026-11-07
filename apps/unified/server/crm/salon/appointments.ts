@@ -223,7 +223,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
    * start, length, gap and price. Returns the resolved list or a refusal in words. A service with no start follows the one
    * before it; no stylist means the visit's.
    */
-  type ItemInput = { serviceId: string; stylist: StylistRef; offset: number; duration: number; proc: Processing | null; price: number | null; name: string; requiresPatchTest: boolean }
+  type ItemInput = { serviceId: string; stylist: StylistRef; offset: number; duration: number; proc: Processing | null; price: number | null; name: string; requiresPatchTest: boolean; /** Row 8: the client asked for this stylist (Fresha's heart). */ requested?: boolean }
   async function resolveItems(currentUser: any, raw: any, visitStylist: StylistRef, canMoney: boolean): Promise<{ items: ItemInput[] } | { problem: string; status: number; code: string; field?: string }> {
     const bad = (problem: string, code = 'BAD_ITEMS', status = 400) => ({ problem, status, code, field: 'items' })
     if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'multi_service_visits'))) return bad('Visits with several services are not switched on for this salon.', 'FEATURE_OFF', 409)
@@ -255,7 +255,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         if (isNaN(Number(it.price)) || Number(it.price) < 0) return bad(`Service ${n}: the price cannot be negative.`)
         price = Number(it.price)
       }
-      out.push({ serviceId: svc.id, stylist, offset, duration, proc, price, name: svc.name || 'Service', requiresPatchTest: !!svc.requiresPatchTest })
+      out.push({ serviceId: svc.id, stylist, offset, duration, proc, price, name: svc.name || 'Service', requiresPatchTest: !!svc.requiresPatchTest, requested: it.requestedStylist === true })
       cursor = Math.max(cursor, offset + duration)
     }
     // Two services of the same stylist cannot overlap inside the visit itself.
@@ -559,6 +559,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
             companyId: currentUser.companyId, appointmentId: apptId, position, serviceId: i.serviceId,
             stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId,
             startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, segments: i.proc?.segments ?? null, price: i.price != null ? String(i.price) : null,
+            requestedStylist: !!i.requested,
           })) as any)
         }
         return row
@@ -573,6 +574,66 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     const made201 = itemList ? (await itemsOf(currentUser.companyId, [created.id])).get(created.id) : undefined
     return one(c, { ...named(created), ...(made201 ? { items: made201 } : {}) }, 201)
+  })
+
+  /**
+   * CHANGE A BOOKED SEVERAL-SERVICE VISIT (salon parity row 8; Fresha, Square; feature visit_editing, not ready): the visit's services
+   * replaced by `items` — add, remove, re-time (each its own start, so services may run at the same time), re-assign, and the client's
+   * requested stylist per service — with exactly the checks a new visit gets: each stylist's clash (this visit's own time ignored),
+   * blocked time, own chair, patch tests are the booking's. A one-service appointment may become a visit this way. The visit runs from
+   * the first start to the last end; its price is the services' sum (a seat that sets no prices gets the menu's). Not once it is done.
+   *   PUT /api/appointments/:id/services   { items: [{ serviceId, stylistId?, startOffsetMin?, durationMin?, price?, requestedStylist? }], startTime?, overrideBlock? }
+   */
+  app.put('/:id/services', requirePermission('schedule:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'visit_editing'))) return fail(c, 404, 'Not found')
+    const id = c.req.param('id')
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    const [existing]: AppointmentRow[] = await db.select().from(appointment).where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId))).limit(1)
+    if (!existing) return fail(c, 404, 'Appointment not found')
+    if (['completed', 'cancelled', 'no_show'].includes(existing.status)) return fail(c, 400, `This visit is ${existing.status.replace('_', ' ')}; its services are a record now.`, 'VISIT_CLOSED')
+    const own = await book.ownChairOf(currentUser)
+    if (own && !isOwnChair(own, existing)) return notInBook(c)
+    const visitStylist: StylistRef = { stylistId: existing.stylistId ?? null, stylistMemberId: existing.stylistMemberId ?? null }
+    const got = await resolveItems(currentUser, body.items, visitStylist, await canSeeMoney(currentUser))
+    if ('problem' in got) return fail(c, got.status as any, got.problem, got.code, got.field ? { [got.field]: got.problem } : undefined)
+    const itemList = got.items
+    if (own && itemList.some((i) => !isOwnChair(own, i.stylist))) return notYourChair(c)
+    const startTime = body.startTime ? new Date(body.startTime) : new Date(existing.startTime)
+    if (Number.isNaN(startTime.getTime())) return fail(c, 400, 'startTime is not a valid date')
+    const endTime = new Date(startTime.getTime() + Math.max(...itemList.map((i) => i.offset + i.duration)) * 60_000)
+    if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
+    const blocksOn = !body.overrideBlock && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    const price = Math.round(itemList.reduce((t, i) => t + (i.price ?? 0), 0) * 100) / 100
+    try {
+      await db.transaction(async (tx: any) => {
+        await lockAppointmentBook(tx, currentUser.companyId)
+        const clash = await itemsConflict(currentUser.companyId, itemList, startTime, existing.id, tx)
+        if (clash) throw new ApptConflict(clash)
+        if (blocksOn) {
+          const why = await blockSentence(currentUser.companyId, itemList.map((i) => ({ stylist: i.stylist, start: new Date(startTime.getTime() + i.offset * 60_000), end: new Date(startTime.getTime() + (i.offset + i.duration) * 60_000), proc: i.proc })), tx)
+          if (why) throw new ApptConflict(why, 'BOOK_BLOCKED')
+        }
+        await tx.delete(appointmentItem).where(and(eq(appointmentItem.appointmentId, existing.id), eq(appointmentItem.companyId, currentUser.companyId)))
+        await tx.insert(appointmentItem).values(itemList.map((i, position) => ({
+          companyId: currentUser.companyId, appointmentId: existing.id, position, serviceId: i.serviceId,
+          stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId,
+          startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, segments: i.proc?.segments ?? null,
+          price: i.price != null ? String(i.price) : null, requestedStylist: !!i.requested,
+        })) as any)
+        await tx.update(appointment).set({
+          startTime, endTime, serviceId: itemList[0].serviceId, quotedPrice: String(price),
+          processingAfterMin: null, processingMin: null, segments: null, updatedAt: new Date(),
+        } as any).where(eq(appointment.id, existing.id))
+      })
+    } catch (err) {
+      if (err instanceof ApptConflict) return fail(c, 409, err.sentence, err.code)
+      throw err
+    }
+    const [row] = await db.select().from(appointment).where(eq(appointment.id, existing.id)).limit(1)
+    await audit.log({ action: 'update', entity: 'appointment', entityId: existing.id, metadata: { services: itemList.map((i) => i.name) }, req: { user: currentUser } })
+    d.realtime.emitToCompany(currentUser.companyId, d.realtime.EVENTS.REFRESH, { entity: 'appointment' })
+    return one(c, { ...named(row), items: (await itemsOf(currentUser.companyId, [existing.id])).get(existing.id) })
   })
 
   app.put('/:id', requirePermission('schedule:update'), async (c) => {
@@ -595,7 +656,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         || ('serviceId' in body && String(body.serviceId ?? '') !== String(existing.serviceId ?? ''))
         || ('stylistId' in body && String(body.stylistId ?? '') !== String(stylistIdOf(existing) ?? ''))
         || (body.endTime && !('startTime' in body) && new Date(body.endTime).getTime() !== new Date(existing.endTime ?? 0).getTime())
-      if (changesServices) return fail(c, 409, 'This visit has several services. You can move it, check it in, complete or cancel it; to change its services or their lengths, cancel it and book it again.', 'VISIT_HAS_SERVICES')
+      if (changesServices) return fail(c, 409, (await d.features.isFeatureEnabled(currentUser.companyId, 'visit_editing')) ? 'This visit has several services: change them with Edit services (PUT /api/appointments/:id/services).' : 'This visit has several services. You can move it, check it in, complete or cancel it; to change its services or their lengths, cancel it and book it again.', 'VISIT_HAS_SERVICES')
     }
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, any> = { updatedAt: new Date() }

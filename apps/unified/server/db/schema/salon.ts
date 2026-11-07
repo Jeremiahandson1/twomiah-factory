@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 // Salon add-on: the service menu, client profiles and formulas, service records, client accounts and memberships.
 // Column for column from templates/crm-salon/backend/db/schema.ts.
 import { pgTable, text, boolean, integer, decimal, timestamp, date, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
@@ -156,6 +157,8 @@ export const serviceRecord = pgTable('service_record', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
   appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  /** Salon parity row 8: the service of a several-service visit this record is for — one record per service, each stylist's own formula. */
+  appointmentItemId: text('appointment_item_id'),
   stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
   // Same reason as on `appointment`: the person who did the work may be roster-only. (Salon T20 H1)
   stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
@@ -186,7 +189,9 @@ export const serviceRecord = pgTable('service_record', {
   // completions wrote three, and the client's visit count, last-visit date and rebooking history
   // were all inflated by the difference. A visit logged without an appointment carries NULL here and
   // is unaffected. (LY0928 H1)
-  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId),
+  // Row 8: one record per appointment per SERVICE of a several-service visit (appointment_item_id); a record with none is still one per
+  // appointment. Visit counts count distinct appointments (data/salon.ts), so a visit is never counted twice.
+  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId, sql`coalesce(${t.appointmentItemId}, '')`),
 ])
 
 // ── Card on file (gap #1) ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -333,6 +338,8 @@ export const appointmentItem = pgTable('appointment_item', {
   segments: json('segments'),
   processingMin: integer('processing_min'),
   price: decimal('price', { precision: 10, scale: 2 }),
+  /** Salon parity row 8 (visit_editing): the client asked for this stylist for this service (Fresha's heart). */
+  requestedStylist: boolean('requested_stylist').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('appointment_item_appointment_id_idx').on(t.appointmentId),

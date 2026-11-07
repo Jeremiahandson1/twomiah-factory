@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "service_record_appointment_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "service_record_appointment_unique" ON "service_record" USING btree ("company_id","appointment_id",coalesce("appointment_item_id", ''));

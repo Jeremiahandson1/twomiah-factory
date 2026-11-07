@@ -2,7 +2,7 @@
 // jobs dashboard (CrmSettings.dashboard 'salon', mounted at /api/dashboard by modules/crm.ts). Moved from
 // templates/crm-salon/backend/src/routes/dashboard.ts.
 import { Hono } from 'hono'
-import { and, count, desc, eq, gte, lt, notInArray } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lt, notInArray, sql } from 'drizzle-orm'
 import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice, teamMember } from '../../db/schema/index.ts'
 import { takingsByChair } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -49,7 +49,7 @@ export function createSalonDashboardRoutes(d: CrmDeps, salon: SalonServices) {
       safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, appointmentsTodayCondition(appointment, today, tomorrow))), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, now), lt(appointment.startTime, in7), UPCOMING_APPT)), [{ value: 0 }]),
       safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), ...mine, gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),
-      safe(() => db.select({ value: count() }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [{ value: 0 }]),
+      safe(() => db.select({ value: sql<number>`count(distinct coalesce(${serviceRecord.appointmentId}, ${serviceRecord.id}))` }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [{ value: 0 }]),
       safe(() => db.select({ amt: serviceRecord.priceCharged }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [] as { amt: string | null }[]),
       // Chair productivity this month, whichever column holds the stylist. (Salon T27 N5)
       safe(() => takingsByChair(db, companyId, startOfMonth, startOfNextMonth), []),

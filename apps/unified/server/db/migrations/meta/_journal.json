@@ -680,6 +680,20 @@
       "when": 1794027658491,
       "tag": "0096_salon_service_segments",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1794029098116,
+      "tag": "0097_salon_visit_editing",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1794029282821,
+      "tag": "0098_salon_record_per_service",
+      "breakpoints": true
     }
   ]
 }

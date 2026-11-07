@@ -189,7 +189,8 @@ export async function lapsedClients(db: any, companyId: string, cutoffIso: strin
     clientPhone: contact.phone,
     clientMobile: contact.mobile,
     lastVisit: sql<string | null>`max(${serviceRecord.performedAt})`,
-    visits: sql<number>`count(${serviceRecord.id})`,
+    // A visit is counted once however many services it had (row 8: one record per service).
+    visits: sql<number>`count(distinct coalesce(${serviceRecord.appointmentId}, ${serviceRecord.id}))`,
     lifetimeValue: sql<string>`coalesce(sum(${serviceRecord.priceCharged}), 0)`,
   })
     .from(contact)
@@ -212,7 +213,7 @@ export async function takingsByChair(db: any, companyId: string, from: Date, to:
     firstName: user.firstName,
     lastName: user.lastName,
     memberName: teamMember.name,
-    visits: sql<number>`count(*)`,
+    visits: sql<number>`count(distinct coalesce(${serviceRecord.appointmentId}, ${serviceRecord.id}))`,
     revenue: sql<string>`coalesce(sum(${serviceRecord.priceCharged}), 0)`,
   })
     .from(serviceRecord)
@@ -347,7 +348,7 @@ export async function visitorsBetween(db: any, companyId: string, from: Date, to
 /** Each client's first visit, last visit and how many visits they have had, ever. */
 export async function visitSpans(db: any, companyId: string): Promise<Array<{ contactId: string; first: Date; last: Date; n: number }>> {
   const rows = await db.select({
-    contactId: serviceRecord.contactId, first: sql<Date>`min(${serviceRecord.performedAt})`, last: sql<Date>`max(${serviceRecord.performedAt})`, n: sql<number>`count(*)`,
+    contactId: serviceRecord.contactId, first: sql<Date>`min(${serviceRecord.performedAt})`, last: sql<Date>`max(${serviceRecord.performedAt})`, n: sql<number>`count(distinct coalesce(${serviceRecord.appointmentId}, ${serviceRecord.id}))`,
   }).from(serviceRecord).where(eq(serviceRecord.companyId, companyId)).groupBy(serviceRecord.contactId)
   return rows.map((r: any) => ({ contactId: r.contactId as string, first: new Date(r.first), last: new Date(r.last), n: Number(r.n) }))
 }
