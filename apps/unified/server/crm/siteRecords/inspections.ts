@@ -138,8 +138,9 @@ export function createInspectionRoutes(d: CrmDeps) {
     const existing = await load(id, me.companyId)
     if (!existing) return fail(c, 404, 'Inspection not found')
     const tz = await companyTimeZone(db, me.companyId)
-    // The same result sent again (the phone's queue is at-least-once; contractor parity row 11) is that result, not a refusal.
-    if (existing.status === 'passed' && existing.result === 'pass') return one(c, withoutSigningEvidence(existing))
+    // The same result sent again BY THE PHONE'S QUEUE (at-least-once; it marks each try with its Idempotency-Key — contractor parity row 11)
+    // is that result, not a refusal. Anyone resulting it a second time otherwise is refused, as before (T33).
+    if (c.req.header('idempotency-key') && existing.status === 'passed' && existing.result === 'pass') return one(c, withoutSigningEvidence(existing))
     if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing, tz)
     const early = notYetVisited(c, existing, tz)
     if (early) return early
@@ -166,7 +167,7 @@ export function createInspectionRoutes(d: CrmDeps) {
     const existing = await load(id, me.companyId)
     if (!existing) return fail(c, 404, 'Inspection not found')
     const tz = await companyTimeZone(db, me.companyId)
-    if (existing.status === 'failed' && existing.result === 'fail') return one(c, withoutSigningEvidence(existing))
+    if (c.req.header('idempotency-key') && existing.status === 'failed' && existing.result === 'fail') return one(c, withoutSigningEvidence(existing))
     if (!RESULTABLE.includes(existing.status)) return alreadyResulted(c, existing, tz)
     const early = notYetVisited(c, existing, tz)
     if (early) return early

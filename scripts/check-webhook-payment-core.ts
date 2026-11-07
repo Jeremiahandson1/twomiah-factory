@@ -28,7 +28,8 @@ if (/tx\.insert\(t\.payment\)/.test(route) || /FOR UPDATE/.test(route)) fail('PO
 
 const stripe = read('packages/tenant-backend/src/payments/stripe.ts')
 const hook = stripe.slice(stripe.indexOf('async function handlePaymentSuccess('), stripe.indexOf('async function handlePaymentFailed('))
-if (!/recordInvoicePayment\(db, \{ invoice, payment \}, false, \{/.test(hook)) fail('handlePaymentSuccess must record through recordInvoicePayment')
+// The third argument says whether the payment carries a tip: false, or — with invoice tips (contractor parity row 12) — whether this one does.
+if (!/recordInvoicePayment\(db, \{ invoice, payment \}, (false|tipCents > 0 && !!payment\.tipAmount), \{/.test(hook)) fail('handlePaymentSuccess must record through recordInvoicePayment')
 if (!/reference: paymentIntent\.id/.test(hook) || !/idempotentByReference: true/.test(hook)) fail('webhook payments must be idempotent by PaymentIntent id')
 if (!/allowOverpayment: true/.test(hook)) fail('webhook payments must record what Stripe collected (allowOverpayment)')
 if (!/paidAt: paymentIntent\.created \? new Date\(paymentIntent\.created \* 1000\)/.test(hook)) fail("webhook payments must be dated at Stripe's timestamp")

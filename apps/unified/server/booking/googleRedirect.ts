@@ -83,7 +83,7 @@ export async function feedsFor(db: any, engine: BookingEngine, companyId: string
   const [co] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
   const problems: FeedProblem[] = []
   if (!co) return { problems: ['No such company.'], entity: null, action: null, service: null, descriptors: null }
-  if (!origin) problems.push('The site has no public address (SITE_URL), so Google has no page to send clients to.')
+  if (!origin) problems.push('Your website has no public address yet, so Google has no page to send clients to. Ask Twomiah support to finish setting up your site.')
   if (!co.address || !co.city || !co.zip) problems.push('Add the salon’s street address, city and ZIP in Settings › Company: Google matches it to the salon on Maps.')
   const services = (await engine.listServices(companyId, { activeOnly: true })).filter((s) => engine.offered(s))
   if (!services.length) problems.push('No service is offered online yet: Google needs at least one.')

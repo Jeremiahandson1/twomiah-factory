@@ -89,6 +89,9 @@ const OPEN = new RegExp([
   // A venue's website enquiry form (rooms that look free, no prices; its embed script) and a salon's gift-card balance page
   // (a card's own code, throttled, noindex): public by design (11/05 integration).
   '^/api/event-form/', '^/api/gift-balance(/|$)',
+  // A salon's client app (salon row 25): its manifest, worker and icon are files a phone installs before anyone signs in; its directory
+  // card answers only once the salon opts in, and names no client.
+  '^/api/client-app/',
   '/marketing/(track|unsubscribe)/', '/reviews/track/', '/(webhook|webhooks|callback)(/|$)', '/stripe/factory-event',
 ].join('|'))
 // A declared refusal: an integration that isn't set up (503), or a service upstream that failed (502: the Factory, here

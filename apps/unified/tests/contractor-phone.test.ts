@@ -15,6 +15,8 @@ let t: any, companyId = '', owner: any, field: any, proj: any
 const spec = (id: string) => CONTRACTOR.find((s) => s.id === id)!
 const act = (specId: string, actionId: string, where: 'detail' | 'list' = 'detail') => (where === 'detail' ? spec(specId).detail!.actions! : spec(specId).actions!).find((a) => a.id === actionId)!
 const send = (as: any, r: { method: string; path: string; body?: any }) => as(r.path, { method: r.method, json: r.body })
+/** As the phone's offline queue sends a save: the same Idempotency-Key on every try (src/offline/OfflineQueue.ts). */
+const queued = (as: any, r: { method: string; path: string; body?: any }, key: string) => as(r.path, { method: r.method, json: r.body, headers: { 'Idempotency-Key': key } })
 
 beforeAll(async () => {
   t = await bootTenant({ vertical: 'contractor' })
@@ -125,9 +127,11 @@ describe('contractor phone, 11b', () => {
   test('an inspection passed twice from the phone is passed, once', async () => {
     const insp = (await t.db.insert(t.schema.inspection).values({ companyId, projectId: proj.id, number: 'INS-001', type: 'framing', status: 'scheduled', scheduledDate: new Date('2026-01-05T00:00:00Z') } as any).returning())[0]
     const pass = act('con-inspections', 'pass').request(insp, {})
-    const one1 = await json(await send(owner, pass))
-    const one2 = await json(await send(owner, pass))
+    const one1 = await json(await queued(owner, pass, 'q-insp-1'))
+    const one2 = await json(await queued(owner, pass, 'q-insp-1'))
     expect([one1.status, one2.status, one2.body.status]).toEqual([200, 200, 'passed'])
+    // not the queue's repeat (a person resulting it again): refused, as the desk's rule says
+    expect((await send(owner, pass)).status).toBe(400)
     // a different result afterwards is still refused: a result is not edited
     expect((await send(owner, act('con-inspections', 'fail').request(insp, { deficiencies: 'x' }))).status).toBe(400)
   }, 90_000)

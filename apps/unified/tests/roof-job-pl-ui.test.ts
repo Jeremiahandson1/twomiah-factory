@@ -123,7 +123,9 @@ describe('a crew’s lump-sum price (row 5)', () => {
     document.body.innerHTML = ''
     const el = document.createElement('div'); document.body.appendChild(el)
     const root = createRoot(el)
-    await act(async () => { root.render(h(PermissionsProvider, { role: 'manager', permissions }, h(ConfirmProvider, null, h(ToastProvider, null, h(MemoryRouter, null, h(Orders, { jobId: 'j1' })))))) })
+    // The panel reads its row 27/28 switches from the session (off here, as in a shop without them).
+    const { AuthContext } = await import(P + 'auth/AuthContext.tsx') as any
+    await act(async () => { root.render(h(AuthContext.Provider, { value: { hasFeature: () => false } }, h(PermissionsProvider, { role: 'manager', permissions }, h(ConfirmProvider, null, h(ToastProvider, null, h(MemoryRouter, null, h(Orders, { jobId: 'j1' }))))))) })
     await settle()
     return { root, calls, undo: () => Object.assign(api, real) }
   }
