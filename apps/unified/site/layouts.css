@@ -57,6 +57,17 @@
    never change size as they move, whatever shape the photos are. */
 .gallery-slideshow__figure img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; background: var(--white); border: 1px solid var(--line); }
 .gallery-slideshow__open { display: block; width: 100%; cursor: zoom-in; }
+/* The viewer: one photo large over the page. Wide enough to read a page on a computer; the full width of a phone (pinch to zoom). */
+.gallery-viewer { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; background: rgba(0, 0, 0, .86); }
+.gallery-viewer[hidden] { display: none; }
+.gallery-viewer__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--white); color: var(--ink); }
+.gallery-viewer__caption { font-weight: 700; min-width: 0; }
+.gallery-viewer__actions { display: flex; gap: 8px; flex: none; }
+.gallery-viewer__btn { width: 44px; height: 44px; border: 2px solid var(--ink); background: var(--white); color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; }
+.gallery-viewer__btn:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.gallery-viewer__scroll { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 16px 0 32px; }
+.gallery-viewer__img { display: block; width: min(100%, 1100px); height: auto; margin: 0 auto; background: var(--white); }
+.gallery-viewer-open { overflow: hidden; }
 .gallery-slideshow__open:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
 .gallery-slideshow__caption { font-weight: 700; color: var(--ink); text-align: center; }
 .gallery-slideshow__hint { display: block; margin-top: 4px; font-weight: 400; font-size: .85rem; color: var(--muted); }
