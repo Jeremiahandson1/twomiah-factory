@@ -230,7 +230,7 @@ export function createStripeService(deps: StripeServiceDeps) {
    */
   async function cardFunding(companyId: string, paymentMethodId: string): Promise<string | null> {
     const stripeAccount = await connectedAccountFor(companyId)
-    const pm: any = await stripe!.paymentMethods.retrieve(paymentMethodId, requestOpts(stripeAccount) as any)
+    const pm: any = await stripe!.paymentMethods.retrieve(paymentMethodId, undefined, requestOpts(stripeAccount))
     return pm?.type === 'card' ? String(pm.card?.funding || 'unknown') : null
   }
 
