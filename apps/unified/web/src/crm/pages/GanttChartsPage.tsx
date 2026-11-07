@@ -4,11 +4,14 @@
  * Timeline of every project with its tasks. Whoever may change a project (projects:update, what the server asks)
  * adds tasks and drags a bar to move it, or its right edge to stretch it; everyone else reads it. It was a read-only
  * picture — no adding a task, no dragging (live test, 2026-10-22). Server: crm/projects/ganttCharts.ts.
+ *
+ * With task_links (contractor parity row 7c, not ready) each task says what it waits on, and a planner links it to another task
+ * of the project (after it ends, or once it starts, plus a lag); moving a task moves the ones linked to it, and the page says so.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { BarChart3, Plus, Trash2 } from 'lucide-react'
+import { BarChart3, Plus, Trash2, Link2, X } from 'lucide-react'
 import { api } from '../../api'
-import { usePermissions, useToast, useConfirm, PageLoading } from '../../shared'
+import { usePermissions, useToast, useConfirm, useAuth, PageLoading } from '../../shared'
 
 interface GanttTask {
   id: string;
@@ -19,8 +22,17 @@ interface GanttTask {
   progress: number;
 }
 
+interface GanttLink { id: string; predecessorId: string; successorId: string; type: 'finish_to_start' | 'start_to_start'; lagDays: number }
+
+/** "after Footings + 2 days" / "with Footings": how a link reads beside the task that waits. */
+export const linkWords = (l: GanttLink, name: string) => {
+  const lag = l.lagDays ? ` ${l.lagDays > 0 ? '+' : '−'} ${Math.abs(l.lagDays)} ${Math.abs(l.lagDays) === 1 ? 'day' : 'days'}` : ''
+  return `${l.type === 'start_to_start' ? 'with' : 'after'} ${name}${lag}`
+}
+
 interface GanttProject {
   id: string;
+  links?: GanttLink[];
   name: string;
   startDate: string;
   endDate: string;
@@ -73,6 +85,14 @@ export default function GanttChartsPage() {
   const [loading, setLoading] = useState(true);
   const { known, can } = usePermissions();
   const mayPlan = known && can('projects:update');
+  const linksOn = useAuth().hasFeature('task_links');
+  const [linking, setLinking] = useState<GanttTask | null>(null);
+  const [linkDraft, setLinkDraft] = useState({ predecessorId: '', type: 'finish_to_start', lagDays: '0' });
+  /** A move answered with the tasks its links moved: say so, by name. */
+  const sayMoved = (r: any) => {
+    const moved = (r?.moved || []) as Array<{ name: string }>;
+    if (moved.length) toast.success(`Moved with it: ${moved.map((m) => m.name).join(', ')}`);
+  };
   const toast = useToast();
   const confirm = useConfirm();
   const [adding, setAdding] = useState<string | null>(null);
@@ -120,7 +140,7 @@ export default function GanttChartsPage() {
     const body = { startDate: ymd(start), endDate: ymd(end) };
     try {
       if (d.kind === 'project') await api.patch(`/api/gantt-charts/${d.id}/dates`, body);
-      else await api.patch(`/api/gantt-charts/tasks/${d.id}`, body);
+      else sayMoved(await api.patch(`/api/gantt-charts/tasks/${d.id}`, body));
       load();
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not move it'); load(); }
   };
@@ -153,6 +173,19 @@ export default function GanttChartsPage() {
   const removeTask = async (t: GanttTask) => {
     if (!(await confirm(`Remove the task "${t.name}"?`, { title: 'Remove task', confirmText: 'Remove' }))) return;
     try { await api.delete(`/api/gantt-charts/tasks/${t.id}`); load(); } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not remove the task'); }
+  };
+
+  const addLink = async (e: React.FormEvent<HTMLFormElement>, projectId: string) => {
+    e.preventDefault();
+    if (!linking || !linkDraft.predecessorId) { toast.error('Pick the task it waits on.'); return; }
+    try {
+      sayMoved(await api.post(`/api/gantt-charts/${projectId}/links`, { predecessorId: linkDraft.predecessorId, successorId: linking.id, type: linkDraft.type, lagDays: Number(linkDraft.lagDays) || 0 }));
+      setLinking(null);
+      load();
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not link the tasks'); }
+  };
+  const removeLink = async (l: GanttLink) => {
+    try { await api.delete(`/api/gantt-charts/links/${l.id}`); load(); } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not remove the link'); }
   };
 
   if (loading) return <PageLoading what="the schedules for your projects" />;
@@ -253,8 +286,21 @@ export default function GanttChartsPage() {
                 const tEnd = dayStart(t.endDate);
                 return (
                   <div key={t.id} className="flex border-b hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700" style={{ height: rowHeight - 6 }}>
-                    <div className="w-64 flex-shrink-0 pl-8 pr-4 py-2 border-r flex items-center justify-between gap-2 dark:border-slate-700">
-                      <div className="text-sm truncate text-gray-700 dark:text-slate-200">{t.name}</div>
+                    <div className="w-64 flex-shrink-0 pl-8 pr-4 py-1 border-r flex items-center justify-between gap-2 dark:border-slate-700">
+                      <div className="min-w-0">
+                        <div className="text-sm truncate text-gray-700 dark:text-slate-200">{t.name}</div>
+                        {linksOn && (p.links || []).filter((l) => l.successorId === t.id).map((l) => (
+                          <div key={l.id} className="flex items-center gap-1 text-xs text-gray-500 dark:text-slate-400" data-testid="task-link">
+                            <span className="truncate">{linkWords(l, (p.tasks || []).find((x) => x.id === l.predecessorId)?.name || 'a task')}</span>
+                            {mayPlan && <button type="button" onClick={() => removeLink(l)} className="shrink-0 rounded hover:text-red-700 dark:hover:text-red-300" aria-label={`Unlink ${t.name}`}><X className="w-3 h-3" /></button>}
+                          </div>
+                        ))}
+                      </div>
+                      {mayPlan && linksOn && (p.tasks || []).length > 1 && (
+                        <button type="button" onClick={() => { setLinking(t); setLinkDraft({ predecessorId: '', type: 'finish_to_start', lagDays: '0' }); }} className="shrink-0 p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700" aria-label={`Link ${t.name} to the task it waits on`}>
+                          <Link2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {mayPlan && (
                         <button type="button" onClick={() => removeTask(t)} className="shrink-0 p-1 rounded text-gray-500 hover:text-red-700 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-300 dark:hover:bg-red-950/40" aria-label={`Remove ${t.name}`}>
                           <Trash2 className="w-3.5 h-3.5" />
@@ -268,6 +314,32 @@ export default function GanttChartsPage() {
                   </div>
                 );
               })}
+
+              {linking && linking.projectId === p.id && (
+                <form onSubmit={(e) => addLink(e, p.id)} className="flex flex-wrap items-end gap-3 border-b bg-gray-50 px-4 py-3 dark:bg-slate-800 dark:border-slate-700" aria-label={`Link ${linking.name}`}>
+                  <p className="w-full text-sm font-medium text-gray-800 dark:text-slate-100">{linking.name} waits on…</p>
+                  <div>
+                    <label htmlFor={`link-pred-${p.id}`} className="block text-xs font-medium text-gray-700 mb-1 dark:text-slate-200">Task</label>
+                    <select id={`link-pred-${p.id}`} value={linkDraft.predecessorId} onChange={(e) => setLinkDraft({ ...linkDraft, predecessorId: e.target.value })} className="px-3 py-1.5 border rounded-lg text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600">
+                      <option value="">Choose…</option>
+                      {(p.tasks || []).filter((x) => x.id !== linking.id).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={`link-type-${p.id}`} className="block text-xs font-medium text-gray-700 mb-1 dark:text-slate-200">Starts</label>
+                    <select id={`link-type-${p.id}`} value={linkDraft.type} onChange={(e) => setLinkDraft({ ...linkDraft, type: e.target.value })} className="px-3 py-1.5 border rounded-lg text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600">
+                      <option value="finish_to_start">after it ends</option>
+                      <option value="start_to_start">when it starts</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={`link-lag-${p.id}`} className="block text-xs font-medium text-gray-700 mb-1 dark:text-slate-200">Plus days</label>
+                    <input id={`link-lag-${p.id}`} type="number" min={-365} max={365} value={linkDraft.lagDays} onChange={(e) => setLinkDraft({ ...linkDraft, lagDays: e.target.value })} className="w-24 px-3 py-1.5 border rounded-lg text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600" />
+                  </div>
+                  <button type="submit" className="px-4 py-1.5 rounded-lg text-sm bg-orange-700 text-white hover:bg-orange-800">Link</button>
+                  <button type="button" onClick={() => setLinking(null)} className="px-4 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Cancel</button>
+                </form>
+              )}
 
               {adding === p.id && (
                 <form onSubmit={addTask} className="flex flex-wrap items-end gap-3 border-b bg-gray-50 px-4 py-3 dark:bg-slate-800 dark:border-slate-700">

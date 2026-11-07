@@ -70,7 +70,7 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 |---|---|---|
 | Save any project as a template; start one from it (phases, to-dos, punch-list starter) | built (`project_templates`) | built |
 | Template carries budget lines and selections; tick which parts to import | built (`template_parts`, row 7b): budget lines, selections and shared allowances kept; ticks on saving and on starting | built |
-| Task dependencies carried over | built (`template_parts`, row 7b): task links and lag kept and recreated with the tasks | built |
+| Task dependencies carried over | built (`template_parts`, row 7b): task links and lag kept and recreated with the tasks; on the schedule (`task_links`, row 7c): link after-ends / when-starts plus lag, linked tasks move with the one they wait on, loops refused | built |
 
 ## Navigation and pages
 
