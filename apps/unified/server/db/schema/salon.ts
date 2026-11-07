@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { serviceRecordItemKey } from '../../data/indexWhere.ts'
 // Salon add-on: the service menu, client profiles and formulas, service records, client accounts and memberships.
 // Column for column from templates/crm-salon/backend/db/schema.ts.
 import { pgTable, text, boolean, integer, decimal, timestamp, date, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
@@ -191,7 +191,7 @@ export const serviceRecord = pgTable('service_record', {
   // is unaffected. (LY0928 H1)
   // Row 8: one record per appointment per SERVICE of a several-service visit (appointment_item_id); a record with none is still one per
   // appointment. Visit counts count distinct appointments (data/salon.ts), so a visit is never counted twice.
-  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId, sql`coalesce(${t.appointmentItemId}, '')`),
+  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId, serviceRecordItemKey),
 ])
 
 // ── Card on file (gap #1) ─────────────────────────────────────────────────────────────────────────────────────────────
