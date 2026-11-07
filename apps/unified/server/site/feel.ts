@@ -80,7 +80,7 @@ const RADII = {
 const BUTTON_SEL = '.btn, .header-cta, .mobile-nav__cta, .book-submit, .contact-form button[type="submit"], .cta__btn'
 const CARD_SEL = '.service-card, .testimonial-card, .team-card, .pr-card, .package-card, .deals-card, .cov-card, .cg-card, .strain-card, .faq-item, .contact-section__promise, .why-choose__item, .value-card, .product-card, .shop-card, .gallery-cards__card, .svc-tile, .svc-featured__lead, .quote-wall__card, .hero-splitform__form'
 const FIELD_SEL = 'input:not([type="checkbox"]):not([type="radio"]), select, textarea, .cf-input, .cf-choice, .book-date, .book-slot'
-const PIC_SEL = '.gallery-grid img, .gallery-item, .story__photo img, .team-card img, .service-card img, .hero__image img, .hero--split img, .project-card img, .gallery-masonry__item img, .gallery-cards__card img, .gallery-pairs__imgs img, .hero-collage__pic'
+const PIC_SEL = '.gallery-grid img, .gallery-item, .story__photo img, .team-card img, .service-card img, .hero__image img, .hero--split img, .project-card img, .gallery-masonry__item img, .gallery-cards__card img, .gallery-pairs__imgs img, .hero-collage__pic, .gallery-slideshow__figure img'
 
 const SPACE = { compact: 'clamp(40px, 5vw, 72px)', airy: 'clamp(88px, 11vw, 160px)' } as const
 
