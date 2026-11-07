@@ -303,6 +303,9 @@ export default function ClientDetailPage() {
             29 Sep retest found $5.43 of a client's money that existed only as a difference between
             two columns on one invoice. */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+          {/* Money: the server leaves the balance out for a seat that may not see it (crm/salon/prices.ts), and then there is no
+              card at all — "$0.00" would be a wrong answer, not a hidden one (salon live test 11/07). */}
+          {stats.accountBalance !== undefined && (
           <div className={`border rounded-lg p-3 ${
             (stats.accountBalance ?? 0) > 0
               ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800'
@@ -322,6 +325,7 @@ export default function ClientDetailPage() {
               <p className="text-xs text-amber-800 dark:text-amber-200 mt-0.5">owed to the salon</p>
             )}
           </div>
+          )}
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>
@@ -368,7 +372,7 @@ export default function ClientDetailPage() {
               {profile.hairType && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Hair</dt><dd>{profile.hairType}</dd></div>}
               {profile.scalpNotes && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Scalp</dt><dd className="text-right">{profile.scalpNotes}</dd></div>}
               {profile.birthday && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Birthday</dt><dd>{fmtDate(profile.birthday)}</dd></div>}
-              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Notes</dt><dd className="text-right">{profile.preferences}</dd></div>}
+              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Preferences</dt><dd className="text-right">{profile.preferences}</dd></div>}
               {!profile.hairType && !profile.scalpNotes && !profile.birthday && !profile.preferences && (
                 <p className="text-gray-500 dark:text-slate-400">Nothing recorded yet</p>
               )}

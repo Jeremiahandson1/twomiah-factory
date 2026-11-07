@@ -10,7 +10,8 @@ import type { MiddlewareHandler } from 'hono'
 import { serviceMenu } from '../../db/schema/index.ts'
 
 /** Every key that is a price the salon charges or sells at. */
-export const PRICE_KEYS = ['priceCharged', 'quotedPrice', 'price', 'priceIsFrom', 'planPrice', 'lifetimeValue', 'revenue'] as const
+// The client's account balance (credit or owed) is money too — a stylist saw "On account $0.00" on a chart (salon live test 11/07).
+export const PRICE_KEYS = ['priceCharged', 'quotedPrice', 'price', 'priceIsFrom', 'planPrice', 'lifetimeValue', 'revenue', 'accountBalance', 'accountBalanceLabel'] as const
 
 /** `value` with every price key removed, at any depth. Arrays and plain objects only; dates and primitives pass through. */
 export function withoutPrices<T>(value: T): T {

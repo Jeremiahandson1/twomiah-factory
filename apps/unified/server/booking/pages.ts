@@ -184,7 +184,15 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     if (!b) return c.notFound()
     const svc = b.serviceId ? await engine.serviceById(s.ctx.companyId, b.serviceId) : null
     const tz = safeTz(s.settings.timezone)
-    const body = `<section class="book-thanks"><div class="container container--narrow">
+    // Held, not booked yet (forms to fill in, a card or a deposit to come): said so, with the way to finish — the page said
+    // "You're booked." over a booking still waiting for its consent form (salon live test 11/07).
+    const held = b.status === 'pending'
+    const heldWhy = engine.waitingForForms(b) ? 'Fill in your form to confirm it.' : engine.waitingForCard(b) ? 'Add your card to confirm it.' : 'Pay the deposit to confirm it.'
+    const body = held ? `<section class="book-thanks"><div class="container container--narrow">
+      <h1>Almost booked</h1>
+      <p class="book-thanks__lead">Your time is held. ${escHtml(heldWhy)}</p>
+      <div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}${keep(c)}"${top(c)}>Finish your booking</a></div>
+    </div></section>` : `<section class="book-thanks"><div class="container container--narrow">
       <div class="book-thanks__check" aria-hidden="true">✓</div>
       <h1>${escHtml(s.settings.thanksMessage || "You're booked.")}</h1>
       <p class="book-thanks__lead">A confirmation is on its way to <strong>${escHtml(b.customerEmail)}</strong>.</p>

@@ -12,7 +12,8 @@ const hasKey = (v: unknown, keys: string[]): boolean => {
   if (v && typeof v === 'object') return Object.entries(v).some(([k, x]) => keys.includes(k) || hasKey(x, keys))
   return false
 }
-const PRICE_KEYS = ['price', 'quotedPrice', 'priceCharged', 'planPrice', 'revenue', 'revenueThisMonth']
+// The client's account balance too (a stylist saw "On account $0.00", salon live test 11/07).
+const PRICE_KEYS = ['price', 'quotedPrice', 'priceCharged', 'planPrice', 'revenue', 'revenueThisMonth', 'accountBalance', 'accountBalanceLabel']
 
 describe('salon: tiles, prices, check-in', () => {
   let t: Awaited<ReturnType<typeof bootTenant>>
@@ -87,6 +88,7 @@ describe('salon: tiles, prices, check-in', () => {
     }
     expect(hasKey((await as('owner', '/api/service-menu')).body, ['price'])).toBe(true)
     expect(hasKey((await as('owner', '/api/appointments?tile=today')).body, ['quotedPrice'])).toBe(true)
+    expect(hasKey((await as('owner', `/api/clients/${client}`)).body, ['accountBalance'])).toBe(true)
   })
 
   test('a stylist cannot set a price: a quote or charge they send is ignored, the menu price stands', async () => {
