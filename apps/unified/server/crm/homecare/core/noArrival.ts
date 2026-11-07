@@ -15,7 +15,7 @@ import { company, familyMembers, noshowAlertConfig, noshowAlerts } from '../../.
 import { clockInsSince, visitsOnDay } from '../../../data/homecareScheduling.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AgencyTime } from './agencyTime.ts'
-import { ymdIn } from './agencyTime.ts'
+import { addDays, ymdIn } from './agencyTime.ts'
 import { inQuietHours } from './notificationPrefs.ts'
 import type { VisitNotify } from './visitNotify.ts'
 
@@ -54,15 +54,24 @@ export function createNoArrival(d: CrmDeps, deps: { time: AgencyTime; notify: Vi
     if (!cfg.isActive) return { checked: 0, alertsCreated: 0 }
     const { date, time, tz } = await deps.time.now(companyId, at)
     const nowMin = toMin(time.slice(0, 5))
-    const visits = await visitsOnDay(d.db, companyId, date)
+    // Yesterday's late visits too: just after midnight, a visit due at 11:45 PM is still inside the look-back (found 11/07 at 00:24,
+    // when the scan read only the new day and the 11:45 PM visit nobody arrived at was never alerted). Its minutes run on from 24:00.
+    const yesterday = addDays(date, -1)
+    const [todays, lastNight] = await Promise.all([visitsOnDay(d.db, companyId, date), nowMin < LOOKBACK_MINUTES ? visitsOnDay(d.db, companyId, yesterday) : Promise.resolve([])])
+    const visits = [...todays.map((v: any) => ({ ...v, day: date })), ...lastNight.map((v: any) => ({ ...v, day: yesterday }))]
     const punches = await clockInsSince(d.db, companyId, new Date(at.getTime() - 36 * 3600_000))
-    const arrived = (v: { caregiverId: string; clientId: string }) =>
-      punches.some((p) => p.caregiverId === v.caregiverId && p.clientId === v.clientId && ymdIn(new Date(p.startTime), tz) === date)
+    // Arrived: a clock-in by that caregiver at that client on the visit's day or after it (one who came just after midnight counts).
+    const arrived = (v: { caregiverId: string; clientId: string; day: string }) =>
+      punches.some((p) => p.caregiverId === v.caregiverId && p.clientId === v.clientId && ymdIn(new Date(p.startTime), tz) >= v.day)
+    const missed = [
+      ...missedVisits(visits.filter((v) => v.day === date), arrived, nowMin, cfg.graceMinutes),
+      ...missedVisits(visits.filter((v) => v.day === yesterday), arrived, nowMin + 24 * 60, cfg.graceMinutes),
+    ]
     let created = 0
-    for (const v of missedVisits(visits, arrived, nowMin, cfg.graceMinutes)) {
+    for (const v of missed) {
       try {
         const [row] = await d.db.insert(noshowAlerts).values({
-          companyId, scheduleId: v.scheduleId, caregiverId: v.caregiverId, clientId: v.clientId, shiftDate: date, expectedStart: `${v.start}:00`, status: 'open',
+          companyId, scheduleId: v.scheduleId, caregiverId: v.caregiverId, clientId: v.clientId, shiftDate: v.day, expectedStart: `${v.start}:00`, status: 'open',
         } as any).onConflictDoNothing().returning({ id: noshowAlerts.id })
         if (!row) continue                                    // already alerted
         created++
