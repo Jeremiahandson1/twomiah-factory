@@ -10,7 +10,7 @@ export const ROUTES = {
   // The page's stylesheet is the function's too (not a deployed file): an editor save changes the look with no deploy, and the
   // stylesheet must change with it. publish.ts deploys no file at this path, so this rule is never shadowed by one.
   '/styles/main.css': 'css',
-  '/api/signin': 'api/signin', '/api/signout': 'api/signout', '/api/link': 'api/link', '/api/model': 'api/model',
+  '/api/signin': 'api/signin', '/api/login': 'api/login', '/api/password': 'api/password', '/api/signout': 'api/signout', '/api/link': 'api/link', '/api/model': 'api/model',
   '/api/upload': 'api/upload', '/api/leads': 'api/leads', '/api/apply': 'api/apply', '/api/me': 'api/me', '/api/usage': 'api/usage',
   '/api/export': 'api/export', '/api/adopt': 'api/adopt', '/api/domain/status': 'api/domain/status',
   '/api/domain/attach': 'api/domain/attach', '/api/domain/buy': 'api/domain/buy',

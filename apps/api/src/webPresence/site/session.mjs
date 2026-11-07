@@ -31,6 +31,26 @@ export function safeEqual(a, b) {
 }
 export function randomId(bytes = 16) { return b64u(crypto.getRandomValues(new Uint8Array(bytes))) }
 
+/** The owner's password is kept only as this: PBKDF2-SHA256, a random 16-byte salt, 210,000 rounds (OWASP's figure). */
+export const PASSWORD_ROUNDS = 210000
+export const PASSWORD_MIN = 10
+export const PASSWORD_MAX = 200
+async function pbkdf2(password, saltB64u, rounds) {
+  const salt = Uint8Array.from(atob(saltB64u.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((saltB64u.length + 3) % 4)), (c) => c.charCodeAt(0))
+  const base = await crypto.subtle.importKey('raw', enc.encode(String(password)), 'PBKDF2', false, ['deriveBits'])
+  return b64u(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: rounds }, base, 256))
+}
+/** { v, salt, rounds, hash } for a new password. */
+export async function hashPassword(password, rounds = PASSWORD_ROUNDS) {
+  const salt = b64u(crypto.getRandomValues(new Uint8Array(16)))
+  return { v: 1, salt, rounds, hash: await pbkdf2(password, salt, rounds) }
+}
+/** Whether `password` is the one `rec` was made from (compared without stopping at the first difference). */
+export async function checkPassword(password, rec) {
+  if (!rec || rec.v !== 1 || typeof rec.salt !== 'string' || typeof rec.hash !== 'string' || !(rec.rounds >= 1)) return false
+  return safeEqual(await pbkdf2(password, rec.salt, rec.rounds), rec.hash)
+}
+
 /** The site's own secret, from the Factory's master key and the site's id. Only the Factory can compute it for another site. */
 export async function siteSecret(master, siteId) {
   if (!master || String(master).length < 16) throw new Error('WEB_PRESENCE_SECRET_KEY is not set (16+ characters)')

@@ -105,6 +105,7 @@
       if (r.status === 401) return signedOut('');
       if (!r.ok) return signedOut(r.d.error || 'Could not open the editor.');
       state.model = r.d.model; state.spec = r.d.spec; state.dirty = false;
+      api('/api/me').then(function (m) { if (m.ok) { state.hasPassword = !!m.d.hasPassword; render(); } });
       if (back && STRIPE_OUTCOME[back[1]] && state.spec.caps && state.spec.caps.download) {
         state.tab = 'sell'; state.msg = { text: STRIPE_OUTCOME[back[1]][0], bad: STRIPE_OUTCOME[back[1]][1] };
         if (back[1] === 'linked') { state.dirty = true; sell.justLinked = true; }
@@ -114,13 +115,25 @@
   }
   function signedOut(why) {
     app.textContent = '';
-    var sent = h('p', { class: 'msg', hidden: true, role: 'status' }, 'If this address is the one on file, a new sign-in link is on its way. It works once, for 15 minutes.');
+    var sent = h('p', { class: 'msg', hidden: true, role: 'status' }, 'A sign-in link is on its way to the email on file. It works once, for 15 minutes. Open it on this device.');
+    var err = h('p', { class: 'msg bad', role: 'alert', hidden: !why }, why || '');
+    var pw = h('input', { id: 'pw', type: 'password', autocomplete: 'current-password', maxlength: 200 });
+    var go = h('button', { class: 'primary', type: 'submit' }, 'Sign in');
+    var form = h('form', { onsubmit: function (e) {
+      e.preventDefault(); if (!pw.value) { pw.focus(); return; }
+      go.disabled = true; err.hidden = true;
+      api('/api/login', { method: 'POST', body: JSON.stringify({ password: pw.value }) }).then(function (r) {
+        go.disabled = false;
+        if (r.ok) { pw.value = ''; load(); return; }
+        err.textContent = (r.d && r.d.error) || 'Could not sign in.'; err.hidden = false; pw.select();
+      });
+    } }, h('label', { for: 'pw' }, 'Password'), pw, h('p', null, go));
     app.appendChild(h('div', { class: 'center' },
-      h('h1', null, 'Sign in to edit your page'),
-      why ? h('p', { class: 'msg bad' }, why) : null,
-      h('p', null, 'You sign in with a link we email to you. Open it on this device.'),
-      h('button', { class: 'primary', onclick: function () { api('/api/link', { method: 'POST' }).then(function () { sent.hidden = false; }); } }, 'Email me a new sign-in link'),
+      h('h1', null, 'Sign in to edit your page'), err, form,
+      h('p', { class: 'hint' }, 'Forgot your password, or have not set one yet?'),
+      h('button', { type: 'button', onclick: function () { api('/api/link', { method: 'POST' }).then(function () { sent.hidden = false; }); } }, 'Email me a sign-in link'),
       sent));
+    pw.focus();
   }
 
   // ---- image: resized in the browser, then stored by the site ----
@@ -230,7 +243,22 @@
     var areas = h('textarea', { 'aria-label': 'Places you work, one per line' }); areas.value = (b.serviceAreas || []).join('\n');
     areas.addEventListener('input', function () { b.serviceAreas = areas.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean); touch(); });
     var t = function (k, name, type, max) { var id = 'b' + k; var el = h('input', { id: id, type: type || 'text', maxlength: max || 120 }); el.value = b[k] || ''; el.addEventListener('input', function () { b[k] = el.value; touch(); }); return h('div', null, h('label', { for: id }, name), el); };
-    return h('div', null,
+    var np = h('input', { id: 'np', type: 'password', autocomplete: 'new-password', maxlength: 200 });
+    var np2 = h('input', { id: 'np2', type: 'password', autocomplete: 'new-password', maxlength: 200 });
+    var pmsg = h('p', { class: 'msg', role: 'status', hidden: true });
+    var pwCard = h('div', { class: 'card' }, h('h2', null, 'Your password'),
+      h('p', { class: 'hint' }, state.hasPassword === false ? 'Set a password so you can sign in at this page without an emailed link. At least 10 characters.' : 'Change the password you sign in with. At least 10 characters.'),
+      h('div', { class: 'row' }, h('div', null, h('label', { for: 'np' }, 'New password'), np), h('div', null, h('label', { for: 'np2' }, 'Type it again'), np2)),
+      h('p', null, h('button', { type: 'button', onclick: function () {
+        pmsg.hidden = false; pmsg.className = 'msg bad';
+        if (np.value.length < 10) { pmsg.textContent = 'Use at least 10 characters.'; return; }
+        if (np.value !== np2.value) { pmsg.textContent = 'The two do not match.'; return; }
+        api('/api/password', { method: 'POST', body: JSON.stringify({ password: np.value }) }).then(function (r) {
+          if (!r.ok) { pmsg.textContent = (r.d && r.d.error) || 'Could not save the password.'; return; }
+          np.value = ''; np2.value = ''; state.hasPassword = true; pmsg.className = 'msg good'; pmsg.textContent = 'Password saved. Use it next time you sign in.';
+        });
+      } }, 'Save password')), pmsg);
+    return h('div', null, pwCard,
       h('div', { class: 'card' }, h('h2', null, 'Your business'), t('name', 'Business name', 'text', 80), t('tagline', 'One line about you', 'text', 140), h('div', { class: 'row' }, t('phone', 'Phone', 'tel', 30), t('email', 'Email shown on the page', 'email', 120)), t('address', 'Street address', 'text', 160), h('div', { class: 'row' }, t('city', 'City', 'text', 60), t('state', 'State', 'text', 30), t('zip', 'ZIP', 'text', 12)), h('label', null, 'Logo'), imageField(b, 'logo'),
         h('label', null, 'Logo size in the top bar'), h('div', { class: 'row tight' }, [['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Extra large']].map(function (o) { return h('button', { type: 'button', 'aria-pressed': (b.logoSize || 'standard') === o[0] ? 'true' : 'false', onclick: function () { if (o[0] === 'standard') delete b.logoSize; else b.logoSize = o[0]; touch(); render(); } }, o[1]); }))),
       h('div', { class: 'card' }, h('h2', null, 'Opening hours'), h('p', { class: 'hint' }, 'Leave a day blank to leave it off the page.'), hoursBox),
