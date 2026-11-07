@@ -11,7 +11,8 @@ import { WebPresenceOffError, requireWebPresence, WEB_PRESENCE_PLAN_ID, WEB_PRES
 import { SignatureError, verifySiteRequest, renderForSite, requestLink, staffLink, cancelAtPeriodEnd, sweep, provisionSite, siteRowFor } from '../../webPresence/service'
 import { startUpgrade, changeTrade } from '../../webPresence/upgrade'
 import { creditWatch, siteUsage } from '../../webPresence/watch'
-import { liveDeps, liveUpgradeDeps, liveDownloadDeps } from '../../webPresence/live'
+import { liveDeps, liveUpgradeDeps, liveDownloadDeps, liveFormDeps } from '../../webPresence/live'
+import { deliverForm, FormError, FORM_BODY_MAX, type FormDeps } from '../../webPresence/forms'
 import { removeSite } from '../../webPresence/service'
 import { DownloadError, startCheckout, saleStatus, resendLink, stripeStart, stripeDisconnect } from '../../webPresence/downloads'
 import { staffCreateWebPresence, type StaffCreateDeps } from '../../webPresence/staffCreate'
@@ -20,8 +21,8 @@ import type { Deps } from '../../webPresence/service'
 import type { UpgradeDeps } from '../../webPresence/upgrade'
 import type { DownloadDeps } from '../../webPresence/downloads'
 
-export interface WebPresenceRouteDeps { deps: () => Deps; upgradeDeps: () => UpgradeDeps; downloadDeps?: () => DownloadDeps; staffCreateDeps?: () => StaffCreateDeps }
-const real: WebPresenceRouteDeps = { deps: liveDeps, upgradeDeps: liveUpgradeDeps, downloadDeps: liveDownloadDeps, staffCreateDeps: liveStaffCreateDeps }
+export interface WebPresenceRouteDeps { deps: () => Deps; upgradeDeps: () => UpgradeDeps; downloadDeps?: () => DownloadDeps; staffCreateDeps?: () => StaffCreateDeps; formDeps?: () => FormDeps }
+const real: WebPresenceRouteDeps = { deps: liveDeps, upgradeDeps: liveUpgradeDeps, downloadDeps: liveDownloadDeps, staffCreateDeps: liveStaffCreateDeps, formDeps: liveFormDeps }
 
 /** Run a handler; the switch being off, or a failed signature, is a plain 404 — nothing says why. */
 async function guarded(c: any, run: () => Promise<Response>): Promise<Response> {
@@ -30,6 +31,7 @@ async function guarded(c: any, run: () => Promise<Response>): Promise<Response> 
   } catch (e: any) {
     if (e instanceof WebPresenceOffError || e instanceof SignatureError) return c.json({ error: 'Not found' }, 404)
     if (e instanceof DownloadError) return c.json({ error: e.message }, e.status as any)
+    if (e instanceof FormError) return c.json({ error: e.message }, e.status as any)
     console.error('[WebPresence] route error:', e?.message || e)
     return c.json({ error: String(e?.message || 'Something went wrong').slice(0, 300) }, 500)
   }
@@ -82,6 +84,20 @@ export function registerWebPresenceRoutes(factory: FactoryApp, injected: WebPres
   factory.post('/internal/web-presence/resend', (c) => guarded(c, async () => { const { row, body } = await signedSite(c); return c.json(await resendLink(DL(), row, body)) }))
   factory.post('/internal/web-presence/stripe/start', (c) => guarded(c, async () => { const { row, body } = await signedSite(c); return c.json(await stripeStart(DL(), row, body)) }))
   factory.post('/internal/web-presence/stripe/disconnect', (c) => guarded(c, async () => { const { row } = await signedSite(c); return c.json(await stripeDisconnect(DL(), row)) }))
+
+  // A visitor's message or job application, already cleaned by the site: the Factory emails it to the owner (forms.ts). Its own size
+  // limit — a resume rides along as base64 — and the same signature as every other call from the site.
+  factory.post('/internal/web-presence/form', (c) => guarded(c, async () => {
+    if (!injected.formDeps) throw new WebPresenceOffError()
+    const raw = await c.req.text()
+    if (raw.length > FORM_BODY_MAX) return c.json({ error: 'That is too large to send.' }, 413)
+    const row = await verifySiteRequest(D(), { site: c.req.header('x-wp-site'), ts: c.req.header('x-wp-ts'), sig: c.req.header('x-wp-sig') }, raw)
+    let body: any
+    try { body = JSON.parse(raw) } catch { throw new SignatureError() }
+    if (body?.siteId !== row.id) throw new SignatureError()
+    const out = await deliverForm(injected.formDeps(), row, body)
+    return c.json(out, out.ok ? 200 : 502)
+  }))
 
   // ─── the scheduler ──────────────────────────────────────────────────────────
   factory.post('/internal/web-presence/sweep', (c) => guarded(c, async () => {

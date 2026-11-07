@@ -12,7 +12,6 @@ const sha1 = (b: string | Uint8Array) => createHash('sha1').update(b).digest('he
 const sha256 = (b: string | Uint8Array) => createHash('sha256').update(b).digest('hex')
 
 export interface Deployed { deployId: string; state: string; url: string }
-export interface FormWanted { on: boolean; inbox: string }
 
 export class Netlify {
   constructor(private cfg: { token: string; team: string; fetch?: FetchLike; base?: string; sleep?: (ms: number) => Promise<void> }) {
@@ -119,32 +118,16 @@ export class Netlify {
     }
   }
 
-  /** The site's forms by name (Netlify registers them when a deploy contains them — a moment after the deploy is ready). */
-  async forms(siteId: string): Promise<Array<{ id: string; name: string }>> {
-    const r = await this.call('GET', `/sites/${encodeURIComponent(siteId)}/forms`)
-    return (Array.isArray(r) ? r : []).map((f: any) => ({ id: f.id, name: f.name }))
-  }
   /**
-   * Make each form's email notification what the owner set: on → exactly one email hook to the inbox; off → none (a submission
-   * that somehow arrives is then emailed to nobody). Returns the form names Netlify does not know yet.
+   * Remove every Netlify email notice on this site's forms. Netlify sends those only to members of the Twomiah team (422 "must be
+   * the email of a team member" for anyone else), so the owner's messages go by the Factory's own email instead (webPresence/forms.ts);
+   * a notice left from before would mail the same message twice. Netlify Forms itself stays: it keeps a copy of every submission.
    */
-  async reconcileFormEmails(siteId: string, wanted: Record<string, FormWanted>): Promise<{ missing: string[] }> {
-    const forms = await this.forms(siteId)
+  async removeFormEmails(siteId: string): Promise<number> {
     const hooks: any[] = (await this.call('GET', `/hooks?site_id=${encodeURIComponent(siteId)}`)) || []
-    const missing: string[] = []
-    for (const [name, w] of Object.entries(wanted)) {
-      const form = forms.find((f) => f.name === name)
-      if (!form) { missing.push(name); continue }
-      const mine = hooks.filter((h) => h.form_id === form.id && h.type === 'email')
-      const want = w.on && w.inbox ? w.inbox : ''
-      let have = false
-      for (const h of mine) {
-        if (want && !have && h.data?.email === want) { have = true; continue }
-        await this.call('DELETE', `/hooks/${h.id}`)
-      }
-      if (want && !have) await this.call('POST', '/hooks', { json: { site_id: siteId, form_id: form.id, type: 'email', event: 'submission_created', data: { email: want } } })
-    }
-    return { missing }
+    let removed = 0
+    for (const h of hooks) if (h && h.type === 'email' && h.form_id) { await this.call('DELETE', `/hooks/${h.id}`); removed++ }
+    return removed
   }
 
   /** Optional: a reading of the team's credits from an endpoint the owner names (Netlify documents none). Null when not configured. */

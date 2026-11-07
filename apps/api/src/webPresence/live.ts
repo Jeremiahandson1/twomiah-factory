@@ -12,6 +12,7 @@ import { stripeOAuthConfig, deauthorizeAccount } from '../services/stripeConnect
 import type { Deps } from './service'
 import type { UpgradeDeps } from './upgrade'
 import type { DownloadDeps } from './downloads'
+import type { FormDeps } from './forms'
 
 const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
 
@@ -41,6 +42,15 @@ export function liveDeps(): Deps {
     alert: async (key, what, detail, tenantId) => { await raiseAlert({ key, what, detail, tenantId }) },
     endSubscriptionAtPeriodEnd,
     cancelSubscriptionNow: async (id) => { await factoryStripe.cancelSubscription(id) },
+  }
+}
+
+/** A $19 site's form messages: emailed to the owner by the Factory, replying to the visitor (forms.ts). */
+export function liveFormDeps(): FormDeps {
+  return {
+    db: supabase,
+    sendFormEmail: (m) => sendEmail(m.to, m.subject, m.html, { replyTo: m.replyTo, attachments: m.attachment ? [m.attachment] : undefined }),
+    alert: async (key, what, detail, tenantId) => { await raiseAlert({ key, what, detail, tenantId }) },
   }
 }
 

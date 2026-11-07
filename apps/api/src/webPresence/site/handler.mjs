@@ -194,7 +194,7 @@ export function createHandler(deps) {
   }
 
   // ── the two forms ───────────────────────────────────────────────────────
-  /** Netlify Forms takes a POST to the site; it counts as accepted only when Netlify answers with success or its redirect. */
+  /** The kept copy in Netlify Forms (a POST to the site). True when Netlify answers with success or its redirect; nothing depends on it. */
   async function toNetlifyForms(req, formName, fields, file) {
     const target = originOf(req) + '/forms.html'
     let body
@@ -213,6 +213,23 @@ export function createHandler(deps) {
       return r.status >= 200 && r.status < 400
     } catch { return false }
   }
+  /**
+   * A cleaned form message to the owner. The Factory emails it (signed with this site's secret; the inbox is the one the owner set);
+   * that is what "sent" means. Netlify's own notice may only email a Twomiah team member, so Netlify Forms is only the kept copy:
+   * tried after, and its answer does not decide anything.
+   */
+  async function deliver(req, form, inbox, fields, file) {
+    let resume = null
+    if (file) {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      let bin = ''
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
+      resume = { ext: String(file.name).split('.').pop(), content: btoa(bin) }
+    }
+    const r = await askFactory('form', { form, inbox: inbox || '', fields, ...(resume ? { resume } : {}) })
+    await toNetlifyForms(req, form, fields, file)
+    return r.ok && r.d && r.d.ok === true
+  }
   const stampTooFast = (f) => { const t = Number(f.t); return Number.isFinite(t) && t > 0 && now() - t < 2000 }
   const fieldsOf = (fd) => { const o = {}; for (const [k, v] of fd.entries()) if (typeof v === 'string') o[k] = v; return o }
 
@@ -227,7 +244,7 @@ export function createHandler(deps) {
     const c = cleanLead(f, ((model.forms.lead && model.forms.lead.extraFields) || []).map((x) => x.label))
     if (!c.ok) return json({ error: c.error }, 400)
     await count('lead')
-    const ok = await toNetlifyForms(req, 'lead', c.fields)
+    const ok = await deliver(req, 'lead', model.forms.lead && model.forms.lead.inbox, c.fields, null)
     return ok ? json({ ok: true, message: 'Thanks — your message was sent.' }) : json({ error: 'That didn’t go through. Please try again, or call us.' }, 502)
   }
 
@@ -255,7 +272,7 @@ export function createHandler(deps) {
       file = new File([await file.arrayBuffer()], 'resume.' + chk.ext, { type: RESUME_TYPES[chk.ext] })
     } else file = null
     await count('apply')
-    const ok = await toNetlifyForms(req, 'apply', c.fields, file)
+    const ok = await deliver(req, 'apply', model.forms.hiring && model.forms.hiring.inbox, c.fields, file)
     return ok ? json({ ok: true, message: 'Thanks — your application was sent.' }) : json({ error: 'That didn’t go through. Please try again, or call us.' }, 502)
   }
 

@@ -5,7 +5,7 @@
 import { fileURLToPath } from 'node:url'
 import { describe, test, expect } from 'bun:test'
 import { createHandler } from '../../../apps/api/src/webPresence/site/handler.mjs'
-import { siteSecret, mintSignin, mintSession, signRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
+import { siteSecret, mintSignin, mintSession, signRequest, verifyRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
 
 const MASTER = 'master-key-for-tests'
 
@@ -37,7 +37,10 @@ async function site(siteId = 'site-a', opts: { model?: any; factory?: (url: stri
   const fetchImpl = async (url: any, init: any) => {
     calls.push({ url: String(url), init })
     if (String(url).includes('/forms.html')) return (opts.netlify ? opts.netlify(String(url), init) : new Response('', { status: 200 }))
-    return opts.factory ? opts.factory(String(url), init) : new Response(JSON.stringify({ error: 'no factory' }), { status: 500 })
+    if (opts.factory) return opts.factory(String(url), init)
+    // The Factory takes a form message and emails it (forms.ts); anything else this stand-in has not been told about fails.
+    if (String(url).endsWith('/internal/web-presence/form')) return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    return new Response(JSON.stringify({ error: 'no factory' }), { status: 500 })
   }
   const env = { WP_SITE_ID: siteId, WP_SECRET: secret, WP_FACTORY_URL: 'https://factory.test', WP_TENANT_ID: 'tenant-a', WP_FACTORY_KEY: 'k' }
   const handler = createHandler({ store, env, fetchImpl, now: () => t.now, initial: { index: '<html>initial</html>', privacy: '<html>privacy</html>', model: opts.model || model(), css: '/* deployed look */', cssVersion: 'v-deployed' }, spec: { limits: {} } })
@@ -270,22 +273,29 @@ describe('photo uploads', () => {
 
 describe('the lead form', () => {
   const lead = (extra: Record<string, string> = {}) => form({ name: 'Pat Smith', phone: '555-123-4567', message: 'I need a quote please', t: String(Date.UTC(2026, 9, 29, 11, 59, 0)), ...extra })
-  test('"sent" only after Netlify accepted it, and the owner is not shown the visitor words in an error', async () => {
+  test('"sent" only after the Factory took it to email the owner, signed by this site, to the inbox the owner set; Netlify keeps a copy', async () => {
     const s = await site()
     const ok = await s.call('api/leads', lead())
     expect(ok.status).toBe(200)
+    const asked = s.calls.find((c) => c.url === 'https://factory.test/internal/web-presence/form')!
+    const body = JSON.parse(String(asked.init.body))
+    expect(body).toMatchObject({ siteId: 'site-a', form: 'lead', inbox: 'owner@acme.test', fields: { name: 'Pat Smith', phone: '(555) 123-4567', message: 'I need a quote please' } })
+    expect(asked.init.headers['x-wp-site']).toBe('site-a')
+    expect(await verifyRequest(s.secret, asked.init.headers['x-wp-ts'], String(asked.init.body), asked.init.headers['x-wp-sig'], s.t.now)).toBe(true)
     const posted = s.calls.find((c) => c.url.endsWith('/forms.html'))!
     expect(String(posted.init.body)).toContain('form-name=lead')
-    const rejected = await site('site-a', { netlify: async () => new Response('', { status: 500 }) })
-    const bad = await rejected.call('api/leads', lead())
-    expect(bad.status).toBe(502)
-    expect(JSON.stringify(await bad.json())).not.toContain('Pat Smith')
   })
-  test('a redirect from Netlify counts as accepted; a network failure does not', async () => {
-    const redirect = await site('site-a', { netlify: async () => new Response('', { status: 303 }) })
-    expect((await redirect.call('api/leads', lead())).status).toBe(200)
-    const down = await site('site-a', { netlify: async () => { throw new Error('offline') } })
-    expect((await down.call('api/leads', lead())).status).toBe(502)
+  test('the Factory refusing or unreachable is "did not go through" (and shows none of the visitor words); Netlify Forms down is not', async () => {
+    for (const factory of [async () => new Response(JSON.stringify({ ok: false }), { status: 502 }), async () => { throw new Error('offline') }]) {
+      const s = await site('site-a', { factory: factory as any })
+      const bad = await s.call('api/leads', lead())
+      expect(bad.status).toBe(502)
+      expect(JSON.stringify(await bad.json())).not.toContain('Pat Smith')
+    }
+    for (const netlify of [async () => new Response('', { status: 500 }), async () => { throw new Error('offline') }]) {
+      const s = await site('site-a', { netlify: netlify as any })
+      expect((await s.call('api/leads', lead())).status).toBe(200)
+    }
   })
   test('phone or email, either one; neither is refused', async () => {
     const s = await site()
@@ -299,7 +309,7 @@ describe('the lead form', () => {
     expect(filled.status).toBe(200)
     const instant = await s.call('api/leads', lead({ t: String(s.t.now - 500) }))
     expect(instant.status).toBe(200)
-    expect(s.calls.filter((c) => c.url.endsWith('/forms.html')).length).toBe(0)
+    expect(s.calls.length).toBe(0)
   })
   test('rate limited', async () => {
     const s = await site()
@@ -325,6 +335,8 @@ describe('the lead form', () => {
     await s.call('api/leads', lead({ extra1: 'Shingle' }))
     const body = String(s.calls.find((c) => c.url.endsWith('/forms.html'))!.init.body)
     expect(decodeURIComponent(body.replace(/\+/g, ' '))).toContain('extra1=Roof type: Shingle')
+    const toFactory = JSON.parse(String(s.calls.find((c) => c.url.endsWith('/internal/web-presence/form'))!.init.body))
+    expect(toFactory.fields.extra1).toBe('Roof type: Shingle'); expect(toFactory.inbox).toBe('o@x.test')
   })
 })
 
@@ -336,14 +348,19 @@ describe('the now-hiring form', () => {
     const s = await site()
     expect((await s.call('api/apply', app())).status).toBe(404)
   })
-  test('on: "sent" only after Netlify accepted, with the resume under a name the visitor did not choose', async () => {
+  test('on: "sent" only after the Factory took it, with the resume (its own bytes, under a name the visitor did not choose) to the hiring inbox', async () => {
     const s = await site('site-a', { model: on() })
-    const ok = await s.call('api/apply', app({}, pdf('../../evil name.pdf')))
+    const file = pdf('../../evil name.pdf')
+    const ok = await s.call('api/apply', app({}, file))
     expect(ok.status).toBe(200)
+    const asked = JSON.parse(String(s.calls.find((c) => c.url.endsWith('/internal/web-presence/form'))!.init.body))
+    expect(asked).toMatchObject({ form: 'apply', inbox: 'jobs@acme.test', fields: { name: 'Sam Lee', email: 'sam@example.com', job: 'Driver' } })
+    expect(asked.resume.ext).toBe('pdf')
+    expect(Buffer.from(asked.resume.content, 'base64').equals(Buffer.from(await file.arrayBuffer()))).toBe(true)
     const sent = s.calls.find((c) => c.url.endsWith('/forms.html'))!
     expect(sent.init.body instanceof FormData).toBe(true)
     expect((sent.init.body.get('resume') as File).name).toBe('resume.pdf')
-    const rej = await site('site-a', { model: on(), netlify: async () => new Response('', { status: 502 }) })
+    const rej = await site('site-a', { model: on(), factory: async () => new Response(JSON.stringify({ ok: false }), { status: 502 }) })
     expect((await rej.call('api/apply', app())).status).toBe(502)
   })
   test('a resume of the wrong type, or one that is not what its name says, is refused', async () => {

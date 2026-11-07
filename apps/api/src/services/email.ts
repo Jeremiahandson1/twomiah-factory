@@ -20,7 +20,10 @@ function getFromEmail(): string {
 
 // ─── Base send ───────────────────────────────────────────────────────────────
 
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+/** Optional extras: where a reply goes (a $19 site's form message replies to the visitor) and one attached file (base64). */
+export interface SendEmailOptions { replyTo?: string; attachments?: Array<{ filename: string; content: string }> }
+
+export async function sendEmail(to: string, subject: string, html: string, opts: SendEmailOptions = {}): Promise<boolean> {
   const apiKey = getApiKey()
   if (!apiKey) {
     console.warn('[Email] RESEND_API_KEY not set — skipping email:', subject)
@@ -47,6 +50,8 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
           to: [to],
           subject,
           html,
+          ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+          ...(opts.attachments && opts.attachments.length ? { attachments: opts.attachments } : {}),
         }),
         signal: AbortSignal.timeout(30_000),
       })
