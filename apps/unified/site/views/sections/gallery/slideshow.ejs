@@ -20,8 +20,9 @@
       <% photos.forEach(function (p, i) { %>
         <li class="gallery-slideshow__slide" role="group" aria-roledescription="slide" aria-label="<%= i + 1 %> of <%= photos.length %>">
           <figure class="gallery-slideshow__figure">
-            <img src="<%= p.url %>" alt="<%= p.alt || p.caption || '' %>" <%= i === 0 ? '' : 'loading="lazy"' %>>
-            <% if (p.caption) { %><figcaption class="gallery-slideshow__caption"><%= p.caption %></figcaption><% } %>
+            <%/* Each photo opens full size in its own tab (pinch or zoom to read a page): a plain link, no script needed. */%>
+            <a class="gallery-slideshow__open" href="<%= p.url %>" target="_blank" rel="noopener" aria-label="Open full size<%= p.caption ? ': ' + p.caption : '' %> (opens in a new tab)"><img src="<%= p.url %>" alt="<%= p.alt || p.caption || '' %>" <%= i === 0 ? '' : 'loading="lazy"' %>></a>
+            <figcaption class="gallery-slideshow__caption"><% if (p.caption) { %><%= p.caption %><% } %><span class="gallery-slideshow__hint">Tap to see it full size</span></figcaption>
           </figure>
         </li>
       <% }) %>

@@ -56,7 +56,10 @@
 /* One frame for every photo: the same width and height on every slide (4:3), each photo fitted inside it whole, so the slides
    never change size as they move, whatever shape the photos are. */
 .gallery-slideshow__figure img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; background: var(--white); border: 1px solid var(--line); }
+.gallery-slideshow__open { display: block; width: 100%; cursor: zoom-in; }
+.gallery-slideshow__open:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
 .gallery-slideshow__caption { font-weight: 700; color: var(--ink); text-align: center; }
+.gallery-slideshow__hint { display: block; margin-top: 4px; font-weight: 400; font-size: .85rem; color: var(--muted); }
 .gallery-slideshow__controls { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 22px; }
 .gallery-slideshow__controls[hidden] { display: none; }
 .gallery-slideshow__btn { width: 48px; height: 48px; border: 2px solid var(--ink); background: var(--white); color: var(--ink); font-size: 20px; /* the page's own ink on white: readable whatever the brand colour */ line-height: 1; cursor: pointer; }
