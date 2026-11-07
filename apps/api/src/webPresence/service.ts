@@ -12,7 +12,6 @@ import { buildSiteFiles } from './publish.ts'
 import { requireWebPresence, WEB_PRESENCE_PLAN_ID, downloadsOn } from './switch.ts'
 import { renderOnePage, type OnePageModel } from '../../../unified/server/site/onePage.ts'
 import { mintSignin, siteSecret, verifyRequest, signRequest } from './site/session.mjs'
-import { effectiveForms } from './site/clean.mjs'
 import { unifiedVerticalFor } from '../unified/factory.ts'
 
 export type SiteStatus = 'creating' | 'live' | 'failed' | 'canceling' | 'upgrading' | 'removed'
@@ -140,14 +139,14 @@ async function setUp(d: Deps, tenantId: string, tenant: any): Promise<Provisione
       WP_SITE_ID: { value: row!.id }, WP_SECRET: { value: await siteSecret(masterKey(d.env), row!.id) },
       WP_FACTORY_URL: { value: factoryUrl(d.env) }, WP_TENANT_ID: { value: tenantId }, WP_FACTORY_KEY: { value: factoryKey },
     })
-    const first = await publish(d, row!, tenant)
-    await reconcileForms(d, row!, first)
+    await publish(d, row!, tenant)
     await patchRow(d, row!.id, { status: 'live' })
     row = { ...row!, status: 'live' }
   } catch (e: any) {
     await patchRow(d, row!.id, { status: 'failed' }).catch(() => {})
     throw e                                              // provisionSite alerts
   }
+  await stopNetlifyFormEmails(d, row!)
   try {
     const link = await signinLinkFor(d, row!, { force: true })
     await d.sendLink(tenant.admin_email || tenant.email, tenant.name, link, 'welcome')
@@ -179,20 +178,14 @@ export async function publish(d: Deps, row: SiteRow, tenant: any, model?: OnePag
   return rendered.model
 }
 
-/** Email notification for each form = the owner's setting. A form Netlify has not registered yet is waited for (a moment after a deploy). */
-export async function reconcileForms(d: Deps, row: SiteRow, model: { forms?: any; sections?: any[] } | null): Promise<void> {
-  const f = model ? effectiveForms(model) : { lead: false, hiring: false }
-  const wanted = {
-    lead: { on: f.lead, inbox: model?.forms?.lead?.inbox || '' },
-    apply: { on: f.hiring, inbox: model?.forms?.hiring?.inbox || '' },
-  }
-  const nl = d.netlify()
-  for (let i = 0; i < 8; i++) {
-    const { missing } = await nl.reconcileFormEmails(row.netlify_site_id!, wanted)
-    if (!missing.length) return
-    await d.sleep(3000)
-  }
-  throw new Error('Netlify has not registered the forms yet')
+/**
+ * Netlify's own form email notices off for this site. The owner's form messages are emailed by the Factory (forms.ts): Netlify's notice
+ * may only go to a Twomiah team member (422 for any other address, 11/07), and one left from before would send a message twice.
+ * Never fatal: a paid site goes live without it; staff are told.
+ */
+export async function stopNetlifyFormEmails(d: Deps, row: SiteRow): Promise<void> {
+  try { await d.netlify().removeFormEmails(row.netlify_site_id!) }
+  catch (e: any) { await d.alert('web-presence-form-notices:' + row.tenant_id, 'Netlify form email notices could not be removed for a Web presence site', String(e?.message || e), row.tenant_id) }
 }
 
 // ─── the site asks the Factory ───────────────────────────────────────────────────────────────
@@ -211,8 +204,7 @@ export async function verifySiteRequest(d: Deps, h: { site?: string; ts?: string
 }
 
 /**
- * A save from the site's editor: finish the cleaning, draw the page, and (when a form's switch or inbox changed) set Netlify's
- * email for it. Returns what the site stores. Nothing here is kept.
+ * A save from the site's editor: finish the cleaning and draw the page. Returns what the site stores. Nothing here is kept.
  */
 export async function renderForSite(d: Deps, row: SiteRow, payload: { model: unknown; prev?: any }) {
   if (!['live', 'creating', 'canceling'].includes(row.status)) throw new Error('This site is not taking changes')
@@ -222,11 +214,7 @@ export async function renderForSite(d: Deps, row: SiteRow, payload: { model: unk
   if ((model as any).tooBig) return { status: 400, body: { error: 'That is too much for one page. Remove something and try again.' } }
   const origin = (row.custom_domain && row.ssl_ok ? 'https://' + row.custom_domain : row.origin) as string
   const out = await renderOnePage({ model: model as OnePageModel, vertical: unifiedVerticalOf(tenant.industry), caps: capsOf(spec), origin, sellsDownload: sellsFor(d, tenant) })
-  const before = effectiveForms(payload.prev || { sections: [], forms: {} }), after = out.forms
-  const inboxChanged = (a: any, b: any) => (a?.forms?.lead?.inbox || '') !== (b?.forms?.lead?.inbox || '') || (a?.forms?.hiring?.inbox || '') !== (b?.forms?.hiring?.inbox || '')
-  if (before.lead !== after.lead || before.hiring !== after.hiring || inboxChanged(payload.prev, out.model)) {
-    try { await reconcileForms(d, row, out.model) } catch (e: any) { return { status: 502, body: { error: 'Could not update where messages are sent. Nothing was changed. Please try again in a minute.' } } }
-  }
+  // Where form messages go is read from the saved model each time one arrives (forms.ts): a save makes no Netlify call.
   // The stylesheet travels with the pages: a save can change the look, and the site serves the sheet from the same save (handler.mjs).
   return { status: 200, body: { ok: true, model: out.model, notes, cssVersion: out.cssVersion, files: { 'index.html': out.files['index.html'], 'privacy/index.html': out.files['privacy/index.html'], 'styles/main.css': out.files['styles/main.css'] } } }
 }

@@ -199,10 +199,27 @@ describe('set-up: one Netlify site per customer', () => {
     // the content is NOT in the Factory's table
     expect(Object.keys(w.db.tables.web_presence_sites[0]).sort().join()).not.toMatch(/model|page|content|lead|applicant/)
   })
-  test('the lead form emails the owner as soon as the site is up; the hiring form (off) emails nobody', async () => {
+  test("no Netlify email notice is made (Netlify sends those only to a Twomiah team member — 422 for the owner's address, 11/07)", async () => {
     const w = world(); await provisionSite(w.d, 't-1')
-    expect(w.nl.hooks).toHaveLength(1)
-    expect(w.nl.hooks[0].form_id).toBe('form-lead'); expect(w.nl.hooks[0].data.email).toBe('owner@acme.test')
+    expect(w.nl.hooks).toHaveLength(0)
+    expect(w.nl.log.filter((x) => x.op === 'hook+')).toEqual([])
+  })
+  test("set-up removes a Netlify email notice left from before (it would send a message twice) and keeps any other hook", async () => {
+    const w = world(); const { row } = await provisionSite(w.d, 't-1')
+    w.nl.hooks.push({ id: 'old-email', site_id: row.netlify_site_id, form_id: 'form-lead', type: 'email', data: { email: 'owner@acme.test' } })
+    w.nl.hooks.push({ id: 'deploy-ping', site_id: row.netlify_site_id, type: 'url', event: 'deploy_created', data: { url: 'https://x.test' } })
+    await w.db.from('web_presence_sites').update({ status: 'failed' }).eq('id', row.id)
+    await provisionSite(w.d, 't-1')
+    expect(w.nl.hooks.map((h) => h.id)).toEqual(['deploy-ping'])
+  })
+  test('Netlify refusing the notice clean-up does not stop a paid site going live: staff are told, the owner still gets the link', async () => {
+    const w = world()
+    const real = w.nl.fetch
+    const d = { ...w.d, netlify: () => new Netlify({ token: 'team-token', team: 'twomiah', sleep: async () => {}, fetch: async (url: any, init: any) => (String(url).includes('/hooks') ? new Response(JSON.stringify({ email: ['must be the email of a team member'] }), { status: 422 }) : real(url, init)) }) }
+    const { row } = await provisionSite(d, 't-1')
+    expect(row.status).toBe('live')
+    expect(w.mail).toHaveLength(1)
+    expect(w.alerts.map((a) => a.key)).toEqual(['web-presence-form-notices:t-1'])
   })
   test('the owner gets one sign-in link, bound to the site, that opens with the site secret and nothing else', async () => {
     const w = world(); const { row } = await provisionSite(w.d, 't-1')
@@ -295,17 +312,18 @@ describe('the site asks the Factory (signed with the site\'s own secret)', () =>
     expect((first.body as any).files['index.html']).toContain('Acme Roofing &amp; Sons')
     expect(JSON.stringify(w.db.tables)).not.toContain('Sons')
   })
-  test('turning the lead form off removes its email; unchanged saves make no Netlify calls', async () => {
+  test('a save never calls Netlify: a form switched off, on, or sent to a new inbox is just the saved page (the site reads it per message)', async () => {
     const { w, row } = await live()
-    const m1 = ((await renderForSite(w.d, row, { model: firstModel() })).body as any).model
     const before = w.nl.log.length
-    await renderForSite(w.d, row, { model: m1, prev: m1 })
-    expect(w.nl.log.length).toBe(before)
+    const m1 = ((await renderForSite(w.d, row, { model: firstModel() })).body as any).model
     const off = { ...m1, forms: { ...m1.forms, lead: { ...m1.forms.lead, on: false } } }
     const res = await renderForSite(w.d, row, { model: off, prev: m1 })
     expect(res.status).toBe(200)
     expect((res.body as any).files['index.html']).not.toContain('/api/leads')
-    expect(w.nl.hooks).toHaveLength(0)
+    const elsewhere = { ...m1, forms: { ...m1.forms, lead: { ...m1.forms.lead, on: true, inbox: 'someone@yahoo.test' } } }
+    const res2 = await renderForSite(w.d, row, { model: elsewhere, prev: off })
+    expect(res2.status).toBe(200); expect((res2.body as any).model.forms.lead.inbox).toBe('someone@yahoo.test')
+    expect(w.nl.log.length).toBe(before)
   })
   test('a form that is on shows on the page and posts to the site; one that is off is absent', async () => {
     const { w, row } = await live()
@@ -315,7 +333,6 @@ describe('the site asks the Factory (signed with the site\'s own secret)', () =>
     const withHiring = { ...m1, forms: { ...m1.forms, hiring: { on: true, inbox: 'jobs@acme.test' } }, sections: [...m1.sections, { id: 'hiring', type: 'hiring', variant: 'form', hidden: false, data: { heading: 'Now hiring', jobs: [{ title: 'Roofer', blurb: 'Full time', kind: 'Full-time' }] } }] }
     const hp = ((await renderForSite(w.d, row, { model: withHiring, prev: m1 })).body as any).files['index.html'] as string
     expect(hp).toContain('/api/apply')
-    expect(w.nl.hooks.map((h) => h.form_id).sort()).toEqual(['form-apply', 'form-lead'])
     const noHiringSection = { ...withHiring, sections: withHiring.sections.map((s: any) => (s.type === 'hiring' ? { ...s, hidden: true } : s)) }
     const gone = ((await renderForSite(w.d, row, { model: noHiringSection, prev: withHiring })).body as any).files['index.html'] as string
     expect(gone).not.toContain('/api/apply')
