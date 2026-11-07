@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { FolderKanban, MapPin, Calendar, ArrowRight } from 'lucide-react'
 import { usePortal } from './PortalContext'
+import { PortalProjectExtras } from './PortalProjectExtras'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate } from './common'
 
 const STATUS_STYLES: Record<string, string> = { planning: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', on_hold: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', completed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
@@ -91,6 +92,8 @@ export function PortalProjectDetail() {
             {project.description && <div className="sm:col-span-2"><dt className="text-sm text-gray-500 dark:text-slate-400">Description</dt><dd className="mt-1 text-gray-900 whitespace-pre-wrap dark:text-slate-100">{project.description}</dd></div>}
           </dl>
         </div>
+        {/* The schedule, daily logs, files and to-dos the builder shares (contractor parity row 10; client_portal_plus). */}
+        {sections.projectExtras && projectId && <PortalProjectExtras projectId={projectId} />}
         {(project.jobs?.length ?? 0) > 0 && (
           <div className="p-6"><h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent Work</h3><div className="space-y-3">
             {project.jobs!.map((job) => (

@@ -645,6 +645,13 @@
       "when": 1794016858316,
       "tag": "0091_contractor_formulas",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1794018290255,
+      "tag": "0092_contractor_client_portal",
+      "breakpoints": true
     }
   ]
 }

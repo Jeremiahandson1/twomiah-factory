@@ -116,7 +116,21 @@ export interface PortalJobFiles {
     add: (contact: any, jobId: string, body: string) => Promise<any | null>
   }
 }
+/**
+ * The contractor's client portal, finished (contractor parity row 10; the unified app's crm/projects/clientPortal.ts): on the
+ * client's own project page, the schedule, the daily logs and files the builder shared, the client's to-dos, and comments on
+ * the schedule. The portal only signs the client in and passes THEIR contact row; the vertical answers for their own project
+ * alone, and with null for anything they may not see (read as "not found"). Optional: no such section without it.
+ */
+export interface PortalProjectExtras {
+  view: (contact: any, projectId: string) => Promise<any | null>
+  comment: (contact: any, projectId: string, taskId: string, body: string) => Promise<any | { error: string } | null>
+  todo: (contact: any, projectId: string, todoId: string, change: { item?: number; done?: boolean; complete?: boolean }) => Promise<any | { error: string } | null>
+  file: (contact: any, projectId: string, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
+}
 export interface PortalDeps {
+  /** The contractor's project-page extras (see PortalProjectExtras). Optional: no such section without it. */
+  projectExtras?: PortalProjectExtras
   db: any
   tables: PortalTables
   /** The customer's shared job photos and documents (see PortalJobFiles). Optional: no such section without it. */
@@ -218,6 +232,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   sharedDocuments: ['documents'],
   // The photos and documents a roofer chose to show a homeowner: only where that switch (not ready) is on.
   jobFiles: ['portal_job_files'],
+  // The contractor's schedule, daily logs, files and to-dos on the client's project page (not ready).
+  projectExtras: ['projects', 'client_portal_plus'],
   projectFiles: ['documents', 'projects'],
   equipment: ['equipment_tracking'],
   agreements: [['service_agreements', 'maintenance_contracts']],
@@ -289,6 +305,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     sharedDocuments: !!t.document && !!t.documentShare && !off('sharedDocuments'),
     // Only for a vertical that passes deps.jobFiles: every other portal's section list is exactly what it was.
     ...(deps.jobFiles ? { jobFiles: !off('jobFiles') } : {}),
+    // Only for a vertical that passes deps.projectExtras (the unified contractor CRM).
+    ...(deps.projectExtras && t.project ? { projectExtras: !off('projects') } : {}),
     projectFiles: !!t.document && !!t.project && !!fileService && !off('projectFiles'),
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
@@ -1754,6 +1772,30 @@ export function createPortalRoutes(deps: PortalDeps) {
     })
     app.get('/p/:token/job-files/:kind/:id/file', portalAuth, gate('jobFiles'), async (c) => {
       const file = await jobFiles.file(P(c).contact, c.req.param('kind'), c.req.param('id'))
+      if (!file) return c.json({ error: 'File not found' }, 404)
+      return new Response(file.body, { headers: {
+        'Content-Type': file.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store',
+        'Content-Disposition': `${file.inline ? 'inline' : 'attachment'}; filename="${String(file.filename).replace(/["\r\n\\]/g, '')}"`,
+      } })
+    })
+  }
+
+  // ---- the contractor's project page extras (row 10): what deps.projectExtras says THIS client may see of THEIR project
+  if ((has as any).projectExtras && deps.projectExtras) {
+    const px = deps.projectExtras
+    const answer = (c: any, r: any, created = false) => (r === null ? c.json({ error: 'Not found' }, 404) : r?.error ? c.json({ error: r.error }, 400) : c.json(r, created ? 201 : 200))
+    app.get('/p/:token/projects/:projectId/extras', portalAuth, gate('projectExtras' as any), async (c) => answer(c, await px.view(P(c).contact, c.req.param('projectId'))))
+    app.post('/p/:token/projects/:projectId/tasks/:taskId/comments', portalAuth, gate('projectExtras' as any), async (c) => {
+      const b: any = await c.req.json().catch(() => ({}))
+      return answer(c, await px.comment(P(c).contact, c.req.param('projectId'), c.req.param('taskId'), String(b?.body ?? '')), true)
+    })
+    app.post('/p/:token/projects/:projectId/todos/:todoId', portalAuth, gate('projectExtras' as any), async (c) => {
+      const b: any = await c.req.json().catch(() => ({}))
+      const change = { ...(typeof b?.item === 'number' ? { item: b.item, done: !!b.done } : {}), ...(typeof b?.complete === 'boolean' ? { complete: b.complete } : {}) }
+      return answer(c, await px.todo(P(c).contact, c.req.param('projectId'), c.req.param('todoId'), change))
+    })
+    app.get('/p/:token/projects/:projectId/files/:kind/:id', portalAuth, gate('projectExtras' as any), async (c) => {
+      const file = await px.file(P(c).contact, c.req.param('projectId'), c.req.param('kind'), c.req.param('id'))
       if (!file) return c.json({ error: 'File not found' }, 404)
       return new Response(file.body, { headers: {
         'Content-Type': file.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store',

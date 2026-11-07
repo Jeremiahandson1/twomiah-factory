@@ -99,6 +99,7 @@ import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
 import { syncJobValueFromProposal } from '../crm/roof/proposalValue.ts'
 import { roofMounts } from '../crm/roof/index.ts'
 import { roofPortalJobFiles } from '../crm/roof/portalFiles/index.ts'
+import { createClientPortal } from '../crm/projects/clientPortal.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
@@ -611,6 +612,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       })(),
       // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
+      // The contractor's project page in the client portal (contractor parity row 10; client_portal_plus gates it).
+      ...(!v.roof ? { projectExtras: createClientPortal(own).extras } : {}),
       ...live, logger,
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,

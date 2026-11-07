@@ -143,6 +143,8 @@ export const dailyLog = pgTable('daily_log', {
   temperature: integer('temperature'),
   workCompleted: text('work_completed'),
   visitors: text('visitors'),
+  /** Shown to the client in their portal (0092, contractor parity row 10; client_portal_plus). Off until someone shares it. */
+  sharedWithClient: boolean('shared_with_client').default(false).notNull(),
   photos: json('photos').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1058,4 +1060,70 @@ export const projectTemplateDependency = pgTable('project_template_dependency', 
   lagDays: integer('lag_days').default(0).notNull(),
 }, (t) => [
   index('project_template_dependency_template_id_idx').on(t.templateId),
+])
+
+// ── the contractor's client portal, finished (0092, contractor parity row 10; feature client_portal_plus, not ready) ─────────
+// docs/parity/contractor-portal.md. Buildertrend's per-job client permissions with company defaults, the schedule and daily logs
+// the builder shares, client to-dos, and the client's comments on the schedule.
+
+/**
+ * What a project's client sees in their portal, and is emailed about. One row per project; the row with no project is the
+ * company's default, which a project without its own row reads.
+ */
+export const projectPortalSetting = pgTable('project_portal_setting', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'cascade' }),
+  /** 'off' | 'phases' (top-level tasks only) | 'all' */
+  schedule: text('schedule').default('phases').notNull(),
+  /** How many weeks ahead of today the client sees; none, every task. */
+  scheduleWeeks: integer('schedule_weeks'),
+  dailyLogs: boolean('daily_logs').default(true).notNull(),
+  photos: boolean('photos').default(true).notNull(),
+  todos: boolean('todos').default(true).notNull(),
+  payments: boolean('payments').default(true).notNull(),
+  documents: boolean('documents').default(true).notNull(),
+  /** A new daily log / file starts shared with the client. */
+  shareByDefault: boolean('share_by_default').default(false).notNull(),
+  /** What the client is emailed about: { dailyLogs, schedule, todos, payments, documents } (true = email). */
+  notify: json('notify').default({}).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_portal_setting_company_id_idx').on(t.companyId),
+  uniqueIndex('project_portal_setting_project_id_idx').on(t.projectId),
+])
+
+/** A to-do for the client (Buildertrend's to-dos shared with the client): title, notes, a checklist they tick, a due date. */
+export const clientTodo = pgTable('client_todo', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  notes: text('notes'),
+  /** [{ text, done }] */
+  checklist: json('checklist').default([]).notNull(),
+  dueDate: timestamp('due_date'),
+  status: text('status').default('open').notNull(),
+  completedAt: timestamp('completed_at'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_todo_project_id_idx').on(t.projectId),
+])
+
+/** The client's comment on a schedule task, or the office's answer (Buildertrend: clients comment on each phase). */
+export const projectTaskComment = pgTable('project_task_comment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  taskId: text('task_id').notNull().references(() => projectTask.id, { onDelete: 'cascade' }),
+  /** Who wrote it: the client (contact) or someone in the office (user). */
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  body: text('body').notNull(),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_task_comment_project_id_idx').on(t.projectId),
 ])
