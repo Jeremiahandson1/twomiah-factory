@@ -43,6 +43,8 @@ export interface OnePageInput {
   resumeLimitMb?: number
   /** Today (tests pin it); the date the privacy page was written. */
   now?: Date
+  /** The "Sell a download" section is drawn only when this is true: its switch on AND the owner's Stripe account linked. */
+  sellsDownload?: boolean
 }
 export interface OnePageOutput {
   /** The model as the renderer's guards left it (colours kept readable); the site stores THIS. */
@@ -70,12 +72,20 @@ function liveCta(cta: any, anchors: Set<string>): any {
   return cta
 }
 
+/** Whether a section is on the published page: not hidden, its form live (hiring), and a download only when it can be bought. */
+function shown(i: OnePageInput, s: OnePageSection, forms: { lead: boolean; hiring: boolean }): boolean {
+  if (s.hidden) return false
+  if (s.id === 'hiring' && !forms.hiring) return false
+  if (s.type === 'download' && !i.sellsDownload) return false
+  return true
+}
+
 /** The model's sections as the renderer's: hidden and switched-off ones out, anchors on, the forms' flags set. */
 export function rendererSections(i: OnePageInput): { sections: any[]; anchors: Set<string>; forms: { lead: boolean; hiring: boolean } } {
   const m = i.model
   const forms = effectiveForms(m)
   const business = m.business
-  const kept = m.sections.filter((s) => !s.hidden && (s.id !== 'hiring' || forms.hiring))
+  const kept = m.sections.filter((s) => shown(i, s, forms))
   const anchors = new Set(kept.map((s) => i.caps[s.id]?.anchor).filter(Boolean) as string[])
   anchors.add('top')
   const sections = kept.map((s) => {
@@ -100,11 +110,12 @@ export function rendererSections(i: OnePageInput): { sections: any[]; anchors: S
 
 function privacyBody(i: OnePageInput, forms: { lead: boolean; hiring: boolean }, updated: string, fontsFromGoogle: boolean): string {
   const b = i.model.business
+  const sells = i.model.sections.some((s) => s.type === 'download' && shown(i, s, forms))
   const h = (s: string) => escXml(s)
   const contact = [b.phone && `Phone: ${h(b.phone)}`, b.email && `Email: <a href="mailto:${h(b.email)}">${h(b.email)}</a>`, fullAddress(b) && h(fullAddress(b))].filter(Boolean).join('<br>')
   const inbox = (v?: string) => (v ? h(v) : 'the business&rsquo;s email address')
   const parts: string[] = []
-  parts.push(`<p>This page says what ${h(b.name)}&rsquo;s website collects and where it goes. It is a single page with no accounts, no shop and no advertising.</p>`)
+  parts.push(`<p>This page says what ${h(b.name)}&rsquo;s website collects and where it goes. It is a single page with no accounts${sells ? '' : ', no shop'} and no advertising.</p>`)
   parts.push(`<h2>Visiting the page</h2><p>The page sets no cookies for visitors and loads no advertising or tracking tools.${fontsFromGoogle ? ' Its typefaces are loaded from Google Fonts, so your browser asks Google for them.' : ''} Our hosting provider, Netlify, keeps ordinary server records (such as the time of a visit and the visitor&rsquo;s network address) to run and protect the site.</p>`)
   if (forms.lead) {
     parts.push(`<h2>The contact form</h2><p>If you use the contact form, what you type (your name, your phone number and/or email address, your message${(i.model.forms.lead.extraFields || []).length ? ' and the extra questions it asks' : ''}) is sent by email to ${inbox(i.model.forms.lead.inbox)}. It is handled by Netlify Forms. ${h(b.name)} is the only person it is sent to, and the website&rsquo;s builder, Twomiah, does not keep a copy. We use it to reply to you.</p>`)
@@ -114,6 +125,9 @@ function privacyBody(i: OnePageInput, forms: { lead: boolean; hiring: boolean },
     parts.push(`<h2>The job application form</h2><p>If you apply for a job, what you type (your name, phone number, email address, a few words about you, when you can work and which job) and an optional resume are sent by email to ${inbox(i.model.forms.hiring.inbox)}. It is handled by Netlify Forms. A resume must be a PDF or Word file (.pdf, .doc or .docx) of at most ${mb} MB. ${h(b.name)} is the only person it is sent to, and Twomiah does not keep a copy. It is used only to consider your application.</p>`)
   }
   if (!forms.lead && !forms.hiring) parts.push('<h2>Forms</h2><p>This page has no forms, so it collects nothing you type.</p>')
+  if (sells) {
+    parts.push(`<h2>Buying a download</h2><p>Payment is taken on Stripe&rsquo;s own checkout page, so your card details go to Stripe and never to this website. Stripe sends ${h(b.name)} your name, your email address and the place you say the download will be used. ${h(b.name)} keeps them, with a license number, as its record of the sale, and your download link is emailed to you. Twomiah, the website&rsquo;s builder, passes them on to send that email and does not keep a copy.</p>`)
+  }
   parts.push('<h2>Where the information is kept</h2><p>Netlify, the company that hosts this page and runs the forms, holds form submissions on its servers for as long as its settings keep them. Ask the business to remove yours at any time.</p>')
   if (contact) parts.push(`<h2>Contact</h2><p>${contact}</p>`)
   return `<section class="legal-page"><div class="container legal-page__inner"><h1>Privacy Policy</h1><p class="legal-page__updated">Last updated ${h(updated)}</p>${parts.join('')}</div></section>`
@@ -142,7 +156,7 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   const nav: Array<{ label: string; href: string }> = []
   for (const s of m.sections) {
     const c = i.caps[s.id]
-    if (!c?.nav || s.hidden || (s.id === 'hiring' && !forms.hiring)) continue
+    if (!c?.nav || !shown(i, s, forms)) continue
     if (nav.length < MENU_MAX) nav.push({ label: c.nav, href: '#' + c.anchor })
   }
   const hasContact = sections.some((s) => s.type === 'contact')

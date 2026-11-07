@@ -11,6 +11,12 @@ export const ROUTES = {
   '/api/upload': 'api/upload', '/api/leads': 'api/leads', '/api/apply': 'api/apply', '/api/me': 'api/me', '/api/usage': 'api/usage',
   '/api/export': 'api/export', '/api/adopt': 'api/adopt', '/api/domain/status': 'api/domain/status',
   '/api/domain/attach': 'api/domain/attach', '/api/domain/buy': 'api/domain/buy',
+  // Sell a download. Public: the buy button, the page after paying, the buyer's link. The owner's (signed in): the file, the sales,
+  // linking Stripe. The Factory's (signed with the site's secret): a sale paid, a sale refunded, Stripe linked or unlinked.
+  '/api/buy': 'api/buy', '/thanks': 'thanks', '/download': 'download',
+  '/api/download/file': 'api/download/file', '/api/sales': 'api/sales', '/api/sales.csv': 'api/sales.csv', '/api/sales/resend': 'api/sales/resend',
+  '/api/stripe': 'api/stripe', '/api/stripe/start': 'api/stripe/start', '/api/stripe/disconnect': 'api/stripe/disconnect',
+  '/api/sale': 'api/sale', '/api/refund': 'api/refund', '/api/stripe-link': 'api/stripe-link',
 }
 
 /** The route for a request URL: its path from the table; called at the function's own address, the `r` query (or the page). */

@@ -4,7 +4,7 @@ import { SITE_LOOKS, SITE_DESIGN_LABELS } from '../../../unified/server/core/ver
 import { LAYOUTS, layoutFit } from '../../../unified/server/site/layouts.ts'
 import { PRESETS } from '../../../unified/server/site/palette.ts'
 import { FONT_PAIRS, CORNERS, SPACINGS } from '../../../unified/server/site/feel.ts'
-import { offeredFor, EXTRAS_BY_VERTICAL, EVERYONE } from './sections.ts'
+import { offeredFor, EXTRAS_BY_VERTICAL, EVERYONE, DOWNLOAD_CAP } from './sections.ts'
 import { verticalFor, type Vertical } from '../config/industryRouting.ts'
 import { cleanModel } from './site/clean.mjs'
 import { SHAPES, LABELS, LIMITS } from './site/shapes.mjs'
@@ -29,18 +29,19 @@ function variantsOf(type: string, own: string[]): string[] {
   return layouts.length ? layouts : own
 }
 
-export function buildSpec(industry: string | null | undefined): SiteSpec {
+/** `downloads`: offer "Sell a download" (its switch, read by the caller: downloads.ts downloadsOn). Off by default. */
+export function buildSpec(industry: string | null | undefined, opts: { downloads?: boolean } = {}): SiteSpec {
   const vertical = verticalFor(industry)
   const caps: SiteSpec['caps'] = {}
   const typeVariants: Record<string, string[]> = {}
-  for (const c of offeredFor(vertical)) {
+  for (const c of [...offeredFor(vertical), ...(opts.downloads ? [DOWNLOAD_CAP] : [])]) {
     const own = [c.variant]
     const v = variantsOf(c.type, own)
     caps[c.id] = { label: c.label, type: c.type, variants: v, anchor: c.anchor, ...(c.nav ? { nav: c.nav } : {}) }
     typeVariants[c.type] = v
   }
   // A section already on the page whose capability this trade no longer offers keeps its layouts too (nothing is removed).
-  for (const rows of [EVERYONE, ...Object.values(EXTRAS_BY_VERTICAL)]) for (const c of rows) typeVariants[c.type] ??= variantsOf(c.type, [c.variant])
+  for (const rows of [EVERYONE, ...Object.values(EXTRAS_BY_VERTICAL), [DOWNLOAD_CAP]]) for (const c of rows) typeVariants[c.type] ??= variantsOf(c.type, [c.variant])
   return {
     v: 1, trade: String(industry ?? ''), vertical, caps, typeVariants,
     designs: (SITE_LOOKS as readonly string[]).map((id) => ({ id, label: (SITE_DESIGN_LABELS as any)[id] || id })),

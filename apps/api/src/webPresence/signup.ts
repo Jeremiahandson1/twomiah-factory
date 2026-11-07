@@ -23,17 +23,21 @@ export interface SignupResult { status: number; body: Record<string, unknown> }
 
 const clean = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max) : '')
 
-export async function webPresenceSignup(body: any, d: SignupDeps): Promise<SignupResult> {
-  requireWebPresence(d.env)
+/**
+ * The tenant row for a Web presence customer, checked and named — the ONE builder, used by the public signup and by staff setting a
+ * customer up from the Factory (staffCreate.ts), so the two can never make different customers. `source` is recorded in intake_data.
+ */
+export async function webPresenceRecord(body: any, d: Pick<SignupDeps, 'allocateSlug' | 'compose' | 'design'>, source: 'signup' | 'staff' = 'signup'):
+  Promise<{ ok: true; record: Record<string, unknown> } | { ok: false; result: SignupResult }> {
   const name = clean(body?.name, 80)
   const email = clean(body?.email, 200)
-  if (name.length < 2) return { status: 400, body: { error: 'Company name is required (min 2 characters)' } }
-  if (!email.includes('@')) return { status: 400, body: { error: 'Valid email is required' } }
+  if (name.length < 2) return { ok: false, result: { status: 400, body: { error: 'Company name is required (min 2 characters)' } } }
+  if (!email.includes('@')) return { ok: false, result: { status: 400, body: { error: 'Valid email is required' } } }
 
   const base = clean(body?.slug, 60) || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-  if (!base) return { status: 400, body: { error: 'Company name is required (min 2 characters)' } }
+  if (!base) return { ok: false, result: { status: 400, body: { error: 'Company name is required (min 2 characters)' } } }
   const slug = await d.allocateSlug(base)
-  if (!slug) return { status: 503, body: { error: 'We could not reserve a name for your account just now. Please try again in a few minutes.' } }
+  if (!slug) return { ok: false, result: { status: 503, body: { error: 'We could not reserve a name for your account just now. Please try again in a few minutes.' } } }
 
   const industry = clean(body?.industry, 80) || null
   const pages = d.compose(body)
@@ -55,9 +59,16 @@ export async function webPresenceSignup(body: any, d: SignupDeps): Promise<Signu
     products: ['website'],
     features: [],
     preview_premium_pages: pages,
-    intake_data: { signup: { ...(d.design ? { design: d.design } : {}), plan: WEB_PRESENCE_PLAN_ID, trade: verticalFor(industry), at: new Date().toISOString() } },
+    intake_data: { signup: { ...(d.design ? { design: d.design } : {}), plan: WEB_PRESENCE_PLAN_ID, trade: verticalFor(industry), at: new Date().toISOString(), ...(source === 'staff' ? { source: 'staff' } : {}) } },
   }
-  const { data: tenant, error } = await d.db.from('tenants').insert(record).select().single()
+  return { ok: true, record }
+}
+
+export async function webPresenceSignup(body: any, d: SignupDeps): Promise<SignupResult> {
+  requireWebPresence(d.env)
+  const built = await webPresenceRecord(body, d)
+  if (!built.ok) return built.result
+  const { data: tenant, error } = await d.db.from('tenants').insert(built.record).select().single()
   if (error || !tenant) return { status: 500, body: { error: 'Failed to create account. Please try again.' } }
 
   if (d.composeAi) { try { d.composeAi(tenant.id) } catch { /* the template page is already stored */ } }

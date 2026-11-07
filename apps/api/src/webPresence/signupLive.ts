@@ -7,6 +7,23 @@ import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSi
 import { signupChoices } from '../config/signupQuestions'
 import { WebPresenceOffError, WEB_PRESENCE_PLAN_ID } from './switch'
 import { webPresenceSignup, type SignupResult } from './signup'
+import type { StaffCreateDeps } from './staffCreate'
+import { provisionSite } from './service'
+import { liveDeps } from './live'
+import { logTenantAudit } from '../routes/factory/shared'
+
+/** Staff setting a customer up (staffCreate.ts): the same slug rule and composer as the signup, the invoice, the site set-up. */
+export function liveStaffCreateDeps(): StaffCreateDeps {
+  return {
+    db: supabase, env: process.env,
+    allocateSlug: async (b) => (await allocateSlug(signupSlugCandidates(b), liveSlugLookups(supabase))).slug,
+    compose: (b) => signupComposition(signupComposerInput(b, { services: [], goals: signupChoices(b).goals }), { ai: true }),
+    composeAi: (id) => { liveSignupSiteDeps().then((deps) => composeSignupSite(id, deps)).catch((e: any) => console.warn('[WebPresence] AI compose could not start:', e?.message)) },
+    invoice: (t) => factoryStripe.createInvoicedSubscription({ id: t.id, email: t.admin_email || t.email, name: t.name, phone: t.phone, stripeCustomerId: t.stripe_customer_id }, { planId: WEB_PRESENCE_PLAN_ID }),
+    provision: async (id) => ({ status: (await provisionSite(liveDeps(), id)).row.status }),
+    audit: (id, what, detail) => logTenantAudit(id, what, { web_presence: { old: null, new: detail } }, String(detail.by || 'factory-staff'), 'Web presence customer set up by staff'),
+  }
+}
 
 /** `services` is the owner's cleaned list of what they do (the signup route's own cleaning). Off (the default): a plain 404. */
 export async function liveWebPresenceSignup(body: any, design: string | null, services: string[]): Promise<SignupResult> {

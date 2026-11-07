@@ -10,9 +10,12 @@ import { mayReturnTo, ourUnifiedOrigin } from '../../services/premiumSiteUrl'
 import {
   stripeOAuthConfig, signState, authorizeUrl, createStateLedger, handleCallback, deauthorizeAccount, type CallbackTenant,
 } from '../../services/stripeConnectOAuth'
+import { WEB_PRESENCE_PLAN_ID } from '../../webPresence/switch'
+import { deliverStripeLink } from '../../webPresence/downloads'
+import { liveDownloadDeps } from '../../webPresence/live'
 
 const ledger = createStateLedger()
-const TENANT_COLUMNS = 'id, slug, engine, website_url, domain, render_backend_url, factory_sync_key, stripe_connect_account_id'
+const TENANT_COLUMNS = 'id, slug, engine, website_url, domain, render_backend_url, factory_sync_key, stripe_connect_account_id, plan'
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!))
 const page = (message: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stripe</title></head><body style="font:16px/1.5 system-ui,sans-serif;max-width:560px;margin:48px auto;padding:0 16px;color:#111;background:#fff"><p>${escapeHtml(message)}</p></body></html>`
@@ -79,6 +82,9 @@ export function registerStripeOAuthRoutes(factory: FactoryApp) {
         return (data as CallbackTenant) || null
       },
       deliver: async (tenant, body) => {
+        // A $19 Web presence business has no app: its sign-in was started from its site's editor (webPresence/downloads.ts
+        // stripeStart), and the result goes back to that site, signed with the site's own secret; the site checks its nonce.
+        if ((tenant as any).plan === WEB_PRESENCE_PLAN_ID) return deliverStripeLink(liveDownloadDeps(), tenant.id, body)
         // The tenant's key goes only to the service the Factory built for it (never to a stored website address).
         const origin = ourUnifiedOrigin(tenant)
         if (!origin || !tenant.factory_sync_key) return { ok: false, status: 0, error: 'not routable' }
