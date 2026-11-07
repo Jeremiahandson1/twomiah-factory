@@ -54,7 +54,7 @@ describe('the table and the views agree', () => {
   }
   test('the layout counts the owner asked for', () => {
     expect(LAYOUTS.hero.length).toBe(6)
-    expect(LAYOUTS.gallery.length).toBe(4)
+    expect(LAYOUTS.gallery.length).toBe(5)   // + slideshow (owner, 11/07: a product preview, one photo at a time)
     expect(LAYOUTS.services.length).toBeGreaterThanOrEqual(4)
     expect(LAYOUTS.testimonials.length).toBe(4)
     expect(LAYOUTS.about.length).toBeGreaterThanOrEqual(4)
@@ -150,7 +150,7 @@ describe('every offered layout renders, in every look, with full and with missin
     for (const design of SITE_DESIGNS) {
       const css = siteStylesheet({ ...ctx(design), colours: { primary: '#b45309', accent: null, secondary: null, page: null, band: null } })
       if (SITE_DESIGN_SPECS[design].tokens === 'bar') expect(css).not.toContain('.hero-collage')
-      else for (const c of ['.hero-collage', '.gallery-masonry', '.svc-tile', '.quote-wall', '.timeline-list']) expect(css).toContain(c)
+      else for (const c of ['.hero-collage', '.gallery-masonry', '.gallery-slideshow', '.svc-tile', '.quote-wall', '.timeline-list']) expect(css).toContain(c)
     }
   })
   test('they use the shared tokens, not colours of their own', () => {

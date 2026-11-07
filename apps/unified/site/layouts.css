@@ -46,6 +46,24 @@
 .gallery-cards__body { padding: 16px 18px 18px; }
 .gallery-cards__body h3 { margin: 0 0 4px; font-size: 1.05rem; color: var(--ink); }
 .gallery-cards__body p { margin: 0; font-size: .9rem; color: var(--muted); }
+/* ── gallery: slideshow (one photo at a time; arrows, dots and swipe; no autoplay) ── */
+.gallery-slideshow__track { list-style: none; margin: 0 auto; padding: 0; max-width: 980px; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.gallery-slideshow__track::-webkit-scrollbar { display: none; }
+.gallery-slideshow__track:focus-visible { outline: 3px solid var(--brand); outline-offset: 4px; }
+@media (prefers-reduced-motion: no-preference) { .gallery-slideshow__track { scroll-behavior: smooth; } }
+.gallery-slideshow__slide { flex: 0 0 100%; scroll-snap-align: start; min-width: 0; }
+.gallery-slideshow__figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.gallery-slideshow__figure img { display: block; width: 100%; height: auto; max-height: min(72vh, 680px); object-fit: contain; background: var(--white); border: 1px solid var(--line); }
+.gallery-slideshow__caption { font-weight: 700; color: var(--ink); text-align: center; }
+.gallery-slideshow__controls { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 22px; }
+.gallery-slideshow__controls[hidden] { display: none; }
+.gallery-slideshow__btn { width: 48px; height: 48px; border: 2px solid var(--ink); background: var(--white); color: var(--ink); font-size: 20px; /* the page's own ink on white: readable whatever the brand colour */ line-height: 1; cursor: pointer; }
+.gallery-slideshow__btn:focus-visible, .gallery-slideshow__dot:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.gallery-slideshow__dots { display: flex; gap: 6px; }
+.gallery-slideshow__dot { width: 24px; height: 24px; border: 0; background: none; padding: 0; cursor: pointer; position: relative; }
+.gallery-slideshow__dot::before { content: ''; position: absolute; inset: 6px; background: var(--line); border: 1px solid var(--muted); box-sizing: border-box; }
+.gallery-slideshow__dot[aria-current="true"]::before { background: var(--brand); border-color: var(--brand); }
+
 .gallery-pairs { display: grid; gap: 28px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
 .gallery-pairs__pair { margin: 0; }
 .gallery-pairs__imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }

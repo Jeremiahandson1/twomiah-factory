@@ -1,0 +1,63 @@
+<%
+  // Slideshow: one photo at a time with its caption (a product preview: a page of the guide, a slide, a worksheet). Built like the
+  // reviews carousel to need no script: the track is a native scroll-snap strip, so without JavaScript every photo is reachable by
+  // swiping or scrolling. The inline script only adds previous/next, the dots and the arrow keys. It never moves by itself (no
+  // autoplay), and scrolls smoothly only for a visitor who has not asked for reduced motion. Offered with two or more photos
+  // (server/site/layouts.ts).
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const photos = Array.isArray(data.photos) ? data.photos.filter(function (p) { return p && p.url }) : []
+  if (photos.length === 0) return
+  const uid = 'gs' + Math.random().toString(36).slice(2, 8)
+%>
+<section class="gallery-section gallery-slideshow" aria-roledescription="carousel" aria-label="<%= heading || 'Photos' %>">
+  <div class="container">
+    <% if (heading || intro) { %><div class="gallery-section__head">
+      <% if (heading) { %><h2 class="gallery-section__title"><%= heading %></h2><% } %>
+      <% if (intro) { %><p class="gallery-section__intro"><%= intro %></p><% } %>
+    </div><% } %>
+    <ul class="gallery-slideshow__track" id="<%= uid %>" tabindex="0" aria-label="Photos. Use the left and right arrow keys, or swipe." data-track>
+      <% photos.forEach(function (p, i) { %>
+        <li class="gallery-slideshow__slide" role="group" aria-roledescription="slide" aria-label="<%= i + 1 %> of <%= photos.length %>">
+          <figure class="gallery-slideshow__figure">
+            <img src="<%= p.url %>" alt="<%= p.alt || p.caption || '' %>" <%= i === 0 ? '' : 'loading="lazy"' %>>
+            <% if (p.caption) { %><figcaption class="gallery-slideshow__caption"><%= p.caption %></figcaption><% } %>
+          </figure>
+        </li>
+      <% }) %>
+    </ul>
+    <% if (photos.length > 1) { %>
+      <div class="gallery-slideshow__controls" hidden data-controls>
+        <button type="button" class="gallery-slideshow__btn" data-prev aria-label="Previous photo" aria-controls="<%= uid %>"><span aria-hidden="true">&larr;</span></button>
+        <div class="gallery-slideshow__dots" role="group" aria-label="Choose a photo">
+          <% photos.forEach(function (p, i) { %><button type="button" class="gallery-slideshow__dot" data-dot="<%= i %>" aria-label="Photo <%= i + 1 %> of <%= photos.length %>" aria-current="<%= i === 0 ? 'true' : 'false' %>"></button><% }) %>
+        </div>
+        <button type="button" class="gallery-slideshow__btn" data-next aria-label="Next photo" aria-controls="<%= uid %>"><span aria-hidden="true">&rarr;</span></button>
+      </div>
+    <% } %>
+  </div>
+  <% if (photos.length > 1) { %>
+  <script>(function () {
+    var root = document.currentScript.parentElement;
+    var track = root.querySelector('[data-track]'), controls = root.querySelector('[data-controls]');
+    if (!track || !controls) return;
+    var slides = track.children, dots = controls.querySelectorAll('[data-dot]');
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    controls.hidden = false;
+    function at() { return Math.max(0, Math.min(slides.length - 1, Math.round(track.scrollLeft / (slides[0].offsetWidth || 1)))); }
+    function go(i) { i = (i + slides.length) % slides.length; track.scrollTo({ left: slides[i].offsetLeft - slides[0].offsetLeft, behavior: calm ? 'auto' : 'smooth' }); }
+    function mark() { var i = at(); for (var d = 0; d < dots.length; d++) dots[d].setAttribute('aria-current', d === i ? 'true' : 'false'); }
+    track.addEventListener('scroll', function () { window.requestAnimationFrame(mark); }, { passive: true });
+    controls.querySelector('[data-prev]').addEventListener('click', function () { go(at() - 1); });
+    controls.querySelector('[data-next]').addEventListener('click', function () { go(at() + 1); });
+    for (var d = 0; d < dots.length; d++) (function (n) { dots[n].addEventListener('click', function () { go(n); }); })(d);
+    track.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') { e.preventDefault(); go(at() + 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); go(at() - 1); }
+      else if (e.key === 'Home') { e.preventDefault(); go(0); }
+      else if (e.key === 'End') { e.preventDefault(); go(slides.length - 1); }
+    });
+    window.addEventListener('resize', mark);
+  })();</script>
+  <% } %>
+</section>

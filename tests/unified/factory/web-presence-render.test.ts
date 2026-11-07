@@ -132,6 +132,20 @@ describe('the published page', () => {
     expect(html).toMatch(/id="faq"/)
     expect(/<nav class="primary-nav"[^>]*>[\s\S]*?<\/nav>/.exec(html)![0]).toContain('href="#faq">FAQ</a>')
   })
+  test('the Photos section as a slideshow: offered with two or more photos, one at a time with captions, arrows added by its script, no autoplay', async () => {
+    expect(buildSpec('roofing').caps.gallery.variants).toContain('slideshow')
+    const { model } = first('roofing')
+    const photos = [1, 2, 3].map((n) => ({ url: '/media?h=' + String(n).repeat(40), caption: 'Page ' + n, alt: '' }))
+    const gallery = { id: 'gallery', type: 'gallery', variant: 'slideshow', data: { heading: 'Take a look inside', photos } }
+    const c = canonicalise({ ...model, sections: [...model.sections, gallery] }, buildSpec('roofing'), null).model
+    expect(c.sections.find((s: any) => s.id === 'gallery').variant).toBe('slideshow')
+    const html = String((await draw('roofing', c)).files['index.html'])
+    expect((html.match(/class="gallery-slideshow__slide"/g) || []).length).toBe(3)
+    for (const n of [1, 2, 3]) expect(html).toContain('<figcaption class="gallery-slideshow__caption">Page ' + n + '</figcaption>')
+    expect(html).toMatch(/gallery-slideshow__controls" hidden data-controls/)         // the arrows appear only when the script runs
+    expect(html).not.toMatch(/setInterval|autoplay/i)
+    expect(String((await draw('roofing', c)).files['styles/main.css'])).toContain('.gallery-slideshow__track')
+  })
   test('adding a section stays on the one page', async () => {
     const { model } = first('roofing')
     const spec = buildSpec('roofing')

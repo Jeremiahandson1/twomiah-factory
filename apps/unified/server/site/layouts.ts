@@ -78,6 +78,8 @@ export const LAYOUTS: Record<string, LayoutDef[]> = {
       loses: (d) => (categories(d) >= 2 ? ['the filter by category'] : []) },
     { id: 'projects', label: 'Project cards', blurb: 'Each photo as a card with its title.', shows: ['photos'], needs: (d) => (photosOf(d).length && photosOf(d).every((p) => p.title || p.caption) ? null : 'needs a title on every photo'),
       loses: (d) => (categories(d) >= 2 ? ['the filter by category'] : []) },
+    { id: 'slideshow', label: 'Slideshow', blurb: 'One photo at a time, with arrows. Good for a product preview.', shows: ['photos'], needs: (d) => (photosOf(d).length >= 2 ? null : 'needs two or more photos'),
+      loses: (d) => (categories(d) >= 2 ? ['the filter by category'] : []) },
     { id: 'pairs', label: 'Before and after', blurb: 'Each project as a before photo beside its after.', shows: ['photos'], needs: (d) => (photosOf(d).length && photosOf(d).every((p) => p.after) ? null : 'needs a before and an after photo on every project'),
       loses: (d) => (categories(d) >= 2 ? ['the filter by category'] : []) },
   ],
