@@ -11,6 +11,7 @@ import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createRainDayRoutes } from './rainDay.ts'
 import { createRouteTemplateRoutes } from './routeTemplates.ts'
 import { createCompanyBudgetRoutes } from './companyBudget.ts'
+import { createPlanTakeoffRoutes } from './planTakeoffs.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
 import { photoMarkupMounts } from '../roof/photoMarkup/index.ts'
@@ -74,6 +75,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     ...(d.settings?.roof ? [] : photoMarkupMounts(d)),
     // Row 27: the operating budget → overhead recovery → markup (LMN). NOT READY (hidden; company_budget read per request).
     { path: '/api/budgets', access: 'user', router: createCompanyBudgetRoutes(d) },
+    // Row 4: takeoffs on uploaded plans (Aspire). NOT READY (hidden; plan_takeoffs read per request).
+    { path: '/api/plan-takeoffs', access: 'user', router: createPlanTakeoffRoutes(d) },
     { path: '/api/sites', access: 'user', feature: ['snow_billing', 'area_pricing', 'recurring_routes'], router: createSiteRoutes(d) },
   ]
 }

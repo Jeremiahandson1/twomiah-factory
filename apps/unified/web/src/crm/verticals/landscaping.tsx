@@ -4,7 +4,7 @@
 // VerticalSettings.screens.
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { Route as RouteIcon, Ruler, Snowflake, MessageSquareText, Calculator } from 'lucide-react'
+import { Route as RouteIcon, Ruler, Snowflake, MessageSquareText, Calculator, FileImage } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { page } from '../lazy'
 
@@ -13,6 +13,7 @@ const AreaPricingPage = page(() => import('../pages/landscaping/AreaPricingPage'
 const SnowBillingPage = page(() => import('../pages/landscaping/SnowBillingPage'))
 const VisitMessagesPage = page(() => import('../pages/landscaping/VisitMessagesPage'))
 const BudgetPage = page(() => import('../pages/landscaping/BudgetPage'))
+const PlanTakeoffsPage = page(() => import('../pages/landscaping/PlanTakeoffsPage'))
 
 /** Routes inside /crm (behind the CRM's first-run gate), as <Route path="…" element={…} /> with a key. */
 export const routes: ReactElement[] = [
@@ -21,6 +22,7 @@ export const routes: ReactElement[] = [
   <Route key="landscaping-snow" path="snow-billing" element={<SnowBillingPage />} />,
   <Route key="landscaping-visit-messages" path="visit-messages" element={<VisitMessagesPage />} />,
   <Route key="landscaping-budget" path="budget" element={<BudgetPage />} />,
+  <Route key="landscaping-plan-takeoffs" path="plan-takeoffs" element={<PlanTakeoffsPage />} />,
 ]
 
 /**
@@ -36,4 +38,6 @@ export const nav: NavItem[] = [
   { to: '/crm/visit-messages', icon: MessageSquareText, label: 'Visit messages', features: ['visit_message_tools'], permission: 'jobs:read' },
   // Row 27 (company_budget, not ready): the owner's operating budget and the markups it gives. Reads ask margin:read.
   { to: '/crm/budget', icon: Calculator, label: 'Budget', features: ['company_budget'], permission: 'margin:read' },
+  // Row 4 (plan_takeoffs, not ready): measure on an uploaded site plan and put it on a quote. Reads ask quotes:read.
+  { to: '/crm/plan-takeoffs', icon: FileImage, label: 'Plan Takeoffs', features: ['plan_takeoffs'], permission: 'quotes:read' },
 ]

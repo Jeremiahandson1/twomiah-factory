@@ -99,6 +99,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // NOT READY until the owner has tested it: a PDF of the property's measured shapes over its satellite picture (apps/unified server/crm/landscaping/measurePrint.ts).
   // NOT READY until the owner has tested it: the Route Board finished (apps/unified server/crm/landscaping/recurringRoutes.ts).
   { id: 'route_board_tools', name: 'Route Board: seasons, drag and crew clashes', description: 'A season for each route with next season’s renewal, drag stops into order, a new stop’s visits made at once, the best order worked out from your yard, and a warning when the crew is already booked', category: 'Landscaping', core: false, templates: ['crm-landscaping'], hidden: true },
+  // NOT READY until the owner has tested it: takeoffs on uploaded plans (apps/unified server/crm/landscaping/planTakeoffs.ts).
+  { id: 'plan_takeoffs', name: 'Plan takeoffs', description: 'Upload a site plan (PDF or picture), set its scale, measure areas, lengths and counts on it, and put them on a quote', category: 'Landscaping', core: false, templates: ['crm-landscaping'], hidden: true },
   // NOT READY, and needs an imagery provider account first: finding lawn, beds and hardscape from the air (apps/unified server/data/aerialDetect.ts).
   { id: 'aerial_detect', name: 'Find areas from the air', description: 'Outline the lawn, beds and hardscape on the satellite map automatically, to check and adjust before saving', category: 'Landscaping', core: false, templates: ['crm-landscaping'], hidden: true },
   // NOT READY until the owner has tested it: the operating budget (apps/unified server/crm/landscaping/companyBudget.ts, data/companyBudget.ts).
