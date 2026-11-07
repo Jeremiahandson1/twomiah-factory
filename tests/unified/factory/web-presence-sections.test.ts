@@ -8,7 +8,7 @@ import {
 } from '../../../apps/api/src/webPresence/sections'
 
 // The owner's table, spelled out independently of the code (section types, as the renderer names them).
-const EVERYONE_TYPES = ['hero', 'about', 'services', 'gallery', 'testimonials', 'hours', 'map', 'contact', 'social', 'banner', 'hiring']
+const EVERYONE_TYPES = ['hero', 'about', 'services', 'gallery', 'testimonials', 'hours', 'map', 'contact', 'social', 'banner', 'hiring', 'faq']
 const FOOD_TRUCK = ['spot', 'events', 'menu', 'cta']        // today's spot + saved places (both `spot`), events, menu, order-ahead link
 const RESTAURANT = ['menu', 'events', 'cta']
 const BAR = ['events', 'menu', 'deals']

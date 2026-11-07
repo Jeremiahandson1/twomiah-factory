@@ -113,6 +113,25 @@ describe('the published page', () => {
     expect(img(String((await draw('roofing', { ...withLogo, business: { ...withLogo.business, logoSize: 'xlarge' } })).files['index.html']))).toContain('height:min(76px, max(44px, 15vw));')
     expect(img(String((await draw('roofing', { ...withLogo, business: { ...withLogo.business, logoSize: 'huge;background:red' } })).files['index.html']))).toContain('height:44px;')
   })
+  test('questions and answers (FAQ): offered to every trade, cleaned, drawn as open-to-read answers, and in the menu as "FAQ"', async () => {
+    for (const industry of TRADES) expect(buildSpec(industry).caps.faq).toMatchObject({ type: 'faq', variants: ['accordion'], nav: 'FAQ' })
+    const { model } = first('roofing')
+    const faq = { id: 'faq', type: 'faq', variant: 'accordion', data: { heading: 'Frequently asked questions', items: [
+      { question: 'Are sports cards included?', answer: 'No. This is a digital curriculum.' },
+      { question: '<script>x()</script> Ages?', answer: 'Elementary, middle & high school.' },
+      { question: 'No answer here', answer: '' },
+    ] } }
+    const c = canonicalise({ ...model, sections: [...model.sections, faq] }, buildSpec('roofing'), null).model
+    const kept = c.sections.find((s: any) => s.id === 'faq')
+    expect(kept.data.items).toHaveLength(3)
+    const html = String((await draw('roofing', c)).files['index.html'])
+    expect(html).toContain('<summary class="faq-item__question">Are sports cards included?</summary>')
+    expect(html).toContain('No. This is a digital curriculum.')
+    expect(html).not.toContain('<script>x()'); expect(html).toContain('&lt;script&gt;x()&lt;/script&gt; Ages?')
+    expect(html).not.toContain('No answer here')                        // a question with no answer is not shown
+    expect(html).toMatch(/id="faq"/)
+    expect(/<nav class="primary-nav"[^>]*>[\s\S]*?<\/nav>/.exec(html)![0]).toContain('href="#faq">FAQ</a>')
+  })
   test('adding a section stays on the one page', async () => {
     const { model } = first('roofing')
     const spec = buildSpec('roofing')

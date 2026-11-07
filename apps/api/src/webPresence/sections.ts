@@ -1,7 +1,7 @@
 // What each trade's Web presence editor offers — the ONE table (owner-approved 2026-10-29, a fixed rule, not a judgement call).
 //
 //   Everyone        hero, about, what we do, gallery, reviews, hours, service area, contact, social links, announcement ticker,
-//                   and the two forms (lead capture, now hiring)
+//                   questions and answers (FAQ — added 11/07 by the owner, for every trade), and the two forms (lead capture, now hiring)
 //   Food truck      + today's spot, saved places, schedule/events, menu, order-ahead link
 //   Restaurant/café + menu, events, order-ahead or delivery link
 //   Bar             + events, menu/specials
@@ -54,6 +54,7 @@ export const EVERYONE: readonly Capability[] = [
   cap('social', 'Social links', 'social', 'links'),
   cap('ticker', 'Announcement bar', 'banner', 'announcement', 'announcement'),
   cap('hiring', 'Now hiring', 'hiring', 'form', 'hiring', 'Jobs'),
+  cap('faq', 'Questions and answers', 'faq', 'accordion', 'faq', 'FAQ'),
 ]
 
 // ─── The trades' extras ────────────────────────────────────────────────────
