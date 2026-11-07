@@ -889,10 +889,9 @@ export function createStripeService(deps: StripeServiceDeps) {
     // collected even if that is above the balance (the model settles paid > total at $0). A void or
     // refunded invoice is refused like an interactive payment: the money was still taken, so it is
     // logged for a person to refund or re-invoice. (#155)
-    const outcome = await recordInvoicePayment(db, { invoice, payment }, tipCents > 0 && !!payment.tipAmount, {
+    const outcome = await recordInvoicePayment(db, { invoice, payment }, false, {
       invoiceId: invoice_id,
       amount,
-      ...(tipCents > 0 && payment.tipAmount ? { tipAmount: round2(tipCents / 100) } : {}),
       method: 'card',
       reference: paymentIntent.id,
       notes: `Stripe payment - ${paymentIntent.payment_method_types?.join(', ') || 'card'}`,
@@ -910,6 +909,9 @@ export function createStripeService(deps: StripeServiceDeps) {
       return { handled: true, duplicate: true, paymentId: outcome.payment.id, invoiceId: invoice_id, amount, newStatus: outcome.newStatus }
     }
 
+    // A tip added online (contractor parity row 12) goes on the payment it came with. It is not part of what the invoice owes, so it is
+    // written once the payment is recorded, outside the balance's lock; a retried delivery (duplicate, above) has it already.
+    if (tipCents > 0 && payment.tipAmount) await db.update(payment).set({ tipAmount: String(round2(tipCents / 100)) }).where(eq(payment.id, outcome.payment.id))
     if (afterInvoicePayment) await afterInvoicePayment(invoice_id).catch((err) => console.error('[events] invoice due-date sync failed', err))
 
     return {
