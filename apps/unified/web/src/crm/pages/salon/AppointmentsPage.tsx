@@ -885,7 +885,16 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
               {maySeePrices && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quoted price ($)</label>
+                {/* Several services: the visit's price IS their prices added up (the server sets it so) — shown as that, not the first
+                    service's alone (salon live test 11/07: the box stayed at the colour's 120.00 with a cut added). */}
+                {more.some((m) => m.serviceId) ? (
+                  <>
+                    <input type="text" readOnly aria-label="Quoted price, the services added up" value={[form.serviceId, ...more.map((m) => m.serviceId)].filter(Boolean).reduce((t, id) => t + (Number(services.find((x) => x.id === id)?.price) || 0), 0).toFixed(2)} className="w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-slate-800" />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">The services' prices added up.</p>
+                  </>
+                ) : (
                 <input type="number" step="any" value={form.quotedPrice} onChange={(e) => set('quotedPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                )}
               </div>
               )}
             </div>

@@ -100,7 +100,7 @@ export async function changeTrade(d: UpgradeDeps, tenantId: string, industry: st
   const caps = Object.fromEntries(Object.entries(after.caps).map(([k, v]: [string, any]) => [k, { anchor: v.anchor, ...(v.nav ? { nav: v.nav } : {}) }]))
   const origin = (row.custom_domain && row.ssl_ok ? 'https://' + row.custom_domain : row.origin) as string
   const out = await renderOnePage({ model: model as any, vertical: unifiedVerticalOf(industry), caps, origin })
-  const body = JSON.stringify({ model: out.model, page: out.files['index.html'], privacy: out.files['privacy/index.html'] })
+  const body = JSON.stringify({ model: out.model, page: out.files['index.html'], privacy: out.files['privacy/index.html'], css: out.files['styles/main.css'], cssVersion: out.cssVersion })
   const master = String(d.env.WEB_PRESENCE_SECRET_KEY || '')
   const ts = String(Math.floor(d.now() / 1000))
   const res = await d.fetch((row.origin as string).replace(/\/+$/, '') + '/api/adopt', { method: 'POST', headers: { 'content-type': 'application/json', 'x-wp-ts': ts, 'x-wp-sig': await signRequest(await siteSecret(master, row.id), ts, body) }, body })

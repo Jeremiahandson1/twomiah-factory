@@ -51,6 +51,9 @@ export interface OnePageOutput {
   model: OnePageModel
   /** path → text. index.html, privacy/index.html, styles/main.css, sitemap.xml, robots.txt, llms.txt. */
   files: Record<string, string>
+  /** The `v` the pages put on /styles/main.css?v=… — it changes with the look (design, colours, letters, corners, spacing). The site
+   *  serves files['styles/main.css'] under it, so a page and its stylesheet are always from the same save. */
+  cssVersion: string
   /** Local files the pages point at that the publisher must ship: /hero-library/… photos and /fonts/… faces. */
   assets: string[]
   /** Which forms are really on the published page. */
@@ -191,7 +194,8 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   const { renderBody } = await import('./render.ts')
   let privacy = await renderBody(ctx, privacyBody(i, forms, updated, /fonts\.googleapis\.com\/css2/.test(html)), { siteOrigin: i.origin, seoTitle: 'Privacy Policy — ' + b.name, seoDescription: '' }, '/privacy', { title: 'Privacy Policy' })
 
-  // The pages point at /styles/main.css?v=… — shipped as a file, cached for a year; the version changes with the colours.
+  // The pages point at /styles/main.css?v=… — served by the site's function from the same save as the page (an editor save changes
+  // the look without a deploy), cached for a year under its version; the version changes with the look.
   const assets = new Set<string>()
   for (const page of [html, privacy]) {
     for (const m of page.matchAll(/(?:src|href|srcset|content)="([^"]*)"/g)) {
@@ -207,6 +211,7 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   return {
     model: { ...m, look: { ...m.look, palette: (palette ?? {}) as Record<string, string>, style: (style ?? {}) as Record<string, string> } },
     files: { 'index.html': html, 'privacy/index.html': privacy, 'styles/main.css': css, 'sitemap.xml': sitemap, 'robots.txt': robots, 'llms.txt': llmsText(i, sections) },
+    cssVersion: v,
     assets: [...assets],
     forms,
     sectionErrors,

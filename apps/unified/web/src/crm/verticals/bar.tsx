@@ -11,6 +11,7 @@ import { useAuth, type NavItem } from '../../shared'
 import { NoAccessPage } from '@twomiah/tenant-ui/src/shell/noAccess'
 import { allowsPermission } from '@twomiah/tenant-ui/src/shell/types'
 import { page } from '../lazy'
+import { verticalScreens } from '../vertical'
 
 const TonightPage = page(() => import('../pages/bar/TonightPage'))
 const MenuPage = page(() => import('../pages/bar/MenuPage'))
@@ -78,7 +79,10 @@ export const routes: ReactElement[] = [
   <Route key="bar-register" path="register" element={<RegisterPage />} />,
   <Route key="bar-grill" path="grill" element={<GrillPage />} />,
   <Route key="bar-closeout" path="closeout" element={<CloseoutPage />} />,
-  <Route key="bar-gift-cards" path="gift-cards" element={<GiftCardsPage />} />,
+  // Not in a salon: it has its own Gift cards page at the same address (verticals/salon.tsx, /api/salon-gift-cards), and every trade's
+  // routes are mounted with the first match winning (App.tsx) — the bar's came first, so a salon opening Gift cards got this page,
+  // whose /api/gift-cards a salon does not have ("This module is not enabled", salon live test 11/07).
+  ...(verticalScreens().home === 'salon' ? [] : [<Route key="bar-gift-cards" path="gift-cards" element={<GiftCardsPage />} />]),
   <Route key="bar-regulars" path="regulars" element={<RegularsPage />} />,
   <Route key="bar-floor" path="floor" element={<FloorPage />} />,
   <Route key="bar-stock" path="stock" element={<StockPage />} />,

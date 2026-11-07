@@ -368,7 +368,7 @@ export default function ClientDetailPage() {
               {profile.hairType && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Hair</dt><dd>{profile.hairType}</dd></div>}
               {profile.scalpNotes && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Scalp</dt><dd className="text-right">{profile.scalpNotes}</dd></div>}
               {profile.birthday && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Birthday</dt><dd>{fmtDate(profile.birthday)}</dd></div>}
-              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Notes</dt><dd className="text-right">{profile.preferences}</dd></div>}
+              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Preferences</dt><dd className="text-right">{profile.preferences}</dd></div>}
               {!profile.hairType && !profile.scalpNotes && !profile.birthday && !profile.preferences && (
                 <p className="text-gray-500 dark:text-slate-400">Nothing recorded yet</p>
               )}

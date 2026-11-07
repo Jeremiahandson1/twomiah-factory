@@ -8,17 +8,18 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { bundleFunction, redirectsFile } from '../../../apps/api/src/webPresence/publish.ts'
-import { mintSignin } from '../../../apps/api/src/webPresence/site/session.mjs'
+import { mintSignin, signRequest } from '../../../apps/api/src/webPresence/site/session.mjs'
 
 // The address a visitor asks for, read from the published redirect rules (so a route the rules don't send to the function fails).
 const pathOf = (r: string) => {
-  const want = { page: '/', privacy: '/privacy' }[r] ?? '/' + r
+  const want = ({ page: '/', privacy: '/privacy', css: '/styles/main.css' } as Record<string, string>)[r] ?? '/' + r
   if (!new RegExp(`^${want.replace(/[/]/g, '\\/')}\\s+/\\.netlify/functions/site 200$`, 'm').test(redirectsFile())) throw new Error('no rule for ' + want)
   return want
 }
 
 const SITE_ROW = 'row-1', SECRET = 'a'.repeat(64)
 const blobs = new Map<string, string>()
+const blobMeta = new Map<string, string>()   // a blob's metadata, as the edge API keeps it (the client's x-amz-meta-user header)
 let srv: ReturnType<typeof Bun.serve>
 let handler: (event: any) => Promise<any>
 let dir = ''
@@ -27,15 +28,17 @@ beforeAll(async () => {
   // The Blobs edge API, as @netlify/blobs calls it: GET a key (404 when absent), PUT a key; `If-None-Match: *` is onlyIfNew (412 if it exists).
   srv = Bun.serve({ port: 0, async fetch(req) {
     const key = new URL(req.url).pathname
-    if (req.method === 'GET') return blobs.has(key) ? new Response(blobs.get(key)) : new Response(null, { status: 404 })
+    if (req.method === 'GET') return blobs.has(key) ? new Response(blobs.get(key), { headers: blobMeta.has(key) ? { 'x-amz-meta-user': blobMeta.get(key)! } : {} }) : new Response(null, { status: 404 })
     if (req.method === 'PUT') {
       if (req.headers.get('if-none-match') === '*' && blobs.has(key)) return new Response(null, { status: 412 })
+      const meta = req.headers.get('x-amz-meta-user') || req.headers.get('netlify-blobs-metadata')
+      if (meta) blobMeta.set(key, meta); else blobMeta.delete(key)
       blobs.set(key, await req.text()); return new Response(null, { status: 200 })
     }
     return new Response(null, { status: 405 })
   } })
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-bundle-'))
-  const code = await bundleFunction({ index: '<!doctype html><title>Acme</title><p>Acme Lawn</p>', privacy: '<p>privacy</p>', model: { v: 1, sections: [], forms: {} }, spec: {} })
+  const code = await bundleFunction({ index: '<!doctype html><title>Acme</title><p>Acme Lawn</p>', privacy: '<p>privacy</p>', model: { v: 1, sections: [], forms: {} }, spec: {}, css: '/* first look */', cssVersion: 'v-first' })
   fs.writeFileSync(path.join(dir, 'site.mjs'), code)
   Object.assign(process.env, { WP_SITE_ID: SITE_ROW, WP_SECRET: SECRET, WP_FACTORY_URL: 'https://factory.invalid', WP_TENANT_ID: 't-1', WP_FACTORY_KEY: 'k' })
   const loaded = (await import(path.join(dir, 'site.mjs'))).handler
@@ -47,10 +50,10 @@ afterAll(() => { srv?.stop(true); try { fs.rmSync(dir, { recursive: true, force:
 
 // What Netlify passes a Lambda-style function a redirect rule rewrote to: the VISITOR's path and query (the rule's own query is
 // dropped — 10/30, /privacy served the home page), the Blobs context (url + token, NO uncachedEdgeURL) and the site headers.
-const event = (r: string, method = 'GET', body: string | null = null) => ({
-  rawUrl: `https://acme.netlify.app${pathOf(r)}`, path: pathOf(r), httpMethod: method,
-  headers: { host: 'acme.netlify.app', 'x-nf-site-id': 'nf-site-1', 'x-nf-deploy-id': 'dep-1', ...(body ? { 'content-type': 'application/json' } : {}) },
-  queryStringParameters: {}, rawQuery: '', body, isBase64Encoded: false,
+const event = (r: string, method = 'GET', body: string | null = null, extra: { rawQuery?: string; headers?: Record<string, string> } = {}) => ({
+  rawUrl: `https://acme.netlify.app${pathOf(r)}${extra.rawQuery ? '?' + extra.rawQuery : ''}`, path: pathOf(r), httpMethod: method,
+  headers: { host: 'acme.netlify.app', 'x-nf-site-id': 'nf-site-1', 'x-nf-deploy-id': 'dep-1', ...(body ? { 'content-type': 'application/json' } : {}), ...(extra.headers || {}) },
+  queryStringParameters: {}, rawQuery: extra.rawQuery || '', body, isBase64Encoded: false,
   blobs: Buffer.from(JSON.stringify({ url: `http://localhost:${srv.port}`, token: 'tok' })).toString('base64'),
 })
 
@@ -71,6 +74,26 @@ test('a sign-in link works once — the second use is refused (an atomic write, 
   const again = await handler(event('api/signin', 'POST', JSON.stringify({ token })))
   expect(again.statusCode).toBe(401)
   expect(String(again.body)).toContain('already used')
+})
+
+// 11/07: the stylesheet was a deployed file and an editor save never replaced it (the page changed look, its stylesheet did not).
+test('the stylesheet is served by the function, and one the Factory hands over replaces it through the real Blobs client', async () => {
+  const first = await handler(event('css', 'GET', null, { rawQuery: 'v=v-first' }))
+  expect(first.statusCode).toBe(200)
+  expect(String(first.headers['content-type'])).toMatch(/^text\/css/)
+  expect(String(first.body)).toBe('/* first look */')
+  expect(String(first.headers['cache-control'])).toMatch(/immutable/)
+  // the Factory's adopt (signed with the site secret) writes the page AND its stylesheet; the version rides as the blob's metadata
+  const body = JSON.stringify({ model: { v: 1, sections: [], forms: {} }, page: '<p>new</p>', privacy: '<p>p</p>', css: '/* his look */', cssVersion: 'v-his' })
+  const ts = String(Math.floor(Date.now() / 1000))
+  const ok = await handler(event('api/adopt', 'POST', body, { headers: { 'x-wp-ts': ts, 'x-wp-sig': await signRequest(SECRET, ts, body) } }))
+  expect(ok.statusCode).toBe(200)
+  const now = await handler(event('css', 'GET', null, { rawQuery: 'v=v-his' }))
+  expect(String(now.body)).toBe('/* his look */')
+  expect(String(now.headers['cache-control'])).toMatch(/immutable/)
+  const old = await handler(event('css', 'GET', null, { rawQuery: 'v=v-first' }))
+  expect(String(old.body)).toBe('/* his look */')
+  expect(String(old.headers['cache-control'])).not.toMatch(/immutable/)
 })
 
 test('the entry never asks Blobs for strong consistency (a Lambda-style function cannot)', () => {
