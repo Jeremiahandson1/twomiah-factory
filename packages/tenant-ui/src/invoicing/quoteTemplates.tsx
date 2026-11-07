@@ -30,6 +30,9 @@ export function formLines(lineItems: any[] | undefined, blank: () => LineItemInp
     ...(li.allowance ? { allowance: true } : {}),
     ...(li.costCode ? { costCode: li.costCode } : {}),
     ...(li.imageUrl ? { imageUrl: li.imageUrl } : {}),
+    ...(li.formulaKey ? { formulaKey: li.formulaKey } : {}),
+    ...(li.quantityFormula ? { quantityFormula: li.quantityFormula } : {}),
+    ...(li.priceFormula ? { priceFormula: li.priceFormula } : {}),
   }))
 }
 

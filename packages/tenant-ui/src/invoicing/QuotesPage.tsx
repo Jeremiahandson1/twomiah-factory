@@ -7,13 +7,14 @@ import { AreaPricedLine } from './AreaPricedLine'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { SaveTemplateModal, TemplatePickerModal, formLines, useQuoteFeature } from './quoteTemplates'
+import { ParametersPanel, applyLineFormulas, mergeParameters, type Parameter } from './formulasUi'
 import type { MarkupDefaults } from './markup'
 import { MarginSummary } from './MarginSummary'
 import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
-interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[]; depositType: '' | 'percent' | 'fixed'; depositValue: number; salespersonId: string }
+interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[]; depositType: '' | 'percent' | 'fixed'; depositValue: number; salespersonId: string; parameters?: Parameter[] }
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
 // Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES), a viewed quote included.
 const EDITABLE = ['draft', 'sent', 'viewed']
@@ -46,6 +47,9 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const markupOn = useQuoteFeature('markup_defaults')
   const imagesOn = useQuoteFeature('quote_line_images')
   const textOn = useQuoteFeature('quote_text_lines')
+  // Formula estimating (contractor parity row 9, quote_formulas): the quote's parameters, the job's, and line formulas.
+  const formulasOn = useQuoteFeature('quote_formulas') && !!cfg.quoteSections
+  const [projectParams, setProjectParams] = useState<Parameter[]>([])
   const [markupDefaults, setMarkupDefaults] = useState<MarkupDefaults | null>(null)
   useEffect(() => {
     if (!markupOn || !maySeeCost) { setMarkupDefaults(null); return }
@@ -129,7 +133,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', salespersonId: item.salespersonId || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0 })
+    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', salespersonId: item.salespersonId || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0, parameters: Array.isArray(item.parameters) ? item.parameters : [] })
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -145,6 +149,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         salespersonId: 'me', taxRate: Number(item.taxRate), discount: 0, notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '',
         lineItems: formLines(item.lineItems?.filter((li: any) => !li.proposalOptionId), blankLine),
         depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0,
+        parameters: Array.isArray(item.parameters) ? item.parameters : [],
       })
       loadCustomerExtras(item.contactId || '')
       setModalOpen(true)
@@ -158,6 +163,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       ...emptyForm(), name: body?.name || '', notes: body?.notes || '', customerMessage: body?.customerMessage || '', terms: body?.terms || '',
       taxRate: Number(body?.taxRate ?? defaultTaxRate) || 0, lineItems: formLines(body?.lineItems, blankLine),
       depositType: body?.depositType === 'percent' || body?.depositType === 'fixed' ? body.depositType : '', depositValue: Number(body?.depositValue) || 0,
+      parameters: Array.isArray(body?.parameters) ? body.parameters : [],
     })
     setSites([]); setEquipment([]); setModalOpen(true)
   }
@@ -214,6 +220,18 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // An optional line counts only once it is ticked (InvoicingConfig.quoteOptions) — the server's rule (quoteOptions.ts).
+  // The job's parameters, read when the quote is on a project (the server reads the same; the quote's own win).
+  useEffect(() => {
+    if (!formulasOn || !modalOpen || !form.projectId) { setProjectParams([]); return }
+    api.get(`/api/project-parameters/${form.projectId}`).then((r: any) => {
+      const got: Parameter[] = Array.isArray(r?.parameters) ? r.parameters : []
+      setProjectParams(got)
+      setForm((f) => ({ ...f, lineItems: applyLineFormulas(f.lineItems, mergeParameters(got, f.parameters || [])).items }))
+    }).catch(() => setProjectParams([]))
+  }, [formulasOn, modalOpen, form.projectId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const allParams = mergeParameters(projectParams, form.parameters || [])
+  /** New parameters: every formula line follows at once. */
+  const setParameters = (parameters: Parameter[]) => setForm((f) => ({ ...f, parameters, lineItems: applyLineFormulas(f.lineItems, mergeParameters(projectParams, parameters)).items }))
   const totals = calcTotals(cfg.quoteOptions ? countedLines(form.lineItems) : form.lineItems, form.taxRate, form.discount)
   const linesForSave = form.lineItems.filter(li => li.description.trim())
   // a negative or out-of-range number is named and blocks the save — never rewritten, never sent
@@ -232,6 +250,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     try {
       const payload: any = { name: form.name.trim(), contactId: form.contactId, expiryDate: form.expiryDate || null, taxRate: form.taxRate, discount: form.discount, notes: form.notes, terms: form.terms, lineItems: linesForSave }
       if (cfg.projects) payload.projectId = form.projectId
+      if (formulasOn) payload.parameters = (form.parameters || []).filter((p) => String(p.key).trim())
       if (cfg.quoteSites) payload.siteId = form.siteId
       if (cfg.quoteJobs) payload.jobId = form.jobId
       if (cfg.quoteEquipment) payload.equipmentId = form.equipmentId
@@ -306,6 +325,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             {cfg.quoteSites && sites.length > 0 && <Field label={cfg.siteLabels?.singular || 'Location'}><select value={form.siteId} onChange={e => setForm((f) => ({ ...f, siteId: e.target.value }))} className={inputCls}><option value="">No specific {(cfg.siteLabels?.singular || 'Location').toLowerCase()}</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
             {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}
           </div>
+          {formulasOn && <ParametersPanel parameters={form.parameters || []} fromProject={projectParams} onChange={setParameters} />}
           <Field label="Line Items">
             <LineItemsEditor
               items={form.lineItems}
@@ -324,7 +344,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
                */
               pricebook={cfg.pricebook ? { items: pricebook as any, canSeeCost: maySeeCost, loaded: pricebookLoaded } : undefined}
               optional={!!cfg.quoteOptions}
-              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes, ...(markupDefaults ? { markupDefaults } : {}), ...(imagesOn ? { images: { upload: uploadLinePicture } } : {}), ...(textOn ? { textLines: true } : {}) } : undefined}
+              estimating={cfg.quoteSections ? { allowances: !!cfg.quoteAllowances, costCodes: !!cfg.quoteCostCodes, ...(markupDefaults ? { markupDefaults } : {}), ...(imagesOn ? { images: { upload: uploadLinePicture } } : {}), ...(textOn ? { textLines: true } : {}), ...(formulasOn ? { formulas: { parameters: allParams } } : {}) } : undefined}
             />
             {/* Price a property by its measured area (Area Pricing's rates): the line replaces a blank one, else joins. */}
             {cfg.quoteSites && cfg.hasFeature?.('area_pricing') && (

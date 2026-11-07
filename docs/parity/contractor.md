@@ -23,7 +23,7 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Good / better / best options | one implementation for every quoting trade (10/31, `quote_proposals`, hidden) | built |
 | **Approved quote → project budget** (original budget = the signed quote) | approved quote → budget by cost code; Job Costing's "Project budgets" panel | built |
 | Bills / purchase orders linked to budget lines; projected profit per line | budget vs "spent so far" for the whole project — actual cost is not split by cost code | partly |
-| A JobTread-style formula / parameter engine | — | not doing (owner: Takeoffs covers it) |
+| A JobTread-style formula / parameter engine | built (`quote_formulas`, row 9): parameters on a job and a quote (the quote's win); line quantity / price formulas over parameters and other lines by name (round, ceil, floor, roundup, min, max, abs, sqrt); worked out on every save and when the job's parameters change (open quotes, a broken one named and left as it was); errors in words; kept in quote templates and as a price-guide item's quantity formula; a takeoff measurement fills a job parameter | built |
 
 ## Reports
 

@@ -149,6 +149,10 @@ export interface LineItemInput {
   /** A picture on the line the customer sees (quote_line_images): an https address or one of the business's /media photos. */
   imageUrl?: string
   costCode?: string
+  /** Formula estimating (quote_formulas): the line's name other formulas read it by, and its quantity / price formulas. */
+  formulaKey?: string
+  quantityFormula?: string
+  priceFormula?: string
 }
 
 /** The lines a quote's price counts: every line not optional, and the optional ones ticked. */
@@ -163,4 +167,6 @@ export interface PricebookPick {
   price: number | string
   cost?: number | string | null
   unit?: string | null
+  /** Formula estimating: the quantity formula a line picked from this item starts with. */
+  quantityFormula?: string | null
 }
