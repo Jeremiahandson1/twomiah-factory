@@ -12,6 +12,7 @@ import A2pRegistration from '../components/factory/A2pRegistration'
 import MessagingBilling from '../components/factory/MessagingBilling'
 import SubscriptionControls from '../components/factory/SubscriptionControls'
 import DomainBilling from '../components/factory/DomainBilling'
+import WebPresencePanel from '../components/factory/WebPresencePanel'
 import { crmSignInUrl } from '../components/factory/crmSignIn'
 
 const V2_PLAN_IDS = ['website', 'starter10', 'team25', 'business50']
@@ -796,6 +797,9 @@ export default function CustomerDetailPage() {
               </div>
             </div>
           )}
+
+          {/* The $19 Web presence plan: its own Netlify site (11/06) */}
+          {tenant.plan === 'webpresence' && <WebPresencePanel tenantId={tenant.id} showToast={showToast} onChanged={load} />}
 
           {/* Custom Domain */}
           {(tenant.website_url || tenant.render_frontend_url) && (

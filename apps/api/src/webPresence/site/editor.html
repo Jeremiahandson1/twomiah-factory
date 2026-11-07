@@ -88,11 +88,28 @@
       });
     } else load();
   }
+  // Back from Stripe's sign-in: /edit/?stripe=<outcome> (the Factory's callback). The words for each outcome.
+  var STRIPE_OUTCOME = {
+    linked: ['Your Stripe account is linked. Press Save to put your Buy button on the page.', false],
+    cancelled: ['Linking Stripe was cancelled. Nothing changed.', true],
+    expired: ['That took too long. Press "Link my Stripe account" again.', true],
+    already_connected: ['A Stripe account is already linked.', true],
+    other_platform: ['That Stripe account is managed by another service, so it cannot be linked here. Stripe can make you a separate account for this site.', true],
+    not_allowed: ['That Stripe sign-in was not started from this editor.', true],
+    failed: ['Stripe did not finish linking. Please try again.', true]
+  };
   function load() {
+    var back = /[?&]stripe=([a-z_]+)/.exec(location.search || '');
+    if (back) history.replaceState(null, '', location.pathname + (location.hash || ''));
     api('/api/model').then(function (r) {
       if (r.status === 401) return signedOut('');
       if (!r.ok) return signedOut(r.d.error || 'Could not open the editor.');
-      state.model = r.d.model; state.spec = r.d.spec; state.dirty = false; render();
+      state.model = r.d.model; state.spec = r.d.spec; state.dirty = false;
+      if (back && STRIPE_OUTCOME[back[1]] && state.spec.caps && state.spec.caps.download) {
+        state.tab = 'sell'; state.msg = { text: STRIPE_OUTCOME[back[1]][0], bad: STRIPE_OUTCOME[back[1]][1] };
+        if (back[1] === 'linked') state.dirty = true;
+      }
+      render();
     });
   }
   function signedOut(why) {
@@ -149,6 +166,12 @@
     if (typeof shape === 'string') {
       if (shape === 'img') return h('div', null, h('label', null, name), imageField(obj, key));
       if (shape === 'bool') return h('label', null, h('input', { type: 'checkbox', checked: !!obj[key], onchange: function (e) { obj[key] = e.target.checked; touch(); } }), ' ' + name);
+      if (shape === 'usd') {
+        var lim = state.spec.limits || {}, money = h('input', { id: id, type: 'text', inputmode: 'decimal', maxlength: 10, placeholder: '99.00' });
+        money.value = obj[key] || '';
+        money.addEventListener('input', function () { obj[key] = money.value; touch(); });
+        return h('div', null, h('label', { for: id }, name), h('div', { class: 'hint' }, 'In US dollars, like 99 or 99.00. From $' + ((lim.priceMinCents || 100) / 100) + ' to $' + ((lim.priceMaxCents || 500000) / 100).toLocaleString() + '.'), money);
+      }
       var m = /^(t|tl):(\d+)$/.exec(shape), multi = m && m[1] === 'tl';
       var type = shape === 'date' ? 'date' : shape === 'link' ? 'text' : 'text';
       var el = multi ? h('textarea', { id: id, maxlength: m[2] }) : h('input', { id: id, type: type, maxlength: m ? m[2] : (shape === 'link' ? 500 : 10) });
@@ -322,6 +345,87 @@
     return h('div', null, cards);
   }
 
+  // ---- sell a download: the owner's Stripe account, the file, and the sales (kept on this site only) ----
+  var sell = { loaded: false, stripe: null, file: null, sales: null, perLink: 5, busy: false, out: null };
+  function loadSell() {
+    if (sell.loaded) return; sell.loaded = true;
+    Promise.all([api('/api/stripe'), api('/api/download/file'), api('/api/sales')]).then(function (rs) {
+      if (rs.some(function (r) { return r.status === 401; })) return signedOut('Your session ended. Sign in again with a new link.');
+      sell.stripe = rs[0].ok ? rs[0].d : { error: true };
+      sell.file = rs[1].ok ? rs[1].d.file : null;
+      sell.sales = rs[2].ok ? rs[2].d.sales : [];
+      sell.perLink = (rs[2].ok && rs[2].d.perLink) || 5;
+      if (state.tab === 'sell') render();
+    });
+  }
+  function sellOut(text, bad) { sell.out = { text: text, bad: !!bad }; render(); }
+  function money(c) { return '$' + (Number(c || 0) / 100).toFixed(2); }
+  function sellTab() {
+    loadSell();
+    var cards = [], st = sell.stripe, hasSection = state.model.sections.some(function (s) { return s.type === 'download'; });
+    var shownSection = state.model.sections.some(function (s) { return s.type === 'download' && !s.hidden; });
+    if (sell.out) cards.push(h('p', { class: 'msg ' + (sell.out.bad ? 'bad' : 'good'), role: 'status' }, sell.out.text));
+    // 1. Stripe
+    var linked = st && st.connected;
+    cards.push(h('div', { class: 'card' }, h('h2', null, '1. Get paid with Stripe'),
+      h('p', { class: 'hint' }, 'Payments go straight into your own Stripe account. Twomiah never holds your money and takes no cut of your sales; Stripe charges its normal card fee.'),
+      !st ? h('p', null, 'Checking…') : linked
+        ? h('div', null, h('p', { class: 'msg good' }, 'Your Stripe account is linked.'),
+            h('button', { class: 'danger', disabled: sell.busy, onclick: function () {
+              if (!confirm('Disconnect your Stripe account? Your Buy button stops working until you link it again.')) return;
+              sell.busy = true; api('/api/stripe/disconnect', { method: 'POST' }).then(function (r) { sell.busy = false; if (!r.ok) return sellOut(r.d.error || 'Could not disconnect.', true); sell.stripe = { connected: false }; touch(); sellOut('Disconnected. Press Save to take the Buy button off your page.'); });
+            } }, 'Disconnect Stripe'))
+        : h('div', null, h('p', null, 'Link the Stripe account you already have, or make one: Stripe asks for your business and bank details on its own pages.'),
+            h('button', { class: 'primary', disabled: sell.busy, onclick: function () {
+              sell.busy = true; render();
+              api('/api/stripe/start', { method: 'POST' }).then(function (r) {
+                sell.busy = false;
+                if (r.ok && r.d.url && /^https:\/\/connect\.stripe\.com\//.test(r.d.url)) { if (state.dirty && !confirm('You have changes that are not saved. Leave to link Stripe anyway?')) { render(); return; } state.dirty = false; window.location.href = r.d.url; }
+                else sellOut(r.d.error || 'Linking Stripe is not available just now.', true);
+              });
+            } }, 'Link my Stripe account'))));
+    // 2. The file
+    var status = h('span', { class: 'small', role: 'status' });
+    var input = h('input', { type: 'file', accept: '.zip,.pdf,application/zip,application/pdf', 'aria-label': 'Choose the file to sell', onchange: function () {
+      var f = input.files[0]; if (!f) return;
+      var max = state.spec.limits.downloadBytes || 4000000;
+      if (f.size > max) { status.textContent = 'That file is ' + (f.size / 1000000).toFixed(1) + ' MB. The most is ' + Math.round(max / 1000000) + ' MB.'; return; }
+      status.textContent = 'Uploading…';
+      fetch('/api/download/file', { method: 'POST', credentials: 'same-origin', headers: { 'x-wp': '1', 'content-type': 'application/octet-stream', 'x-file-name': encodeURIComponent(f.name) }, body: f })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (r) { if (!r.ok) { status.textContent = r.d.error || 'Upload failed.'; return; } sell.file = r.d.file; sellOut('Your file is uploaded. Buyers get this version from now on.'); })
+        .catch(function () { status.textContent = 'Upload failed. Check your connection.'; });
+    } });
+    cards.push(h('div', { class: 'card' }, h('h2', null, '2. The file buyers get'),
+      h('p', { class: 'hint' }, 'A ZIP or a PDF, up to ' + Math.round((state.spec.limits.downloadBytes || 4000000) / 1000000) + ' MB. It is kept private: the only way to get it is the link a buyer receives after paying. Each link works for 7 days and up to ' + sell.perLink + ' downloads.'),
+      sell.file ? h('p', null, h('strong', null, sell.file.name), ' — ' + (sell.file.size / 1000000).toFixed(2) + ' MB, uploaded ' + String(sell.file.at || '').slice(0, 10)) : h('p', { class: 'msg bad' }, 'No file yet.'),
+      h('label', null, sell.file ? 'Replace it' : 'Choose the file'), input, status));
+    // 3. The product on the page
+    cards.push(h('div', { class: 'card' }, h('h2', null, '3. What the page shows'),
+      h('p', { class: 'hint' }, 'The name, price, description, what is included and your license terms are a section of your page.'),
+      hasSection ? h('p', null, shownSection ? 'Your "Sell a download" section is on the page. ' : 'Your "Sell a download" section is hidden. ', h('button', { class: 'link', onclick: function () { state.tab = 'sections'; state.open.download = true; state.msg = null; render(); } }, 'Edit it on the Page tab'))
+        : h('button', { onclick: function () { var c = state.spec.caps.download; state.model.sections.push({ id: 'download', type: c.type, variant: c.variants[0], hidden: false, data: blank(state.spec.shapes[c.type]) }); state.open.download = true; state.tab = 'sections'; touch(); render(); } }, 'Add it to the page'),
+      h('p', { class: 'small' }, 'The Buy button shows on your page once Stripe is linked, a file is uploaded, and the section has a name and a price, and you have pressed Save.')));
+    // 4. Sales
+    var list = sell.sales;
+    var rows = !list ? h('p', null, 'Loading…') : !list.length ? h('p', null, 'No sales yet.') : h('div', null, list.map(function (s) {
+      return h('div', { class: 'list-item' },
+        h('div', { class: 'row' }, h('strong', null, s.license || '—'), h('span', null, String(s.at || '').slice(0, 10)), h('span', null, money(s.amountCents)), h('span', { class: s.refunded ? 'small' : '' }, s.refunded ? 'Refunded' : 'Paid')),
+        h('p', { class: 'small' }, [s.name, s.email].filter(Boolean).join(' · ')),
+        s.location ? h('p', null, 'Licensed for: ' + s.location) : null,
+        h('p', { class: 'small' }, 'Downloads on the current link: ' + (s.downloads || 0) + ' of ' + sell.perLink),
+        s.refunded ? null : h('button', { type: 'button', disabled: sell.busy, onclick: function () {
+          sell.busy = true; api('/api/sales/resend', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ saleId: s.id }) }).then(function (r) {
+            sell.busy = false; if (!r.ok) return sellOut(r.d.error || 'Could not send it.', true); s.downloads = 0; sellOut('A new link was emailed to ' + s.email + '.');
+          });
+        } }, 'Email them a new link'));
+    }));
+    cards.push(h('div', { class: 'card' }, h('h2', null, 'Sales'),
+      h('p', { class: 'hint' }, 'Every sale, with the buyer, where it is licensed for and its license number. Kept on your site only; the payments are also in your Stripe account. Refunds are made in Stripe, and a refunded sale\'s link stops working.'),
+      rows, list && list.length ? h('p', null, h('a', { class: 'btn', href: '/api/sales.csv' }, 'Download all sales (CSV)')) : null));
+    return h('div', null, cards);
+  }
+
   // ---- shell ----
   function save() {
     var b = document.getElementById('save'); if (b) b.disabled = true;
@@ -334,8 +438,10 @@
   }
   function render() {
     if (!state.model) return;
-    var tabs = [['basics', 'Business'], ['sections', 'Page'], ['look', 'Look'], ['forms', 'Forms'], ['address', 'Address']];
-    var body = state.tab === 'basics' ? basics() : state.tab === 'look' ? looks() : state.tab === 'forms' ? forms() : state.tab === 'address' ? address() : sections();
+    var tabs = [['basics', 'Business'], ['sections', 'Page'], ['look', 'Look'], ['forms', 'Forms']];
+    if (state.spec.caps && state.spec.caps.download) tabs.push(['sell', 'Sell']);
+    tabs.push(['address', 'Address']);
+    var body = state.tab === 'basics' ? basics() : state.tab === 'look' ? looks() : state.tab === 'forms' ? forms() : state.tab === 'address' ? address() : state.tab === 'sell' ? sellTab() : sections();
     app.textContent = '';
     app.appendChild(h('div', null,
       h('header', { class: 'bar' }, h('h1', null, state.model.business.name || 'Your page'),

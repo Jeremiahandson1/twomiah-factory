@@ -147,6 +147,12 @@ export function afterTradeChange<T extends { type: string }>(newVertical: Vertic
   }
 }
 
+/**
+ * "Sell a download" — offered to EVERY trade, but only while its own switch is on (webPresence/downloads.ts downloadsOn). It is not
+ * in EVERYONE, so the owner-approved table above is unchanged and the trade tests read it as before; spec.ts adds it when on.
+ */
+export const DOWNLOAD_CAP: Capability = cap('download', 'Sell a download', 'download', 'buy', 'download', 'Buy')
+
 /** The two forms the plan has. Each is the owner's switch; off means absent from the page and refused at the endpoint. */
 export const FORMS = ['lead', 'hiring'] as const
 export type FormId = (typeof FORMS)[number]

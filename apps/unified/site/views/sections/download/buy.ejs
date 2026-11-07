@@ -1,0 +1,52 @@
+<%
+  // "Sell a download" for a site on the Web presence plan: one product, its price, what is in it, its license terms, and a Buy button.
+  // The button is a plain form post to the site's own function (/api/buy), which reads the product and price from what the SITE stores
+  // (never from this form) and sends the buyer to Stripe's own checkout. Works with no script. The page draws this section only when
+  // the owner's Stripe account is linked (onePage.ts sellsDownload), so there is never a Buy button that cannot take a payment.
+  // data: { heading, intro, name, price, description, includes: [..], license, image, buttonLabel }
+  const name = data.name || ''
+  const price = data.price || ''
+  if (!name || !price) return
+  const heading = data.heading || 'Get it now'
+  const intro = data.intro || ''
+  const includes = Array.isArray(data.includes) ? data.includes.filter(Boolean) : []
+  const paras = String(data.description || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+  const label = data.buttonLabel || 'Buy now'
+%>
+<section id="download" class="section wp-download">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <article class="service-card wp-download__card">
+      <% if (data.image) { %><div class="service-card__image wp-download__image" style="background-image: url('<%= data.image %>')" role="img" aria-label="<%= name %>"></div><% } %>
+      <div class="service-card__body">
+        <h3 class="service-card__title"><%= name %></h3>
+        <p class="wp-download__price">$<%= price %></p>
+        <% for (const p of paras) { %><p class="service-card__desc"><%= p %></p><% } %>
+        <% if (includes.length) { %>
+          <ul class="wp-download__includes">
+            <% for (const x of includes) { %><li><%= x %></li><% } %>
+          </ul>
+        <% } %>
+        <% if (data.license) { %><p class="wp-download__license"><strong>License:</strong> <%= data.license %></p><% } %>
+        <form action="/api/buy" method="post" class="wp-download__buy">
+          <button class="btn btn--primary btn--lg" type="submit"><%= label %> &mdash; $<%= price %></button>
+        </form>
+        <p class="wp-download__note">A digital download. You pay securely on Stripe&rsquo;s checkout and get your download link right away, by email too.</p>
+      </div>
+    </article>
+  </div>
+</section>
+<style>
+  .wp-download__card { max-width: 760px; margin: 0 auto; }
+  .wp-download__image { min-height: 260px; background-size: cover; background-position: center; }
+  .wp-download__price { margin: 0 0 10px; font-size: 1.6rem; font-weight: 700; color: var(--ink); }
+  /* The list keeps its bullets beside its words on every look: a centred look (Heritage) centred the words and left the bullets at the edge. */
+  .wp-download__includes { margin: 0 0 14px; padding-left: 0; list-style-position: inside; color: var(--ink); }
+  .wp-download__includes li { margin: 4px 0; }
+  .wp-download__license { margin: 0 0 14px; color: var(--ink); }
+  .wp-download__buy { margin: 6px 0 10px; }
+  .wp-download__note { margin: 0; font-size: 0.9rem; color: var(--ink); opacity: 1; }
+</style>

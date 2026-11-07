@@ -375,6 +375,41 @@ export async function createAutoSubscription(
   return { stripeCustomerId, subscriptionId: subscription.id }
 }
 
+/**
+ * A subscription paid by INVOICE, for a customer staff set up (no signup, no checkout): Stripe emails the first invoice now and
+ * each one after, the customer pays on Stripe's own invoice page, and the webhooks the Factory already handles do the rest —
+ * invoice.paid (billing active, by stripe_subscription_id), customer.subscription.updated / .deleted (by the metadata). A checkout
+ * link was not used here: Stripe expires one after 24 hours, and an emailed link may be opened later than that.
+ * days_until_due 7: unpaid after that, Stripe's own dunning settings decide; a subscription that ends takes the site with it.
+ */
+export async function createInvoicedSubscription(
+  factoryCustomer: { id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string },
+  options: { planId: string; daysUntilDue?: number },
+): Promise<{ stripeCustomerId: string; subscriptionId: string; invoiceId: string | null; hostedInvoiceUrl: string | null }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  const priceId = getPriceId(options.planId, 'monthly')
+  if (!priceId) throw new Error('No Stripe price configured for plan: ' + options.planId)
+  if (!factoryCustomer.email) throw new Error('The customer needs an email address for their invoice')
+  const stripeCustomerId = await ensureCustomer(factoryCustomer)
+  const subscription = await stripe.subscriptions.create({
+    customer: stripeCustomerId,
+    items: [{ price: priceId }],
+    collection_method: 'send_invoice',
+    days_until_due: options.daysUntilDue ?? 7,
+    metadata: { factory_customer_id: factoryCustomer.id, plan_id: options.planId },
+  }, { idempotencyKey: 'twomiah-invoiced-sub-' + factoryCustomer.id + '-' + options.planId })
+  // The first invoice is a draft that Stripe would finalize about an hour later: finalize and send it now.
+  const first = typeof subscription.latest_invoice === 'string' ? subscription.latest_invoice : subscription.latest_invoice?.id || null
+  let hostedInvoiceUrl: string | null = null
+  if (first) {
+    let inv = await stripe.invoices.retrieve(first)
+    if (inv.status === 'draft') inv = await stripe.invoices.finalizeInvoice(first)
+    if (inv.status === 'open') inv = await stripe.invoices.sendInvoice(first)
+    hostedInvoiceUrl = inv.hosted_invoice_url || null
+  }
+  return { stripeCustomerId, subscriptionId: subscription.id, invoiceId: first, hostedInvoiceUrl }
+}
+
 // What the customer is actually charged each period: list price × quantity, less any
 // active subscription discounts. monthly_amount used to be the raw list price, so a
 // discounted tenant (a comp, a family rate) showed full price everywhere the factory
@@ -933,6 +968,7 @@ export default {
   refundLatestSubscriptionPayment,
   createDomainRenewalInvoice,
   createAutoSubscription,
+  createInvoicedSubscription,
   createCustomer,
   cancelSubscription,
   reactivateSubscription,

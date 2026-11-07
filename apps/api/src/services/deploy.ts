@@ -17,6 +17,7 @@ import { quickbooksTenantEnv, QBO_ENVIRONMENT_KEYS } from './quickbooksEnv'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
 import * as resend from './resend'
+import { readExistingMail, liveMailLookups, mergeSpf, type MailLookups } from './existingMail'
 import {
   CRM_API_SUFFIXES, emptyOwnership, loadOwnedResources, ownsService, ownsRepo, ownsDatabase, databaseUsable,
   type OwnedResources,
@@ -2512,6 +2513,8 @@ export interface WireDomainOptions {
    * product to wire (no email routing, no Resend authentication, no app.<domain>). Set by webPresence/domain.ts.
    */
   netlify?: { target: string; attach: (domain: string) => Promise<{ ok: boolean; detail?: string }> }
+  /** DNS lookups for the domain's existing mail (services/existingMail.ts); tests stand them in. Default: public resolvers. */
+  mailLookups?: MailLookups
 }
 
 export interface WireDomainResult {
@@ -2606,6 +2609,17 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
     }
   }
 
+  // ─── 1b. The owner's existing email ─────────────────────────────────────
+  // The new zone is empty; their mail records are copied in BEFORE they switch name servers, or their mailbox stops receiving
+  // (services/existingMail.ts). Read from public DNS while the domain still answers from its old host.
+  const mail = await readExistingMail(opts.domain, opts.mailLookups || liveMailLookups())
+  for (const rec of mail.records) {
+    await writeRecord(rec.type === 'MX' ? { type: 'MX', name: rec.name, content: rec.content, priority: rec.priority } : rec.type === 'CNAME' ? { type: 'CNAME', name: rec.name, content: rec.content, proxied: false } : { type: 'TXT', name: rec.name, content: rec.content }, 'keep_mail_' + rec.type.toLowerCase() + '_' + rec.name)
+  }
+  result.steps.push(mail.hasMail
+    ? { step: 'existing_mail', status: 'ok', detail: 'kept: mail at ' + mail.mailHosts.join(', ') + ' (' + mail.records.length + ' records). Records on other names cannot be read; ask the owner if they had any.' }
+    : { step: 'existing_mail', status: 'ok', detail: 'no mail on this domain yet' })
+
   // A Web presence site: the two names at Netlify, the domain given to Netlify, and nothing else to wire.
   if (opts.netlify) {
     await writeRecord({ type: 'CNAME', name: '@', content: opts.netlify.target, proxied: false }, 'apex')
@@ -2637,7 +2651,10 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
   }
 
   // ─── 3. Cloudflare Email Routing (writes MX automatically) ───────────────
-  try {
+  // Not on a domain whose mail already goes somewhere: Routing replaces the MX, which would take the owner's mailbox away.
+  if (mail.hasMail) {
+    result.steps.push({ step: 'email_routing_enable', status: 'skipped', detail: 'the domain already has email (' + mail.mailHosts.join(', ') + '); its mail records were kept' })
+  } else try {
     await cloudflare.enableEmailRouting(zoneId)
     result.steps.push({ step: 'email_routing_enable', status: 'ok' })
   } catch (e: any) {
@@ -2696,7 +2713,9 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
   // Email Routing (step 3) also requires Cloudflare's include in the apex SPF — without
   // it the zone's routing reports "misconfigured" and the aliases never forward.
   const spfInclude = emailAuthProvider === 'resend' ? 'include:_spf.resend.com' : 'include:sendgrid.net'
-  const spfValue = 'v=spf1 include:_spf.mx.cloudflare.net ' + spfInclude + ' -all'
+  // A domain that already sends mail keeps ITS SPF, with our sender added (one record, their qualifier); Routing's include only
+  // belongs when Routing is on (step 3 skipped it).
+  const spfValue = mail.spf ? mergeSpf(mail.spf, spfInclude) : 'v=spf1 include:_spf.mx.cloudflare.net ' + spfInclude + ' -all'
 
   // SPF and DMARC must each be ONE record per name — two SPF records is a permerror
   // and two DMARC records makes receivers ignore DMARC entirely. writeRecord only
@@ -2725,7 +2744,9 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
   // can tighten to quarantine/reject after clean reports come in.
   const dmarcRua = opts.adminEmailForDmarc || ('dmarc@' + opts.domain)
   const dmarcValue = 'v=DMARC1; p=none; rua=mailto:' + dmarcRua + '; ruf=mailto:' + dmarcRua + '; sp=none; aspf=r;'
-  await replaceSingleTxt('_dmarc', 'v=DMARC1', dmarcValue, 'dmarc')
+  // The owner's own DMARC (copied in step 1b) stands: it is their policy and their reports.
+  if (mail.dmarc) result.steps.push({ step: 'dns_dmarc', status: 'ok', detail: 'kept the domain\'s own DMARC' })
+  else await replaceSingleTxt('_dmarc', 'v=DMARC1', dmarcValue, 'dmarc')
 
   // ─── 6. Attach custom domains to Render services ────────────────────────
   const siteSvc = opts.siteServiceId || opts.backendServiceId
