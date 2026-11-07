@@ -262,9 +262,9 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
       {sidebarOpen && isMobile && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />}
 
       <aside
-        data-rail={rail ? 'true' : undefined}
         className={`fixed inset-y-0 left-0 z-50 ${rail ? 'w-16' : 'w-64'} bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col overflow-hidden transform transition-transform duration-200 ease-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         aria-label="Main navigation"
+        data-rail={rail ? 'true' : undefined}
       >
         <div className="h-16 flex items-center justify-between px-4 border-b dark:border-slate-800">
           <div className="flex items-center gap-2 min-w-0">
