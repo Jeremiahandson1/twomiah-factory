@@ -624,6 +624,13 @@
       "when": 1794007781040,
       "tag": "0088_roof_crew_scheduling",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794013722121,
+      "tag": "0089_contractor_shared_allowances",
+      "breakpoints": true
     }
   ]
 }

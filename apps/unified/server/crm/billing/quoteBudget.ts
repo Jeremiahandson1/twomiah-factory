@@ -12,7 +12,7 @@
 // Nothing here moves money: no invoice, no payment, no change order is made.
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { round2, includedLines } from '@twomiah/tenant-backend'
-import { quote, quoteLineItem, projectBudgetLine, projectSelection, project, job } from '../../db/schema/index.ts'
+import { quote, quoteLineItem, projectBudgetLine, projectSelection, project, job, projectAllowance, selectionOption, changeOrder } from '../../db/schema/index.ts'
 import { costByCode } from '../../data/jobCosting.ts'
 import type { CrmDeps } from '../deps.ts'
 
@@ -125,6 +125,53 @@ export function createQuoteBudget(d: CrmDeps) {
     return { ...budget, lines, unbudgeted, actualCost, remainingCost: round2(budget.totalCost - actualCost), totalProfit, jobCount: jobs.length }
   }
 
-  return { carryOver, budgetFor, budgetWithActuals }
+  /**
+   * The REVISED budget's changes (contractor parity row 7, shared_allowances; Buildertrend's Revised Budget): what has changed
+   * since the original, by cost code.
+   *   approved selections     price: what each was charged or credited (its price_difference; under a shared allowance, its
+   *                           share of the overage). cost: the chosen option's cost x quantity, less what the budget already had
+   *                           for it (its quote line's cost, where the allowance came from a quote). Filed under the shared
+   *                           allowance's cost code, else the quote line's, else "Allowances".
+   *   approved change orders  price only, under "Change orders", leaving out the ones a selection raised (counted above).
+   * The original lines stay as the quote made them; this is beside them. Nothing here moves money.
+   */
+  async function revisionsFor(companyId: string, projectId: string) {
+    const APPROVED = ['approved', 'ordered', 'received']
+    const sels = await db.select({
+      id: projectSelection.id, quantity: projectSelection.quantity, priceDifference: projectSelection.priceDifference,
+      changeOrderId: projectSelection.changeOrderId, quoteLineItemId: projectSelection.quoteLineItemId,
+      allowanceCode: projectAllowance.costCode, optionCost: selectionOption.cost,
+    }).from(projectSelection)
+      .leftJoin(projectAllowance, eq(projectAllowance.id, projectSelection.allowanceId))
+      .leftJoin(selectionOption, eq(selectionOption.id, projectSelection.selectedOptionId))
+      .where(and(eq(projectSelection.companyId, companyId), eq(projectSelection.projectId, projectId), inArray(projectSelection.status, APPROVED))) as any[]
+    const lineIds = sels.map((x) => x.quoteLineItemId).filter(Boolean)
+    const qLines = lineIds.length ? await db.select().from(quoteLineItem).where(inArray(quoteLineItem.id, lineIds)) as any[] : []
+    const lineById = new Map<string, any>(qLines.map((l) => [l.id, l]))
+    const by = new Map<string, { costCode: string; costChange: number; priceChange: number; uncostedSelections: number }>()
+    const add = (code: string, cost: number, price: number, uncosted = 0) => {
+      const r = by.get(code) || { costCode: code, costChange: 0, priceChange: 0, uncostedSelections: 0 }
+      r.costChange = round2(r.costChange + cost); r.priceChange = round2(r.priceChange + price); r.uncostedSelections += uncosted
+      by.set(code, r)
+    }
+    for (const x of sels) {
+      const line = x.quoteLineItemId ? lineById.get(x.quoteLineItemId) : null
+      const code = String(x.allowanceCode || line?.costCode || line?.section || '').trim() || 'Allowances'
+      const budgeted = line && line.unitCost !== null && line.unitCost !== undefined ? Number(line.quantity || 0) * Number(line.unitCost) : 0
+      const chosen = x.optionCost === null || x.optionCost === undefined ? null : Number(x.optionCost) * Number(x.quantity ?? 1)
+      add(code, round2((chosen ?? 0) - budgeted), Number(x.priceDifference) || 0, chosen === null ? 1 : 0)
+    }
+    // A change order a selection raised is counted with the selection, whatever state that selection is in now.
+    const linked = await db.select({ id: projectSelection.changeOrderId }).from(projectSelection)
+      .where(and(eq(projectSelection.companyId, companyId), eq(projectSelection.projectId, projectId))) as any[]
+    const raisedBySelections = new Set(linked.map((r) => r.id).filter(Boolean))
+    const cos = await db.select({ id: changeOrder.id, amount: changeOrder.amount }).from(changeOrder)
+      .where(and(eq(changeOrder.companyId, companyId), eq(changeOrder.projectId, projectId), eq(changeOrder.status, 'approved'))) as any[]
+    for (const o of cos) if (!raisedBySelections.has(o.id)) add('Change orders', 0, Number(o.amount) || 0)
+    const lines = [...by.values()]
+    return { lines, costChange: round2(lines.reduce((s, l) => s + l.costChange, 0)), priceChange: round2(lines.reduce((s, l) => s + l.priceChange, 0)) }
+  }
+
+  return { carryOver, budgetFor, budgetWithActuals, revisionsFor }
 }
 export type QuoteBudget = ReturnType<typeof createQuoteBudget>

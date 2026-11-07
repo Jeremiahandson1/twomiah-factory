@@ -68,12 +68,21 @@ export function createJobCostingRoutes(d: CrmDeps) {
     if (!(await d.features.isFeatureEnabled(user.companyId, 'job_budgets'))) return fail(c, 404, 'Not found')
     const [pr] = await d.db.select({ id: project.id, name: project.name }).from(project).where(and(eq(project.id, projectId), eq(project.companyId, user.companyId))).limit(1)
     if (!pr) return fail(c, 404, 'Project not found')
+    // The revised budget beside the original (row 7, shared_allowances): selection overages and approved change orders.
+    const revised = async (b: { totalCost: number; totalPrice: number }) => {
+      if (!(await d.features.isFeatureEnabled(user.companyId, 'shared_allowances'))) return {}
+      const r = await quoteBudget.revisionsFor(user.companyId, projectId)
+      return { revisions: r.lines, revisedTotalCost: round2(b.totalCost + r.costChange), revisedTotalPrice: round2(b.totalPrice + r.priceChange) }
+    }
     // With the cost_by_code feature the budget carries actual cost and profit per line; without it, as before.
-    if (await d.features.isFeatureEnabled(user.companyId, 'cost_by_code')) return one(c, { ...(await quoteBudget.budgetWithActuals(user.companyId, projectId)), projectName: pr.name, byCode: true })
+    if (await d.features.isFeatureEnabled(user.companyId, 'cost_by_code')) {
+      const b = await quoteBudget.budgetWithActuals(user.companyId, projectId)
+      return one(c, { ...b, projectName: pr.name, byCode: true, ...(await revised(b)) })
+    }
     const budget = await quoteBudget.budgetFor(user.companyId, projectId)
     const costing = await jobCosting.getJobCostingSummary(user.companyId, { projectId, limit: 500, beforeCommissions: true } as any)
     const actualCost = round2(Number(costing.totals.totalCost || 0))
-    return one(c, { ...budget, projectName: pr.name, actualCost, remainingCost: round2(budget.totalCost - actualCost), jobCount: costing.count })
+    return one(c, { ...budget, projectName: pr.name, actualCost, remainingCost: round2(budget.totalCost - actualCost), jobCount: costing.count, ...(await revised(budget)) })
   })
 
   /** Profitability grouped by month (or technician, or type), filtered by status like /summary (T32 B3). */

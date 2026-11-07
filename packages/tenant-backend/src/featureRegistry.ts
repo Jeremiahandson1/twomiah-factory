@@ -69,6 +69,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'submittals', name: 'Submittals', description: 'Product submittal and approval workflow tracking', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'change_orders', name: 'Change Orders', description: 'Change order management', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'punch_lists', name: 'Punch Lists', description: 'Punch list tracking', category: 'Construction', core: false, templates: ['crm'] },
+  // NOT READY until the owner has tested it: one allowance covering several selections, overages to the revised budget and WIP (contractor parity row 7).
+  { id: 'shared_allowances', name: 'Shared allowances', description: 'One allowance covers several selections; what they go over is raised as a change order and shows on the revised budget and the WIP report', category: 'Construction', core: false, templates: ['crm'], hidden: true },
   { id: 'project_templates', name: 'Project Templates', description: 'Save a project as a template — its schedule and starter punch list — and start the next one from it', category: 'Construction', core: false, templates: ['crm'], hidden: true },
   { id: 'daily_logs', name: 'Daily Logs', description: 'Field daily log reports', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'inspections', name: 'Inspections', description: 'Quality inspections', category: 'Construction', core: false, templates: ['crm'] },

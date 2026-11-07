@@ -781,12 +781,36 @@ export const projectBaseline = pgTable('project_baseline', {
   index('project_baseline_project_id_idx').on(t.projectId),
 ])
 
+/**
+ * One allowance that several selections are chosen against (0089, contractor parity row 7; Buildertrend's allowances, JobTread's
+ * allowance budget lines): "Plumbing fixtures $4,000" covering the faucet, the sinks and the tub. What the chosen options come
+ * to beyond the amount is the overage, raised as change orders as selections are approved; a credit for coming in under is
+ * raised only once every selection in it is approved. Feature shared_allowances (not ready).
+ */
+export const projectAllowance = pgTable('project_allowance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  /** The budget line its overage goes to on the revised budget; none = "Allowances". */
+  costCode: text('cost_code'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_allowance_project_id_idx').on(t.projectId),
+])
+
 export const projectSelection = pgTable('project_selection', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   /** The quote line this allowance came from (0041): approving a quote opens its allowance lines here, once each. */
   quoteLineItemId: text('quote_line_item_id'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  /** The shared allowance it is chosen against (0089, contractor parity row 7): set, its own allowance is not used. */
+  allowanceId: text('allowance_id').references(() => projectAllowance.id, { onDelete: 'set null' }),
+  /** The change order its approval raised, so the revised budget and WIP count that change once. */
+  changeOrderId: text('change_order_id'),
   categoryId: text('category_id').references(() => selectionCategory.id),
   name: text('name').notNull(),
   description: text('description'),
@@ -814,6 +838,7 @@ export const projectSelection = pgTable('project_selection', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('project_selection_project_id_idx').on(t.projectId),
+  index('project_selection_allowance_id_idx').on(t.allowanceId),
 ])
 
 export const projectTask = pgTable('project_task', {

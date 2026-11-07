@@ -85,7 +85,7 @@ export function ReceivablesAgingCard({ api }: { api: ReportingApi }) {
   )
 }
 
-interface WipRow { kind: 'project' | 'job'; id: string; number: string; name: string; contractValue: number; approvedChanges: number; contractSource: 'quotes' | 'estimate' | 'none'; billed: number; costToDate: number; percentComplete: number | null; percentSource: 'cost' | 'progress' | 'none'; costsMissingOnBudget: boolean; earned: number | null; overUnder: number | null }
+interface WipRow { kind: 'project' | 'job'; id: string; number: string; name: string; contractValue: number; approvedChanges: number; selectionChanges?: number; contractSource: 'quotes' | 'estimate' | 'none'; billed: number; costToDate: number; percentComplete: number | null; percentSource: 'cost' | 'progress' | 'none'; costsMissingOnBudget: boolean; earned: number | null; overUnder: number | null }
 interface Wip { rows: WipRow[]; totals: { contractValue: number; billed: number; costToDate: number; earned: number; overUnder: number }; truncated?: boolean }
 
 export function WipCard({ api, jobsLabel }: { api: ReportingApi; jobsLabel: string }) {
@@ -108,7 +108,7 @@ export function WipCard({ api, jobsLabel }: { api: ReportingApi; jobsLabel: stri
               {data.rows.map((r) => (
                 <tr key={`${r.kind}-${r.id}`} className="border-t border-gray-100 dark:border-slate-800">
                   <td className="py-2 pr-3 text-gray-900 dark:text-slate-100">{r.name}
-                    <span className={`block text-xs ${muted}`}>{r.number}{r.kind === 'job' ? ` · ${oneJob}` : ''}{r.approvedChanges ? ` · includes ${money(r.approvedChanges)} of approved changes` : ''}{r.contractSource === 'estimate' ? ' · estimated value, no approved quote yet' : ''}</span></td>
+                    <span className={`block text-xs ${muted}`}>{r.number}{r.kind === 'job' ? ` · ${oneJob}` : ''}{r.approvedChanges ? ` · includes ${money(r.approvedChanges)} of approved changes` : ''}{r.selectionChanges ? ` · includes ${money(r.selectionChanges)} of selection changes with no change order` : ''}{r.contractSource === 'estimate' ? ' · estimated value, no approved quote yet' : ''}</span></td>
                   <td className={td}>{money(r.contractValue)}</td>
                   <td className={td}>{money(r.billed)}</td>
                   <td className={td}>{money(r.costToDate)}{r.costsMissingOnBudget && <span className={`block text-xs ${muted}`}>some lines have no cost</span>}</td>

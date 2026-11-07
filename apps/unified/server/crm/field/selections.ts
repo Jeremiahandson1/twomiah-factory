@@ -9,6 +9,7 @@ import { done, fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createSelectionsService, type SelectionsService } from './selectionsService.ts'
+import { createAllowances } from './allowances.ts'
 
 /** What the INSERTs require: the fields the SQL has no fallback for (an empty body is a 400, never a 500). */
 const categoryBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
@@ -38,6 +39,8 @@ export function createSelectionsRoutes(d: CrmDeps, service?: SelectionsService) 
   const selections = service ?? createSelectionsService(d)
   const app = new Hono<AppEnv>()
   app.use('*', requirePermission('selections:read'))
+  // Shared allowances (contractor parity row 7; feature shared_allowances): their own routes, 404 while it is off.
+  app.route('/', createAllowances(d).routes())
 
   // ── categories ─────────────────────────────────────────────────────────────────────────────────
 

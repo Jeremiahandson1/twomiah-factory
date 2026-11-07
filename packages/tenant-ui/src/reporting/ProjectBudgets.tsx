@@ -7,7 +7,9 @@ import { money } from '../invoicing/ui'
 import type { ReportingApi } from './types'
 
 type Line = { costCode: string; estimatedCost: number; estimatedPrice: number; uncostedLines: number; actualCost?: number; overBy?: number; profit?: number; margin?: number | null }
-type Budget = { projectName: string; lines: Line[]; totalCost: number; totalPrice: number; uncostedLines: number; actualCost: number; remainingCost: number; jobCount: number; byCode?: boolean; unbudgeted?: Array<{ costCode: string; actualCost: number }>; totalProfit?: number }
+type Budget = { projectName: string; lines: Line[]; totalCost: number; totalPrice: number; uncostedLines: number; actualCost: number; remainingCost: number; jobCount: number; byCode?: boolean; unbudgeted?: Array<{ costCode: string; actualCost: number }>; totalProfit?: number;
+  /** The revised budget's changes (contractor row 7, shared_allowances): selection overages and approved change orders. */
+  revisions?: Array<{ costCode: string; costChange: number; priceChange: number; uncostedSelections: number }>; revisedTotalCost?: number; revisedTotalPrice?: number }
 type Proj = { id: string; name: string; number?: string }
 
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
@@ -112,6 +114,34 @@ export function ProjectBudgets({ api }: { api: ReportingApi }) {
               Expected profit is the price less the larger of the budget and what the line has cost so far. Cost with no cost code files under "Uncoded".
               {typeof budget.totalProfit === 'number' && <> Expected profit on the whole project: <span className="font-semibold">{money(budget.totalProfit)}</span>.</>}
             </p>
+          )}
+          {budget.revisions && (
+            <div className="mt-4" data-testid="revised-budget">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-slate-100">Revised budget</h4>
+              {budget.revisions.length === 0 ? (
+                <p className={`text-xs ${muted} mt-1`}>No changes yet: no approved selection over or under its allowance, and no approved change order.</p>
+              ) : (
+                <table className="mt-2 w-full text-sm">
+                  <thead><tr>
+                    <th className="py-1 pr-3 text-left text-xs uppercase text-gray-600 dark:text-slate-400">Change to</th>
+                    <th className={th}>Cost</th><th className={th}>Price</th>
+                  </tr></thead>
+                  <tbody>
+                    {budget.revisions.map((r) => (
+                      <tr key={r.costCode} className="border-t dark:border-slate-800">
+                        <td className="py-1 pr-3 text-gray-900 dark:text-slate-100">{r.costCode}{r.uncostedSelections > 0 ? <span className={`text-xs ${muted}`}> ({r.uncostedSelections} chosen with no cost entered)</span> : null}</td>
+                        <td className={td}>{r.costChange >= 0 ? '+' : ''}{money(r.costChange)}</td>
+                        <td className={td}>{r.priceChange >= 0 ? '+' : ''}{money(r.priceChange)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <dl className="mt-2 grid grid-cols-2 gap-3 text-sm">
+                <div><dt className={muted}>Revised cost</dt><dd className="font-semibold text-gray-900 dark:text-slate-100 tabular-nums">{money(budget.revisedTotalCost ?? budget.totalCost)}</dd></div>
+                <div><dt className={muted}>Revised price</dt><dd className="font-semibold text-gray-900 dark:text-slate-100 tabular-nums">{money(budget.revisedTotalPrice ?? budget.totalPrice)}</dd></div>
+              </dl>
+            </div>
           )}
           {budget.uncostedLines > 0 && (
             <p className={`text-xs ${muted} mt-3`}>

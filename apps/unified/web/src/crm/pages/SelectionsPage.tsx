@@ -46,6 +46,13 @@ interface SelectionItem {
   categoryId?: string;
   category?: { name: string };
   selectedOption?: SelectionOption;
+  /** The shared allowance it is chosen against (row 7, shared_allowances). */
+  sharedAllowance?: { id: string; name: string; amount: number; remaining: number };
+}
+
+export interface SharedAllowance {
+  id: string; name: string; amount: number; costCode?: string | null; selectionIds: string[];
+  chosen: number; remaining: number; over: number; raised: number; openSelections: number;
 }
 
 interface CategoryItem {
@@ -75,6 +82,8 @@ const STATUS_CONFIG: Record<string, { label: string; chip: string; icon: React.C
 export default function SelectionsPage({ projectId: propProjectId }: SelectionsPageProps) {
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
   const projectsOn = useAuth().hasFeature('projects')
+  const sharedOn = useAuth().hasFeature('shared_allowances')
+  const [allowances, setAllowances] = useState<SharedAllowance[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [projectId, setProjectId] = useState<string>(propProjectId || '');
   const [selections, setSelections] = useState<SelectionItem[]>([]);
@@ -132,6 +141,11 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
       setSelections(((selectionsRes as { data?: SelectionItem[] })?.data || []) as SelectionItem[]);
       setSummary(summaryRes as SelectionSummary);
       setCategories(((categoriesRes as { data?: CategoryItem[] })?.data || []) as CategoryItem[]);
+      // Shared allowances (row 7): read only where the business has them.
+      if (sharedOn) {
+        const res = await api.get(`/api/selections/project/${projectId}/allowances`).catch(() => ({ data: [] }));
+        setAllowances(((res as { data?: SharedAllowance[] })?.data || []) as SharedAllowance[]);
+      }
     } catch (error: unknown) {
       console.error('Failed to load selections:', error);
     } finally {
@@ -245,6 +259,10 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
             color={summary.netDifference > 0 ? 'orange' : summary.netDifference < 0 ? 'green' : 'gray'}
           />
         </div>
+      )}
+
+      {sharedOn && (
+        <SharedAllowancesPanel projectId={projectId} allowances={allowances} selections={selections} onChange={loadData} />
       )}
 
       {/* Filters */}
@@ -458,7 +476,9 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           {/* Pricing */}
           <div className="mt-2 flex items-center gap-4 text-sm">
             <span className="text-gray-500 dark:text-slate-400">
-              Allowance: {money(selection.allowance)}
+              {selection.sharedAllowance
+                ? <>Under {selection.sharedAllowance.name}: {money(selection.sharedAllowance.remaining)} of {money(selection.sharedAllowance.amount)} left</>
+                : <>Allowance: {money(selection.allowance)}</>}
             </span>
             {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
               <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-700 dark:text-orange-200' : 'text-green-700 dark:text-green-400'}>
@@ -841,4 +861,120 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelect
       </div>
     </div>
   );
+}
+
+
+/**
+ * Shared allowances (contractor parity row 7; Buildertrend allowances, JobTread allowance budget lines; shared_allowances, not
+ * ready): one allowance several selections are chosen against. Each shows what has been chosen against it, what is left or how
+ * far over, and which selections are under it; a new one takes a name, an amount, a cost code for the revised budget and the
+ * selections to put under it (not approved ones: those keep the allowance they were priced against).
+ */
+export function SharedAllowancesPanel({ projectId, allowances, selections, onChange }: { projectId: string; allowances: SharedAllowance[]; selections: SelectionItem[]; onChange: () => void }) {
+  const toast = useToast()
+  // Each control asks the permission its route asks (allowances.ts): create, update (move), delete.
+  const { known, can } = usePermissions()
+  const mayCreate = known && can('selections:create')
+  const mayUpdate = known && can('selections:update')
+  const mayDelete = known && can('selections:delete')
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState({ name: '', amount: '', costCode: '' })
+  const [picked, setPicked] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const open = selections.filter((s) => s.status === 'pending' || s.status === 'selected')
+  const nameOf = (id: string) => selections.find((s) => s.id === id)?.name || 'Selection'
+
+  async function save() {
+    if (!form.name.trim() || form.amount === '') { toast.error('Give it a name and an amount'); return }
+    setSaving(true)
+    try {
+      await api.post(`/api/selections/project/${projectId}/allowances`, { name: form.name.trim(), amount: Number(form.amount), costCode: form.costCode.trim() || undefined, selectionIds: picked })
+      setAdding(false); setForm({ name: '', amount: '', costCode: '' }); setPicked([])
+      onChange()
+    } catch (e: any) { toast.error(e?.message || 'Could not save the allowance') } finally { setSaving(false) }
+  }
+  async function move(selectionId: string, allowanceId: string | null) {
+    try { await api.put(`/api/selections/${selectionId}/allowance`, { allowanceId }); onChange() } catch (e: any) { toast.error(e?.message || 'Could not move that selection') }
+  }
+  async function remove(id: string) {
+    try { await api.delete(`/api/selections/allowances/${id}`); onChange() } catch (e: any) { toast.error(e?.message || 'Could not delete the allowance') }
+  }
+
+  return (
+    <section className="bg-white rounded-xl border dark:bg-slate-900 dark:border-slate-800" aria-labelledby="shared-allowances-h" data-testid="shared-allowances">
+      <div className="px-4 py-3 border-b flex items-center justify-between dark:border-slate-800">
+        <div>
+          <h3 id="shared-allowances-h" className="font-medium text-gray-900 dark:text-slate-100">Shared allowances</h3>
+          <p className="text-xs text-gray-500 dark:text-slate-400">One allowance several selections are chosen against. Going over is raised as a change order as each is approved; coming in under is credited when the last one is.</p>
+        </div>
+        {mayCreate && !adding && <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800"><Plus className="w-4 h-4" aria-hidden="true" />New shared allowance</button>}
+      </div>
+      {mayCreate && adding && (
+        <div className="p-4 border-b space-y-3 dark:border-slate-800">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="text-sm">Name<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Plumbing fixtures" className="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700" /></label>
+            <label className="text-sm">Amount ($)<input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700" /></label>
+            <label className="text-sm">Cost code (optional)<input value={form.costCode} onChange={(e) => setForm({ ...form, costCode: e.target.value })} placeholder="15-Plumbing" className="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700" /></label>
+          </div>
+          {open.length > 0 && (
+            <fieldset>
+              <legend className="text-sm text-gray-700 dark:text-slate-200">Selections it covers</legend>
+              <div className="mt-1 flex flex-wrap gap-3">
+                {open.map((s) => (
+                  <label key={s.id} className="text-sm flex items-center gap-1">
+                    <input type="checkbox" checked={picked.includes(s.id)} onChange={(e) => setPicked(e.target.checked ? [...picked, s.id] : picked.filter((x) => x !== s.id))} />{s.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <div className="flex gap-2">
+            <button type="button" disabled={saving} onClick={save} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">{saving ? 'Saving…' : 'Save allowance'}</button>
+            <button type="button" onClick={() => setAdding(false)} className="px-4 py-2 border rounded-lg dark:border-slate-700">Cancel</button>
+          </div>
+        </div>
+      )}
+      {allowances.length === 0 ? (
+        !adding && <p className="p-4 text-sm text-gray-500 dark:text-slate-400">No shared allowances on this project yet.</p>
+      ) : (
+        <ul className="divide-y dark:divide-slate-800">
+          {allowances.map((a) => (
+            <li key={a.id} className="p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{a.name}{a.costCode ? <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{a.costCode}</span> : null}</p>
+                <p className="text-sm tabular-nums">
+                  {money(a.chosen)} chosen of {money(a.amount)} ·{' '}
+                  {a.over > 0
+                    ? <span className="text-orange-700 dark:text-orange-200">{money(a.over)} over</span>
+                    : <span className="text-green-700 dark:text-green-400">{money(a.remaining)} left</span>}
+                  {a.openSelections > 0 ? <span className="text-gray-500 dark:text-slate-400"> · {a.openSelections} still to approve</span> : null}
+                </p>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                {a.selectionIds.map((id) => {
+                  const s = selections.find((x) => x.id === id)
+                  const movable = s && (s.status === 'pending' || s.status === 'selected')
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800">
+                      {nameOf(id)}
+                      {mayUpdate && movable && <button type="button" onClick={() => move(id, null)} aria-label={`Take ${nameOf(id)} out of ${a.name}`} className="text-gray-500 hover:text-gray-800 dark:text-slate-400">×</button>}
+                    </span>
+                  )
+                })}
+                {mayUpdate && open.filter((s) => !s.sharedAllowance).length > 0 && (
+                  <select aria-label={`Add a selection to ${a.name}`} value="" onChange={(e) => e.target.value && move(e.target.value, a.id)} className="px-2 py-1 border rounded text-sm dark:bg-slate-800 dark:border-slate-700">
+                    <option value="">+ Add a selection…</option>
+                    {open.filter((s) => !s.sharedAllowance).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+                {mayDelete && a.openSelections === a.selectionIds.length && (
+                  <button type="button" onClick={() => remove(a.id)} className="ml-auto text-xs text-red-700 hover:underline dark:text-red-400">Delete</button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
 }
