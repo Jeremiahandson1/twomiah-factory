@@ -42,10 +42,11 @@ const isDay = (v: unknown, d: Date) =>
   (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0)
 
 /** A moment's date on the company's clock; a calendar day as the day it names. '' for nothing. */
-export function whenDate(v: unknown, opts: Intl.DateTimeFormatOptions = {}): string {
+export function whenDate(v: unknown, opts: Intl.DateTimeFormatOptions = {}, locale?: string): string {
   const d = asDate(v)
   if (!d) return ''
-  return d.toLocaleDateString(undefined, { ...opts, timeZone: isDay(v, d) ? 'UTC' : zone })
+  // `locale`: a page in another language says its dates in it (the crew's Spanish page — roofing re-check 11/07); absent, the browser's.
+  return d.toLocaleDateString(locale, { ...opts, timeZone: isDay(v, d) ? 'UTC' : zone })
 }
 
 /**
