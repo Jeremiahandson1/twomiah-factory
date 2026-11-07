@@ -13,6 +13,7 @@
 // guessed), refused once it has run out (410). Everything below reads and writes the one row the token names; no id from
 // the request ever picks a work order, and a photo is served only when it is on that row's own lists. A wrong or malformed
 // token answers the same 404 as an unknown one, so nothing says which tokens exist.
+import { CREW_SCHEDULING } from '../../data/crewScheduling.ts'
 import crypto from 'node:crypto'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -38,6 +39,45 @@ const rejectSchema = z.object({ name: nameSchema, reason: z.string().trim().min(
 const acceptSchema = z.object({ name: nameSchema })
 const completeSchema = z.object({ note: z.string().trim().max(2000).optional(), name: z.string().trim().max(80).optional() })
 
+/**
+ * What the crew sees of a work order — shared by the no-sign-in link (below) and the phone app's crew screen (roofing parity row 29,
+ * crm/roof/crewOrders.ts): the work and nothing about the homeowner, the price, or any other record.
+ */
+export function createCrewView(d: CrmDeps) {
+  const { db } = d
+  const photoUrl = (token: string, id: string) => `/api/crew-link/${token}/photos/${id}`
+
+  /** What the crew sees: the work and nothing about the homeowner, the price, or any other record. */
+  async function crewView(row: any) {
+    const onSite = await d.features.isFeatureEnabled(row.companyId, CREW_SCHEDULING).catch(() => false)
+    const ids = [...(row.photoIds as string[]), ...(row.completionPhotoIds as string[])]
+    const photos = ids.length ? await db.select().from(jobPhoto).where(and(eq(jobPhoto.companyId, row.companyId), eq(jobPhoto.jobId, row.jobId), inArray(jobPhoto.id, ids))) : []
+    const shape = (list: string[]) => photos.filter((p: any) => list.includes(p.id)).map((p: any) => ({ id: p.id, url: photoUrl(row.publicToken, p.id), caption: p.caption || null }))
+    const [co] = await db.select({ name: company.name, phone: company.phone, logo: company.logo }).from(company).where(eq(company.id, row.companyId)).limit(1)
+    const open = !['completed', 'cancelled'].includes(row.status)
+    return {
+      title: row.title, scope: row.language === 'es' && row.scopeEs ? row.scopeEs : row.scope, address: row.address, startDate: row.startDate, recipientName: row.recipientName,
+      // Row 27: the page's language, and what the office lets the sub see.
+      language: row.language === 'es' ? 'es' : 'en',
+      status: row.status, company: { name: co?.name ?? null, phone: co?.phone ?? null, logo: co?.logo ?? null },
+      materials: row.showMaterials === false ? [] : (row.materialLines as any[]).map((m) => ({ description: m.description, qty: m.qty, unit: m.unit })),
+      photos: row.showPhotos === false ? [] : shape(row.photoIds), completionPhotos: shape(row.completionPhotoIds),
+      respondedByName: row.respondedByName, rejectReason: row.rejectReason, completedAt: row.completedAt, completionNote: row.completionNote,
+      expiresAt: row.tokenExpiresAt,
+      // What the crew may do from here (the screen offers exactly these).
+      // Row 28: the on-site checklist and attendance (only where the business has crew scheduling — `onSite`).
+      ...(onSite ? { checklist: (row.checklist as any[]) || [], checks: row.checks || {}, arrivedAt: row.arrivedAt, leftAt: row.leftAt } : {}),
+      can: {
+        accept: row.status === 'sent', reject: ['sent', 'accepted', 'in_progress'].includes(row.status),
+        photos: ['accepted', 'in_progress'].includes(row.status), complete: ['accepted', 'in_progress'].includes(row.status),
+        ...(onSite ? { arrive: ['accepted', 'in_progress'].includes(row.status), leave: row.status === 'in_progress' } : {}),
+      },
+      cancelled: row.status === 'cancelled', open,
+    }
+  }
+  return crewView
+}
+
 export function createCrewLinkRoutes(d: CrmDeps) {
   const { db } = d
   const app = new Hono<AppEnv & { Variables: { wo: any } }>()
@@ -58,27 +98,8 @@ export function createCrewLinkRoutes(d: CrmDeps) {
     await next()
   }
 
+  const crewView = createCrewView(d)
   const photoUrl = (token: string, id: string) => `/api/crew-link/${token}/photos/${id}`
-
-  /** What the crew sees: the work and nothing about the homeowner, the price, or any other record. */
-  async function crewView(row: any) {
-    const ids = [...(row.photoIds as string[]), ...(row.completionPhotoIds as string[])]
-    const photos = ids.length ? await db.select().from(jobPhoto).where(and(eq(jobPhoto.companyId, row.companyId), eq(jobPhoto.jobId, row.jobId), inArray(jobPhoto.id, ids))) : []
-    const shape = (list: string[]) => photos.filter((p: any) => list.includes(p.id)).map((p: any) => ({ id: p.id, url: photoUrl(row.publicToken, p.id), caption: p.caption || null }))
-    const [co] = await db.select({ name: company.name, phone: company.phone, logo: company.logo }).from(company).where(eq(company.id, row.companyId)).limit(1)
-    const open = !['completed', 'cancelled'].includes(row.status)
-    return {
-      title: row.title, scope: row.scope, address: row.address, startDate: row.startDate, recipientName: row.recipientName,
-      status: row.status, company: { name: co?.name ?? null, phone: co?.phone ?? null, logo: co?.logo ?? null },
-      materials: (row.materialLines as any[]).map((m) => ({ description: m.description, qty: m.qty, unit: m.unit })),
-      photos: shape(row.photoIds), completionPhotos: shape(row.completionPhotoIds),
-      respondedByName: row.respondedByName, rejectReason: row.rejectReason, completedAt: row.completedAt, completionNote: row.completionNote,
-      expiresAt: row.tokenExpiresAt,
-      // What the crew may do from here (the screen offers exactly these).
-      can: { accept: row.status === 'sent', reject: row.status === 'sent' || row.status === 'accepted', photos: row.status === 'accepted', complete: row.status === 'accepted' },
-      cancelled: row.status === 'cancelled', open,
-    }
-  }
 
   async function jobNoteFor(row: any, body: string) {
     const [jobRow] = await db.select().from(job).where(and(eq(job.id, row.jobId), eq(job.companyId, row.companyId))).limit(1)
@@ -113,8 +134,8 @@ export function createCrewLinkRoutes(d: CrmDeps) {
       const issue = parsed.error.issues[0]
       return fail(c, 400, issue?.message || 'Enter your name and a reason.', 'validation_failed', { [String(issue?.path[0] ?? 'reason')]: issue?.message || 'Required.' })
     }
-    if (!['sent', 'accepted'].includes(row.status)) return wrong(c, row, 'reject')
-    const moved = await move(row, ['sent', 'accepted'], { status: 'rejected', respondedAt: new Date(), respondedByName: parsed.data.name, rejectReason: parsed.data.reason })
+    if (!['sent', 'accepted', 'in_progress'].includes(row.status)) return wrong(c, row, 'reject')
+    const moved = await move(row, ['sent', 'accepted', 'in_progress'], { status: 'rejected', respondedAt: new Date(), respondedByName: parsed.data.name, rejectReason: parsed.data.reason })
     if (!moved) return wrong(c, (await currentOf(row)) ?? row, 'reject')
     await jobNoteFor(row, `Work order "${row.title}" rejected by ${parsed.data.name}: ${parsed.data.reason}`)
     return one(c, await crewView(moved))
@@ -122,7 +143,7 @@ export function createCrewLinkRoutes(d: CrmDeps) {
 
   app.post('/:token/photos', async (c) => {
     const row = c.get('wo')
-    if (row.status !== 'accepted') return fail(c, 409, row.status === 'sent' ? 'Accept the work order before you add photos.' : `This work order is ${row.status}, so photos cannot be added.`, 'wrong_status')
+    if (!['accepted', 'in_progress'].includes(row.status)) return fail(c, 409, row.status === 'sent' ? 'Accept the work order before you add photos.' : `This work order is ${row.status}, so photos cannot be added.`, 'wrong_status')
     if ((row.completionPhotoIds as string[]).length >= MAX_COMPLETION_PHOTOS) return fail(c, 400, `Up to ${MAX_COMPLETION_PHOTOS} photos on one work order.`)
     const form = await uploadedForm(c)
     const file = form.get('photo') as File | null
@@ -144,7 +165,7 @@ export function createCrewLinkRoutes(d: CrmDeps) {
     // office cancelled in the meantime takes none.
     const updated = await db.transaction(async (tx: any) => {
       const [cur] = await tx.select().from(workOrder).where(and(eq(workOrder.id, row.id), eq(workOrder.companyId, row.companyId))).for('update')
-      if (!cur || cur.status !== 'accepted') return undefined
+      if (!cur || !['accepted', 'in_progress'].includes(cur.status)) return undefined
       const [u] = await tx.update(workOrder).set({ completionPhotoIds: [...(cur.completionPhotoIds as string[]), photo.id], updatedAt: new Date() } as any)
         .where(eq(workOrder.id, row.id)).returning()
       return u
@@ -161,11 +182,53 @@ export function createCrewLinkRoutes(d: CrmDeps) {
     const row = c.get('wo')
     const parsed = completeSchema.safeParse(await c.req.json().catch(() => ({})) ?? {})
     if (!parsed.success) return fail(c, 400, parsed.error.issues[0]?.message || 'Invalid', 'validation_failed')
-    if (row.status !== 'accepted') return wrong(c, row, 'complete')
-    const moved = await move(row, ['accepted'], { status: 'completed', completedAt: new Date(), completionNote: parsed.data.note || null })
+    if (!['accepted', 'in_progress'].includes(row.status)) return wrong(c, row, 'complete')
+    const moved = await move(row, ['accepted', 'in_progress'], { status: 'completed', completedAt: new Date(), completionNote: parsed.data.note || null })
     if (!moved) return wrong(c, (await currentOf(row)) ?? row, 'complete')
     const n = (moved.completionPhotoIds as string[]).length
     await jobNoteFor(row, `Work order "${row.title}" completed by ${row.respondedByName || row.recipientName}${n ? ` with ${n} photo${n === 1 ? '' : 's'}` : ''}.${parsed.data.note ? ` ${parsed.data.note}` : ''}`)
+    return one(c, await crewView(moved))
+  })
+
+  // ---- Row 28 (crew_scheduling, not ready; AccuLynx Crew App): I'm here / Leaving for now, and the on-site checklist ----
+  /** The office is told: a note on the job, and an email to its office people (attendance alerts). */
+  async function tellOffice(row: any, text: string) {
+    await jobNoteFor(row, text)
+    try {
+      const { officeEmails } = await import('../../data/homecareCertReminders.ts')
+      for (const to of await officeEmails(db, row.companyId)) await (d.services as any).emailService.sendRaw({ to, subject: text, html: `<p>${text.replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch] as string))}</p>` }).catch(() => {})
+    } catch { /* the note is the record */ }
+  }
+  const siteOn = (row: any) => d.features.isFeatureEnabled(row.companyId, CREW_SCHEDULING).catch(() => false)
+  app.post('/:token/arrive', async (c) => {
+    const row = c.get('wo')
+    if (!(await siteOn(row))) return fail(c, 404, 'Not found')
+    if (!['accepted', 'in_progress'].includes(row.status)) return wrong(c, row, 'start')
+    const moved = await move(row, ['accepted', 'in_progress'], { status: 'in_progress', arrivedAt: new Date(), leftAt: null })
+    if (!moved) return wrong(c, (await currentOf(row)) ?? row, 'start')
+    await tellOffice(row, `${row.respondedByName || row.recipientName} arrived for work order "${row.title}" at ${row.address || 'the job'}.`)
+    return one(c, await crewView(moved))
+  })
+  app.post('/:token/leave', async (c) => {
+    const row = c.get('wo')
+    if (!(await siteOn(row))) return fail(c, 404, 'Not found')
+    if (row.status !== 'in_progress') return wrong(c, row, 'leave')
+    const moved = await move(row, ['in_progress'], { leftAt: new Date() })
+    if (!moved) return wrong(c, (await currentOf(row)) ?? row, 'leave')
+    await tellOffice(row, `${row.respondedByName || row.recipientName} left work order "${row.title}" (not done yet).`)
+    return one(c, await crewView(moved))
+  })
+  app.post('/:token/check', async (c) => {
+    const row = c.get('wo')
+    if (!(await siteOn(row))) return fail(c, 404, 'Not found')
+    if (!['accepted', 'in_progress'].includes(row.status)) return wrong(c, row, 'tick')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (!((row.checklist as any[]) || []).some((x) => x.id === b?.itemId)) return fail(c, 400, 'That is not on this checklist.')
+    const checks = { ...((row.checks as Record<string, string>) || {}) }
+    if (b?.done === true) checks[b.itemId] = new Date().toISOString()
+    else delete checks[b.itemId]
+    const moved = await move(row, ['accepted', 'in_progress'], { checks })
+    if (!moved) return wrong(c, (await currentOf(row)) ?? row, 'tick')
     return one(c, await crewView(moved))
   })
 

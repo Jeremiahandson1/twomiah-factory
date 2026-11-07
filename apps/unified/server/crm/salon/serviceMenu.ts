@@ -10,7 +10,7 @@ import { keepOnlineService } from './onlineBooking.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
-import { processingProblem } from './segments.ts'
+import { segmentsProblem, processingProblem } from './segments.ts'
 import { parseServiceFees } from './cardFees.ts'
 
 const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
@@ -33,6 +33,19 @@ export function createServiceMenuRoutes(d: CrmDeps) {
     const problem = processingProblem(body.processingAfterMin, body.processingMin, durationMin)
     if (problem) return { problem, code: 'BAD_PROCESSING' }
     return { values: { processingAfterMin: Number(body.processingAfterMin || 0), processingMin: Number(body.processingMin) } }
+  }
+
+  /**
+   * The service's steps (salon parity row 7, `service_segments`): the list to store, or the refusal. Clearing it (an empty list or null)
+   * is always allowed; setting one needs the feature on, and the steps must add up to the service's length. A service with steps
+   * keeps no single gap of its own (the steps say where processing is).
+   */
+  async function segmentsIn(companyId: string, v: unknown, durationMin: number): Promise<{ value: any } | { problem: string; code: string }> {
+    if (v === null || v === undefined || (Array.isArray(v) && !v.length)) return { value: null }
+    if (!(await d.features.isFeatureEnabled(companyId, 'service_segments'))) return { problem: 'Service steps are not switched on for this salon.', code: 'FEATURE_OFF' }
+    const problem = segmentsProblem(v, durationMin)
+    if (problem) return { problem, code: 'BAD_SEGMENTS' }
+    return { value: (v as any[]).map((x) => ({ kind: x.kind, minutes: Number(x.minutes) })) }
   }
 
   /**
@@ -85,6 +98,11 @@ export function createServiceMenuRoutes(d: CrmDeps) {
       const got = await processingIn(currentUser.companyId, body, Number(body.durationMin ?? 60))
       if ('problem' in got) return fail(c, got.code === 'FEATURE_OFF' ? 409 : 400, got.problem, got.code, { processingMin: got.problem })
       processingValues = got.values
+    }
+    if ('segments' in body) {
+      const got = await segmentsIn(currentUser.companyId, body.segments, Number(body.durationMin ?? 60))
+      if ('problem' in got) return fail(c, got.code === 'FEATURE_OFF' ? 409 : 400, got.problem, got.code, { segments: got.problem })
+      processingValues = { ...processingValues, ...(got.value ? { processingAfterMin: null, processingMin: null } : {}), segments: got.value } as any
     }
     if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1 || Number(body.durationMin) > 720)) {
       return fail(c, 400, 'Duration must be between 1 and 720 minutes.')
@@ -161,6 +179,12 @@ export function createServiceMenuRoutes(d: CrmDeps) {
       const got = await processingIn(currentUser.companyId, source, Number(body.durationMin ?? existing.durationMin))
       if ('problem' in got) return fail(c, got.code === 'FEATURE_OFF' ? 409 : 400, got.problem, got.code, { processingMin: got.problem })
       Object.assign(updates, got.values)
+    }
+    // Row 7: the steps — set, cleared, or (a new length) checked again against it.
+    if ('segments' in body || ('durationMin' in body && Array.isArray(existing.segments) && existing.segments.length)) {
+      const got = await segmentsIn(currentUser.companyId, 'segments' in body ? body.segments : existing.segments, Number(body.durationMin ?? existing.durationMin))
+      if ('problem' in got) return fail(c, got.code === 'FEATURE_OFF' ? 409 : 400, got.problem, got.code, { segments: got.problem })
+      Object.assign(updates, { segments: got.value }, got.value ? { processingAfterMin: null, processingMin: null } : {})
     }
 
     // Unticked "Bookable online", or taken off the menu: off /book in the same write; a rename, a new length or price:

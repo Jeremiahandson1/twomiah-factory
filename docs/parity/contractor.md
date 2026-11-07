@@ -15,7 +15,7 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Cost type per line (labour / material / sub / equipment / other) | `type` per line (labor, material, part, service, other) | built |
 | **Default markup % per cost type**, overridable per line, markup or margin shown live | markup % per line from "our cost"; no default per cost type, no live margin column | partly |
 | Allowance lines that become Selections allowances | an allowance line opens on Selections when the quote is approved | built |
-| One allowance covering several selections; overages flowing to a revised budget | not stated in the build; not found in the code | not built |
+| One allowance covering several selections; overages flowing to a revised budget | built (`shared_allowances`, row 7a): project_allowance; overage charged as change orders as each is approved, credit on the last; Job Costing budget shows the revisions and revised totals | built |
 | Quote templates (lines, deposit, message, terms) and "create similar" | not found | not built |
 | Optional items (can be pre-selected; deposit recalculates when the client adds one) | optional lines ticked by office or customer, deposit follows (`quoteOptions.ts`) | built |
 | Line images | not found on quote lines | not built |
@@ -23,14 +23,14 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Good / better / best options | one implementation for every quoting trade (10/31, `quote_proposals`, hidden) | built |
 | **Approved quote → project budget** (original budget = the signed quote) | approved quote → budget by cost code; Job Costing's "Project budgets" panel | built |
 | Bills / purchase orders linked to budget lines; projected profit per line | budget vs "spent so far" for the whole project — actual cost is not split by cost code | partly |
-| A JobTread-style formula / parameter engine | — | not doing (owner: Takeoffs covers it) |
+| A JobTread-style formula / parameter engine | built (`quote_formulas`, row 9): parameters on a job and a quote (the quote's win); line quantity / price formulas over parameters and other lines by name (round, ceil, floor, roundup, min, max, abs, sqrt); worked out on every save and when the job's parameters change (open quotes, a broken one named and left as it was); errors in words; kept in quote templates and as a price-guide item's quantity formula; a takeoff measurement fills a job parameter | built |
 
 ## Reports
 
 | Leader feature | Twomiah | Mark |
 |---|---|---|
 | AR aging (current / 1–30 / 31–60 / 61–90 / 90+ by customer) | built (`ar_aging`); an invoice with no due date counts as current | built |
-| WIP: contract value incl. approved change orders, cost to date, % complete by cost, earned revenue, billed, over/under billing | built (`wip_report`); % complete is cost-to-cost where a budget exists. Selection/allowance changes in the contract value: not stated | partly |
+| WIP: contract value incl. approved change orders, cost to date, % complete by cost, earned revenue, billed, over/under billing | built (`wip_report`); % complete is cost-to-cost where a budget exists. With `shared_allowances`, approved selection changes that raised no change order are in the contract value too (row 7a) | built |
 | Job profit list | built | built |
 
 ## Dashboard
@@ -69,8 +69,8 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Leader feature | Twomiah | Mark |
 |---|---|---|
 | Save any project as a template; start one from it (phases, to-dos, punch-list starter) | built (`project_templates`) | built |
-| Template carries budget lines and selections; tick which parts to import | not stated, not found | not built |
-| Task dependencies carried over | owner's decision: not now | not built |
+| Template carries budget lines and selections; tick which parts to import | built (`template_parts`, row 7b): budget lines, selections and shared allowances kept; ticks on saving and on starting | built |
+| Task dependencies carried over | built (`template_parts`, row 7b): task links and lag kept and recreated with the tasks; on the schedule (`task_links`, row 7c): link after-ends / when-starts plus lag, linked tasks move with the one they wait on, loops refused | built |
 
 ## Navigation and pages
 

@@ -109,6 +109,52 @@ export function recordPhotos(d: CrmDeps, o: {
       return one(c, withUrls(updated), 201)
     })
 
+    // The phone's offline queue (apps/mobile/src/offline/localPhotos.ts; contractor parity row 11) sends photos in two steps, as a
+    // job's do: the file first, named from the save's id (the same name is the same file, so a retry after a lost reply replaces
+    // it), answering its address — then the save, which puts the addresses on the record. One photo however often it is sent.
+    const PHONE_NAME = /^[A-Za-z0-9_-]{8,80}$/
+    const phonePath = (companyId: string, rowId: string, name: string) => `${companyId}/${o.folder}/${rowId}/phone-${name}.jpg`
+    app.post('/:id/photos/file', mayAdd, async (c) => {
+      const me = c.get('user') as any
+      const row = await own(c)
+      if (!row) return fail(c, 404, o.notFound)
+      const refused = o.editable ? await o.editable(c, row) : null
+      if (refused) return refused
+      const form = await uploadedForm(c)
+      const got = await encodedPhoto(c, d, form)
+      if (got instanceof Response) return got
+      const asked = String(form.get('name') || '')
+      const name = PHONE_NAME.test(asked) ? asked : crypto.randomUUID().replace(/-/g, '')
+      await d.services.storage.put(phonePath(me.companyId, row.id, name), got.jpeg, 'image/jpeg')
+      return one(c, { url: `phone:${name}` }, 201)
+    })
+    app.post('/:id/photos/saved', mayAdd, async (c) => {
+      const me = c.get('user') as any
+      const row = await own(c)
+      if (!row) return fail(c, 404, o.notFound)
+      const refused = o.editable ? await o.editable(c, row) : null
+      if (refused) return refused
+      const body: any = await c.req.json().catch(() => ({}))
+      const urls: string[] = Array.isArray(body?.photos) ? body.photos.filter((u: unknown): u is string => typeof u === 'string') : []
+      const names = urls.map((u) => u.replace(/^phone:/, ''))
+      if (urls.some((u) => !u.startsWith('phone:')) || names.some((n) => !PHONE_NAME.test(n))) return fail(c, 400, 'A photo could not be read — take it again.', 'bad_photo')
+      const existing = photosOf(row)
+      const have = new Set(existing.map((p) => p.id))
+      const fresh: RecordPhoto[] = []
+      for (const n of [...new Set(names)]) {
+        if (have.has(n)) continue
+        const path = phonePath(me.companyId, row.id, n)
+        const obj = await d.services.storage.getObject(path).catch(() => null)
+        if (!obj) continue
+        fresh.push({ id: n, name: `${n}.jpg`, caption: typeof body?.caption === 'string' ? body.caption.trim().slice(0, 300) || null : null, path, size: Number((obj as any).size || 0), uploadedAt: new Date().toISOString(), uploadedById: me.userId })
+      }
+      if (existing.length + fresh.length > MAX_PHOTOS) return fail(c, 400, `This holds up to ${MAX_PHOTOS} photos.`)
+      if (!fresh.length) return one(c, { saved: 0, record: withUrls(row) })
+      const [updated] = await db.update(t).set({ photos: [...existing, ...fresh], updatedAt: new Date() })
+        .where(and(eq(t.id, row.id), eq(t.companyId, me.companyId))).returning()
+      return one(c, { saved: fresh.length, record: withUrls(updated) }, 201)
+    })
+
     app.get('/:id/photos/:photoId/file', requirePermission(o.read), async (c) => {
       const me = c.get('user') as any
       const row = await own(c)

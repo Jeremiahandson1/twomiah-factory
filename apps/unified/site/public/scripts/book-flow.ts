@@ -66,6 +66,49 @@
   var zip = function () { return zipInput ? zipInput.value.trim() : '' }
   // The stylist asked for, as a query string piece (the server offers only that person's days and times).
   var whoQuery = function (first) { return who() ? (first ? '?' : '&') + 'who=' + encodeURIComponent(who()) : '' }
+  // More services after this one (salon parity row 9): rows of a service and its stylist. Only times where every one fits are offered.
+  var alsoOptions = []
+  try { alsoOptions = JSON.parse(root.getAttribute('data-also-options') || '[]') } catch (x) { alsoOptions = [] }
+  var alsoMax = Number(root.getAttribute('data-also-max') || 0)
+  var alsoRows = document.getElementById('book-also-rows'), alsoAdd = document.getElementById('book-also-add')
+  var also = function () {
+    if (!alsoRows) return []
+    return [].slice.call(alsoRows.querySelectorAll('.book-also__row')).map(function (r) {
+      var w = r.querySelector('select[data-also="who"]')
+      return { service: r.querySelector('select[data-also="service"]').value, who: w ? w.value : '' }
+    }).filter(function (x) { return x.service })
+  }
+  var alsoQuery = function () {
+    var a = also()
+    return a.length ? '&also=' + a.map(function (x) { return encodeURIComponent(x.service) + (x.who ? '~' + encodeURIComponent(x.who) : '') }).join(',') : ''
+  }
+  function alsoRow() {
+    var n = alsoRows.querySelectorAll('.book-also__row').length + 2
+    var row = document.createElement('div')
+    row.className = 'book-also__row'
+    var svc = document.createElement('select')
+    svc.setAttribute('data-also', 'service'); svc.setAttribute('aria-label', 'Service ' + n)
+    svc.innerHTML = '<option value="">Choose a service…</option>' + alsoOptions.map(function (o) { return '<option value="' + esc(o.slug) + '">' + esc(o.name) + '</option>' }).join('')
+    row.appendChild(svc)
+    if (whoSelect) {
+      var w = whoSelect.cloneNode(true)
+      w.removeAttribute('id'); w.removeAttribute('name'); w.setAttribute('data-also', 'who'); w.setAttribute('aria-label', 'Stylist for service ' + n); w.value = ''
+      row.appendChild(w)
+    }
+    var remove = document.createElement('button')
+    remove.type = 'button'; remove.className = 'book-also__remove'; remove.setAttribute('aria-label', 'Remove service ' + n); remove.textContent = '×'
+    remove.addEventListener('click', function () { row.remove(); alsoChanged() })
+    row.appendChild(remove)
+    row.addEventListener('change', alsoChanged)
+    alsoRows.appendChild(row)
+    alsoChanged()
+  }
+  function alsoChanged() {
+    if (alsoAdd) alsoAdd.hidden = alsoRows.querySelectorAll('.book-also__row').length >= alsoMax
+    picked.date = null; picked.time = null
+    loadDates()
+  }
+  if (alsoAdd && alsoRows && alsoMax > 0 && !token) alsoAdd.addEventListener('click', alsoRow)
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] }) }
   // A YYYY-MM-DD is a calendar day, not an instant: format it as the day itself, whatever the visitor's zone.
   var day = function (iso, opts) { var p = iso.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).toLocaleDateString('en-US', Object.assign({ timeZone: 'UTC' }, opts)) }
@@ -93,7 +136,8 @@
   function loadDates() {
     stepSlot.hidden = true; stepForm.hidden = true; step('date')
     datesEl.innerHTML = '<p class="book-loading">Finding open days…</p>'
-    getJson(api + '/dates' + (zip() ? '?zip=' + encodeURIComponent(zip()) + whoQuery(false) : whoQuery(true))).then(function (body) {
+    var dq = (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + whoQuery(false) + (token ? '' : alsoQuery())
+    getJson(api + '/dates' + (dq ? '?' + dq.slice(1) : '')).then(function (body) {
       var dates = body.data || []
       if (!dates.length) {
         datesEl.innerHTML = '<p class="book-empty">No open days right now.</p>'
@@ -110,7 +154,7 @@
   function loadTimes() {
     stepSlot.hidden = false; stepForm.hidden = true; step('slot')
     slotsEl.innerHTML = '<div class="book-slots-skeleton">' + new Array(9).join('<div class="book-slot-skel"></div>') + '</div>'
-    var q = '?date=' + picked.date + (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + whoQuery(false) + (token ? '&token=' + encodeURIComponent(token) : '')
+    var q = '?date=' + picked.date + (zip() ? '&zip=' + encodeURIComponent(zip()) : '') + whoQuery(false) + (token ? '&token=' + encodeURIComponent(token) : alsoQuery())
     getJson(api + '/times' + q).then(function (body) {
       var times = body.data || []
       slotsEl.innerHTML = times.length
@@ -159,6 +203,8 @@
       new FormData(form).forEach(function (v, k) { data[k] = v })
       data.zip = zip()
       if (who()) data.who = who()
+      var more = also()
+      if (more.length) data.also = more.map(function (x) { return { service: x.service, who: x.who || null } })
       try {
         var ref = document.referrer ? new URL(document.referrer) : null
         data.sourcePath = ref && ref.origin === window.location.origin ? ref.pathname : ''

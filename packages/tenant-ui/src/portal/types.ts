@@ -61,7 +61,7 @@ export const SECTION_PATH: Record<PortalSection, string> = {
 }
 
 /** What the backend reports it mounted (GET /p/:token → sections). */
-export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets' | 'paymentMethods' | 'visits' | 'jobFiles' | 'appointments' | 'account' | 'upcomingVisits', boolean>>
+export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets' | 'paymentMethods' | 'visits' | 'jobFiles' | 'appointments' | 'account' | 'upcomingVisits' | 'projectExtras', boolean>>
 
 export const DEFAULT_ROLE_LABELS: Record<string, string> = {
   client: 'Customer Portal', customer: 'Customer Portal', lead: 'Customer Portal', owner: 'Customer Portal',

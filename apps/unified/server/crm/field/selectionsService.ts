@@ -7,13 +7,16 @@
 // getClientSelections and clientMakeSelection.
 import { and, eq } from 'drizzle-orm'
 import { nextNumber, businessToday, companyTimeZone } from '@twomiah/tenant-backend'
-import { project, changeOrder } from '../../db/schema/index.ts'
+import { project, changeOrder, projectSelection } from '../../db/schema/index.ts'
 import { notFound } from '../../http/errors.ts'
 import * as q from '../../data/selections.ts'
 import type { CrmDeps } from '../deps.ts'
+import { createAllowances } from './allowances.ts'
 
 export function createSelectionsService(d: CrmDeps) {
   const { db } = d
+  // Shared allowances (row 7, shared_allowances): a selection under one is priced against it, not its own allowance.
+  const allowances = createAllowances(d)
 
   // ── categories ─────────────────────────────────────────────────────────────────────────────────
 
@@ -60,14 +63,25 @@ export function createSelectionsService(d: CrmDeps) {
 
   async function getProjectSelections(projectId: string, companyId: string) {
     const selections = await q.listProjectSelections(db, projectId, companyId)
-    return selections.map((sel: any) => {
+    const shared = new Map<string, any>()
+    if (selections.some((s: any) => s.allowanceId) && (await allowances.on(companyId))) {
+      for (const a of await allowances.forProject(companyId, projectId)) shared.set(a.id, a)
+    }
+    const out = []
+    for (const sel of selections as any[]) {
       let priceDiff = 0
-      if (sel.selectedOption) {
+      const group = sel.allowanceId ? shared.get(sel.allowanceId) : null
+      if (group) {
+        // Under a shared allowance: an approved one keeps what it was charged; a chosen one shows what approving it would charge.
+        if (!['pending', 'selected'].includes(String(sel.status))) priceDiff = Number(sel.priceDifference) || 0
+        else if (sel.selectedOption) priceDiff = (await allowances.chargeFor(companyId, sel, Number(sel.selectedOption.price))) ?? 0
+      } else if (sel.selectedOption) {
         const totalPrice = Number(sel.selectedOption.price) * Number(sel.quantity)
         priceDiff = totalPrice - (Number(sel.allowance) || 0)
       }
-      return { ...sel, priceDifference: priceDiff, isUpgrade: priceDiff > 0, isCredit: priceDiff < 0 }
-    })
+      out.push({ ...sel, ...(group ? { sharedAllowance: { id: group.id, name: group.name, amount: group.amount, remaining: group.remaining } } : {}), priceDifference: priceDiff, isUpgrade: priceDiff > 0, isCredit: priceDiff < 0 })
+    }
+    return out
   }
 
   async function getSelectionsSummary(projectId: string, companyId: string) {
@@ -87,10 +101,15 @@ export function createSelectionsService(d: CrmDeps) {
     // Overdue once the due DAY is over on the company's clock — the invoices' rule (money.ts overdueCutoff). Comparing the
     // due day's midnight-UTC marker with this instant made a selection overdue all of its own due day. (2026-10-22)
     const today = businessToday(await companyTimeZone(db, companyId))
+    const sharedIds = new Set<string>()
     for (const sel of selections) {
       summary[sel.status]++
       // decimal columns come back as strings; Number() prevents "0" + "450.00" = "0450.00"
-      summary.totalAllowance += Number(sel.allowance) || 0
+      // A shared allowance is counted once, not once per selection under it.
+      if ((sel as any).sharedAllowance) {
+        const a = (sel as any).sharedAllowance
+        if (!sharedIds.has(a.id)) { sharedIds.add(a.id); summary.totalAllowance += Number(a.amount) || 0 }
+      } else summary.totalAllowance += Number(sel.allowance) || 0
       if (sel.selectedOption) summary.totalSelected += Number(sel.selectedOption.price) * Number(sel.quantity)
       summary.netDifference += Number(sel.priceDifference) || 0
       if (sel.dueDate && new Date(sel.dueDate) < today && sel.status === 'pending') summary.overdue++
@@ -109,7 +128,8 @@ export function createSelectionsService(d: CrmDeps) {
     if (!option) throw notFound('Option not found')
 
     const totalPrice = option.price * selection.quantity
-    const priceDiff = totalPrice - (selection.allowance || 0)
+    const shared = await allowances.chargeFor(companyId, selection, Number(option.price))
+    const priceDiff = shared ?? totalPrice - (selection.allowance || 0)
     return q.recordSelectionChoice(db, selectionId, { optionId, selectedBy: selectedBy || null, notes: notes || null, priceDifference: priceDiff })
   }
 
@@ -137,6 +157,12 @@ export function createSelectionsService(d: CrmDeps) {
       ), { status: 400, code: 'selection_wrong_status' })
     }
 
+    // Under a shared allowance the charge is worked out now, against what the others in it have been approved at (allowances.ts).
+    const shared = await allowances.chargeFor(companyId, selection, Number(selection.selectedOption?.price ?? 0))
+    if (shared !== null) {
+      selection.priceDifference = shared
+      await db.update(projectSelection).set({ priceDifference: shared.toFixed(2) }).where(eq(projectSelection.id, selectionId))
+    }
     await q.markSelectionApproved(db, selectionId, approvedBy)
 
     const diff = Number(selection.priceDifference ?? 0)
@@ -163,6 +189,8 @@ export function createSelectionsService(d: CrmDeps) {
           amount: diff.toFixed(2),
           status: 'submitted',
         }).returning()
+        // Linked, so the revised budget and WIP count this change once (row 7).
+        await tx.update(projectSelection).set({ changeOrderId: row.id }).where(eq(projectSelection.id, selectionId))
         return row
       })
     }
@@ -205,14 +233,20 @@ export function createSelectionsService(d: CrmDeps) {
       // The CUSTOMER reads this (the portal): an option's price, never what the builder pays for it. `cost` went out on
       // every offered option and on the chosen one (live role check sweep, 2026-10-23).
       const { cost: _chosenCost, ...selectedOption } = (sel.selectedOption || {}) as any
+      // Under a shared allowance (row 7) each option says what picking it would add, against what is left of that allowance.
+      const listed = []
+      for (const { cost: _cost, ...opt } of options as any[]) {
+        const shared = sel.allowanceId ? await allowances.chargeFor(proj.companyId, sel, Number(opt.price)) : null
+        listed.push({
+          ...opt,
+          totalPrice: Number(opt.price) * Number(sel.quantity),
+          priceDiff: shared ?? Number(opt.price) * Number(sel.quantity) - (Number(sel.allowance) || 0),
+        })
+      }
       return {
         ...sel,
         selectedOption: sel.selectedOption ? selectedOption : sel.selectedOption,
-        availableOptionsList: options.map(({ cost: _cost, ...opt }: any) => ({
-          ...opt,
-          totalPrice: Number(opt.price) * Number(sel.quantity),
-          priceDiff: Number(opt.price) * Number(sel.quantity) - (Number(sel.allowance) || 0),
-        })),
+        availableOptionsList: listed,
       }
     }))
   }

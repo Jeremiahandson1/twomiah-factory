@@ -57,6 +57,9 @@ export const SALON: ScreenSpec[] = [
           { label: 'Chair', get: (d) => d.station }, { label: 'Price', get: (d) => money(d.quotedPrice) }, { label: 'Notes', get: (d) => d.notes },
         ] },
         { title: 'Client', rows: (d) => (d.contactId ? [{ key: 'chart', title: d.clientName || 'Client chart', subtitle: 'Allergies, formulas and past visits', open: { spec: 'salon-clients', id: d.contactId } }] : []) },
+        // Row 26: a finished visit's sale taken on this phone (Tap to Pay into the salon's own Stripe). The screen asks the server for the sale.
+        { feature: 'tap_to_pay', any: ['invoices:update', 'cardreader:use'],
+          links: (d) => (d.status === 'completed' ? [{ label: 'Take payment on this phone', url: '', icon: 'card', route: `/(details)/salon-pay?appointmentId=${encodeURIComponent(d.id)}` }] : []) },
       ],
       actions: [{
         id: 'check-in', label: 'Check in', icon: 'checkmark-circle', any: ['schedule:update', 'schedule:check-in'], when: (d) => d.status === 'scheduled' || d.status === 'confirmed',

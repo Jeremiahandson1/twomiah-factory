@@ -12,7 +12,8 @@ import { SkeletonDetail } from '../ui/Skeleton'
 import { EmptyState } from '../ui/EmptyState'
 import { StatusBadge } from '../ui/DataTable'
 import { ConfirmModal } from '../ui/Modal'
-import { usePermissions } from '../../shared'
+import { usePermissions, useAuth } from '../../shared'
+import { ClientPortalPanel } from '../projects/ClientPortalPanel'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -126,6 +127,8 @@ export default function ProjectDetailPage() {
    * behind it would be served.
    */
   const { can } = usePermissions();
+  // The client portal, finished (contractor parity row 10): only where the business has it on.
+  const portalPlus = useAuth().hasFeature('client_portal_plus');
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -584,6 +587,8 @@ export default function ProjectDetailPage() {
             </div>
           </div>
           )}
+
+          {portalPlus && id && <ClientPortalPanel projectId={id} />}
 
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">

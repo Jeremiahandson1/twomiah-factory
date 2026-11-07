@@ -10,6 +10,7 @@ import { usePrompt, useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { money } from '../money'
 import { codeLabel } from '../labels/codes'
+import { useQuoteFeature } from '../invoicing/quoteTemplates'
 
 type Item = Record<string, any>
 type Category = { id: string; name: string; _count?: { items?: number } }
@@ -290,7 +291,10 @@ function ItemModal({ api, toast, item, categories, itemWord, namePlaceholder, on
     name: item?.name || '', code: item?.code || '', categoryId: item?.categoryId || '', description: item?.description || '', customerDescription: item?.customerDescription || '',
     price: item?.price != null ? String(Number(item.price)) : '', cost: item?.cost != null ? String(Number(item.cost)) : '', laborHours: item?.laborHours != null ? String(Number(item.laborHours)) : '',
     taxable: item?.taxable ?? true, showToCustomer: item?.showToCustomer ?? true, active: item?.active ?? true,
+    quantityFormula: (item as any)?.quantityFormula || '',
   })
+  // Formula estimating (contractor parity row 9, quote_formulas): the quantity formula a quote line picked from it starts with.
+  const formulasOn = useQuoteFeature('quote_formulas')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((cur) => ({ ...cur, [k]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }))
@@ -300,7 +304,7 @@ function ItemModal({ api, toast, item, categories, itemWord, namePlaceholder, on
   const margin = marginKnown ? (((Number(f.price) - Number(f.cost)) / Number(f.price)) * 100).toFixed(1) : null
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault(); setErr(''); setSaving(true)
-    const payload = { ...f, code: f.code.trim() || undefined, categoryId: f.categoryId || null, price: Number(f.price || 0), cost: Number(f.cost || 0), laborHours: f.laborHours === '' ? null : Number(f.laborHours) }
+    const payload = { ...f, code: f.code.trim() || undefined, categoryId: f.categoryId || null, price: Number(f.price || 0), cost: Number(f.cost || 0), laborHours: f.laborHours === '' ? null : Number(f.laborHours), quantityFormula: formulasOn ? (f.quantityFormula.trim() || null) : undefined }
     try {
       if (item) await api.put(`/api/pricebook/items/${item.id}`, payload); else await api.post('/api/pricebook/items', payload)
       toast.success(item ? 'Saved' : `${itemWord} added`); onSaved()
@@ -320,6 +324,7 @@ function ItemModal({ api, toast, item, categories, itemWord, namePlaceholder, on
           <Field label="Price ($)"><input className={inputCls} type="number" min={0} step="0.01" required value={f.price} onChange={set('price')} /></Field>
           <Field label="Cost ($)"><input className={inputCls} type="number" min={0} step="0.01" value={f.cost} onChange={set('cost')} /></Field>
           <Field label="Labor hours"><input className={inputCls} type="number" min={0} step="0.25" value={f.laborHours} onChange={set('laborHours')} /></Field>
+          {formulasOn && <Field label="Quantity formula"><input className={`${inputCls} font-mono`} aria-label="Quantity formula" value={f.quantityFormula} onChange={set('quantityFormula')} placeholder="ceil(deck_sqft / 4)" /></Field>}
           <Field label="Margin" hint={margin === null ? 'Enter a cost to see the margin' : undefined}><div className={`px-3 py-2 rounded-lg font-medium ${margin === null ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300' : Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40'}`}>{margin === null ? '—' : `${margin}%`}</div></Field>
         </div>
         <div className="flex flex-wrap gap-6 text-sm">

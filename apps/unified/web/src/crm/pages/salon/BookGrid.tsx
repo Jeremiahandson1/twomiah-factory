@@ -8,10 +8,10 @@ import { companyDayKey, companyMinutes, companyMoment, whenTime } from '@twomiah
 import { piecesFor, gridRange, lanes, movedStart, resizedEnd, columnAt, hhmm, serviceHue, snap, type Piece } from './bookGridMath'
 import { pxPerMinFor, DEFAULT_SLOT_MIN } from './bookViews'
 
-export interface GridItem { id: string; serviceName?: string; stylistId?: string | null; stylistFirstName?: string; startOffsetMin: number; durationMin: number; processingAfterMin?: number | null; processingMin?: number | null }
+export interface GridItem { id: string; serviceName?: string; stylistId?: string | null; stylistFirstName?: string; startOffsetMin: number; durationMin: number; processingAfterMin?: number | null; processingMin?: number | null; segments?: Array<{ kind: string; minutes: number }> | null }
 export interface GridAppt {
   id: string; status?: string; startTime?: string; endTime?: string; stylistId?: string | null
-  clientName?: string; serviceName?: string; processingAfterMin?: number | null; processingMin?: number | null; items?: GridItem[]
+  clientName?: string; serviceName?: string; processingAfterMin?: number | null; processingMin?: number | null; segments?: Array<{ kind: string; minutes: number }> | null; items?: GridItem[]
 }
 export interface GridBlock { id: string; stylistId?: string | null; startTime: string; endTime: string; reason?: string | null; typeId?: string | null; typeName?: string | null; typeColor?: string | null; paid?: boolean | null; seriesId?: string | null; /** 'block' (default), or 'time_off' / 'closed' — drawn from timeOff.ts and kept on the Time off screen. */ kind?: 'block' | 'time_off' | 'closed'; readOnly?: boolean }
 /** What a block says on the Book: its type, then its own reason. */
@@ -45,13 +45,13 @@ function fill(cols: GridColumn[], appts: GridAppt[], blocks: GridBlock[], weekMo
         const col = colFor(it.stylistId, a.startTime)
         if (!col) continue
         const s = aStart + it.startOffsetMin
-        cards.get(col.key)!.push({ key: `${a.id}:${it.id}`, appt: a, start: s, end: Math.min(24 * 60, s + it.durationMin), pieces: piecesFor(s, Math.min(24 * 60, s + it.durationMin), { afterMin: it.processingAfterMin, min: it.processingMin }), label: it.serviceName || 'Service', itemised: true })
+        cards.get(col.key)!.push({ key: `${a.id}:${it.id}`, appt: a, start: s, end: Math.min(24 * 60, s + it.durationMin), pieces: piecesFor(s, Math.min(24 * 60, s + it.durationMin), { afterMin: it.processingAfterMin, min: it.processingMin, segments: it.segments }), label: it.serviceName || 'Service', itemised: true })
       }
     } else {
       const col = colFor(a.stylistId, a.startTime)
       if (!col) continue
       const end = Math.min(24 * 60, aEnd)
-      cards.get(col.key)!.push({ key: a.id, appt: a, start: aStart, end, pieces: piecesFor(aStart, end, { afterMin: a.processingAfterMin, min: a.processingMin }), label: a.serviceName || '', itemised: false })
+      cards.get(col.key)!.push({ key: a.id, appt: a, start: aStart, end, pieces: piecesFor(aStart, end, { afterMin: a.processingAfterMin, min: a.processingMin, segments: a.segments }), label: a.serviceName || '', itemised: false })
     }
   }
   for (const b of blocks) {
@@ -174,6 +174,10 @@ export default function BookGrid({ cols, appts, blocks, weekMode, today, slotMin
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.appt) } }}
                       className={`absolute z-20 overflow-hidden rounded-md border text-xs shadow-sm ${TONE[c.appt.status || 'scheduled'] || TONE.scheduled} ${mayMove ? 'cursor-grab touch-none' : 'cursor-pointer'} ${dragging ? 'opacity-40' : ''}`}
                       style={{ top: (c.start - range.from) * PX_PER_MIN, height: Math.max(14, (c.end - c.start) * PX_PER_MIN - 1), left: `${(c.lane * 100) / c.lanes}%`, width: `calc(${100 / c.lanes}% - 2px)`, borderLeft: `4px solid hsl(${hue} 55% 45%)` }}>
+                      {/* Row 7: blocked time solid-striped (nothing goes in it), extra time lightly tinted. */}
+                      {c.pieces.filter((p) => p.kind === 'blocked' || p.kind === 'extra').map((p) => (
+                        <span key={`${p.kind}-${p.start}`} aria-hidden="true" data-step={p.kind} className="absolute inset-x-0 z-0" style={{ top: (p.start - c.start) * PX_PER_MIN, height: (p.end - p.start) * PX_PER_MIN, backgroundImage: p.kind === 'blocked' ? 'repeating-linear-gradient(-45deg, rgba(15,23,42,0.35) 0 3px, transparent 3px 6px)' : 'linear-gradient(rgba(148,163,184,0.25), rgba(148,163,184,0.25))' }} />
+                      ))}
                       {c.pieces.filter((p) => p.kind === 'processing').map((p) => (
                         <span key={p.start} aria-hidden="true" className="absolute inset-x-0 z-0 opacity-70" style={{ top: (p.start - c.start) * PX_PER_MIN, height: (p.end - p.start) * PX_PER_MIN, backgroundImage: `repeating-linear-gradient(45deg, hsl(${hue} 55% 80% / .7) 0 5px, transparent 5px 10px)` }} />
                       ))}

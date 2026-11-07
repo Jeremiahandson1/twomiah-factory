@@ -15,6 +15,10 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import { invoice, quote } from '../../db/schema/index.ts'
 import { createFinancingService, type FinancingService } from './service.ts'
+
+/** Financing beside each proposal option (roofing parity row 30; not ready). On top of consumer_financing. */
+export const PROPOSAL_FINANCING = 'proposal_financing'
+export const CHOOSE_BEFORE_FINANCING = 'Choose an option first. Financing is for the price of the option you choose.'
 import { wisetack as lender } from './lender.ts'
 
 /** A refusal from the service as a reply: its status, sentence, code and the boxes it names. */
@@ -46,12 +50,25 @@ export function createFinancingRoutes(d: CrmDeps, financing: FinancingService = 
     return one(c, await financing.status(u.companyId))
   })
 
+  const perOption = async (companyId: string) => (await d.features.isFeatureEnabled(companyId, PROPOSAL_FINANCING).catch(() => false)) && (await d.features.isFeatureEnabled(companyId, 'quote_proposals').catch(() => false))
+
+  // Row 30: the estimate on each option of a quote's proposal (the options panel shows it beside each price).
+  app.get('/quotes/:id/options', requirePermission('financing:read'), (c) => answer(c, async () => {
+    const u = who(c)
+    if (!(await perOption(u.companyId))) return fail(c, 404, 'Not found')
+    const r = await financing.optionOffers(u.companyId, c.req.param('id'))
+    return r ? one(c, r) : fail(c, 404, 'This quote has no options.')
+  }))
+
   // The estimate and the applications on one quote or invoice (its page's Financing panel).
   app.get('/:kind{quotes|invoices}/:id', requirePermission('financing:read'), (c) => answer(c, async () => {
     const u = who(c)
     const kind = c.req.param('kind') === 'quotes' ? 'quote' : 'invoice'
     const id = c.req.param('id')
-    const { offer, reason, connected } = await financing.offerOn(u.companyId, kind, id)
+    let { offer, reason, connected } = await financing.offerOn(u.companyId, kind, id)
+    // Row 30: a proposal still waiting for the customer's choice is not one price yet — no application on part of it.
+    // (Only where the estimate is about the price: not for a lender not connected, a declined quote or one with no customer.)
+    if (kind === 'quote' && connected && (offer !== null || !!reason?.includes(' lends on jobs of ')) && (await perOption(u.companyId)) && (await financing.optionOffers(u.companyId, id))?.needsChoice) { offer = null; reason = CHOOSE_BEFORE_FINANCING }
     const applications = await financing.list(u.companyId, kind === 'quote' ? { quoteId: id } : { invoiceId: id })
     return one(c, { offer, reason, connected, applications })
   }))
@@ -59,6 +76,7 @@ export function createFinancingRoutes(d: CrmDeps, financing: FinancingService = 
   app.post('/:kind{quotes|invoices}/:id/applications', requirePermission('financing:create'), (c) => answer(c, async () => {
     const u = who(c)
     const kind = c.req.param('kind') === 'quotes' ? 'quote' : 'invoice'
+    if (kind === 'quote' && (await perOption(u.companyId)) && (await financing.optionOffers(u.companyId, c.req.param('id')))?.needsChoice) return fail(c, 409, CHOOSE_BEFORE_FINANCING, 'option_required')
     const { application, reused } = await financing.open(u.companyId, kind, c.req.param('id'), u.userId)
     if (!reused) d.audit.log({ req: c, action: 'FINANCING_APPLICATION_CREATED', entity: 'financing', entityId: application.id, metadata: { kind, id: c.req.param('id'), amount: application.amount }, userId: u.userId, companyId: u.companyId })
     return one(c, { ...application, reused }, reused ? 200 : 201)
@@ -106,11 +124,25 @@ export function createFinancingPublicRoutes(d: CrmDeps, financing: FinancingServ
     return null
   }
   const gone = (c: any) => fail(c, 404, 'Not found')
+  const perOption = async (companyId: string) => (await d.features.isFeatureEnabled(companyId, PROPOSAL_FINANCING).catch(() => false)) && (await d.features.isFeatureEnabled(companyId, 'quote_proposals').catch(() => false))
+  /** Row 30: a quote whose customer has not chosen yet (with per-option financing on) — Apply waits for the choice. */
+  const waiting = async (doc: { kind: string; id: string; companyId: string }) =>
+    doc.kind === 'quote' && (await perOption(doc.companyId)) && !!(await financing.optionOffers(doc.companyId, doc.id).catch(() => null))?.needsChoice
+
+  // Row 30: the estimate on each option, shown on the option's card. 404 when there is nothing to show.
+  app.get('/d/:token/options', async (c) => {
+    const doc = await docOf(c.req.param('token'))
+    if (!doc || doc.kind !== 'quote' || !(await d.features.isFeatureEnabled(doc.companyId, 'quotes')) || !(await perOption(doc.companyId))) return gone(c)
+    const r = await financing.optionOffers(doc.companyId, doc.id).catch(() => null)
+    if (!r || !Object.keys(r.options).length) return gone(c)
+    return one(c, { lender: r.lender, disclosure: r.disclosure, needsChoice: r.needsChoice, options: r.options })
+  })
 
   app.get('/d/:token', async (c) => {
     const doc = await docOf(c.req.param('token'))
     // The document's own door is closed when its feature is (portal.ts docAuth): so is this one.
     if (!doc || !(await d.features.isFeatureEnabled(doc.companyId, doc.kind === 'quote' ? 'quotes' : 'invoices'))) return gone(c)
+    if (await waiting(doc)) return gone(c)
     const { offer } = await financing.offerOn(doc.companyId, doc.kind, doc.id).catch(() => ({ offer: null }))
     return offer ? one(c, offer) : gone(c)
   })
@@ -118,6 +150,7 @@ export function createFinancingPublicRoutes(d: CrmDeps, financing: FinancingServ
   app.post('/d/:token/apply', async (c) => {
     const doc = await docOf(c.req.param('token'))
     if (!doc || !(await d.features.isFeatureEnabled(doc.companyId, doc.kind === 'quote' ? 'quotes' : 'invoices'))) return gone(c)
+    if (await waiting(doc)) return fail(c, 409, CHOOSE_BEFORE_FINANCING, 'option_required')
     return answer(c, async () => {
       const { application } = await financing.open(doc.companyId, doc.kind, doc.id, null)
       return one(c, { url: application.applicationUrl })

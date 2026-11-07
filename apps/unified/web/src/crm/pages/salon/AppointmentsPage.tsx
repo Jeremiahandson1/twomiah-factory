@@ -5,6 +5,7 @@ import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armch
 import { api } from '../../../api'
 import ClientPicker from './ClientPicker';
 import ServiceRecordEditorModal from './ServiceRecordEditorModal';
+import { VisitServicesModal } from './VisitServicesModal';
 import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
@@ -117,6 +118,7 @@ export default function AppointmentsPage() {
   // read-only seat was offered New Appointment and every row's buttons. (T43 viewer round, T68)
   const mayBook = useMayWrite('schedule:create');
   const mayMove = useMayWrite('schedule:update');
+  const editVisits = useAuth().hasFeature('visit_editing');
   // The front desk checks clients in without being able to move or cancel them (schedule:check-in).
   const mayCheckIn = useMayWrite('schedule:update') || useMayWrite('schedule:check-in');
   // A no-show or late-cancel fee on the client's card on file: Card on File on, and a seat that may charge (invoices:update).
@@ -148,6 +150,8 @@ export default function AppointmentsPage() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [closing, setClosing] = useState<Appointment | null>(null);
   const [resched, setResched] = useState<Appointment | null>(null);
+  // Salon parity row 8 (visit_editing): change a booked visit's services.
+  const [editing, setEditing] = useState<Appointment | null>(null);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const navigate = useNavigate();
   // The heading for the day whose rows are actually on screen — held while a new date is being typed.
@@ -275,6 +279,11 @@ export default function AppointmentsPage() {
       {mayBook && !CLOSED.has(a.status || 'scheduled') && a.contactId && (
         <button onClick={() => { then(); setClosing(a); }} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm">
           <Scissors className="w-4 h-4" /> Log Service
+        </button>
+      )}
+      {mayMove && editVisits && !CLOSED.has(a.status || 'scheduled') && (
+        <button onClick={() => { then(); setEditing(a); }} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 text-sm" title="Add, remove, move or re-assign a service">
+          <Scissors className="w-4 h-4" /> Edit services
         </button>
       )}
       {mayMove && !CLOSED.has(a.status || 'scheduled') && (
@@ -567,6 +576,9 @@ export default function AppointmentsPage() {
       {resched && (
         <RescheduleModal appt={resched} onSave={() => { setResched(null); load(); }} onClose={() => setResched(null)} />
       )}
+      {editing && (
+        <VisitServicesModal appt={editing as any} onSave={() => { setEditing(null); load(); }} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }
@@ -671,7 +683,10 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
   const { hasFeature } = useAuth();
   const several = hasFeature('multi_service_visits');
   // More services in this visit, after the first one above: each with its own stylist ('' = the visit's).
-  const [more, setMore] = useState<Array<{ serviceId: string; stylistId: string }>>([]);
+  const [more, setMore] = useState<Array<{ serviceId: string; stylistId: string; withFirst?: boolean; requested?: boolean }>>([]);
+  // Row 8 (visit_editing): a service may start with the first one (another stylist, at the same time); the client's requested stylist.
+  const together = hasFeature('visit_editing');
+  const [firstRequested, setFirstRequested] = useState(false);
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -761,7 +776,7 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
       const extra = more.filter((m) => m.serviceId);
       if (several && form.serviceId && extra.length > 0) {
         // One visit, one service after another; the server works out the end and the price from the services.
-        payload.items = [{ serviceId: form.serviceId, ...(form.stylistId ? { stylistId: form.stylistId } : {}) }, ...extra.map((m) => ({ serviceId: m.serviceId, ...(m.stylistId ? { stylistId: m.stylistId } : {}) }))];
+        payload.items = [{ serviceId: form.serviceId, ...(form.stylistId ? { stylistId: form.stylistId } : {}), ...(together && firstRequested ? { requestedStylist: true } : {}) }, ...extra.map((m) => ({ serviceId: m.serviceId, ...(m.stylistId ? { stylistId: m.stylistId } : {}), ...(together && m.withFirst ? { startOffsetMin: 0 } : {}), ...(together && m.requested ? { requestedStylist: true } : {}) }))];
       }
       // Left blank, the backend derives the end from the service duration.
       if (form.endTime && !payload.items) payload.endTime = companyMoment(form.date, form.endTime).toISOString();
@@ -833,12 +848,19 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
                       {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                     </select>
                     <button type="button" aria-label={`Remove service ${i + 2}`} onClick={() => setMore((l) => l.filter((_, j) => j !== i))} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                    {together && (
+                      <div className="col-span-3 flex flex-wrap gap-4 text-xs text-gray-700 dark:text-slate-200">
+                        <label className="flex items-center gap-1"><input type="checkbox" checked={!!m.withFirst} onChange={(e) => setMore((l) => l.map((x, j) => j === i ? { ...x, withFirst: e.target.checked } : x))} /> At the same time as the first service</label>
+                        <label className="flex items-center gap-1"><input type="checkbox" checked={!!m.requested} onChange={(e) => setMore((l) => l.map((x, j) => j === i ? { ...x, requested: e.target.checked } : x))} /> The client asked for this stylist</label>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {more.length < 7 && (
                   <button type="button" onClick={() => setMore((l) => [...l, { serviceId: '', stylistId: '' }])} className="text-sm text-teal-700 hover:underline dark:text-teal-300">+ Add another service to this visit</button>
                 )}
-                {more.some((m) => m.serviceId) && <p className="text-xs text-gray-500 dark:text-slate-400">The services run one after another; the end time and price come from them.</p>}
+                {together && more.some((m) => m.serviceId) && <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-slate-200"><input type="checkbox" checked={firstRequested} onChange={(e) => setFirstRequested(e.target.checked)} /> The client asked for the first service's stylist</label>}
+                {more.some((m) => m.serviceId) && <p className="text-xs text-gray-500 dark:text-slate-400">{together ? 'Each service runs after the one before unless it starts with the first; ' : 'The services run one after another; '}the end time and price come from them.</p>}
               </div>
             )}
             <div className="grid grid-cols-3 gap-4">

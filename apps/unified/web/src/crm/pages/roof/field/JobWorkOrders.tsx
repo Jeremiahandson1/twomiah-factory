@@ -5,16 +5,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ClipboardList, Copy, Plus, Send, Trash2, X } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useConfirm, useMayWrite, usePermissions, useToast } from '../../../../shared'
+import { errorText, useConfirm, useMayWrite, usePermissions, useToast, useAuth } from '../../../../shared'
 import { money } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
+import { WorkOrderOptions, type SendOptions } from './WorkOrderOptions'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Line { description: string; qty: number | string; unit: string }
 interface WorkOrder {
   id: string; title: string; status: string; scope?: string | null; address?: string | null; startDate?: string | null
   recipientName: string; recipientPhone: string; crewId?: string | null; materialLines: Line[]; photoIds: string[]
+  /** Row 27 (work_order_send_options). */
+  /** Row 28 (crew_scheduling). */
+  checklist?: Array<{ id: string; text: string }>; checks?: Record<string, string>; arrivedAt?: string | null; leftAt?: string | null
+  requiresApproval?: boolean | null; recipientEmail?: string | null; ccEmails?: string[]; language?: string; scopeEs?: string | null; linkDays?: number | null; showMaterials?: boolean; showPhotos?: boolean
   respondedByName?: string | null; rejectReason?: string | null; completedAt?: string | null; completionNote?: string | null
   /** The crew's lump-sum price for the job — only for a seat that reads what the shop pays (margin:read). */
   price?: number | null
@@ -26,7 +31,7 @@ interface PhotoRow { id: string; url?: string | null; thumbnailUrl?: string | nu
 
 const CHIP: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300', sent: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
-  accepted: 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300', rejected: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300',
+  accepted: 'bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300', in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300', rejected: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300',
   completed: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300', cancelled: 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400',
 }
 
@@ -38,6 +43,31 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
   const [orders, setOrders] = useState<WorkOrder[]>([])
   const [editing, setEditing] = useState<WorkOrder | 'new' | null>(null)
   const [busy, setBusy] = useState('')
+  // Row 27 (work_order_send_options, not ready): email + CC, Spanish, approval, the sub's view and its length.
+  const sendOpts = useAuth().hasFeature('work_order_send_options')
+  const [optionsFor, setOptionsFor] = useState<string | null>(null)
+  // Row 28 (crew_scheduling, not ready): in progress by hand, the on-site checklist, attendance.
+  const scheduling = useAuth().hasFeature('crew_scheduling')
+  const [checklistFor, setChecklistFor] = useState<string | null>(null)
+  const [checklistText, setChecklistText] = useState('')
+  const markInProgress = async (id: string) => {
+    try { await api.post(`/api/work-orders/${id}/in-progress`, {}); toast.success('Marked in progress'); await load() } catch (e) { toast.error(errorText(e, 'Could not change it')) }
+  }
+  const saveChecklist = async (o: WorkOrder) => {
+    const lines = checklistText.split('\n').map((x) => x.trim()).filter(Boolean)
+    const checklist = lines.map((text) => (o.checklist || []).find((c) => c.text === text) ?? { text })
+    try { await api.put(`/api/work-orders/${o.id}/checklist`, { checklist }); toast.success('Checklist saved'); setChecklistFor(null); await load() } catch (e) { toast.error(errorText(e, 'Could not save the checklist')) }
+  }
+  const sendBy = async (id: string, channel: 'text' | 'email' | 'both') => {
+    setBusy(id + 'send')
+    try {
+      const r: any = await api.post(`/api/work-orders/${id}/send`, { channel })
+      const parts = [r?.texted ? 'texted' : '', r?.emailed ? `emailed (${r.emailed})` : ''].filter(Boolean)
+      if (parts.length) toast.success(`Sent — ${parts.join(' and ')}`)
+      else toast.error(r?.notice || 'It could not be sent. Copy the link and send it yourself.')
+      await load()
+    } catch (err) { toast.error(errorText(err, 'Could not send the work order')) } finally { setBusy('') }
+  }
 
   const load = useCallback(async () => {
     try { setOrders(listOf<WorkOrder>(await api.get('/api/work-orders', { jobId }))) } catch { setOrders([]) }
@@ -51,6 +81,7 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
       if (what === 'send') {
         if (r?.texted) toast.success('Texted to the crew')
         else toast.error(r?.notice || 'It could not be texted. Copy the link and send it yourself.')
+        if (r?.certNotice) toast.error(r.certNotice)
       } else toast.success('Work order cancelled')
       await load()
     } catch (err) { toast.error(errorText(err, `Could not ${what} the work order`)) } finally { setBusy('') }
@@ -83,6 +114,8 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
                 {o.recipientName} · {o.recipientPhone}{o.startDate ? ` · Starts ${formatDate(o.startDate)}` : ''}{o.price != null ? ` · Price ${money(o.price)}` : ''}
               </p>
               {o.status === 'accepted' && <p className="text-xs text-gray-600 dark:text-slate-400">Accepted by {o.respondedByName}</p>}
+              {scheduling && o.arrivedAt && <p className="text-xs text-blue-700 dark:text-blue-300">{o.leftAt ? `On site ${formatDate(o.arrivedAt)}, left for now` : `On site since ${formatDate(o.arrivedAt)}`}</p>}
+              {scheduling && (o.checklist || []).length > 0 && <p className="text-xs text-gray-600 dark:text-slate-400">Checklist: {Object.keys(o.checks || {}).length} of {(o.checklist || []).length} done</p>}
               {o.status === 'rejected' && <p className="text-xs text-red-700 dark:text-red-300">Rejected by {o.respondedByName}: {o.rejectReason}</p>}
               {o.status === 'completed' && <p className="text-xs text-gray-600 dark:text-slate-400">Done{o.completedAt ? ` ${formatDate(o.completedAt)}` : ''} · {o.completionPhotoIds.length} photo{o.completionPhotoIds.length === 1 ? '' : 's'}{o.completionNote ? ` · ${o.completionNote}` : ''}</p>}
               {o.linkExpired && <p className="text-xs text-amber-700 dark:text-amber-300">The link has run out — send it again for a new one.</p>}
@@ -92,8 +125,18 @@ export default function JobWorkOrders({ jobId, jobAddress }: { jobId: string; jo
                   {o.linkUrl && <button type="button" onClick={() => copy(o.linkUrl!)} className="inline-flex items-center gap-1 text-xs font-medium text-gray-700 hover:underline dark:text-slate-300"><Copy className="w-3 h-3" /> Copy link</button>}
                   {o.status !== 'accepted' && <button type="button" onClick={() => setEditing(o)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Edit</button>}
                   <button type="button" disabled={!!busy} onClick={() => act(o.id, 'cancel')} className="inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:underline disabled:opacity-50 dark:text-red-300"><X className="w-3 h-3" /> Cancel</button>
+                  {sendOpts && <button type="button" onClick={() => setOptionsFor(optionsFor === o.id ? null : o.id)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Send options</button>}
+                  {scheduling && ['sent', 'accepted'].includes(o.status) && <button type="button" onClick={() => markInProgress(o.id)} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">Mark in progress</button>}
+                  {scheduling && <button type="button" onClick={() => { setChecklistFor(checklistFor === o.id ? null : o.id); setChecklistText((o.checklist || []).map((c) => c.text).join('\n')) }} className="text-xs font-medium text-gray-700 hover:underline dark:text-slate-300">On-site checklist</button>}
                 </div>
               )}
+              {scheduling && checklistFor === o.id && (
+                <div className="mt-2 space-y-1 text-xs" data-testid="wo-checklist">
+                  <label className="block">One item per line — the crew ticks them on site<textarea rows={4} className="mt-1 w-full rounded border px-2 py-1 bg-white dark:bg-slate-900 dark:border-slate-700" value={checklistText} onChange={(e) => setChecklistText(e.target.value)} /></label>
+                  <button type="button" onClick={() => saveChecklist(o)} className="rounded border px-2 py-1">Save checklist</button>
+                </div>
+              )}
+              {sendOpts && optionsFor === o.id && <WorkOrderOptions orderId={o.id} value={o as SendOptions} onSaved={load} onSend={(ch) => sendBy(o.id, ch)} />}
               {mayDelete && ['draft', 'cancelled'].includes(o.status) && (
                 <button type="button" onClick={() => remove(o)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:underline dark:text-slate-400"><Trash2 className="w-3 h-3" /> Remove</button>
               )}
@@ -123,6 +166,23 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
   const [shared, setShared] = useState<string[]>(existing?.photoIds || [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Row 26 (work_order_tools, not ready; Roofr): fill from the signed proposal, and saved scopes.
+  const toolsOn = useAuth().hasFeature('work_order_tools')
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; scope: string }>>([])
+  useEffect(() => { if (toolsOn) api.get('/api/work-orders/templates').then((r) => setTemplates(listOf(r))).catch(() => setTemplates([])) }, [toolsOn])
+  const fillFromProposal = async () => {
+    try {
+      const r: any = await api.get(`/api/work-orders/from-proposal?jobId=${encodeURIComponent(jobId)}`)
+      setForm((f) => ({ ...f, scope: r.scope, title: f.title || `Work order — ${r.quoteNumber}` }))
+      if (r.materialLines?.length) setLines(r.materialLines)
+      toast.success(`Filled from proposal ${r.quoteNumber}`)
+    } catch (e) { toast.error(errorText(e, 'Could not read the proposal')) }
+  }
+  const saveTemplate = async () => {
+    const n = (form.title || 'Scope').trim()
+    try { await api.post('/api/work-orders/templates', { name: n, scope: form.scope }); toast.success(`Saved as the template “${n}”`); setTemplates(listOf(await api.get('/api/work-orders/templates'))) }
+    catch (e) { toast.error(errorText(e, 'Could not save the template')) }
+  }
 
   useEffect(() => {
     api.get('/api/crews', { limit: 100 }).then((r) => setCrews(listOf<CrewRow>(r))).catch(() => setCrews([]))
@@ -151,7 +211,11 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
       ...(mayPrice ? { price: form.price.trim() === '' ? null : Number(form.price) } : {}),
     }
     try {
-      if (existing) await api.put(`/api/work-orders/${encodeURIComponent(existing.id)}`, body)
+      if (existing) {
+        const r: any = await api.put(`/api/work-orders/${encodeURIComponent(existing.id)}`, body)
+        // Row 28: a sent order's start moved — the crew was texted (or could not be).
+        if (r?.rescheduleNotice) toast.success(r.rescheduleNotice)
+      }
       else await api.post('/api/work-orders', { jobId, ...body })
       toast.success(existing ? 'Work order saved' : 'Work order made — text it to the crew when you are ready')
       onSaved(); onClose()
@@ -179,6 +243,18 @@ function WorkOrderForm({ jobId, jobAddress, existing, onClose, onSaved }: { jobI
             <div className="sm:col-span-2"><label htmlFor="wo-price" className={lab}>Price for the whole job ($)</label>
               <input id="wo-price" type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} placeholder="What the crew is paid, as one lump sum" className={input} />
               <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">The crew never sees it. Once the work order is sent it counts as the job&rsquo;s crew labour in job costing, in place of pay by the square.</p></div>
+          )}
+          {toolsOn && (
+            <div className="sm:col-span-2 flex flex-wrap items-center gap-2 text-sm" data-testid="wo-tools">
+              <button type="button" onClick={fillFromProposal} className="px-3 py-1.5 rounded-lg border">Fill from the signed proposal</button>
+              {templates.length > 0 && (
+                <select aria-label="Use a template" className="border rounded-lg px-2 py-1.5 bg-white dark:bg-slate-900" value="" onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); if (t) set('scope', t.scope) }}>
+                  <option value="">Use a template…</option>
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              )}
+              <button type="button" disabled={!form.scope.trim()} onClick={saveTemplate} className="px-3 py-1.5 rounded-lg border disabled:opacity-50">Save scope as a template</button>
+            </div>
           )}
           <div className="sm:col-span-2"><label htmlFor="wo-scope" className={lab}>Scope of work</label><textarea id="wo-scope" rows={4} value={form.scope} onChange={(e) => set('scope', e.target.value)} placeholder="What to do, what to watch for, where to park…" className={input} /></div>
         </div>

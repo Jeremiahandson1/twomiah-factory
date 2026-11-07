@@ -25,7 +25,7 @@ export const nav: NavItem[] = isRoofing ? GROUPS.flatMap((g) => g.nav) : []
  * its jobs and reports pages are roofing's) — and the shared Reports item's `reports` feature and reports:read gate,
  * matched by path, is roofing's own item's (it asks reports:read too).
  */
-export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports']
+export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports', '/crm/card-payments']
 
 // Roofing's menu (templates/crm-roof components/layout/AppLayout.tsx): its working items first, shared ones among them.
 // The Lead Inbox and Storm Leads sit with the contacts: at the shared menu's end the inbox fell under the Website heading
@@ -74,6 +74,8 @@ export const SETTINGS_EXTRA = isRoofing
     { to: '/crm/settings/estimator', label: 'Instant Estimator Widget', icon: Calculator, permission: 'company:update', feature: 'instant_estimator' },
     // Not ready (pipeline_boards): rename the pipeline stages and name the Retail and Insurance boards' stages.
     { to: '/crm/settings/pipeline', label: 'Pipeline stages', icon: LayoutDashboard, permission: 'company:update', feature: 'pipeline_boards' },
+    { to: '/crm/settings/pipeline-statuses', label: 'Statuses and checklists', icon: LayoutDashboard, permission: 'company:update', feature: 'pipeline_statuses' },
+    { to: '/crm/settings/company-documents', label: 'Documents for every homeowner', icon: LayoutDashboard, permission: 'documents:read', feature: 'portal_posts_packets' },
   ]
   : []
 /** The roofer's home at /crm/dashboard (crm/screens.tsx HOMES). */

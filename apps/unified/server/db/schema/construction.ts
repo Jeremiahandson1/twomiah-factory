@@ -143,6 +143,8 @@ export const dailyLog = pgTable('daily_log', {
   temperature: integer('temperature'),
   workCompleted: text('work_completed'),
   visitors: text('visitors'),
+  /** Shown to the client in their portal (0092, contractor parity row 10; client_portal_plus). Off until someone shares it. */
+  sharedWithClient: boolean('shared_with_client').default(false).notNull(),
   photos: json('photos').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -781,12 +783,36 @@ export const projectBaseline = pgTable('project_baseline', {
   index('project_baseline_project_id_idx').on(t.projectId),
 ])
 
+/**
+ * One allowance that several selections are chosen against (0089, contractor parity row 7; Buildertrend's allowances, JobTread's
+ * allowance budget lines): "Plumbing fixtures $4,000" covering the faucet, the sinks and the tub. What the chosen options come
+ * to beyond the amount is the overage, raised as change orders as selections are approved; a credit for coming in under is
+ * raised only once every selection in it is approved. Feature shared_allowances (not ready).
+ */
+export const projectAllowance = pgTable('project_allowance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  /** The budget line its overage goes to on the revised budget; none = "Allowances". */
+  costCode: text('cost_code'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_allowance_project_id_idx').on(t.projectId),
+])
+
 export const projectSelection = pgTable('project_selection', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   /** The quote line this allowance came from (0041): approving a quote opens its allowance lines here, once each. */
   quoteLineItemId: text('quote_line_item_id'),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  /** The shared allowance it is chosen against (0089, contractor parity row 7): set, its own allowance is not used. */
+  allowanceId: text('allowance_id').references(() => projectAllowance.id, { onDelete: 'set null' }),
+  /** The change order its approval raised, so the revised budget and WIP count that change once. */
+  changeOrderId: text('change_order_id'),
   categoryId: text('category_id').references(() => selectionCategory.id),
   name: text('name').notNull(),
   description: text('description'),
@@ -814,6 +840,7 @@ export const projectSelection = pgTable('project_selection', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('project_selection_project_id_idx').on(t.projectId),
+  index('project_selection_allowance_id_idx').on(t.allowanceId),
 ])
 
 export const projectTask = pgTable('project_task', {
@@ -969,4 +996,187 @@ export const projectTemplatePunchItem = pgTable('project_template_punch_item', {
   sortOrder: integer('sort_order').default(0).notNull(),
 }, (t) => [
   index('project_template_punch_item_template_id_idx').on(t.templateId),
+])
+
+// ── what else a template carries (0090, contractor parity row 7b; feature template_parts, not ready) ─────────────────────
+// Buildertrend / JobTread templates carry the budget, the selections and the schedule's links; each part is ticked on saving
+// and again on starting. Never the money that was spent, who chose what, or the client.
+
+/** A budget line by cost code, as the project's budget had it when saved (crm/billing/quoteBudget.ts budgetFor). */
+export const projectTemplateBudgetLine = pgTable('project_template_budget_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  costCode: text('cost_code').notNull(),
+  estimatedCost: decimal('estimated_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  estimatedPrice: decimal('estimated_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_budget_line_template_id_idx').on(t.templateId),
+])
+
+/** A shared allowance the template's selections are chosen against (project_allowance). */
+export const projectTemplateAllowance = pgTable('project_template_allowance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  costCode: text('cost_code'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_allowance_template_id_idx').on(t.templateId),
+])
+
+/** A selection to be made (project_selection), without what was chosen: its allowance, quantity and when it is due. */
+export const projectTemplateSelection = pgTable('project_template_selection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  /** The template's shared allowance it sits under, by this template's ids. */
+  allowanceId: text('allowance_id'),
+  categoryId: text('category_id').references(() => selectionCategory.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  location: text('location'),
+  allowance: decimal('allowance', { precision: 12, scale: 2 }),
+  quantity: integer('quantity').default(1),
+  unit: text('unit').default('each'),
+  /** Days after the project's start that it is due; none, no due date. */
+  dueOffsetDays: integer('due_offset_days'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+}, (t) => [
+  index('project_template_selection_template_id_idx').on(t.templateId),
+])
+
+/** A link between two of the template's tasks (task_dependency), by this template's task ids. */
+export const projectTemplateDependency = pgTable('project_template_dependency', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').notNull().references(() => projectTemplate.id, { onDelete: 'cascade' }),
+  predecessorId: text('predecessor_id').notNull(),
+  successorId: text('successor_id').notNull(),
+  type: text('type').default('finish_to_start').notNull(),
+  lagDays: integer('lag_days').default(0).notNull(),
+}, (t) => [
+  index('project_template_dependency_template_id_idx').on(t.templateId),
+])
+
+// ── the contractor's client portal, finished (0092, contractor parity row 10; feature client_portal_plus, not ready) ─────────
+// docs/parity/contractor-portal.md. Buildertrend's per-job client permissions with company defaults, the schedule and daily logs
+// the builder shares, client to-dos, and the client's comments on the schedule.
+
+/**
+ * What a project's client sees in their portal, and is emailed about. One row per project; the row with no project is the
+ * company's default, which a project without its own row reads.
+ */
+export const projectPortalSetting = pgTable('project_portal_setting', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'cascade' }),
+  /** 'off' | 'phases' (top-level tasks only) | 'all' */
+  schedule: text('schedule').default('phases').notNull(),
+  /** How many weeks ahead of today the client sees; none, every task. */
+  scheduleWeeks: integer('schedule_weeks'),
+  dailyLogs: boolean('daily_logs').default(true).notNull(),
+  photos: boolean('photos').default(true).notNull(),
+  todos: boolean('todos').default(true).notNull(),
+  payments: boolean('payments').default(true).notNull(),
+  documents: boolean('documents').default(true).notNull(),
+  /** A new daily log / file starts shared with the client. */
+  shareByDefault: boolean('share_by_default').default(false).notNull(),
+  /** What the client is emailed about: { dailyLogs, schedule, todos, payments, documents } (true = email). */
+  notify: json('notify').default({}).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_portal_setting_company_id_idx').on(t.companyId),
+  uniqueIndex('project_portal_setting_project_id_idx').on(t.projectId),
+])
+
+/** A to-do for the client (Buildertrend's to-dos shared with the client): title, notes, a checklist they tick, a due date. */
+export const clientTodo = pgTable('client_todo', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  notes: text('notes'),
+  /** [{ text, done }] */
+  checklist: json('checklist').default([]).notNull(),
+  dueDate: timestamp('due_date'),
+  status: text('status').default('open').notNull(),
+  completedAt: timestamp('completed_at'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_todo_project_id_idx').on(t.projectId),
+])
+
+/** The client's comment on a schedule task, or the office's answer (Buildertrend: clients comment on each phase). */
+export const projectTaskComment = pgTable('project_task_comment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  taskId: text('task_id').notNull().references(() => projectTask.id, { onDelete: 'cascade' }),
+  /** Who wrote it: the client (contact) or someone in the office (user). */
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  body: text('body').notNull(),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_task_comment_project_id_idx').on(t.projectId),
+])
+
+/**
+ * A project's payment schedule (0093, contractor parity row 10b; Buildertrend's draws / owner invoices, JobTread's payment
+ * schedule; client_portal_plus): the contract split into payments — a fixed amount or a share of the contract — due on a date or
+ * at a schedule milestone. The office releases one when it is due, which raises its invoice; the client sees the schedule and
+ * pays the released one online through the invoice. Paid is read from the invoice, never stored twice.
+ */
+export const projectPayment = pgTable('project_payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** 'fixed' (amount in dollars) | 'percent' (amount = % of the contract) */
+  amountType: text('amount_type').default('fixed').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  dueDate: timestamp('due_date'),
+  /** Due when this schedule task is done (a milestone), instead of on a date. */
+  milestoneTaskId: text('milestone_task_id').references(() => projectTask.id, { onDelete: 'set null' }),
+  invoiceId: text('invoice_id'),
+  releasedAt: timestamp('released_at'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_payment_project_id_idx').on(t.projectId),
+])
+
+/**
+ * A document sent to the project's client to e-sign in their portal (0094, contractor parity row 10c; Buildertrend's digital
+ * signatures; client_portal_plus). The office picks a PDF on the project; the client reads it and signs with the evidence quotes
+ * keep (ESIGN/UETA: who, when, from where, that they agreed to sign electronically, and a SHA-256 of exactly the file they saw).
+ * The signed copy — the original with a signature page added — is filed on the project and shown to the client.
+ */
+export const projectSignRequest = pgTable('project_sign_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  message: text('message'),
+  /** 'sent' | 'signed' | 'cancelled' */
+  status: text('status').default('sent').notNull(),
+  signedName: text('signed_name'),
+  signatureImage: text('signature_image'),
+  signedAt: timestamp('signed_at'),
+  signerIp: text('signer_ip'),
+  signerUserAgent: text('signer_user_agent'),
+  documentHash: text('document_hash'),
+  signedDocumentId: text('signed_document_id'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_sign_request_project_id_idx').on(t.projectId),
 ])

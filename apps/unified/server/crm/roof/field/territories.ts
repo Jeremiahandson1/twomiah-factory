@@ -9,9 +9,11 @@
 //   · canvassing:manage (owner, admin, manager) — create, change, delete, assign reps, and see every territory;
 //   · canvassing:read (the read-only seat) — sees every territory, changes none;
 //   · anyone else (the field rung) — sees only the territories they are on. Another territory answers 404.
+import { findBoundary, BOUNDARY_FEATURE, type Fetcher } from '../../../data/censusBoundary.ts'
+import { readKml, makesLoop, MAX_KML_BYTES } from '../../../data/territoryImport.ts'
 import { Hono } from 'hono'
 import { and, eq, inArray } from 'drizzle-orm'
-import { canvassTerritory, canvassTerritoryRep, canvassingStop, stormEvent, user } from '../../../db/schema/index.ts'
+import { canvassTerritory, canvassTerritoryRep, canvassingStop, stormEvent, user, company as companyTable } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -64,6 +66,13 @@ export function territoryInputError(input: any, partial = false): { error: strin
   return { fields: out }
 }
 
+/** Roofing parity row 23 (not ready): KML import, Belongs To, the phone's outside-your-territory notice, redrawing a boundary. */
+export const TERRITORY_TOOLS = 'territory_tools'
+
+/** Tests only: stand in for the Census service. */
+let boundaryFetcher: Fetcher | undefined
+export function useBoundaryFetcherForTests(f: Fetcher | undefined) { boundaryFetcher = f }
+
 export function createTerritoryRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
@@ -85,7 +94,7 @@ export function createTerritoryRoutes(d: CrmDeps) {
     return by
   }
   const view = (t: any, reps: { id: string; name: string }[]) => ({
-    id: t.id, name: t.name, color: t.color, boundary: pathOf(t.boundary), zips: Array.isArray(t.zips) ? t.zips : [],
+    id: t.id, name: t.name, color: t.color, boundary: pathOf(t.boundary), zips: Array.isArray(t.zips) ? t.zips : [], parentId: t.parentId ?? null,
     stormEventId: t.stormEventId, notes: t.notes, reps, createdAt: t.createdAt, updatedAt: t.updatedAt,
   })
 
@@ -113,6 +122,33 @@ export function createTerritoryRoutes(d: CrmDeps) {
     if (repIds.length) await db.insert(canvassTerritoryRep).values(repIds.map((userId) => ({ companyId, territoryId, userId })) as any)
   }
 
+  /** Row 25: a rep already on the company's most territories (company.settings.maxTerritoriesPerRep) is not given another. */
+  async function overCap(companyId: string, territoryId: string, repIds: string[]): Promise<string | null> {
+    const [co] = await db.select({ settings: companyTable.settings }).from(companyTable).where(eq(companyTable.id, companyId)).limit(1)
+    const cap = Number((co?.settings as any)?.maxTerritoriesPerRep)
+    if (!(cap > 0) || !repIds.length) return null
+    const rows: any[] = await db.select({ userId: canvassTerritoryRep.userId, territoryId: canvassTerritoryRep.territoryId }).from(canvassTerritoryRep).where(and(eq(canvassTerritoryRep.companyId, companyId), inArray(canvassTerritoryRep.userId, repIds)))
+    for (const r of repIds) {
+      const others = rows.filter((x) => x.userId === r && x.territoryId !== territoryId).length
+      if (others >= cap) {
+        const [p] = await db.select({ first: user.firstName, last: user.lastName }).from(user).where(eq(user.id, r)).limit(1)
+        return `${`${p?.first ?? ''} ${p?.last ?? ''}`.trim() || 'That rep'} already has ${others} territories — the most your company allows (${cap}). Take one off them first.`
+      }
+    }
+    return null
+  }
+  // PUT /settings/cap { maxTerritoriesPerRep: number | null } — row 25 (territory_tools): the most territories one rep may hold.
+  app.put('/settings/cap', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await d.features.isFeatureEnabled(c.get('user').companyId, TERRITORY_TOOLS).catch(() => false))) return fail(c, 404, 'Not found')
+    const b = await body(c)
+    const cap = b?.maxTerritoriesPerRep === null || b?.maxTerritoriesPerRep === '' ? null : Number(b?.maxTerritoriesPerRep)
+    if (cap !== null && !(Number.isInteger(cap) && cap >= 1 && cap <= 100)) return fail(c, 400, 'The most per rep is a whole number from 1 to 100, or none.', 'validation_failed')
+    const companyId = c.get('user').companyId
+    const [co] = await db.select({ settings: companyTable.settings }).from(companyTable).where(eq(companyTable.id, companyId)).limit(1)
+    await db.update(companyTable).set({ settings: { ...((co?.settings as any) || {}), maxTerritoriesPerRep: cap }, updatedAt: new Date() } as any).where(eq(companyTable.id, companyId))
+    return one(c, { maxTerritoriesPerRep: cap })
+  })
+
   app.get('/', async (c) => listAll(c, await visible(c.get('user'))))
 
   // GET /locate?lat=&lng= — which of the caller's territories hold this point, and is it one of THEIRS. The phone says "you
@@ -137,6 +173,61 @@ export function createTerritoryRoutes(d: CrmDeps) {
     return listAll(c, (rows as any[]).map((r) => ({ id: r.id, name: `${r.first} ${r.last}`.trim(), role: r.role })))
   })
 
+  // ---- Row 23 (territory_tools, not ready; Spotio): import from KML, and "Belongs To" ----
+  const toolsOn = (c: any) => d.features.isFeatureEnabled(c.get('user').companyId, TERRITORY_TOOLS).catch(() => false)
+  app.post('/import', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const u = c.get('user')
+    const form = await c.req.formData().catch(() => null)
+    const file = form?.get('file')
+    if (!file || typeof file === 'string') return fail(c, 400, 'Choose the KML file.')
+    if (file.size > MAX_KML_BYTES) return fail(c, 400, 'That file is over 5 MB.')
+    const read = readKml(await file.text())
+    if ('error' in read) return fail(c, 400, read.error)
+    const have: any[] = await db.select().from(canvassTerritory).where(eq(canvassTerritory.companyId, u.companyId))
+    const byName = new Map(have.map((t) => [String(t.name).trim().toLowerCase(), t]))
+    let created = 0, updated = 0
+    const skipped = [...read.skipped]
+    for (const s of read.shapes) {
+      const p = parsePath({ kind: 'polygon', points: s.points })
+      if ('error' in p) { skipped.push({ name: s.name, reason: p.error }); continue }
+      const same = byName.get(s.name.trim().toLowerCase())
+      if (same) {
+        await db.update(canvassTerritory).set({ boundary: p.path, updatedAt: new Date() } as any).where(eq(canvassTerritory.id, same.id))
+        updated++
+      } else {
+        const [row] = await db.insert(canvassTerritory).values({ companyId: u.companyId, name: s.name, boundary: p.path, zips: [], createdById: u.userId } as any).returning()
+        byName.set(s.name.trim().toLowerCase(), row)
+        created++
+      }
+    }
+    return one(c, { created, updated, skipped })
+  })
+  // Row 24 (territory_boundaries, not ready; Spotio "Select Territory"): a state, county, city or ZIP outline from the Census's free
+  // TIGERweb service, to look at on the map and save as a territory the ordinary way (data/censusBoundary.ts).
+  app.get('/boundary', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await d.features.isFeatureEnabled(c.get('user').companyId, BOUNDARY_FEATURE).catch(() => false))) return fail(c, 404, 'Not found')
+    const out = await findBoundary(c.req.query('kind') as any, c.req.query('name') || '', c.req.query('state') || '', boundaryFetcher)
+    if (out.status === 'error') return fail(c, out.code === 'BAD_REQUEST' ? 400 : out.code === 'NOT_FOUND' ? 404 : 502, out.error, out.code)
+    return one(c, { name: out.name, boundary: { kind: 'polygon', points: out.points }, parts: out.parts, note: out.note })
+  })
+
+  app.put('/:id/parent', requirePermission('canvassing:manage'), async (c) => {
+    if (!(await toolsOn(c))) return fail(c, 404, 'Not found')
+    const u = c.get('user')
+    const id = c.req.param('id')
+    const b: any = await c.req.json().catch(() => ({}))
+    const parentId = b?.parentId ? String(b.parentId) : null
+    const all: any[] = await db.select({ id: canvassTerritory.id, parentId: canvassTerritory.parentId }).from(canvassTerritory).where(eq(canvassTerritory.companyId, u.companyId))
+    if (!all.some((t) => t.id === id)) return fail(c, 404, 'Territory not found')
+    if (parentId) {
+      if (!all.some((t) => t.id === parentId)) return fail(c, 400, 'Pick a territory it belongs to.', 'validation_failed', { parentId: 'Not found' })
+      if (makesLoop(id, parentId, new Map(all.map((t) => [t.id, t.parentId ?? null])))) return fail(c, 400, 'A territory cannot belong to itself or to one that belongs to it.', 'validation_failed', { parentId: 'Would loop' })
+    }
+    await db.update(canvassTerritory).set({ parentId, updatedAt: new Date() } as any).where(and(eq(canvassTerritory.id, id), eq(canvassTerritory.companyId, u.companyId)))
+    return one(c, { id, parentId })
+  })
+
   app.get('/:id', async (c) => {
     const u = c.get('user')
     const t = (await visible(u)).find((x) => x.id === c.req.param('id'))
@@ -148,8 +239,24 @@ export function createTerritoryRoutes(d: CrmDeps) {
     const byOutcome: Record<string, number> = {}
     for (const s of doors) byOutcome[s.outcome] = (byOutcome[s.outcome] ?? 0) + 1
     const past = (await may(u, 'storms:read')) ? await customersInArea(db, u.companyId, area, { scope: 'past', zipAlso: true }) : null
+    // Row 25 (SalesRabbit: keep an area's history — who worked it and when; territory_tools): each rep's doors here, first and last.
+    let worked: Array<{ userId: string; name: string; doors: number; first: string; last: string }> | undefined
+    if (await d.features.isFeatureEnabled(u.companyId, TERRITORY_TOOLS).catch(() => false)) {
+      const withTimes: any[] = await db.select({ id: canvassingStop.id, userId: canvassingStop.userId, at: canvassingStop.visitedAt }).from(canvassingStop).where(and(eq(canvassingStop.companyId, u.companyId), inArray(canvassingStop.id, doors.length ? doors.map((s: any) => s.id) : [''])))
+      const by = new Map<string, { doors: number; first: Date; last: Date }>()
+      for (const s of withTimes) {
+        if (!s.userId) continue
+        const at = new Date(s.at), g = by.get(s.userId)
+        if (!g) by.set(s.userId, { doors: 1, first: at, last: at })
+        else { g.doors++; if (at < g.first) g.first = at; if (at > g.last) g.last = at }
+      }
+      const people: any[] = by.size ? await db.select({ id: user.id, first: user.firstName, last: user.lastName }).from(user).where(inArray(user.id, [...by.keys()])) : []
+      worked = [...by.entries()].map(([userId, g]) => ({ userId, name: `${people.find((p) => p.id === userId)?.first ?? ''} ${people.find((p) => p.id === userId)?.last ?? ''}`.trim() || 'A rep', doors: g.doors, first: g.first.toISOString(), last: g.last.toISOString() }))
+        .sort((a, b) => b.last.localeCompare(a.last))
+    }
     return one(c, {
       ...t,
+      ...(worked ? { worked } : {}),
       stats: {
         doorsKnocked: doors.length, leads: doors.filter((s) => s.jobId).length, byOutcome,
         // Past customers need the customer list, which only the office sees.
@@ -207,6 +314,9 @@ export function createTerritoryRoutes(d: CrmDeps) {
     if (!held) return fail(c, 404, 'Territory not found')
     const bad = await repsError(u.companyId, repIds)
     if (bad) return fail(c, 400, bad, 'validation_failed')
+    // Row 25 (SalesRabbit Area Management; territory_tools): at most the company's number of territories per rep.
+    const capped = (await d.features.isFeatureEnabled(u.companyId, TERRITORY_TOOLS).catch(() => false)) ? await overCap(u.companyId, id, repIds) : null
+    if (capped) return fail(c, 409, capped, 'over_cap')
     await setReps(u.companyId, id, repIds)
     await db.update(canvassTerritory).set({ updatedAt: new Date() } as any).where(eq(canvassTerritory.id, id))
     return one(c, { reps: (await repsOf(u.companyId, [id])).get(id) ?? [] })

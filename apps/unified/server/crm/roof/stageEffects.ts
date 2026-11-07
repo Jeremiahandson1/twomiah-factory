@@ -1,5 +1,6 @@
 // What a roofing job does when it reaches a stage, kept in one place so a person pressing Advance and a homeowner's
 // payment both do it the same way: the text to the homeowner, and the review request when the job is done.
+import { PORTAL_TOOLS, closePortalIfDone } from '../../data/homeownerPortal.ts'
 import { and, desc, eq, notInArray } from 'drizzle-orm'
 import { documentLinkPath, documentLinkToken } from '@twomiah/tenant-backend'
 import { company, contact, invoice } from '../../db/schema/index.ts'
@@ -57,6 +58,10 @@ export function createStageEffects(d: CrmDeps) {
   async function stageReached(companyId: string, jobId: string, stage: string) {
     await askForReview(companyId, jobId, stage)
     await remindDepreciation(companyId, jobId, stage)
+    // Row 21 (portal_tools, not ready): the company may close the homeowner's portal once their last job is Collected.
+    try {
+      if ((await companyFeatures(companyId)).includes(PORTAL_TOOLS)) await closePortalIfDone(db, companyId, jobId, stage)
+    } catch (err) { d.logger?.warn?.('[roof] portal not closed', { error: (err as Error).message }) }
   }
 
   /** The business's switched-on features (company.enabled_features). */

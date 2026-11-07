@@ -84,10 +84,20 @@ export function createPunchListRoutes(d: CrmDeps) {
 
   app.post('/', requirePermission('punch-lists:create'), async (c) => {
     const me = c.get('user') as any
-    const data = schema.parse(await c.req.json())
+    const raw: any = await c.req.json()
+    // The phone's offline queue may send a save twice (contractor parity row 11): it names the item it is making (`id`), and a
+    // second send of the same id answers the item already made — one punch item however often it is sent.
+    const clientId = typeof raw?.id === 'string' && /^[a-z0-9]{20,40}$/.test(raw.id) ? raw.id : null
+    if (clientId) {
+      const [had] = await db.select().from(punchListItem).where(eq(punchListItem.id, clientId)).limit(1) as any[]
+      if (had) return had.companyId === me.companyId ? one(c, photos.withUrls(had)) : fail(c, 409, 'Send that again from the phone.')
+    }
+    const { id: _id, ...rest } = raw || {}
+    const data = schema.parse(rest)
     const [{ value: countVal }] = await db.select({ value: count() }).from(punchListItem).where(and(eq(punchListItem.companyId, me.companyId), eq(punchListItem.projectId, data.projectId)))
     const [item] = await db.insert(punchListItem).values({
       ...data,
+      ...(clientId ? { id: clientId } : {}),
       number: `PL-${String(countVal + 1).padStart(3, '0')}`,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       companyId: me.companyId,

@@ -12,10 +12,10 @@ import { and, asc, count, eq, gte, inArray, lte, ne, or } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { roundsToNothing, isRealCalendarDay } from '@twomiah/tenant-backend'
 import { appointment, appointmentItem, serviceMenu, contact, user, serviceRecord, teamMember, invoice, company } from '../../db/schema/index.ts'
-import { processingProblem, piecesOf, touch, type Processing } from './segments.ts'
+import { processingProblem, piecesOf, touch, segmentsProblem, asSegments, type Processing } from './segments.ts'
 import { findStylistConflict } from './held.ts'
 import { findBlock } from './bookBlocks.ts'
-import { carryToBooking } from './onlineBooking.ts'
+import { carryToBooking, carryServicesToBooking } from './onlineBooking.ts'
 import { lockAppointmentBook } from '../../data/salon.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
@@ -196,6 +196,13 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
    * Asked for in the body, else the service's own; a gap longer than the appointment is refused in words.
    */
   async function processingFor(companyId: string, serviceId: string | null, body: any, minutes: number): Promise<{ proc: Processing | null } | { problem: string }> {
+    // Row 7 (service_segments): this visit's own steps, set by hand; else a service's steps, as the menu says.
+    if ('segments' in body && body.segments !== null && body.segments !== undefined && !(Array.isArray(body.segments) && !body.segments.length)) {
+      if (!(await d.features.isFeatureEnabled(companyId, 'service_segments'))) return { problem: 'Service steps are not switched on for this salon.' }
+      const problem = segmentsProblem(body.segments, minutes)
+      if (problem) return { problem }
+      return { proc: { afterMin: null, min: null, segments: asSegments(body.segments) } }
+    }
     if ('processingMin' in body || 'processingAfterMin' in body) {
       // Setting a gap on this visit by hand needs the feature; a service that already carries one applies it as the menu says.
       if (!(await d.features.isFeatureEnabled(companyId, 'processing_time'))) return { problem: 'Processing time is not switched on for this salon.' }
@@ -204,7 +211,10 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       return { proc: Number(body.processingMin) > 0 ? { afterMin: Number(body.processingAfterMin || 0), min: Number(body.processingMin) } : null }
     }
     if (!serviceId) return { proc: null }
-    const [svc] = await db.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin }).from(serviceMenu).where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+    const [svc] = await db.select({ a: serviceMenu.processingAfterMin, m: serviceMenu.processingMin, seg: serviceMenu.segments, dur: serviceMenu.durationMin }).from(serviceMenu).where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+    // The service's steps apply while they still fit this appointment's length (a shortened one keeps the old gap rule).
+    const seq = asSegments(svc?.seg)
+    if (seq && seq.reduce((t, x) => t + x.minutes, 0) === minutes) return { proc: { afterMin: null, min: null, segments: seq } }
     return { proc: svc?.m && svc.m > 0 ? { afterMin: svc.a ?? 0, min: svc.m } : null }
   }
 
@@ -213,7 +223,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
    * start, length, gap and price. Returns the resolved list or a refusal in words. A service with no start follows the one
    * before it; no stylist means the visit's.
    */
-  type ItemInput = { serviceId: string; stylist: StylistRef; offset: number; duration: number; proc: Processing | null; price: number | null; name: string; requiresPatchTest: boolean }
+  type ItemInput = { serviceId: string; stylist: StylistRef; offset: number; duration: number; proc: Processing | null; price: number | null; name: string; requiresPatchTest: boolean; /** Row 8: the client asked for this stylist (Fresha's heart). */ requested?: boolean }
   async function resolveItems(currentUser: any, raw: any, visitStylist: StylistRef, canMoney: boolean): Promise<{ items: ItemInput[] } | { problem: string; status: number; code: string; field?: string }> {
     const bad = (problem: string, code = 'BAD_ITEMS', status = 400) => ({ problem, status, code, field: 'items' })
     if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'multi_service_visits'))) return bad('Visits with several services are not switched on for this salon.', 'FEATURE_OFF', 409)
@@ -236,14 +246,16 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
       if (!Number.isInteger(duration) || duration < 1 || duration > 720) return bad(`Service ${n}: the length must be a whole number of minutes, 1 to 720.`)
       const offset = it.startOffsetMin != null && it.startOffsetMin !== '' ? Number(it.startOffsetMin) : cursor
       if (!Number.isInteger(offset) || offset < 0) return bad(`Service ${n}: the start must be a whole number of minutes from the visit's start.`)
-      const proc: Processing | null = svc.processingMin && svc.processingMin > 0 && svc.processingAfterMin != null && svc.processingAfterMin + svc.processingMin <= duration
+      const seq = asSegments((svc as any).segments)
+      const proc: Processing | null = seq && seq.reduce((t, x) => t + x.minutes, 0) === duration ? { afterMin: null, min: null, segments: seq }
+        : svc.processingMin && svc.processingMin > 0 && svc.processingAfterMin != null && svc.processingAfterMin + svc.processingMin <= duration
         ? { afterMin: svc.processingAfterMin, min: svc.processingMin } : null
       let price: number | null = svc.price != null ? Number(svc.price) : null
       if (canMoney && it.price != null && it.price !== '') {
         if (isNaN(Number(it.price)) || Number(it.price) < 0) return bad(`Service ${n}: the price cannot be negative.`)
         price = Number(it.price)
       }
-      out.push({ serviceId: svc.id, stylist, offset, duration, proc, price, name: svc.name || 'Service', requiresPatchTest: !!svc.requiresPatchTest })
+      out.push({ serviceId: svc.id, stylist, offset, duration, proc, price, name: svc.name || 'Service', requiresPatchTest: !!svc.requiresPatchTest, requested: it.requestedStylist === true })
       cursor = Math.max(cursor, offset + duration)
     }
     // Two services of the same stylist cannot overlap inside the visit itself.
@@ -537,7 +549,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           station: body.station || null,
           startTime,
           endTime,
-          processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null,
+          processingAfterMin: proc?.afterMin ?? null, processingMin: proc?.min ?? null, segments: proc?.segments ?? null,
           quotedPrice: body.quotedPrice ?? null,
           notes: [patchNote, body.notes, overrodeClash ? `Booked over a clash: ${overridingClash}` : null].filter(Boolean).join(' — ') || null,
           companyId: currentUser.companyId,
@@ -546,7 +558,8 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
           await tx.insert(appointmentItem).values(itemList.map((i, position) => ({
             companyId: currentUser.companyId, appointmentId: apptId, position, serviceId: i.serviceId,
             stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId,
-            startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, price: i.price != null ? String(i.price) : null,
+            startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, segments: i.proc?.segments ?? null, price: i.price != null ? String(i.price) : null,
+            requestedStylist: !!i.requested,
           })) as any)
         }
         return row
@@ -561,6 +574,68 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     live.emitToCompany(currentUser.companyId, live.EVENTS.REFRESH, { entity: 'appointment' })
     const made201 = itemList ? (await itemsOf(currentUser.companyId, [created.id])).get(created.id) : undefined
     return one(c, { ...named(created), ...(made201 ? { items: made201 } : {}) }, 201)
+  })
+
+  /**
+   * CHANGE A BOOKED SEVERAL-SERVICE VISIT (salon parity row 8; Fresha, Square; feature visit_editing, not ready): the visit's services
+   * replaced by `items` — add, remove, re-time (each its own start, so services may run at the same time), re-assign, and the client's
+   * requested stylist per service — with exactly the checks a new visit gets: each stylist's clash (this visit's own time ignored),
+   * blocked time, own chair, patch tests are the booking's. A one-service appointment may become a visit this way. The visit runs from
+   * the first start to the last end; its price is the services' sum (a seat that sets no prices gets the menu's). Not once it is done.
+   *   PUT /api/appointments/:id/services   { items: [{ serviceId, stylistId?, startOffsetMin?, durationMin?, price?, requestedStylist? }], startTime?, overrideBlock? }
+   */
+  app.put('/:id/services', requirePermission('schedule:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'visit_editing'))) return fail(c, 404, 'Not found')
+    const id = c.req.param('id')
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    const [existing]: AppointmentRow[] = await db.select().from(appointment).where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId))).limit(1)
+    if (!existing) return fail(c, 404, 'Appointment not found')
+    if (['completed', 'cancelled', 'no_show'].includes(existing.status)) return fail(c, 400, `This visit is ${existing.status.replace('_', ' ')}; its services are a record now.`, 'VISIT_CLOSED')
+    const own = await book.ownChairOf(currentUser)
+    if (own && !isOwnChair(own, existing)) return notInBook(c)
+    const visitStylist: StylistRef = { stylistId: existing.stylistId ?? null, stylistMemberId: existing.stylistMemberId ?? null }
+    const got = await resolveItems(currentUser, body.items, visitStylist, await canSeeMoney(currentUser))
+    if ('problem' in got) return fail(c, got.status as any, got.problem, got.code, got.field ? { [got.field]: got.problem } : undefined)
+    const itemList = got.items
+    if (own && itemList.some((i) => !isOwnChair(own, i.stylist))) return notYourChair(c)
+    const startTime = body.startTime ? new Date(body.startTime) : new Date(existing.startTime)
+    if (Number.isNaN(startTime.getTime())) return fail(c, 400, 'startTime is not a valid date')
+    const endTime = new Date(startTime.getTime() + Math.max(...itemList.map((i) => i.offset + i.duration)) * 60_000)
+    if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
+    const blocksOn = !body.overrideBlock && await d.features.isFeatureEnabled(currentUser.companyId, 'book_grid')
+    const price = Math.round(itemList.reduce((t, i) => t + (i.price ?? 0), 0) * 100) / 100
+    try {
+      await db.transaction(async (tx: any) => {
+        await lockAppointmentBook(tx, currentUser.companyId)
+        const clash = await itemsConflict(currentUser.companyId, itemList, startTime, existing.id, tx)
+        if (clash) throw new ApptConflict(clash)
+        if (blocksOn) {
+          const why = await blockSentence(currentUser.companyId, itemList.map((i) => ({ stylist: i.stylist, start: new Date(startTime.getTime() + i.offset * 60_000), end: new Date(startTime.getTime() + (i.offset + i.duration) * 60_000), proc: i.proc })), tx)
+          if (why) throw new ApptConflict(why, 'BOOK_BLOCKED')
+        }
+        await tx.delete(appointmentItem).where(and(eq(appointmentItem.appointmentId, existing.id), eq(appointmentItem.companyId, currentUser.companyId)))
+        await tx.insert(appointmentItem).values(itemList.map((i, position) => ({
+          companyId: currentUser.companyId, appointmentId: existing.id, position, serviceId: i.serviceId,
+          stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId,
+          startOffsetMin: i.offset, durationMin: i.duration, processingAfterMin: i.proc?.afterMin ?? null, processingMin: i.proc?.min ?? null, segments: i.proc?.segments ?? null,
+          price: i.price != null ? String(i.price) : null, requestedStylist: !!i.requested,
+        })) as any)
+        await tx.update(appointment).set({
+          startTime, endTime, serviceId: itemList[0].serviceId, quotedPrice: String(price),
+          processingAfterMin: null, processingMin: null, segments: null, updatedAt: new Date(),
+        } as any).where(eq(appointment.id, existing.id))
+      })
+    } catch (err) {
+      if (err instanceof ApptConflict) return fail(c, 409, err.sentence, err.code)
+      throw err
+    }
+    const [row] = await db.select().from(appointment).where(eq(appointment.id, existing.id)).limit(1)
+    // Booked online: the booking holds the visit as it now is (row 9's basket), so online times hold each stylist for their own service.
+    await carryServicesToBooking(db, { id: existing.id, companyId: currentUser.companyId, startTime: row.startTime, endTime: row.endTime }, itemList.map((i) => ({ serviceId: i.serviceId, stylistId: i.stylist.stylistId, stylistMemberId: i.stylist.stylistMemberId, offset: i.offset, duration: i.duration, requested: i.requested, name: i.name })))
+    await audit.log({ action: 'update', entity: 'appointment', entityId: existing.id, metadata: { services: itemList.map((i) => i.name) }, req: { user: currentUser } })
+    d.realtime.emitToCompany(currentUser.companyId, d.realtime.EVENTS.REFRESH, { entity: 'appointment' })
+    return one(c, { ...named(row), items: (await itemsOf(currentUser.companyId, [existing.id])).get(existing.id) })
   })
 
   app.put('/:id', requirePermission('schedule:update'), async (c) => {
@@ -583,7 +658,7 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
         || ('serviceId' in body && String(body.serviceId ?? '') !== String(existing.serviceId ?? ''))
         || ('stylistId' in body && String(body.stylistId ?? '') !== String(stylistIdOf(existing) ?? ''))
         || (body.endTime && !('startTime' in body) && new Date(body.endTime).getTime() !== new Date(existing.endTime ?? 0).getTime())
-      if (changesServices) return fail(c, 409, 'This visit has several services. You can move it, check it in, complete or cancel it; to change its services or their lengths, cancel it and book it again.', 'VISIT_HAS_SERVICES')
+      if (changesServices) return fail(c, 409, (await d.features.isFeatureEnabled(currentUser.companyId, 'visit_editing')) ? 'This visit has several services: change them with Edit services (PUT /api/appointments/:id/services).' : 'This visit has several services. You can move it, check it in, complete or cancel it; to change its services or their lengths, cancel it and book it again.', 'VISIT_HAS_SERVICES')
     }
     // Whitelisted — companyId and id are never set from the body.
     const updates: Record<string, any> = { updatedAt: new Date() }
@@ -644,13 +719,16 @@ export function createAppointmentRoutes(d: CrmDeps, salon: SalonServices) {
     if (nextEnd.getTime() - nextStart.getTime() > MAX_APPT_MS) return fail(c, 400, 'An appointment cannot run longer than 12 hours.')
 
     // The processing gap: as booked, unless the service changed (the new service's) or the desk set one for this visit.
-    let nextProc: Processing | null = existing.processingMin && existing.processingMin > 0 ? { afterMin: existing.processingAfterMin ?? 0, min: existing.processingMin } : null
-    if (!itemised && ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body)) {
+    // Row 7: an appointment booked with steps keeps them (cut at its end if it is shortened — piecesOf).
+    let nextProc: Processing | null = asSegments((existing as any).segments) ? { afterMin: null, min: null, segments: asSegments((existing as any).segments) }
+      : existing.processingMin && existing.processingMin > 0 ? { afterMin: existing.processingAfterMin ?? 0, min: existing.processingMin } : null
+    if (!itemised && ('serviceId' in updates || 'processingMin' in body || 'processingAfterMin' in body || 'segments' in body)) {
       const got = await processingFor(currentUser.companyId, nextService ?? null, body, Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000))
       if ('problem' in got) return fail(c, 400, got.problem, 'BAD_PROCESSING', { processingMin: got.problem })
       nextProc = got.proc
       updates.processingAfterMin = got.proc?.afterMin ?? null
       updates.processingMin = got.proc?.min ?? null
+      updates.segments = got.proc?.segments ?? null
     }
     const nextStation = 'station' in updates ? updates.station : existing.station
     const checkBlocks = !body.overrideBlock && ('startTime' in updates || 'endTime' in updates || 'stylistId' in updates) && !CANCELLED.includes(nextStatus)

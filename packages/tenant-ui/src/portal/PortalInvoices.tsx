@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import { Receipt, Download, AlertCircle, CheckCircle, Clock, CreditCard } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { PortalPaymentModal } from './PaymentForm'
-import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate, formatWhen, moneyShort } from './common'
+import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate, formatWhen, moneyShort, money } from './common'
 import { isPastDay } from '../invoicing/ui'
 import { codeLabel } from '../labels/codes'
 
@@ -35,6 +35,9 @@ export interface PortalInvoiceData {
   payOnline?: boolean
   /** Row 16: the customer may choose how much to pay (portal.ts payOptions). */
   partPayment?: boolean
+  /** Contractor parity row 12: tips taken online, and the invoice's payment plan. */
+  tips?: boolean
+  plan?: { installments: Array<{ id: string; dueDate: string; amount: number; paid: number; owed: number; state: string }>; next: { dueDate: string; owed: number } | null }
   [key: string]: unknown
 }
 
@@ -175,7 +178,18 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
             </div>
           </div>
         )}
-        {(invoice.payments?.length ?? 0) > 0 && (
+        {invoice.plan && invoice.plan.installments.length > 0 && (
+        <div className="p-6 border-t dark:border-slate-700" data-testid="payment-plan">
+          <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment plan</h3>
+          <div className="space-y-2">{invoice.plan.installments.map((p) => (
+            <div key={p.id} className="flex justify-between text-sm py-1 border-b last:border-0 dark:border-slate-800">
+              <span className="text-gray-800 dark:text-slate-200">Due {p.dueDate}</span>
+              <span className="text-gray-900 dark:text-slate-100">{money(p.amount)} · {p.state === 'paid' ? 'paid' : p.state === 'part paid' ? `${money(p.owed)} left` : p.state}</span>
+            </div>
+          ))}</div>
+        </div>
+      )}
+      {(invoice.payments?.length ?? 0) > 0 && (
           <div className="p-6 border-t dark:border-slate-700">
             <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment History</h3>
             <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatWhen(p.paidAt, company?.timeZone)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {codeLabel(p.method)}</span></div><span className="font-medium text-green-700 dark:text-green-300">{moneyShort(p.amount)}</span></div>)}</div>
@@ -183,7 +197,7 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
         )}
         <div className="p-6 bg-gray-100 border-t dark:bg-slate-800 dark:border-slate-700"><p className="text-sm text-gray-600 dark:text-slate-400">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>
       </div>
-      {token && <PortalPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} invoiceId={invoice.id} amount={Number(invoice.balance)} allowPart={!!invoice.partPayment} {...(link ? { linkToken: token } : { portalToken: token })} primaryColor={company?.primaryColor || undefined} onSuccess={() => { setShowPayment(false); load() }} />}
+      {token && <PortalPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} invoiceId={invoice.id} amount={Number(invoice.balance)} allowPart={!!invoice.partPayment} tips={!!invoice.tips} next={invoice.plan?.next ?? null} {...(link ? { linkToken: token } : { portalToken: token })} primaryColor={company?.primaryColor || undefined} onSuccess={() => { setShowPayment(false); load() }} />}
     </div>
   )
 }

@@ -568,6 +568,153 @@
       "when": 1793999461743,
       "tag": "0080_roof_invoice_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1794000857910,
+      "tag": "0081_roof_pipeline_boards",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1794001375417,
+      "tag": "0082_roof_job_statuses",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1794003350552,
+      "tag": "0083_roof_portal_posts",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1794004651266,
+      "tag": "0084_roof_territory_parent",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1794005798795,
+      "tag": "0085_roof_storm_swaths",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1794006568497,
+      "tag": "0086_roof_work_order_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1794007038449,
+      "tag": "0087_roof_work_order_send_options",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794007781040,
+      "tag": "0088_roof_crew_scheduling",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794013722121,
+      "tag": "0089_contractor_shared_allowances",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1794015282262,
+      "tag": "0090_contractor_template_parts",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1794016858316,
+      "tag": "0091_contractor_formulas",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1794018290255,
+      "tag": "0092_contractor_client_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1794019149901,
+      "tag": "0093_contractor_payment_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1794019764717,
+      "tag": "0094_contractor_sign_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1794026163167,
+      "tag": "0095_contractor_payment_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1794027658491,
+      "tag": "0096_salon_service_segments",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1794029098116,
+      "tag": "0097_salon_visit_editing",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1794029282821,
+      "tag": "0098_salon_record_per_service",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1794031513237,
+      "tag": "0099_booking_basket",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1794033849282,
+      "tag": "0100_salon_phone_charge",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1794035159060,
+      "tag": "0101_booking_rwg_token",
+      "breakpoints": true
     }
   ]
 }

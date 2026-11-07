@@ -18,13 +18,13 @@ export const rowCache = new Map<string, any>()
 export interface Row { open?: { spec: string; id: string }; key: string; title: string; subtitle?: string; meta?: string; badge?: string; tone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }
 export interface Field { label: string; get: (d: any) => string | undefined | null; money?: boolean }
 export interface Link { label: string; url: string; icon?: string; /** Opens a screen of the app instead of a link (the after-photo form). */ route?: string; /** Driving directions to this address in the crew's chosen maps app (./directions.ts). */ directions?: string }
-export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** …and only while this one is OFF (a section another switch replaces). */ unlessFeature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
+export interface Section { /** Drawn only while this business switch is on (the server route behind it asks the same). */ feature?: string; /** …and only for a seat with one of these (a section that opens a screen the server gates on them). */ any?: string[]; /** …and only while this one is OFF (a section another switch replaces). */ unlessFeature?: string; /** tap to call / text / email */ links?: (d: any) => Link[]; title?: string; fields?: Field[]; /** a list inside the detail (lines of a menu, visits, vaccines …) */ rows?: (d: any) => Row[]; empty?: string }
 /**
  * kind 'level' is a fill level: a number of percent from 0 to 100 (empty = not used) — the phone's draggable slider.
  * kind 'levels' is ANY NUMBER of them (parity row 15): the value is a JSON list of percents, one per open bottle; + adds a bottle, each has its slider and a remove.
  */
 export interface Input {
-  id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level' | 'levels'; choices?: string[]; required?: boolean; initial?: (d: any) => string
+  id: string; label: string; kind?: 'text' | 'number' | 'multiline' | 'choice' | 'level' | 'levels' | 'photos'; choices?: string[]; required?: boolean; initial?: (d: any) => string
   /** Asked only while this business switch is on (a box the server reads only then); otherwise left out of the sheet. */
   feature?: string
   /** Choices the SERVER offers for this row (the carrier's rates): fetched when the sheet opens; the person picks a label, the call gets its value. */
@@ -102,6 +102,12 @@ export const fillDates = (query: Record<string, string>, now = new Date()): Reco
   const values: Record<string, string> = { '{dayStart}': start.toISOString(), '{dayEnd}': end(1), '{weekEnd}': end(7) }
   return Object.fromEntries(Object.entries(query).map(([k, v]) => [k, values[v] ?? v]))
 }
+/** A list path with {name} parts filled from (and taken out of) the query; null when one is missing (the list waits). */
+export const fillPath = (path: string, query: Record<string, string>): string | null => {
+  let missing = false
+  const out = path.replace(/\{(\w+)\}/g, (_, k) => { const v = query[k]; if (!v) { missing = true; return '' } delete query[k]; return encodeURIComponent(v) })
+  return missing ? null : out
+}
 export const unwrap = (b: any) => (b && typeof b === 'object' && 'data' in b && !Array.isArray(b.data) && b.data && typeof b.data === 'object' ? b.data : b)
 export const words = (s: unknown) => String(s ?? '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 export const money = (v: unknown) => (v == null || v === '' ? undefined : `$${(Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
@@ -117,6 +123,17 @@ export const calDay = (v: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exe
 export const hhmm = (v: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? '')); if (!m) return undefined; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}` }
 
 /** Is a save of this record still on the phone (waiting, sending or refused)? `queue` is the offline queue's items. */
+/**
+ * kind 'photos' (contractor parity row 11): pictures taken or picked on the phone. The value is a JSON list of the camera's file
+ * addresses; an action puts them in its body as `$photos` { uploadTo, uris } (photosBody), and the offline queue uploads each
+ * file just before the save goes (src/offline/localPhotos.ts) — so a photo taken with no signal is sent with the save, once.
+ */
+export const photoUris = (v: string | undefined): string[] => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : [] } catch { return [] } }
+export const photosBody = (uploadTo: string, v: string | undefined, rest: Record<string, unknown> = {}) => {
+  const uris = photoUris(v)
+  return uris.length ? { ...rest, $photos: { uploadTo, uris } } : rest
+}
+
 export const isWaiting = (queue: Array<{ recordKey?: string }> | undefined, key: string | undefined) => !!key && !!queue?.some((i) => i.recordKey === key)
 /** A row as the list draws it while one of its saves is on the phone: said as waiting, never as done (src/offline/README.md). */
 export const asWaiting = <R extends Row>(r: R, waiting: boolean): R => (waiting ? { ...r, badge: 'Waiting to send', tone: 'warning' } : r)

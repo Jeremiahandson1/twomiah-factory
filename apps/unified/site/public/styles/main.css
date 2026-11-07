@@ -479,6 +479,13 @@ a[href^="mailto:"], .contact-section__value, address, p a, dd a, td a { overflow
 .book-zip input { display: block; margin-top: 6px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; max-width: 140px; }
 .book-who label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 18px; }
 .book-who select { display: block; margin-top: 6px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; max-width: 280px; background: #fff; }
+/* Several services in one booking (salon parity row 9). */
+.book-also { margin-bottom: 18px; }
+.book-also__row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.book-also__row select { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; background: #fff; min-width: 0; flex: 1 1 180px; max-width: 280px; }
+.book-also__remove { border: 1px solid var(--line); background: #fff; border-radius: 8px; width: 40px; height: 40px; font-size: 20px; line-height: 1; cursor: pointer; color: var(--ink-soft); }
+.book-also__add { background: none; border: 0; padding: 4px 0; color: var(--brand); font: inherit; font-size: 15px; cursor: pointer; text-decoration: underline; }
+.book-also__hint { font-size: 13px; color: var(--ink-soft); margin: 4px 0 0; }
 .book-dates { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .book-date { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; cursor: pointer; text-align: center; display: flex; flex-direction: column; gap: 4px; font-family: inherit; transition: border-color .15s, background .15s; }
 .book-date:hover { border-color: var(--brand); }

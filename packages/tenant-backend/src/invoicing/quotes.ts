@@ -18,6 +18,8 @@ import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 import { customerLines } from './itemCodes'
+import { cleanParameters, workOut, type Parameter } from './formulas'
+import { quoteHasFormulas, parametersFor, formulaRefusal, recalculateQuote } from './quoteFormulas'
 import { includedLines, notIncludedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, proposalsLive, isPhotoAddress, optionBasis, UPGRADE, hasOptionDiscounts, lowestPrice, offersOptions, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_PROPOSAL_SETS, MAX_OPTION_PHOTOS, MAX_OPTION_UPGRADES, SET_KINDS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
 import { hasDocumentTables, documentSchema, attachmentsSchema, loadDocument, saveDocument, loadMarks, documentForOffice, storeProposalFile, attachedPdfBytes, cosignerRequired, cosignStatus, pdfExtras, withLinePictures } from './quoteDocument'
@@ -81,6 +83,12 @@ export interface QuoteOptions {
   proposalsEnabled?: (companyId: string) => Promise<boolean> | boolean
   /** May this business put a picture on a quote line? Asked when the lines are saved; absent, no line keeps one. */
   lineImagesEnabled?: (companyId: string) => Promise<boolean> | boolean
+  /**
+   * Formula estimating (contractor parity row 9, feature quote_formulas): parameters on the quote (and its project), line
+   * quantities and prices as formulas (formulas.ts), worked out by the server on every save. Only where the schema has the
+   * columns (quoteFormulas.ts quoteHasFormulas); absent or answering false, formulas are neither read nor written.
+   */
+  formulasEnabled?: (companyId: string) => Promise<boolean> | boolean
   /** Text lines (a heading or a note with no price) — feature quote_text_lines. Kept only where line kinds are (hasLineCost). */
   textLinesEnabled?: (companyId: string) => Promise<boolean> | boolean
   /**
@@ -205,6 +213,10 @@ const lineItemSchema = z.object({
   costCode: z.string().trim().max(60, 'A cost code is 60 characters or fewer').optional(),
   /** A picture on the line the customer sees (a web address or one of the business's own /media photos). Kept only where asked for (options.lineImagesEnabled). */
   imageUrl: z.string().trim().max(2000).refine((v) => v === '' || /^https:\/\/[^\s]+$/i.test(v) || /^\/media\/[^\s]+$/.test(v), 'The picture must be a web address (https://…) or an uploaded photo').optional(),
+  /** Formula estimating (row 9; options.formulasEnabled): the line's name for other formulas, and its quantity / price formulas. */
+  formulaKey: z.string().trim().max(40).optional(),
+  quantityFormula: z.string().trim().max(500, 'A formula is 500 characters or fewer').optional(),
+  priceFormula: z.string().trim().max(500, 'A formula is 500 characters or fewer').optional(),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
@@ -223,7 +235,7 @@ const isOpt = (i: { optional?: boolean }) => !!i.optional
 const asTextLine = <T extends Record<string, any>>(item: T): T => (item?.type === 'text'
   ? { ...item, quantity: 1, unitPrice: 0, unitCost: undefined, markupPct: undefined, optional: false, selected: true, allowance: false, imageUrl: undefined, pricebookItemId: undefined }
   : item)
-const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false, hasImage = false) => items.map(asTextLine).map((item, i) => ({
+const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false, hasOptional = false, hasSections = false, hasImage = false, hasFormulas = false) => items.map(asTextLine).map((item, i) => ({
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -248,6 +260,12 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLine
   } : {}),
   // Only where the business has line pictures on (a template without the column, or the feature off, keeps none).
   ...(hasImage ? { imageUrl: item.imageUrl || null } : {}),
+  // Only where the business has formulas on (row 9): a text line has none.
+  ...(hasFormulas ? {
+    formulaKey: item.type === 'text' ? null : item.formulaKey || null,
+    quantityFormula: item.type === 'text' ? null : item.quantityFormula || null,
+    priceFormula: item.type === 'text' ? null : item.priceFormula || null,
+  } : {}),
 }))
 /** The lines that count, for a quote whose lines may be optional (quoteOptions.ts) — every line where none can be. */
 const counted = (items: z.infer<typeof lineItemSchema>[], hasOptional: boolean) => (hasOptional ? includedLines(items.map((i) => ({ ...i, optional: isOpt(i), selected: isOpt(i) ? !!i.selected : true }))) : items)
@@ -362,6 +380,31 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   }
   const billable = (rows: any[]) => (hasOptional ? includedLines(rows) : rows)
 
+  // Formula estimating (row 9): the columns are this app's (quoteFormulas.ts); the feature is the business's.
+  const schemaHasFormulas = quoteHasFormulas(t as any)
+  const formulasOn = async (cid: string) => schemaHasFormulas && !!(await o.formulasEnabled?.(cid))
+  /**
+   * The quote's formulas worked out into its lines' quantities and prices, before anything is totalled — or the refusal in
+   * words. Off, a body's parameters and formulas are dropped (nothing is written). With no lines in an edit, the stored lines
+   * are checked against the new parameters, so a change that breaks one is refused before it is saved.
+   */
+  const applyFormulas = async (cid: string, data: any, existing: any | null): Promise<{ error: string; formulaError?: { line: number; message: string } } | null> => {
+    if (!(await formulasOn(cid))) { delete data.parameters; return null }
+    let own: Parameter[] | undefined
+    if (data.parameters !== undefined) {
+      const clean = cleanParameters(data.parameters)
+      if ('error' in clean) return { error: clean.error }
+      data.parameters = own = clean.parameters
+    }
+    const params = await parametersFor(db, t as any, cid, { projectId: data.projectId ?? existing?.projectId ?? null, parameters: existing?.parameters }, own)
+    const lines = Array.isArray(data.lineItems) ? data.lineItems : data.parameters !== undefined && existing ? await lineRows(existing.id) : null
+    if (!lines) return null
+    const worked = workOut(lines.map((l: any) => ({ ...l, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })), params)
+    if (worked.firstError) return { error: formulaRefusal(lines, worked.firstError), formulaError: worked.firstError }
+    if (Array.isArray(data.lineItems)) data.lineItems = data.lineItems.map((l: any, i: number) => ({ ...l, ...(worked.results[i].quantity !== undefined ? { quantity: worked.results[i].quantity } : {}), ...(worked.results[i].unitPrice !== undefined ? { unitPrice: worked.results[i].unitPrice } : {}) }))
+    return null
+  }
+
   const quoteSchema = z.object({
     name: z.string().min(1),
     contactId: optionalId,
@@ -380,6 +423,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     terms: z.string().optional(),
     lineItems: z.array(lineItemSchema).default([]),
     status: z.enum(QUOTE_STATUSES).optional(),
+    // Formula estimating (row 9): the quote's own parameters, checked by formulas.ts cleanParameters.
+    ...(schemaHasFormulas ? { parameters: z.array(z.any()).max(100).optional() } : {}),
     ...(hasDeposit ? { depositType: z.enum(['percent', 'fixed']).nullable().optional(), depositValue: z.number().nullable().optional() } : {}),
   })
   /** The deposit columns an edit writes, or the refusal — checked against the total the quote will have. */
@@ -521,6 +566,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       data.lineItems = priced.lines
     }
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    const formulaProblem = await applyFormulas(cid, data, null)
+    if (formulaProblem) return c.json({ error: formulaProblem.error, fields: { lineItems: formulaProblem.error }, ...(formulaProblem.formulaError ? { formulaError: formulaProblem.formulaError } : {}) }, 400)
+    const withFormulas = await formulasOn(cid)
     // Who the quote is for: the customer named (never a vendor — the invoice it becomes would bill one), else the
     // project's (contacts/customer.ts).
     const forWhom = await resolveCustomer(db, t, cid, { contactId: data.contactId, projectId: data.projectId })
@@ -562,6 +610,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       else if (!(await ownSalesperson(cid, data.salespersonId))) return c.json({ error: 'Choose the salesperson from your team.', fields: { salespersonId: 'Choose the salesperson from your team.' } }, 400)
     }
     Object.assign(values, deposit)
+    if (withFormulas && data.parameters !== undefined) values.parameters = data.parameters
     // Who wrote it, for the per-person conversion report — only where the table has the column (additive for the templates).
     if (currentUser.userId && 'createdById' in t.quote) values.createdById = currentUser.userId
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
@@ -571,7 +620,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const result = await db.transaction(async (tx: any) => {
       values.number = await nextNumber(tx, t.quote, t.quote.number, t.quote.companyId, cid, numQuote)
       const [created] = await tx.insert(t.quote).values(values).returning()
-      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections, withImages)).returning() : []
+      const items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, created.id, !!o.hasLineCost, hasOptional, hasSections, withImages, withFormulas)).returning() : []
       return { ...created, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_CREATED, forBroadcast(result))
@@ -617,6 +666,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // Once a customer has approved (or declined) a quote it is a record, not a draft. Signed acceptances must not be mutable.
     if (!EDITABLE.includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    const formulaProblem = await applyFormulas(cid, data, existing)
+    if (formulaProblem) return c.json({ error: formulaProblem.error, fields: { lineItems: formulaProblem.error }, ...(formulaProblem.formulaError ? { formulaError: formulaProblem.formulaError } : {}) }, 400)
+    const withFormulas = await formulasOn(cid)
     // The same rule on an edit; '' from the form is "not said" here (the schema's optionalId), as it always was.
     const forWhom = await resolveCustomer(db, t, cid, { contactId: data.contactId || undefined, projectId: data.projectId }, existing)
     if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
@@ -631,6 +683,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       else if (!(await ownSalesperson(cid, data.salespersonId))) return c.json({ error: 'Choose the salesperson from your team.', fields: { salespersonId: 'Choose the salesperson from your team.' } }, 400)
     }
     if (exp.value !== undefined) update.expiryDate = exp.value
+    if (withFormulas && data.parameters !== undefined) update.parameters = data.parameters
     // status may move between draft and sent from the editor; approvals go through their own routes
     if (data.status && SETTABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
     const recompute = data.lineItems !== undefined || data.taxRate !== undefined || data.discount !== undefined
@@ -677,7 +730,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (data.lineItems !== undefined) {
         // The lines every option shares are replaced; a proposal option's own lines are not (PUT /:id/proposal changes those).
         await tx.delete(t.quoteLineItem).where(hasProposal ? and(eq(t.quoteLineItem.quoteId, id), isNull(t.quoteLineItem.proposalOptionId)) : eq(t.quoteLineItem.quoteId, id))
-        if (data.lineItems.length) await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections, withImages))
+        if (data.lineItems.length) await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id, !!o.hasLineCost, hasOptional, hasSections, withImages, withFormulas))
         items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
       // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
       // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
@@ -690,7 +743,13 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       }
       return { ...updated, lineItems: items }
     })
-    const shaped = await withProposal(result)
+    // New parameters and no lines sent: the stored formula lines are worked out again (checked above, before the save).
+    let final: any = result
+    if (withFormulas && data.parameters !== undefined && data.lineItems === undefined) {
+      const again = await recalculateQuote(db, t as any, cid, id)
+      if (again && !('error' in again)) final = { ...again.quote, lineItems: again.lineItems }
+    }
+    const shaped = await withProposal(final)
     emitToCompany(cid, EVENTS.QUOTE_UPDATED, forBroadcast(shaped))
     return c.json(forCaller(shaped, seesCost, true))
   })

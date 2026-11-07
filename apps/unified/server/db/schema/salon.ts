@@ -1,3 +1,4 @@
+import { serviceRecordItemKey } from '../../data/indexWhere.ts'
 // Salon add-on: the service menu, client profiles and formulas, service records, client accounts and memberships.
 // Column for column from templates/crm-salon/backend/db/schema.ts.
 import { pgTable, text, boolean, integer, decimal, timestamp, date, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
@@ -133,6 +134,8 @@ export const serviceMenu = pgTable('service_menu', {
   bookableOnline: boolean('bookable_online').default(false).notNull(),  // offered on the public booking widget (SALON-N4)
   /** Processing time (colour): the stylist is free for `processingMin` minutes starting `processingAfterMin` minutes in. Null = hands-on throughout. */
   processingAfterMin: integer('processing_after_min'),
+  /** Salon parity row 7 (service_segments): the steps in order [{ kind: service | processing | blocked | extra, minutes }]; wins over the single gap. */
+  segments: json('segments'),
   processingMin: integer('processing_min'),
   /** This service's own no-show / late-cancel fee (salon parity row 4): whole cents or a percent of its price; null = the salon's fee. */
   noShowFeeCents: integer('no_show_fee_cents'),
@@ -154,6 +157,8 @@ export const serviceRecord = pgTable('service_record', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
   appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  /** Salon parity row 8: the service of a several-service visit this record is for — one record per service, each stylist's own formula. */
+  appointmentItemId: text('appointment_item_id'),
   stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
   // Same reason as on `appointment`: the person who did the work may be roster-only. (Salon T20 H1)
   stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
@@ -184,7 +189,9 @@ export const serviceRecord = pgTable('service_record', {
   // completions wrote three, and the client's visit count, last-visit date and rebooking history
   // were all inflated by the difference. A visit logged without an appointment carries NULL here and
   // is unaffected. (LY0928 H1)
-  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId),
+  // Row 8: one record per appointment per SERVICE of a several-service visit (appointment_item_id); a record with none is still one per
+  // appointment. Visit counts count distinct appointments (data/salon.ts), so a visit is never counted twice.
+  uniqueIndex('service_record_appointment_unique').on(t.companyId, t.appointmentId, serviceRecordItemKey),
 ])
 
 // ── Card on file (gap #1) ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -327,8 +334,12 @@ export const appointmentItem = pgTable('appointment_item', {
   startOffsetMin: integer('start_offset_min').notNull(),
   durationMin: integer('duration_min').notNull(),
   processingAfterMin: integer('processing_after_min'),
+  /** Salon parity row 7 (service_segments): the steps in order [{ kind: service | processing | blocked | extra, minutes }]; wins over the single gap. */
+  segments: json('segments'),
   processingMin: integer('processing_min'),
   price: decimal('price', { precision: 10, scale: 2 }),
+  /** Salon parity row 8 (visit_editing): the client asked for this stylist for this service (Fresha's heart). */
+  requestedStylist: boolean('requested_stylist').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('appointment_item_appointment_id_idx').on(t.appointmentId),
@@ -709,7 +720,10 @@ export const salonTerminalCharge = pgTable('salon_terminal_charge', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
-  readerId: text('reader_id').notNull().references(() => salonReader.id, { onDelete: 'cascade' }),
+  /** The reader it went to; null for a card tapped on the phone (salon parity row 26, Tap to Pay). */
+  readerId: text('reader_id').references(() => salonReader.id, { onDelete: 'cascade' }),
+  /** 'reader' | 'phone' (Tap to Pay on the stylist's or the desk's phone). */
+  source: text('source').notNull().default('reader'),
   stripeAccount: text('stripe_account').notNull(),
   paymentIntentId: text('payment_intent_id').notNull(),
   /** What goes on the sale, in cents (without the tip). */

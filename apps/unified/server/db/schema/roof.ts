@@ -20,6 +20,11 @@ export const crew = pgTable('crew', {
   // What the crew is paid per square (100 sq ft) of roof: the job's crew cost is this times the job's squares (job costing,
   // server/crm/roof/jobCosts.ts). Null: not set, so the crew's cost on a job is not known — never read as free.
   payPerSquare: decimal('pay_per_square', { precision: 10, scale: 2 }),
+  // Roofing parity row 27 (work_order_send_options): whether this crew is asked to accept a work order (off: it is accepted on send).
+  requiresApproval: boolean('requires_approval').default(true).notNull(),
+  // Row 28 (crew_scheduling): the crew's trades, and its certificates with their expiry ([{ name, expiresOn: 'YYYY-MM-DD' }]).
+  trades: json('trades').default([]).notNull(),
+  certificates: json('certificates').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -352,6 +357,9 @@ export const stormEvent = pgTable('storm_event', {
   source: text('source').default('manual').notNull(),
   /** Where the storm fell, drawn on the map (field/geo.ts StormPath: a polygon or a circle). Null: by zip only. */
   path: json('path'),
+  // Roofing parity row 25 (storm_data_tools): what a hail-data provider's swath carries besides the shape and the sizes.
+  severity: text('severity'),
+  rainfallInches: decimal('rainfall_inches', { precision: 5, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('storm_event_company_id_idx').on(t.companyId),
@@ -459,6 +467,8 @@ export const canvassTerritory = pgTable('canvass_territory', {
   zips: json('zips').default([]).notNull(),
   stormEventId: text('storm_event_id').references(() => stormEvent.id, { onDelete: 'set null' }),
   notes: text('notes'),
+  // Roofing parity row 23 (territory_tools): the territory it belongs to (Spotio "Belongs To") — a hierarchy, not a shape rule.
+  parentId: text('parent_id').references((): AnyPgColumn => canvassTerritory.id, { onDelete: 'set null' }),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -543,6 +553,18 @@ export const stormRadarEventMatch = pgTable('storm_event_match', {
  * pays. `photo_ids` are the job photos shared with the crew; `completion_photo_ids` the ones the crew took, which are also
  * the job's own photos. The link stops answering at `token_expires_at`.
  */
+/** A saved scope / instructions for work orders (roofing parity row 26; Roofr Work Orders 2.0; work_order_tools, not ready). */
+export const workOrderTemplate = pgTable('work_order_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  scope: text('scope').notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('work_order_template_company_id_idx').on(t.companyId),
+])
+
 export const workOrder = pgTable('work_order', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -560,6 +582,22 @@ export const workOrder = pgTable('work_order', {
   materialLines: json('material_lines').default([]).notNull(),
   photoIds: json('photo_ids').default([]).notNull(),
   // draft → sent → accepted | rejected → completed; cancelled by the office from any stage short of completed.
+  // Row 27 (work_order_send_options, not ready; Roofr + AccuLynx): approval for this order (null: the crew's), email and CC, the
+  // crew page in Spanish with the office's Spanish scope, how long the link lasts, and what the sub may see.
+  requiresApproval: boolean('requires_approval'),
+  recipientEmail: text('recipient_email'),
+  ccEmails: json('cc_emails').default([]).notNull(),
+  language: text('language').default('en').notNull(),
+  scopeEs: text('scope_es'),
+  linkDays: integer('link_days'),
+  showMaterials: boolean('show_materials').default(true).notNull(),
+  showPhotos: boolean('show_photos').default(true).notNull(),
+  // Row 28 (crew_scheduling, not ready; AccuLynx Crew App): the on-site checklist ([{ id, text }]) and what the crew ticked
+  // ({ [id]: at }), and when they arrived and left (attendance; arriving sets "in progress").
+  checklist: json('checklist').default([]).notNull(),
+  checks: json('checks').default({}).notNull(),
+  arrivedAt: timestamp('arrived_at'),
+  leftAt: timestamp('left_at'),
   status: text('status').default('draft').notNull(),
   publicToken: text('public_token'),
   tokenExpiresAt: timestamp('token_expires_at'),
@@ -592,6 +630,68 @@ export const roofPipelineConfig = pgTable('roof_pipeline_config', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('roof_pipeline_config_company_id_idx').on(t.companyId),
+])
+
+/**
+ * A company's own pipeline boards (roofing parity row 19; JobNimbus boards; feature pipeline_custom_boards, not ready): as many as it
+ * likes, each a name and colour over the same stages, showing the jobs that match its filters — job types (none = every type), the
+ * assignee, the sales rep, the location, the subcontractor (each a list; empty = any). Seen by everyone, just its owner, or chosen
+ * roles. Display only: a job's stage, texts and rules never read a board. server/crm/roof/pipeline.ts boardMatches.
+ */
+/**
+ * A company's own statuses under a fixed milestone, each with its checklist (roofing parity row 20; AccuLynx Workflow Manager;
+ * feature pipeline_statuses, not ready). The eleven milestones stay the keys the texts, reviews and "paid → Collected" hang on; a
+ * status is a step inside one ("Claim filed", "Adjuster met" under Inspected), for every job type or only some (`jobTypes`, empty =
+ * all). `checklist`: [{ id, text }]. A job's status and what it ticked live on the job (job.roof_status_id, roof_status_checks).
+ */
+/**
+ * A message thread on a job, between the homeowner (their portal's project page) and the office (roofing parity row 22; AccuLynx portal
+ * posts; feature portal_posts_packets, not ready). `fromHomeowner` says who wrote it; `readAt` is when the other side read it.
+ */
+export const roofJobPost = pgTable('roof_job_post', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  fromHomeowner: boolean('from_homeowner').default(false).notNull(),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  body: text('body').notNull(),
+  readAt: timestamp('read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_job_post_job_id_idx').on(t.jobId),
+  index('roof_job_post_company_id_idx').on(t.companyId),
+])
+
+export const roofJobStatus = pgTable('roof_job_status', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  milestone: text('milestone').notNull(),
+  name: text('name').notNull(),
+  jobTypes: json('job_types').default([]).notNull(),
+  checklist: json('checklist').default([]).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_job_status_company_id_idx').on(t.companyId),
+])
+
+export const roofPipelineBoard = pgTable('roof_pipeline_board', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  color: text('color').default('#ea580c').notNull(),
+  jobTypes: json('job_types').default([]).notNull(),
+  filters: json('filters').default({}).notNull(),
+  visibility: text('visibility').default('all').notNull(), // all, me, roles
+  roles: json('roles').default([]).notNull(),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'cascade' }),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_pipeline_board_company_id_idx').on(t.companyId),
 ])
 
 /**

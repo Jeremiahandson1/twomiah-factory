@@ -15,10 +15,14 @@ import { bookingTextFor, type BookingTexts } from './texts.ts'
 /** The public site's address: links in messages point at it. */
 export const siteOrigin = () => String(process.env.SITE_URL || process.env.FRONTEND_URL || '').replace(/\/+$/, '')
 
+/** What was booked, in words: several services (salon row 9) by their names, one after another. */
+export const bookedName = (b: Pick<BookingRow, 'basket'>, svc: ServiceRow | null) =>
+  Array.isArray(b.basket) && b.basket.length > 1 && b.basket.every((x) => x.name) ? b.basket.map((x) => x.name).join(' + ') : svc?.name || 'Booking'
+
 export function messageFor(b: BookingRow, svc: ServiceRow | null, s: SettingsRow, extra: Partial<BookingMessage> = {}): BookingMessage {
   const tz = safeTz(s.timezone)
   return {
-    serviceName: svc?.name || 'Booking', when: whenText(b.startAt, tz),
+    serviceName: bookedName(b, svc), when: whenText(b.startAt, tz),
     customerName: b.customerName, customerEmail: b.customerEmail, customerPhone: b.customerPhone, customerAddress: b.customerAddress, customerNotes: b.customerNotes,
     manageUrl: `${siteOrigin()}/booking/${b.token}`,
     ...extra,
@@ -26,7 +30,7 @@ export function messageFor(b: BookingRow, svc: ServiceRow | null, s: SettingsRow
 }
 
 export const icsOf = (b: BookingRow, svc: ServiceRow | null, companyName: string, cancelled = false) => icsFor({
-  uid: `booking-${b.id}@twomiah`, summary: `${svc?.name || 'Booking'} — ${companyName}`, startAt: b.startAt, endAt: b.endAt,
+  uid: `booking-${b.id}@twomiah`, summary: `${bookedName(b, svc)} — ${companyName}`, startAt: b.startAt, endAt: b.endAt,
   location: b.customerAddress, description: `Reschedule or cancel: ${siteOrigin()}/booking/${b.token}`, cancelled,
 })
 

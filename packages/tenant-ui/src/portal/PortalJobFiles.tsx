@@ -6,8 +6,47 @@ import { FileText, Download, Images } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { Spinner, PageTitle, Empty, Section, card, formatDate } from './common'
 
+/**
+ * Roofing parity row 22: the job's message thread with the business, where it offers one (GET/POST /job-files/:jobId/posts — a 404
+ * means no thread, and none is drawn).
+ */
+function JobThread({ jobId }: { jobId: string }) {
+  const { fetch: portalFetch } = usePortal()
+  const [rows, setRows] = useState<Array<{ id: string; fromYou: boolean; body: string; at: string }> | null>(null)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => { portalFetch(`/job-files/${jobId}/posts`).then((d) => setRows(Array.isArray(d?.data) ? d.data : [])).catch(() => setRows(null)) }, [portalFetch, jobId])
+  if (rows === null) return null
+  const send = async () => {
+    if (!text.trim()) return
+    setBusy(true); setError('')
+    try { const r = await portalFetch(`/job-files/${jobId}/posts`, { method: 'POST', body: JSON.stringify({ body: text }) }); setRows((x) => [...(x || []), r]); setText('') }
+    catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+  return (
+    <div className="mt-4" data-testid="job-thread">
+      <h4 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Messages about this job</h4>
+      {rows.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No messages yet. Ask anything about the job here.</p>}
+      <ul className="space-y-2 mb-3">
+        {rows.map((m) => (
+          <li key={m.id} className={`rounded-lg p-2 text-sm ${m.fromYou ? 'bg-orange-50 ml-8 dark:bg-orange-950/30' : 'bg-gray-100 mr-8 dark:bg-slate-800'}`}>
+            <span className="block text-xs text-gray-500 dark:text-slate-400">{m.fromYou ? 'You' : 'Us'} · {formatDate(m.at)}</span>
+            <span className="whitespace-pre-wrap text-gray-900 dark:text-slate-100">{m.body}</span>
+          </li>
+        ))}
+      </ul>
+      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="flex gap-2">
+        <textarea aria-label="Your message" className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" rows={2} maxLength={4000} value={text} onChange={(e) => setText(e.target.value)} />
+        <button type="button" disabled={busy || !text.trim()} onClick={send} className="rounded-lg bg-orange-600 px-4 text-sm font-medium text-white disabled:opacity-50">Send</button>
+      </div>
+    </div>
+  )
+}
+
 interface Item {
-  kind: 'photo' | 'document' | 'report'
+  kind: 'photo' | 'document' | 'report' | 'job'
   id: string
   jobId: string
   jobNumber: string
@@ -38,7 +77,8 @@ export function PortalJobFiles() {
   for (const it of items) {
     let g = jobs.find((j) => j.id === it.jobId)
     if (!g) { g = { id: it.jobId, number: it.jobNumber, title: it.jobTitle, address: it.jobAddress, items: [] }; jobs.push(g) }
-    g.items.push(it)
+    // A 'job' line only gives a job its place (and its thread) before anything is shared.
+    if (it.kind !== 'job') g.items.push(it)
   }
   const fileUrl = (it: Item) => url(`/job-files/${it.kind}/${it.id}/file`)
   const docLabel = (it: Item) => (it.kind === 'report' ? TYPE_LABELS.report : config.docTypeLabels[it.type || ''] || TYPE_LABELS[it.type || ''] || 'Document')
@@ -53,7 +93,7 @@ export function PortalJobFiles() {
             const photos = job.items.filter((i) => i.kind === 'photo')
             const docs = job.items.filter((i) => i.kind !== 'photo')
             return (
-              <Section key={job.id} title={<>{job.number} — {job.title}{job.address ? <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">{job.address}</span> : null}</>}>
+              <Section key={job.id} title={job.id === 'company' ? job.title : <>{job.number} — {job.title}{job.address ? <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">{job.address}</span> : null}</>}>
                 {docs.length > 0 && (
                   <ul className="space-y-2 mb-4">
                     {docs.map((d) => (
@@ -85,6 +125,7 @@ export function PortalJobFiles() {
                     ))}
                   </div>
                 )}
+                {job.id !== 'company' && <JobThread jobId={job.id} />}
               </Section>
             )
           })}

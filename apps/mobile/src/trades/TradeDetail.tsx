@@ -53,7 +53,7 @@ export function TradeDetail({ spec: id, rowId, tab }: { spec: string; rowId: str
             {spec.waitingKey && isWaiting(queue, spec.waitingKey(d))
               ? <DText variant="bodyStrong" tone="warning">Saved on your phone — waiting to send. It goes when you have signal.</DText>
               : det.badge?.(d) ? <DText variant="bodyStrong" tone="textSecondary">{det.badge(d)}</DText> : null}
-            {det.sections.filter((s) => (!s.feature || hasFeature(s.feature)) && (!s.unlessFeature || !hasFeature(s.unlessFeature))).map((s, si) => {
+            {det.sections.filter((s) => (!s.feature || hasFeature(s.feature)) && (!s.unlessFeature || !hasFeature(s.unlessFeature)) && (!s.any || s.any.some((p) => can(p)))).map((s, si) => {
               const fields = (s.fields || []).map((f) => ({ f, v: f.get(d) })).filter((x) => x.v != null && x.v !== '')
               const rows = s.rows?.(d) || []
               const links = s.links?.(d) || []

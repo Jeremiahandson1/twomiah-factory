@@ -107,8 +107,32 @@ export interface PortalJobFiles {
   list: (contact: any) => Promise<any[]>
   /** One shared item's bytes, or null when it is not shared with this customer (read as "not found"). */
   file: (contact: any, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
+  /**
+   * Roofing parity row 22: a message thread on each of the customer's own jobs (null = not offered, a 404). Optional: no thread
+   * without it.
+   */
+  posts?: {
+    list: (contact: any, jobId: string) => Promise<any[] | null>
+    add: (contact: any, jobId: string, body: string) => Promise<any | null>
+  }
+}
+/**
+ * The contractor's client portal, finished (contractor parity row 10; the unified app's crm/projects/clientPortal.ts): on the
+ * client's own project page, the schedule, the daily logs and files the builder shared, the client's to-dos, and comments on
+ * the schedule. The portal only signs the client in and passes THEIR contact row; the vertical answers for their own project
+ * alone, and with null for anything they may not see (read as "not found"). Optional: no such section without it.
+ */
+export interface PortalProjectExtras {
+  view: (contact: any, projectId: string) => Promise<any | null>
+  comment: (contact: any, projectId: string, taskId: string, body: string) => Promise<any | { error: string } | null>
+  todo: (contact: any, projectId: string, todoId: string, change: { item?: number; done?: boolean; complete?: boolean }) => Promise<any | { error: string } | null>
+  file: (contact: any, projectId: string, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
+  /** Row 10c: the client signs a document sent to them, with the signing evidence (who, consent, where, when). */
+  sign?: (contact: any, projectId: string, requestId: string, input: { signature?: unknown; signedBy?: unknown; consent?: unknown; ip: string | null; userAgent: string | null }) => Promise<any | { error: string } | null>
 }
 export interface PortalDeps {
+  /** The contractor's project-page extras (see PortalProjectExtras). Optional: no such section without it. */
+  projectExtras?: PortalProjectExtras
   db: any
   tables: PortalTables
   /** The customer's shared job photos and documents (see PortalJobFiles). Optional: no such section without it. */
@@ -169,6 +193,10 @@ export interface PortalDeps {
    * balance (an amount box), and an approved quote's page lets them pay toward it — the app raises that invoice (raise) and the page
    * goes to its link. Optional: absent, neither is offered.
    */
+  /** Contractor parity row 12: may this business's customers add a tip online (invoice_tips)? Absent: no. */
+  tipsFor?: (companyId: string) => Promise<boolean>
+  /** Row 12: an invoice's payment plan (installments and the next one owed), or null. Absent: none. */
+  planFor?: (companyId: string, invoiceId: string) => Promise<{ installments: any[]; next: { dueDate: string; owed: number } | null } | null>
   payOptions?: {
     enabled: (companyId: string) => Promise<boolean>
     leftToPay: (companyId: string, quoteId: string) => Promise<number>
@@ -210,6 +238,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   sharedDocuments: ['documents'],
   // The photos and documents a roofer chose to show a homeowner: only where that switch (not ready) is on.
   jobFiles: ['portal_job_files'],
+  // The contractor's schedule, daily logs, files and to-dos on the client's project page (not ready).
+  projectExtras: ['projects', 'client_portal_plus'],
   projectFiles: ['documents', 'projects'],
   equipment: ['equipment_tracking'],
   agreements: [['service_agreements', 'maintenance_contracts']],
@@ -281,6 +311,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     sharedDocuments: !!t.document && !!t.documentShare && !off('sharedDocuments'),
     // Only for a vertical that passes deps.jobFiles: every other portal's section list is exactly what it was.
     ...(deps.jobFiles ? { jobFiles: !off('jobFiles') } : {}),
+    // Only for a vertical that passes deps.projectExtras (the unified contractor CRM).
+    ...(deps.projectExtras && t.project ? { projectExtras: !off('projects') } : {}),
     projectFiles: !!t.document && !!t.project && !!fileService && !off('projectFiles'),
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
@@ -1252,6 +1284,9 @@ export function createPortalRoutes(deps: PortalDeps) {
       payOnline: await payOnlineFor(contact.companyId),
       // Row 16: the customer may pay part of the balance (an amount box) where the business offers it.
       ...(deps.payOptions && (await deps.payOptions.enabled(contact.companyId).catch(() => false)) ? { partPayment: true } : {}),
+      // Row 12: tips, and a payment plan — whose next installment is offered as the amount (so part payment is on with it).
+      ...(deps.tipsFor && (await deps.tipsFor(contact.companyId).catch(() => false)) ? { tips: true } : {}),
+      ...(await (async () => { const plan = deps.planFor ? await deps.planFor(contact.companyId, found.id).catch(() => null) : null; return plan ? { plan, partPayment: true } : {} })()),
       company: { name: company.name, email: company.email, phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip },
     })
   }
@@ -1728,8 +1763,55 @@ export function createPortalRoutes(deps: PortalDeps) {
       c.header('Cache-Control', 'private, no-store')
       return c.json({ data: await jobFiles.list(P(c).contact) })
     })
+    // The job's thread (roofing parity row 22), where the vertical offers one.
+    app.get('/p/:token/job-files/:jobId/posts', portalAuth, gate('jobFiles'), async (c) => {
+      const rows = jobFiles.posts ? await jobFiles.posts.list(P(c).contact, c.req.param('jobId')) : null
+      if (!rows) return c.json({ error: 'Not found' }, 404)
+      c.header('Cache-Control', 'private, no-store')
+      return c.json({ data: rows })
+    })
+    app.post('/p/:token/job-files/:jobId/posts', portalAuth, gate('jobFiles'), async (c) => {
+      const body = await c.req.json().catch(() => ({}))
+      const text = typeof body?.body === 'string' ? body.body.trim() : ''
+      if (!text) return c.json({ error: 'Write your message first.' }, 400)
+      if (text.length > 4000) return c.json({ error: 'Keep the message under 4,000 characters.' }, 400)
+      const row = jobFiles.posts ? await jobFiles.posts.add(P(c).contact, c.req.param('jobId'), text) : null
+      if (!row) return c.json({ error: 'Not found' }, 404)
+      return c.json(row, 201)
+    })
     app.get('/p/:token/job-files/:kind/:id/file', portalAuth, gate('jobFiles'), async (c) => {
       const file = await jobFiles.file(P(c).contact, c.req.param('kind'), c.req.param('id'))
+      if (!file) return c.json({ error: 'File not found' }, 404)
+      return new Response(file.body, { headers: {
+        'Content-Type': file.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store',
+        'Content-Disposition': `${file.inline ? 'inline' : 'attachment'}; filename="${String(file.filename).replace(/["\r\n\\]/g, '')}"`,
+      } })
+    })
+  }
+
+  // ---- the contractor's project page extras (row 10): what deps.projectExtras says THIS client may see of THEIR project
+  if ((has as any).projectExtras && deps.projectExtras) {
+    const px = deps.projectExtras
+    const answer = (c: any, r: any, created = false) => (r === null ? c.json({ error: 'Not found' }, 404) : r?.error ? c.json({ error: r.error }, 400) : c.json(r, created ? 201 : 200))
+    app.get('/p/:token/projects/:projectId/extras', portalAuth, gate('projectExtras' as any), async (c) => answer(c, await px.view(P(c).contact, c.req.param('projectId'))))
+    app.post('/p/:token/projects/:projectId/tasks/:taskId/comments', portalAuth, gate('projectExtras' as any), async (c) => {
+      const b: any = await c.req.json().catch(() => ({}))
+      return answer(c, await px.comment(P(c).contact, c.req.param('projectId'), c.req.param('taskId'), String(b?.body ?? '')), true)
+    })
+    app.post('/p/:token/projects/:projectId/todos/:todoId', portalAuth, gate('projectExtras' as any), async (c) => {
+      const b: any = await c.req.json().catch(() => ({}))
+      const change = { ...(typeof b?.item === 'number' ? { item: b.item, done: !!b.done } : {}), ...(typeof b?.complete === 'boolean' ? { complete: b.complete } : {}) }
+      return answer(c, await px.todo(P(c).contact, c.req.param('projectId'), c.req.param('todoId'), change))
+    })
+    if (px.sign) {
+      const sign = px.sign
+      app.post('/p/:token/projects/:projectId/sign/:requestId', portalAuth, gate('projectExtras' as any), async (c) => {
+        const b: any = await c.req.json().catch(() => ({}))
+        return answer(c, await sign(P(c).contact, c.req.param('projectId'), c.req.param('requestId'), { signature: b?.signature, signedBy: b?.signedBy, consent: b?.consent, ip: signerIp(c), userAgent: c.req.header('user-agent') || null }))
+      })
+    }
+    app.get('/p/:token/projects/:projectId/files/:kind/:id', portalAuth, gate('projectExtras' as any), async (c) => {
+      const file = await px.file(P(c).contact, c.req.param('projectId'), c.req.param('kind'), c.req.param('id'))
       if (!file) return c.json({ error: 'File not found' }, 404)
       return new Response(file.body, { headers: {
         'Content-Type': file.contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store',

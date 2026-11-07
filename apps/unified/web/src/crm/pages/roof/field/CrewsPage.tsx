@@ -16,8 +16,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Briefcase, HardHat, Phone, Plus, Users, X } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
+import { errorText, useConfirm, useMayWrite, useToast, useAuth } from '../../../../shared'
 import { listOf } from './http'
+import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 interface CrewJob {
@@ -36,6 +37,11 @@ interface Crew {
   foremanPhone: string | null
   size: number | null
   isSubcontractor: boolean
+  /** Row 27 (work_order_send_options): asked to accept each work order. */
+  requiresApproval?: boolean
+  /** Row 28 (crew_scheduling): trades, and certificates with their expiry. */
+  trades?: string[]
+  certificates?: Array<{ name: string; expiresOn: string | null }>
   /** Dollars a square; not sent to a seat without margin:read. */
   payPerSquare?: string | number | null
   activeJobs?: CrewJob[]
@@ -53,6 +59,27 @@ interface CrewForm { name: string; foremanName: string; foremanPhone: string; cr
 const EMPTY_FORM: CrewForm = { name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, payPerSquare: '' }
 
 export default function CrewsPage() {
+  // Row 27 (work_order_send_options, not ready; Roofr): whether a crew is asked to accept its work orders.
+  const sendOpts = useAuth().hasFeature('work_order_send_options')
+  const mayDispatchCrews = useMayWrite('jobs:dispatch')
+  // Row 28 (crew_scheduling, not ready; Roofr roster): trades and certificates, a warning when one has run out or soon will.
+  const scheduling = useAuth().hasFeature('crew_scheduling')
+  const [rosterFor, setRosterFor] = useState<string | null>(null)
+  const [rosterForm, setRosterForm] = useState({ trades: '', certs: '' })
+  const today = companyTodayKey()
+  const soon = new Date(Date.parse(`${today}T00:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10)
+  const saveRoster = async (crewId: string) => {
+    const certificates = rosterForm.certs.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const [name, date] = l.split(',').map((x) => x.trim()); return { name, expiresOn: date || null } })
+    try {
+      const r: any = await api.put(`/api/work-orders/crew-roster/${crewId}`, { trades: rosterForm.trades.split(',').map((x) => x.trim()).filter(Boolean), certificates })
+      setCrews((list) => list.map((c) => (c.id === crewId ? { ...c, trades: r.trades, certificates: r.certificates } : c)))
+      setRosterFor(null); toast.success('Crew roster saved')
+    } catch (e) { toast.error(errorText(e, 'Could not save the roster')) }
+  }
+  const setApproval = async (crewId: string, on: boolean) => {
+    try { await api.put(`/api/work-orders/crew-approval/${crewId}`, { requiresApproval: on }); setCrews((list) => list.map((c) => (c.id === crewId ? { ...c, requiresApproval: on } : c))) }
+    catch (e) { toast.error(errorText(e, 'Could not change it')) }
+  }
   // crews:* is manager and above. A crew member reads the roster — who is on which crew is the
   // point of the screen — and does not build, rename or disband one. (T42)
   const mayAddCrew = useMayWrite('crews:create')
@@ -200,8 +227,30 @@ export default function CrewsPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{crew.name}</h3>
+                      {sendOpts && mayDispatchCrews && (
+                        <label className="ml-auto flex items-center gap-1 text-xs text-gray-600 dark:text-slate-300" title="Off: a work order sent to this crew is accepted when sent">
+                          <input type="checkbox" checked={crew.requiresApproval !== false} onChange={(e) => setApproval(crew.id, e.target.checked)} /> Asks to accept work orders
+                        </label>
+                      )}
+                      {scheduling && (crew.certificates || []).some((x) => x.expiresOn && x.expiresOn <= soon) && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300">{(crew.certificates || []).some((x) => x.expiresOn && x.expiresOn < today) ? 'Certificate ran out' : 'Certificate runs out soon'}</span>
+                      )}
                       {crew.isSubcontractor && (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40">Subcontractor</span>
+                      )}
+                      {scheduling && (
+                        <div className="mt-1 text-xs text-gray-600 dark:text-slate-300" data-testid="crew-roster">
+                          {(crew.trades || []).length > 0 && <p>Trades: {(crew.trades || []).join(', ')}</p>}
+                          {(crew.certificates || []).map((x) => <p key={x.name}>{x.name}{x.expiresOn ? ` — runs out ${x.expiresOn}` : ''}</p>)}
+                          {mayDispatchCrews && rosterFor !== crew.id && <button type="button" className="text-orange-700 hover:underline dark:text-orange-300" onClick={() => { setRosterFor(crew.id); setRosterForm({ trades: (crew.trades || []).join(', '), certs: (crew.certificates || []).map((x) => `${x.name}${x.expiresOn ? `, ${x.expiresOn}` : ''}`).join('\n') }) }}>Trades and certificates</button>}
+                          {rosterFor === crew.id && (
+                            <div className="mt-1 space-y-1">
+                              <label className="block">Trades (commas between)<input className="mt-0.5 w-full rounded border px-2 py-1 bg-white dark:bg-slate-900 dark:border-slate-700" value={rosterForm.trades} onChange={(e) => setRosterForm({ ...rosterForm, trades: e.target.value })} /></label>
+                              <label className="block">Certificates — one per line: name, expiry (YYYY-MM-DD)<textarea rows={3} className="mt-0.5 w-full rounded border px-2 py-1 bg-white dark:bg-slate-900 dark:border-slate-700" value={rosterForm.certs} onChange={(e) => setRosterForm({ ...rosterForm, certs: e.target.value })} /></label>
+                              <button type="button" className="rounded border px-2 py-1" onClick={() => saveRoster(crew.id)}>Save</button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

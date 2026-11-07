@@ -239,6 +239,8 @@ export const pricebookItem = pgTable('pricebook_item', {
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  /** Formula estimating (0091, row 9): the quantity formula a quote line picked from this item starts with ("sqft / 32"). */
+  quantityFormula: text('quantity_formula'),
 }, (t) => [
   index('pricebook_item_company_id_idx').on(t.companyId),
   index('pricebook_item_category_id_idx').on(t.categoryId),

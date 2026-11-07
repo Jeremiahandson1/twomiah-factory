@@ -26,7 +26,7 @@ export async function findStylistConflict(exec: any, companyId: string, stylist:
     const hit = rows.find((r) => {
       if (CANCELLED.includes(r.status) || itemised.has(r.id)) return false
       const rs = new Date(r.startTime).getTime()
-      return touch(mine, piecesOf(rs, r.endTime ? new Date(r.endTime).getTime() : rs + 3600000, { afterMin: r.processingAfterMin, min: r.processingMin }))
+      return touch(mine, piecesOf(rs, r.endTime ? new Date(r.endTime).getTime() : rs + 3600000, { afterMin: r.processingAfterMin, min: r.processingMin, segments: (r as any).segments }))
     })
     if (hit) return hit
     // The services other visits give this stylist (a visit's own row is held through its items).
@@ -35,7 +35,7 @@ export async function findStylistConflict(exec: any, companyId: string, stylist:
       id: appointmentItem.id, companyId: appointmentItem.companyId, appointmentId: appointmentItem.appointmentId, position: appointmentItem.position,
       serviceId: appointmentItem.serviceId, stylistId: appointmentItem.stylistId, stylistMemberId: appointmentItem.stylistMemberId,
       startOffsetMin: appointmentItem.startOffsetMin, durationMin: appointmentItem.durationMin, processingAfterMin: appointmentItem.processingAfterMin,
-      processingMin: appointmentItem.processingMin, price: appointmentItem.price, createdAt: appointmentItem.createdAt,
+      processingMin: appointmentItem.processingMin, segments: appointmentItem.segments, price: appointmentItem.price, createdAt: appointmentItem.createdAt,
       apptStart: appointment.startTime, apptStatus: appointment.status,
     }).from(appointmentItem).innerJoin(appointment, eq(appointment.id, appointmentItem.appointmentId)).where(and(
       eq(appointmentItem.companyId, companyId), heldItem,
@@ -45,6 +45,6 @@ export async function findStylistConflict(exec: any, companyId: string, stylist:
     return items.find((it) => {
       if (CANCELLED.includes(it.apptStatus)) return false
       const is = new Date(it.apptStart).getTime() + it.startOffsetMin * 60_000
-      return touch(mine, piecesOf(is, is + it.durationMin * 60_000, { afterMin: it.processingAfterMin, min: it.processingMin }))
+      return touch(mine, piecesOf(is, is + it.durationMin * 60_000, { afterMin: it.processingAfterMin, min: it.processingMin, segments: (it as any).segments }))
     })
   }

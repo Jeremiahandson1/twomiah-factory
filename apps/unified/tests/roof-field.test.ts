@@ -163,14 +163,20 @@ describe('storms', () => {
   })
 
   test('the daily storm check reads the feed through what it is handed (a stub here), for companies with storm_lead_gen, by their own zip when none is set', async () => {
+    // NOAA's SPC daily report files (roofing row 25): a hail report in Wisconsin, in the files' own format; wind and tornado files empty.
     const asked: string[] = []
-    const stub = (async (url: any) => { asked.push(String(url)); return new Response('type,mag,loc\nHail,1.25,Akron\n', { status: 200 }) }) as any
-    const [fresh] = await t.db.insert(t.schema.company).values({ name: 'Fresh Roofing', slug: 'fresh-roofing', zip: '53703', enabledFeatures: ['storm_lead_gen'] } as any).returning()
+    const HEAD = 'Time,Size,Location,County,State,Lat,Lon,Comments\n'
+    const stub = (async (url: any) => { asked.push(String(url)); return new Response(String(url).endsWith('_hail.csv') ? HEAD + '1830,125,Madison,Dane,WI,43.07,-89.40,(MKX)\n' : HEAD, { status: 200 }) }) as any
+    const [fresh] = await t.db.insert(t.schema.company).values({ name: 'Fresh Roofing', slug: 'fresh-roofing', zip: '53703', state: 'WI', enabledFeatures: ['storm_lead_gen'] } as any).returning()
     await createStormData(d, { fetch: stub }).runDailyStormCheck()
     // Ours (44301, 44302, set above, auto-generate on) and the fresh company (its own zip); the other company has no storm_lead_gen.
-    expect(asked.length).toBe(2)
-    const [freshEvent] = await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, fresh.id))
-    expect(freshEvent).toMatchObject({ source: 'noaa', eventType: 'hail', affectedZipCodes: ['53703'], hailSizeInches: '1.25' })
+    // Each company reads the window's calendar days (three, for two days back) times the three report files.
+    expect(asked.length).toBe(18)
+    expect(asked.every((u) => /^https:\/\/www\.spc\.noaa\.gov\/climo\/reports\/\d{6}_rpts_(hail|wind|torn)\.csv$/.test(u))).toBe(true)
+    // The report is near the fresh company (its state, with no map point to measure from), and kept once though three days' files carried it.
+    const freshEvents = await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, fresh.id)) as any[]
+    expect(freshEvents).toHaveLength(1)
+    expect(freshEvents[0]).toMatchObject({ source: 'noaa', eventType: 'hail', hailSizeInches: '1.25' })
     expect((await t.db.select().from(t.schema.stormEvent).where(eq(t.schema.stormEvent.companyId, otherId))).length).toBe(1) // only the one seeded above
   })
 })

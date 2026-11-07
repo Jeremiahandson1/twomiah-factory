@@ -38,6 +38,12 @@ export interface ServiceRules {
   capacity: number
   /** Travel between two jobs for the same person (the business's setting). */
   driveTimeMinutes: number
+  /**
+   * The stretches the visit holds its person, minutes from its start (salon parity row 7); absent = the whole visit. A start is then
+   * offered when each stretch (the first with the setup before it, the last with the clean-up after) fits in a free window — so the
+   * person's processing time may sit over another booking.
+   */
+  holds?: Array<{ fromMin: number; toMin: number }>
 }
 export interface Zone { userId: string; zips: string[] }
 export interface Slot {
@@ -122,8 +128,21 @@ export function freeSlots(args: {
 
   // 5. Start times on the step grid where the visit and its buffers fit inside a window.
   const slots = new Map<number, Set<string | null>>()
+  const holds = service.holds && service.holds.length ? service.holds : null
   for (const [who, windows] of byWho) {
     if (!eligible.has(who)) continue
+    if (holds && windows.length) {
+      // Row 7: each held stretch inside some free window; the time between (processing) may be anyone's.
+      const lo = Math.min(...windows.map((w) => w.start)), hi = Math.max(...windows.map((w) => w.end))
+      const inside = (a: number, z: number) => windows.some((w) => w.start <= a && w.end >= z)
+      for (let s = Math.ceil((lo + before) / step) * step; s + duration + after <= hi; s += step) {
+        const ok = holds.every((h, i) => inside(s + h.fromMin - (i === 0 ? before : 0), s + h.toMin + (i === holds.length - 1 ? after : 0)))
+        if (!ok) continue
+        if (!slots.has(s)) slots.set(s, new Set())
+        slots.get(s)!.add(who)
+      }
+      continue
+    }
     for (const w of windows) {
       const latest = w.end - after - duration
       for (let s = Math.ceil((w.start + before) / step) * step; s <= latest; s += step) {

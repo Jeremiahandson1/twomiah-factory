@@ -20,9 +20,10 @@ export const getStripe = (publishableKey: string, stripeAccount?: string | null)
 
 // portalToken: paying from the customer's portal. linkToken: paying from the invoice's own link (/d/<token>), which every
 // invoice email carries (2026-10-22). One of the two.
-interface PaymentFormProps { invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; onCancel?: () => void; primaryColor?: string }
+interface PaymentFormProps { invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; onCancel?: () => void; primaryColor?: string; /** A tip on top (contractor parity row 12, invoice_tips), in dollars. */ tip?: number }
 
-export function PortalPaymentForm({ invoiceId, amount, portalToken, linkToken, onSuccess, onCancel, primaryColor }: PaymentFormProps) {
+export function PortalPaymentForm({ invoiceId, amount, portalToken, linkToken, onSuccess, onCancel, primaryColor, tip }: PaymentFormProps) {
+  const tipPart = tip && tip > 0 ? { tip } : {}
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [stripe, setStripe] = useState<Stripe | null>(null)
   // Row 18: a business that surcharges credit cards — the card is entered first, the surcharge shown, then the payment made.
@@ -34,7 +35,7 @@ export function PortalPaymentForm({ invoiceId, amount, portalToken, linkToken, o
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`${API_URL}/api/stripe/portal/payment-intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, amount, ...(linkToken ? { linkToken } : { portalToken }) }) })
+        const res = await fetch(`${API_URL}/api/stripe/portal/payment-intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, amount, ...(linkToken ? { linkToken } : { portalToken }), ...tipPart }) })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error || 'Could not start the payment')
         if (!body.publishableKey) throw new Error('Card payments are not set up yet. Please contact us to pay another way.')
@@ -51,12 +52,12 @@ export function PortalPaymentForm({ invoiceId, amount, portalToken, linkToken, o
       }
     })()
     return () => { cancelled = true }
-  }, [invoiceId, amount, portalToken, linkToken])
+  }, [invoiceId, amount, portalToken, linkToken, tip])
 
   if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-500 dark:text-slate-400">Preparing payment...</span></div>
   if (error) return <div role="alert" className="bg-red-50 text-red-700 p-4 rounded-lg flex items-center gap-3 dark:bg-red-950/40 dark:text-red-300"><AlertCircle className="w-5 h-5 shrink-0" /><span>{error}</span></div>
   if (deferred && stripe) {
-    const who = linkToken ? { linkToken } : { portalToken }
+    const who = { ...(linkToken ? { linkToken } : { portalToken }), ...(tip && tip > 0 ? { tip: String(tip) } : {}) }
     return (
       <Elements stripe={stripe} options={{ mode: 'payment', amount: Math.round(deferred.amount * 100), currency: 'usd', paymentMethodCreation: 'manual', appearance: { theme: 'stripe', variables: { colorPrimary: primaryColor || '#f97316', fontFamily: 'Inter, system-ui, sans-serif', borderRadius: '8px' } } } as any}>
         <SurchargeCheckout invoiceId={invoiceId} amount={deferred.amount} pct={deferred.pct} who={who} onSuccess={onSuccess} onCancel={onCancel} />
@@ -67,7 +68,7 @@ export function PortalPaymentForm({ invoiceId, amount, portalToken, linkToken, o
 
   return (
     <Elements stripe={stripe} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: primaryColor || '#f97316', colorBackground: '#ffffff', colorText: '#1f2937', colorDanger: '#dc2626', fontFamily: 'Inter, system-ui, sans-serif', borderRadius: '8px' } } }}>
-      <CheckoutForm amount={amount} onSuccess={onSuccess} onCancel={onCancel} />
+      <CheckoutForm amount={Math.round((amount + (tip || 0)) * 100) / 100} onSuccess={onSuccess} onCancel={onCancel} />
     </Elements>
   )
 }
@@ -204,13 +205,14 @@ function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSucce
  * How much to pay (roofing parity row 16, JobNimbus: the customer enters an amount): the whole balance, or another amount from $1 up to
  * it. Shown only where the business offers part payment (the invoice's partPayment); the server checks the same bounds.
  */
-function AmountStep({ balance, onPick, onCancel }: { balance: number; onPick: (amount: number) => void; onCancel: () => void }) {
-  const [mode, setMode] = useState<'all' | 'part'>('all')
+function AmountStep({ balance, onPick, onCancel, next }: { balance: number; onPick: (amount: number) => void; onCancel: () => void; /** A payment plan's next installment (row 12): offered first. */ next?: { dueDate: string; owed: number } | null }) {
+  const [mode, setMode] = useState<'all' | 'part' | 'next'>(next && next.owed < balance - 0.005 ? 'next' : 'all')
   const [typed, setTyped] = useState('')
   const n = Number(typed)
   const bad = mode === 'part' && !(Number.isFinite(n) && n >= 1 && n <= balance + 0.005)
   return (
     <div className="space-y-3">
+      {next && next.owed < balance - 0.005 && <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="pay-amount" checked={mode === 'next'} onChange={() => setMode('next')} /> This installment, {money(next.owed)} (due {next.dueDate})</label>}
       <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="pay-amount" checked={mode === 'all'} onChange={() => setMode('all')} /> The whole balance, {money(balance)}</label>
       <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="pay-amount" checked={mode === 'part'} onChange={() => setMode('part')} /> Another amount</label>
       {mode === 'part' && (
@@ -221,15 +223,39 @@ function AmountStep({ balance, onPick, onCancel }: { balance: number; onPick: (a
       )}
       <div className="flex gap-3 pt-2">
         <button type="button" onClick={onCancel} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-800 dark:border-slate-600 dark:text-slate-200">Cancel</button>
-        <button type="button" disabled={bad || (mode === 'part' && typed === '')} onClick={() => onPick(mode === 'all' ? balance : Math.round(n * 100) / 100)} className="flex-1 rounded-lg bg-green-700 px-4 py-2 font-medium text-white disabled:opacity-50">Continue</button>
+        <button type="button" disabled={bad || (mode === 'part' && typed === '')} onClick={() => onPick(mode === 'all' ? balance : mode === 'next' && next ? next.owed : Math.round(n * 100) / 100)} className="flex-1 rounded-lg bg-green-700 px-4 py-2 font-medium text-white disabled:opacity-50">Continue</button>
       </div>
     </div>
   )
 }
 
-export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalToken, linkToken, onSuccess, primaryColor, allowPart }: { isOpen: boolean; onClose: () => void; invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; primaryColor?: string; allowPart?: boolean }) {
+/** A tip on top of the payment (contractor parity row 12, Jobber's tips): none, a share of the payment, or an amount typed. */
+function TipStep({ amount, onPick, onCancel }: { amount: number; onPick: (tip: number) => void; onCancel: () => void }) {
+  const [typed, setTyped] = useState('')
+  const share = (p: number) => Math.round(amount * p) / 100
+  const n = Number(typed)
+  const bad = typed !== '' && !(Number.isFinite(n) && n >= 0 && n <= amount)
+  return (
+    <div className="space-y-3" data-testid="tip-step">
+      <p className="text-sm text-gray-800 dark:text-slate-200">Add a tip for the crew? It goes on top of the {money(amount)} payment.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => onPick(0)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:text-slate-200">No tip</button>
+        {[10, 15, 20].map((p) => <button key={p} type="button" onClick={() => onPick(share(p))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:text-slate-200">{p}% · {money(share(p))}</button>)}
+      </div>
+      <div className="flex gap-2">
+        <input aria-label="Tip amount" type="number" min={0} step="0.01" inputMode="decimal" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Another amount" className="flex-1 rounded-lg border border-gray-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
+        <button type="button" disabled={typed === '' || bad} onClick={() => onPick(Math.round(n * 100) / 100)} className="rounded-lg bg-green-700 px-4 py-2 text-white disabled:opacity-50">Add</button>
+      </div>
+      {bad && <p role="alert" className="text-sm text-red-700 dark:text-red-300">A tip is from $0 to {money(amount)}.</p>}
+      <button type="button" onClick={onCancel} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-800 dark:border-slate-600 dark:text-slate-200">Cancel</button>
+    </div>
+  )
+}
+
+export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalToken, linkToken, onSuccess, primaryColor, allowPart, tips, next }: { isOpen: boolean; onClose: () => void; invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; primaryColor?: string; allowPart?: boolean; tips?: boolean; next?: { dueDate: string; owed: number } | null }) {
   const [chosen, setChosen] = useState<number | null>(null)
-  useEffect(() => { if (!isOpen) setChosen(null) }, [isOpen])
+  const [tip, setTip] = useState<number | null>(null)
+  useEffect(() => { if (!isOpen) { setChosen(null); setTip(null) } }, [isOpen])
   if (!isOpen) return null
   const pay = allowPart ? chosen : amount
   return (
@@ -239,8 +265,10 @@ export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalT
         <div role="dialog" aria-modal="true" aria-label="Make Payment" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">Make Payment</h2>
           {pay === null
-            ? <AmountStep balance={amount} onPick={setChosen} onCancel={onClose} />
-            : <PortalPaymentForm invoiceId={invoiceId} amount={pay} portalToken={portalToken} linkToken={linkToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />}
+            ? <AmountStep balance={amount} onPick={setChosen} onCancel={onClose} next={next} />
+            : tips && tip === null
+            ? <TipStep amount={pay} onPick={setTip} onCancel={onClose} />
+            : <PortalPaymentForm invoiceId={invoiceId} amount={pay} tip={tip || 0} portalToken={portalToken} linkToken={linkToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />}
         </div>
       </div>
     </div>

@@ -21,7 +21,9 @@ import { done, fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createStormData, serviceAreaZips, type StormData } from './stormData.ts'
 import { homeownerName, insertHomeowner, insertRoofJob } from './roofJob.ts'
-import { pathOf } from './geo.ts'
+import { pathOf, matchArea, coordOf } from './geo.ts'
+import { STORM_DATA_FEATURE, leadScore } from '../../../data/hailSwaths.ts'
+import { job } from '../../../db/schema/index.ts'
 
 const body = async (c: any): Promise<any> => (await c.req.json().catch(() => null)) ?? {}
 
@@ -115,10 +117,29 @@ export function createStormRoutes(d: CrmDeps, storms: StormData = createStormDat
     const conditions: any[] = [eq(stormLead.stormEventId, id), eq(stormLead.companyId, companyId)]
     if (status) conditions.push(eq(stormLead.status, status))
     const where = and(...conditions)
-    const [leads, [{ value: total }]] = await Promise.all([
-      db.select().from(stormLead).where(where).orderBy(desc(stormLead.createdAt), desc(stormLead.id)).offset((page - 1) * limit).limit(limit),
+    // Row 25 (storm_data_tools, not ready; AccuLynx Lead Intelligence): each lead scored, and ?sort=score orders by it.
+    const scoring = await d.features.isFeatureEnabled(companyId, STORM_DATA_FEATURE).catch(() => false)
+    const byScore = scoring && c.req.query('sort') === 'score'
+    const [rawLeads, [{ value: total }]] = await Promise.all([
+      byScore ? db.select().from(stormLead).where(where).orderBy(desc(stormLead.createdAt), desc(stormLead.id)).limit(5000)
+        : db.select().from(stormLead).where(where).orderBy(desc(stormLead.createdAt), desc(stormLead.id)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(stormLead).where(where),
     ])
+    let leads: any[] = rawLeads
+    if (scoring) {
+      const [ev] = await db.select().from(stormEvent).where(and(eq(stormEvent.id, id), eq(stormEvent.companyId, companyId))).limit(1)
+      const path = pathOf(ev?.path)
+      const zips = new Set(((ev?.affectedZipCodes as string[]) || []).map((z) => String(z).slice(0, 5)))
+      const jobIds = [...new Set(rawLeads.map((l: any) => l.jobId).filter(Boolean))] as string[]
+      const roofAges = new Map((jobIds.length ? await db.select({ id: job.id, roofAge: job.roofAge }).from(job).where(and(eq(job.companyId, companyId), inArray(job.id, jobIds))) : []).map((j: any) => [j.id, j.roofAge]))
+      leads = rawLeads.map((l: any) => {
+        const pt = { lat: coordOf(l.lat), lng: coordOf(l.lng), zip: l.zip }
+        const matchedBy = path && pt.lat != null && pt.lng != null && matchArea(pt, { path, zips: new Set() }) ? 'path' as const : zips.has(String(l.zip || '').slice(0, 5)) ? 'zip' as const : null
+        const s = leadScore({ hailInches: ev?.hailSizeInches ? Number(ev.hailSizeInches) : null, windMph: ev?.windSpeedMph ?? null, matchedBy, roofAge: l.jobId && roofAges.get(l.jobId) != null ? Number(roofAges.get(l.jobId)) : null, pastCustomer: !!l.contactId && !!l.jobId })
+        return { ...l, score: s.score, scoreReasons: s.reasons }
+      })
+      if (byScore) leads = leads.sort((a, b) => b.score - a.score).slice((page - 1) * limit, page * limit)
+    }
     const existingContacts = await db.select({ address: contact.address, zip: contact.zip }).from(contact).where(eq(contact.companyId, companyId))
     const existingSet = new Set(existingContacts.map((r: any) => `${r.address}|${r.zip}`))
     // An existing customer: a lead matched from one of the company's contacts, or at an address one of them has.

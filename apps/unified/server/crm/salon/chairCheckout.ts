@@ -1,7 +1,8 @@
 // Checkout at the chair: a client pays on a card reader, the tip goes to the stylist (salon gap #7; hidden feature `chair_checkout`;
 // docs/parity/salon-chair-checkout.md). Stripe Terminal's SERVER-DRIVEN integration, every call on the SALON'S OWN connected Stripe
 // account (Settings › Integrations) with the Stripe-Account header — the money lands in the salon's Stripe, never Twomiah's, and the
-// phone app takes no cards (it only shows the sale; the card is tapped on the reader).
+// phone app takes no cards (it only shows the sale; the card is tapped on the reader) — unless the salon has Tap to Pay (salon parity row 26,
+// `tap_to_pay`): then the phone itself takes the tap, through the same charge row, the same record-on-Stripe's-word, decline and refund rules.
 //
 //   registerReader  a Location for the salon (once, from its address), then the reader by the code it shows
 //   startCharge     a card_present PaymentIntent for the amount + the tip chosen at the desk → process_payment_intent on the reader
@@ -9,6 +10,9 @@
 //                   action failed → declined; too long → timed out and cancelled
 //   cancelCharge    cancel_action on the reader and cancel the PaymentIntent — unless it already went through (then it is recorded)
 //   simulateCard    Stripe's test helper on a SIMULATED reader (no hardware): a test card is "tapped", approving or declining
+//   phoneToken      Tap to Pay (row 26): a Terminal connection token on the salon's account, with its Location, for the phone's SDK
+//   startPhoneCharge the same card_present PaymentIntent, handed to the phone (its client secret) instead of to a reader; the phone takes the
+//                   tap, then asks pollCharge, which records it only when Stripe says it succeeded; a decline the phone saw is sent back
 //
 // Nothing is recorded until Stripe says the PaymentIntent succeeded. The payment goes through the same locked write every payment on a
 // sale uses (recordInvoicePayment), under the sale's row lock, with the PaymentIntent id as its reference: polled twice, written once.
@@ -53,7 +57,9 @@ function stripeSays(e: any, fallback: string): string {
 
 export interface ChargeView {
   id: string; status: string; failure: string | null; amountCents: number; tipCents: number
-  invoiceId: string; readerId: string; readerLabel: string | null; paymentId: string | null; createdAt: string
+  invoiceId: string; readerId: string | null; readerLabel: string | null; paymentId: string | null; createdAt: string
+  /** 'reader' | 'phone' */
+  source: string
 }
 
 export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | null; now?: () => number; receipts?: SaleReceipts; /** Runs when a sale is paid in full here (a gift card sold on the reader goes live). */ afterPaid?: (invoiceId: string) => Promise<unknown> } = {}) {
@@ -140,9 +146,9 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     return r
   }
 
-  const chargeView = (r: ChargeRow, readerLabel: string | null = null): ChargeView => ({
+  const chargeView = (r: ChargeRow, readerLabel: string | null = r.source === 'phone' ? 'Tap to Pay on the phone' : null): ChargeView => ({
     id: r.id, status: r.status, failure: r.failure, amountCents: r.amountCents, tipCents: r.tipCents, invoiceId: r.invoiceId,
-    readerId: r.readerId, readerLabel, paymentId: r.paymentId, createdAt: r.createdAt.toISOString(),
+    readerId: r.readerId, readerLabel, paymentId: r.paymentId, createdAt: r.createdAt.toISOString(), source: r.source,
   })
 
   async function chargeRow(companyId: string, id: string): Promise<ChargeRow> {
@@ -156,11 +162,8 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
    * Send an amount to the reader. `amountCents` is what goes on the sale (default: the whole balance; less is a split bill),
    * `tipCents` the tip the client chose at the desk — the card is charged both, the tip is recorded beside the payment.
    */
-  async function startCharge(actor: any, input: { invoiceId?: unknown; readerId?: unknown; amountCents?: unknown; tipCents?: unknown; tipOnReader?: unknown }): Promise<ChargeView> {
-    const companyId = actor.companyId
-    const reader = await readerOf(companyId, String(input.readerId ?? ''))
-    const { stripe, acct, opts } = await account(companyId)
-    if (reader.stripeAccount && reader.stripeAccount !== acct) throw new TerminalError('That reader was set up on a different Stripe account. Remove it and add it again.', 409, 'OTHER_ACCOUNT')
+  /** The sale, what goes on the card and the tip, checked as every card payment on a sale is (the reader's and the phone's). */
+  async function saleCharge(companyId: string, input: { invoiceId?: unknown; amountCents?: unknown; tipCents?: unknown }) {
     const [inv] = await db.select().from(invoice).where(and(eq(invoice.id, String(input.invoiceId ?? ''), ), eq(invoice.companyId, companyId))).limit(1)
     if (!inv) throw new TerminalError('That sale was not found.', 404, 'NO_SALE', 'invoiceId')
     if (CLOSED.has(inv.status)) throw new TerminalError(inv.status === 'paid' ? 'That sale is already paid.' : 'That sale is closed and cannot take a card.', 409, 'SALE_CLOSED')
@@ -171,6 +174,15 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     if (amount > dueCents) throw new TerminalError(`Only ${dollars(dueCents)} is owing on that sale.`, 400, 'OVER_DUE', 'amountCents')
     const tip = input.tipCents == null || input.tipCents === '' ? 0 : Number(input.tipCents)
     if (!Number.isInteger(tip) || tip < 0 || tip > MAX_TIP_CENTS) throw new TerminalError(`A tip is a whole number of cents, up to ${dollars(MAX_TIP_CENTS)}.`, 400, 'BAD_TIP', 'tipCents')
+    return { inv, amount, tip }
+  }
+
+  async function startCharge(actor: any, input: { invoiceId?: unknown; readerId?: unknown; amountCents?: unknown; tipCents?: unknown; tipOnReader?: unknown }): Promise<ChargeView> {
+    const companyId = actor.companyId
+    const reader = await readerOf(companyId, String(input.readerId ?? ''))
+    const { stripe, acct, opts } = await account(companyId)
+    if (reader.stripeAccount && reader.stripeAccount !== acct) throw new TerminalError('That reader was set up on a different Stripe account. Remove it and add it again.', 409, 'OTHER_ACCOUNT')
+    const { inv, amount, tip } = await saleCharge(companyId, input)
     const onReader = input.tipOnReader === true
     if (onReader && tip > 0) throw new TerminalError('Either type the tip here or let the client choose it on the reader, not both.', 400, 'BAD_TIP', 'tipCents')
     const [busy] = await db.select({ id: salonTerminalCharge.id }).from(salonTerminalCharge).where(and(eq(salonTerminalCharge.companyId, companyId), eq(salonTerminalCharge.invoiceId, inv.id), eq(salonTerminalCharge.status, 'pending'))).limit(1)
@@ -219,7 +231,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     let already = false
     const outcome = await recordInvoicePayment(db, { invoice, payment }, true, {
       invoiceId: charge.invoiceId, companyId: charge.companyId, amount: round2(amount / 100), method: 'card', reference: charge.paymentIntentId,
-      notes: 'Card reader', tipAmount: round2(tip / 100), idempotentByReference: true,
+      notes: charge.source === 'phone' ? 'Tap to Pay (phone)' : 'Card reader', tipAmount: round2(tip / 100), idempotentByReference: true,
       // Stripe already took this money: recorded even if the sale was paid another way while the reader waited.
       allowOverpayment: true,
       beforeWrite: async (tx: Tx) => {
@@ -241,7 +253,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     live.emitToCompany(charge.companyId, live.EVENTS.PAYMENT_RECEIVED, { invoiceId: charge.invoiceId, invoiceNumber: outcome.row.number, amount: round2(amount / 100), newBalance: outcome.newBalance, status: outcome.newStatus })
     if (outcome.newStatus === 'paid') live.emitToCompany(charge.companyId, live.EVENTS.INVOICE_PAID, { id: charge.invoiceId, number: outcome.row.number, total: outcome.row.total })
     try {
-      await d.audit.log({ action: 'payment', entity: 'invoice', entityId: charge.invoiceId, entityName: outcome.row.number, companyId: charge.companyId, req: { user: { id: charge.startedById, companyId: charge.companyId } }, metadata: { amount: round2(amount / 100), tip: round2(tip / 100), method: 'card reader', reader: charge.readerId } })
+      await d.audit.log({ action: 'payment', entity: 'invoice', entityId: charge.invoiceId, entityName: outcome.row.number, companyId: charge.companyId, req: { user: { id: charge.startedById, companyId: charge.companyId } }, metadata: { amount: round2(amount / 100), tip: round2(tip / 100), method: charge.source === 'phone' ? 'tap to pay' : 'card reader', reader: charge.readerId } })
     } catch (e: any) { logger.warn('[chair-checkout] payment not audited', { error: e?.message }) }
     // Same as any other payment: the stylist of a visit paid for this way earns on it.
     void d.services.earnCommission(charge.invoiceId).catch(() => {})
@@ -263,7 +275,10 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
         if (pi?.status === 'requires_capture') { try { pi = await stripe.paymentIntents.capture(pi.id, {}, opts) } catch { /* the next poll tries again */ } }
         if (pi?.status === 'succeeded') await record(charge, pi)
         else if (pi?.status === 'canceled') await finish(charge.id, 'canceled', 'The payment was cancelled.')
-        else {
+        else if (!charge.readerId) {
+          // Tap to Pay: the phone says when the tap failed (phoneDeclined); here only the clock runs out.
+          if (now() - charge.createdAt.getTime() > CHARGE_TIMEOUT_MS) await giveUp(stripe, charge, null, 'timed_out', 'The phone waited too long for a card. Nothing was taken.')
+        } else {
           const [reader] = await db.select().from(salonReader).where(eq(salonReader.id, charge.readerId)).limit(1)
           let action: any = null
           if (reader) { try { action = ((await stripe.terminal.readers.retrieve(reader.stripeReaderId, {}, opts)) as any).action } catch { action = null } }
@@ -279,6 +294,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
       }
       charge = await chargeRow(companyId, id)
     }
+    if (!charge.readerId) return chargeView(charge)
     const [reader] = await db.select({ label: salonReader.label }).from(salonReader).where(eq(salonReader.id, charge.readerId)).limit(1)
     return chargeView(charge, reader?.label ?? null)
   }
@@ -304,7 +320,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     if (charge.status !== 'pending') return pollCharge(actor.companyId, id)
     const stripe = stripeOf()
     if (!stripe) { await finish(charge.id, 'canceled', 'Cancelled at the desk.'); return pollCharge(actor.companyId, id) }
-    const [reader] = await db.select().from(salonReader).where(eq(salonReader.id, charge.readerId)).limit(1)
+    const [reader] = charge.readerId ? await db.select().from(salonReader).where(eq(salonReader.id, charge.readerId)).limit(1) : []
     await giveUp(stripe, charge, reader?.stripeReaderId ?? null, 'canceled', `Cancelled at the desk by ${nameOf(actor)}.`)
     return pollCharge(actor.companyId, id)
   }
@@ -312,6 +328,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
   /** Stripe's test helper: tap a test card on a SIMULATED reader (a test account only), to set up and to try the whole flow without hardware. */
   async function simulateCard(companyId: string, id: string, outcome: 'approve' | 'decline', extraTipCents = 0) {
     const charge = await chargeRow(companyId, id)
+    if (!charge.readerId) throw new TerminalError('A card tapped on the phone is taken by the phone itself.', 409, 'NOT_SIMULATED')
     const reader = await readerOf(companyId, charge.readerId)
     if (!String(reader.deviceType || '').startsWith('simulated')) throw new TerminalError('Only a simulated reader can be handed a test card.', 409, 'NOT_SIMULATED')
     const stripe = stripeOf()
@@ -321,6 +338,76 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
       await (stripe as any).testHelpers.terminal.readers.presentPaymentMethod(reader.stripeReaderId, { type: 'card_present', card_present: { number }, ...(extraTipCents > 0 ? { amount_tip: extraTipCents } : {}) }, charge.stripeAccount ? { stripeAccount: charge.stripeAccount } : undefined)
     } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not take the test card.'), 400) }
     return pollCharge(companyId, id)
+  }
+
+  // ─── Tap to Pay on the phone (salon parity row 26) ─────────────────────────────────────────────
+  /** Stripe Terminal's SDK on the phone asks for this whenever it needs one: a connection token on the salon's own account, and its Location. */
+  async function phoneToken(companyId: string): Promise<{ secret: string; locationId: string }> {
+    const { stripe, acct, opts } = await account(companyId)
+    const locationId = await ensureLocation(companyId, stripe, acct)
+    let token: any
+    try { token = await stripe.terminal.connectionTokens.create({ location: locationId }, opts) }
+    catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not let this phone take cards. Try again.'), 502) }
+    return { secret: String(token.secret), locationId }
+  }
+
+  /**
+   * A card payment on the sale for the phone to take: the same checks and the same PaymentIntent as the reader's (card_present, on the salon's
+   * account, the tip inside), its client secret handed to the phone. `key` is the phone's attempt: pressing again after a dropped answer gets
+   * the same PaymentIntent back, not a second. A payment this person left waiting on the phone (the app was closed mid-tap) is let go first.
+   */
+  async function startPhoneCharge(actor: any, input: { invoiceId?: unknown; amountCents?: unknown; tipCents?: unknown; key?: unknown }): Promise<ChargeView & { clientSecret: string }> {
+    const companyId = actor.companyId
+    const { stripe, acct, opts } = await account(companyId)
+    const { inv, amount, tip } = await saleCharge(companyId, input)
+    const key = String(input.key ?? '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60)
+    const pending: ChargeRow[] = await db.select().from(salonTerminalCharge).where(and(eq(salonTerminalCharge.companyId, companyId), eq(salonTerminalCharge.invoiceId, inv.id), eq(salonTerminalCharge.status, 'pending')))
+    const me = actor.userId || actor.id || null
+    const other = pending.find((p) => p.readerId || p.startedById !== me)
+    if (other) throw new TerminalError(other.readerId ? 'A card payment for this sale is already on a reader.' : 'Someone else is taking a card for this sale on their phone.', 409, 'ALREADY_PENDING')
+    let pi: any
+    try {
+      pi = await stripe.paymentIntents.create({
+        amount: amount + tip, currency: 'usd', payment_method_types: ['card_present'], capture_method: 'automatic',
+        description: `${inv.number}`.slice(0, 200), metadata: { twomiah_company: companyId, twomiah_invoice: inv.id, twomiah_tip_cents: String(tip), twomiah_source: 'phone' },
+      }, { ...opts, ...(key ? { idempotencyKey: `twomiah-chair-phone-${inv.id}-${key}` } : {}) })
+    } catch (e) { throw new TerminalError(stripeSays(e, 'Stripe did not start the payment. Try again.'), 502) }
+    const same = pending.find((p) => p.paymentIntentId === pi.id)
+    if (same) return { ...chargeView(same), clientSecret: String(pi.client_secret) }
+    // This person's own payment left waiting (the app closed mid-tap): let go — or recorded, if Stripe says it went through.
+    for (const p of pending) await giveUp(stripe, p, null, 'canceled', 'Started again on the phone.')
+    const [row] = await db.insert(salonTerminalCharge).values({
+      companyId, invoiceId: inv.id, readerId: null, source: 'phone', stripeAccount: acct, paymentIntentId: pi.id, amountCents: amount, tipCents: tip, startedById: me, startedByName: nameOf(actor),
+    }).returning()
+    return { ...chargeView(row), clientSecret: String(pi.client_secret) }
+  }
+
+  /**
+   * The phone saw the tap fail (declined, or the client cancelled on the phone's screen): the charge says so in the card network's words, and its
+   * PaymentIntent is cancelled — unless Stripe says it went through after all, when it is recorded instead.
+   */
+  async function phoneDeclined(actor: any, id: string, why: unknown): Promise<ChargeView> {
+    const charge = await chargeRow(actor.companyId, id)
+    if (charge.readerId) throw new TerminalError('That payment is on a reader.', 409, 'NOT_PHONE')
+    if (charge.status !== 'pending') return pollCharge(actor.companyId, id)
+    const stripe = stripeOf()
+    const words = String(why ?? '').replace(/\s+/g, ' ').trim().slice(0, 300) || 'The card was declined.'
+    if (!stripe) { await finish(charge.id, 'failed', words); return pollCharge(actor.companyId, id) }
+    const opts = { stripeAccount: charge.stripeAccount }
+    let pi: any = null
+    try { pi = await stripe.paymentIntents.retrieve(charge.paymentIntentId, {}, opts) } catch { pi = null }
+    if (pi?.status === 'succeeded') { await record(charge, pi); return pollCharge(actor.companyId, id) }
+    try { await stripe.paymentIntents.cancel(charge.paymentIntentId, {}, opts) } catch { /* already gone */ }
+    await finish(charge.id, 'failed', words)
+    return pollCharge(actor.companyId, id)
+  }
+
+  /** The sale a visit raised, for the phone's "Take payment" on a finished visit; null when the visit has none yet. */
+  async function saleForVisit(companyId: string, appointmentId: string) {
+    const [inv] = await db.select().from(invoice).where(and(eq(invoice.companyId, companyId), eq(invoice.appointmentId, String(appointmentId || '')))).limit(1)
+    if (!inv) return null
+    const balanceCents = Math.round(invoiceBalance({ status: inv.status, total: inv.total, amountPaid: inv.amountPaid, amountRefunded: inv.amountRefunded }) * 100)
+    return { invoiceId: inv.id, number: inv.number, status: inv.status, totalCents: Math.round(Number(inv.total || 0) * 100), balanceCents }
   }
 
   /** The card payments the reader took on a sale, with what has been refunded of each (so the sale's screen can offer "refund to card"). */
@@ -397,7 +484,7 @@ export function createChairCheckout(d: CrmDeps, deps: { stripe?: () => Stripe | 
     return { refundedCents: want, tipRefundedCents: tipBack, invoiceStatus: out.newStatus }
   }
 
-  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, paymentsFor, refundPayment, tips, receipts: deps.receipts }
+  return { listReaders, registerReader, removeReader, startCharge, pollCharge, cancelCharge, simulateCard, latestFor, paymentsFor, refundPayment, tips, receipts: deps.receipts, phoneToken, startPhoneCharge, phoneDeclined, saleForVisit }
 }
 export type ChairCheckout = ReturnType<typeof createChairCheckout>
 
@@ -530,6 +617,27 @@ export function createChairCheckoutRoutes(d: CrmDeps, t: ChairCheckout) {
     d.audit.log({ req: c, action: 'update', entity: 'sale_tip_split', entityId: invoiceId, changes: { before: before.people.map((p) => `${p.name} ${p.percent}%`).join(', '), after: after!.people.map((p) => `${p.name} ${p.percent}%`).join(', ') } })
     d.realtime.emitToCompany(u.companyId, d.realtime.EVENTS.REFRESH, { entity: 'invoice' })
     return one(c, after!)
+  })
+  // Tap to Pay on the phone (row 26): the same right a card on the reader asks, and the salon's Tap to Pay switch (tap_to_pay, not ready).
+  const tapOn = async (c: any, next: () => Promise<void>) => {
+    if (!(await d.features.isFeatureEnabled((c.get('user') as any).companyId, 'tap_to_pay'))) return fail(c, 403, 'Tap to Pay is not switched on for this salon.', 'FEATURE_NOT_ENABLED')
+    await next()
+  }
+  app.post('/phone/connection-token', mayCharge, tapOn, async (c) => act(c, 200, async () => t.phoneToken((c.get('user') as any).companyId)))
+  app.post('/phone/charges', mayCharge, tapOn, async (c) => {
+    const u = c.get('user') as any
+    const b = await body(c)
+    return act(c, 201, async () => ({ charge: await t.startPhoneCharge(u, b) }))
+  })
+  app.post('/phone/charges/:id/declined', mayCharge, tapOn, async (c) => {
+    const u = c.get('user') as any
+    const b = await body(c)
+    return act(c, 200, async () => ({ charge: await t.phoneDeclined(u, c.req.param('id'), b.message) }))
+  })
+  app.get('/visits/:appointmentId/sale', mayCharge, async (c) => {
+    c.header('Cache-Control', 'no-store')
+    const sale = await t.saleForVisit((c.get('user') as any).companyId, c.req.param('appointmentId'))
+    return sale ? one(c, sale) : fail(c, 404, 'This visit has no sale yet. Complete the visit first.', 'NO_SALE')
   })
   // A test card on a simulated reader: configuration-level, because it exists to set the reader up.
   app.post('/charges/:id/simulate', requirePermission('company:update'), async (c) => {

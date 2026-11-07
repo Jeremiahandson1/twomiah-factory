@@ -10,22 +10,34 @@ const API = import.meta.env.VITE_API_URL || ''
 
 interface Photo { id: string; url: string; caption: string | null }
 interface Order {
+  /** Row 27: the page's language (the office's choice). */
+  language?: 'en' | 'es'
   title: string; scope: string | null; address: string | null; startDate: string | null; recipientName: string; status: string
   company: { name: string | null; phone: string | null }
   materials: Array<{ description: string; qty: number; unit: string }>
   photos: Photo[]; completionPhotos: Photo[]
   respondedByName: string | null; rejectReason: string | null; completedAt: string | null; completionNote: string | null
-  can: { accept: boolean; reject: boolean; photos: boolean; complete: boolean }
+  can: { accept: boolean; reject: boolean; photos: boolean; complete: boolean; arrive?: boolean; leave?: boolean }
   cancelled: boolean
+  /** Row 28 (crew_scheduling): the on-site checklist, what is ticked, and attendance. */
+  checklist?: Array<{ id: string; text: string }>
+  checks?: Record<string, string>
+  arrivedAt?: string | null
+  leftAt?: string | null
 }
 
 const STATUS_WORDS: Record<string, string> = {
-  sent: 'Waiting for your answer', accepted: 'You accepted this', rejected: 'You turned this down', completed: 'Done', cancelled: 'Cancelled by the office',
+  sent: 'Waiting for your answer', accepted: 'You accepted this', in_progress: 'In progress', rejected: 'You turned this down', completed: 'Done', cancelled: 'Cancelled by the office',
 }
+
+// Roofing parity row 27 (work_order_send_options): the crew page in Spanish — every fixed word here; the scope is the office's Spanish one.
+const ES: Record<string, string> = {"I’m here": "Ya llegué", "Leaving for now": "Me voy por ahora", "On site since": "En el sitio desde", "Checklist": "Lista de verificación", "Loading…": "Cargando…", "For ": "Para ", "Where ": "Dónde ", "Start ": "Inicio ", "Materials": "Materiales", "Photos from the office": "Fotos de la oficina", "Your photos": "Sus fotos", "Your full name": "Su nombre completo", "Accept this work order": "Aceptar esta orden de trabajo", "Anything the office should know (optional)": "Algo que la oficina deba saber (opcional)", "Mark this work done": "Marcar este trabajo como terminado", "I can’t take this": "No puedo aceptarlo", "Why not?": "¿Por qué no?", "Send my answer": "Enviar mi respuesta", "This page is private to you. Please don’t share the link.": "Esta página es privada. Por favor no comparta el enlace."}
+const ES_STATUS: Record<string, string> = { sent: 'Esperando su respuesta', accepted: 'Usted aceptó esto', in_progress: 'En curso', rejected: 'Usted lo rechazó', completed: 'Terminado', cancelled: 'Cancelado por la oficina' }
 
 export default function CrewLinkPage() {
   const { token } = useParams<{ token: string }>()
   const [order, setOrder] = useState<Order | null>(null)
+  const tr = (en: string) => (order?.language === 'es' ? ES[en] ?? en : en)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -82,7 +94,7 @@ export default function CrewLinkPage() {
       </main>
     )
   }
-  if (!order) return <main className="min-h-screen p-6 text-gray-600 dark:text-slate-400">Loading…</main>
+  if (!order) return <main className="min-h-screen p-6 text-gray-600 dark:text-slate-400">{tr('Loading…')}</main>
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-slate-950 p-4" data-testid="crew-link">
@@ -90,19 +102,19 @@ export default function CrewLinkPage() {
         <header>
           <p className="text-sm text-gray-600 dark:text-slate-400">{order.company.name || 'Work order'}{order.company.phone ? ` · ${order.company.phone}` : ''}</p>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.title}</h1>
-          <p className="mt-1 text-sm font-medium text-orange-700 dark:text-orange-300">{STATUS_WORDS[order.status] || order.status}</p>
+          <p className="mt-1 text-sm font-medium text-orange-700 dark:text-orange-300">{(order.language === 'es' ? ES_STATUS[order.status] : STATUS_WORDS[order.status]) || STATUS_WORDS[order.status] || 'Work order'}</p>
         </header>
 
         <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-2 dark:border-slate-700">
-          <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">For </span>{order.recipientName}</p>
-          {order.address && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">Where </span><a className="underline" href={`https://maps.google.com/?q=${encodeURIComponent(order.address)}`}>{order.address}</a></p>}
-          {order.startDate && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">Start </span>{whenDate(order.startDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>}
+          <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('For ')}</span>{order.recipientName}</p>
+          {order.address && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('Where ')}</span><a className="underline" href={`https://maps.google.com/?q=${encodeURIComponent(order.address)}`}>{order.address}</a></p>}
+          {order.startDate && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('Start ')}</span>{whenDate(order.startDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>}
           {order.scope && <p className="text-sm whitespace-pre-wrap pt-2">{order.scope}</p>}
         </section>
 
         {order.materials.length > 0 && (
           <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 dark:border-slate-700">
-            <h2 className="text-sm font-semibold mb-2">Materials</h2>
+            <h2 className="text-sm font-semibold mb-2">{tr('Materials')}</h2>
             <ul className="text-sm divide-y dark:divide-slate-700">
               {order.materials.map((m, i) => <li key={i} className="py-1.5 flex justify-between gap-3"><span>{m.description}</span><span className="text-gray-600 dark:text-slate-400 whitespace-nowrap">{m.qty} {m.unit}</span></li>)}
             </ul>
@@ -111,7 +123,7 @@ export default function CrewLinkPage() {
 
         {order.photos.length > 0 && (
           <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 dark:border-slate-700">
-            <h2 className="text-sm font-semibold mb-2">Photos from the office</h2>
+            <h2 className="text-sm font-semibold mb-2">{tr('Photos from the office')}</h2>
             <div className="grid grid-cols-2 gap-2">{order.photos.map((p) => <a key={p.id} href={`${API}${p.url}`}><img src={`${API}${p.url}`} alt={p.caption || 'Job photo'} className="rounded-lg w-full h-32 object-cover" /></a>)}</div>
           </section>
         )}
@@ -126,7 +138,7 @@ export default function CrewLinkPage() {
 
         {(order.completionPhotos.length > 0 || order.can.photos) && (
           <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 dark:border-slate-700">
-            <h2 className="text-sm font-semibold mb-2">Your photos</h2>
+            <h2 className="text-sm font-semibold mb-2">{tr('Your photos')}</h2>
             {order.completionPhotos.length > 0 && <div className="grid grid-cols-3 gap-2 mb-3">{order.completionPhotos.map((p) => <img key={p.id} src={`${API}${p.url}`} alt="Your photo" className="rounded-lg w-full h-24 object-cover" />)}</div>}
             {order.can.photos && (
               <>
@@ -141,31 +153,46 @@ export default function CrewLinkPage() {
 
         {order.can.accept && (
           <section className="space-y-2">
-            <label htmlFor="crew-name" className="text-sm text-gray-700 dark:text-slate-300">Your full name</label>
+            <label htmlFor="crew-name" className="text-sm text-gray-700 dark:text-slate-300">{tr('Your full name')}</label>
             <input id="crew-name" className={box} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-            <button type="button" disabled={busy || name.trim().length < 2} onClick={() => post('/accept', { name })} className={`${big} bg-green-700 text-white`}>Accept this work order</button>
+            <button type="button" disabled={busy || name.trim().length < 2} onClick={() => post('/accept', { name })} className={`${big} bg-green-700 text-white`}>{tr('Accept this work order')}</button>
+          </section>
+        )}
+        {(order.can.arrive || order.can.leave) && (
+          <section className="space-y-2" data-testid="crew-attendance">
+            {order.arrivedAt && !order.leftAt && <p className="text-sm text-gray-600 dark:text-slate-400">{tr('On site since')} {whenDate(order.arrivedAt, { hour: 'numeric', minute: '2-digit' })}</p>}
+            {order.can.arrive && (order.status !== 'in_progress' || order.leftAt) && <button type="button" disabled={busy} onClick={() => post('/arrive', {})} className={`${big} bg-blue-700 text-white`}>{tr('I’m here')}</button>}
+            {order.can.leave && !order.leftAt && <button type="button" disabled={busy} onClick={() => post('/leave', {})} className={`${big} bg-white border dark:bg-slate-900 dark:border-slate-700`}>{tr('Leaving for now')}</button>}
+          </section>
+        )}
+        {order.checklist && order.checklist.length > 0 && (
+          <section className="space-y-1" data-testid="crew-checklist">
+            <h2 className="text-sm font-semibold mb-1">{tr('Checklist')}</h2>
+            {order.checklist.map((item) => (
+              <label key={item.id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" disabled={busy || !(order.can.complete)} checked={!!order.checks?.[item.id]} onChange={(e) => post('/check', { itemId: item.id, done: e.target.checked })} />{item.text}</label>
+            ))}
           </section>
         )}
         {order.can.complete && (
           <section className="space-y-2">
-            <label htmlFor="crew-note" className="text-sm text-gray-700 dark:text-slate-300">Anything the office should know (optional)</label>
+            <label htmlFor="crew-note" className="text-sm text-gray-700 dark:text-slate-300">{tr('Anything the office should know (optional)')}</label>
             <textarea id="crew-note" rows={3} className={box} value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" disabled={busy} onClick={() => post('/complete', { note })} className={`${big} bg-green-700 text-white`}>Mark this work done</button>
+            <button type="button" disabled={busy} onClick={() => post('/complete', { note })} className={`${big} bg-green-700 text-white`}>{tr('Mark this work done')}</button>
           </section>
         )}
         {order.can.reject && !declining && (
-          <button type="button" onClick={() => setDeclining(true)} className={`${big} bg-white border text-red-700 dark:bg-slate-900 dark:text-red-300 dark:border-slate-700`}>I can’t take this</button>
+          <button type="button" onClick={() => setDeclining(true)} className={`${big} bg-white border text-red-700 dark:bg-slate-900 dark:text-red-300 dark:border-slate-700`}>{tr('I can’t take this')}</button>
         )}
         {order.can.reject && declining && (
           <section className="space-y-2">
-            {!order.can.accept && (<><label htmlFor="crew-name2" className="text-sm text-gray-700 dark:text-slate-300">Your full name</label>
+            {!order.can.accept && (<><label htmlFor="crew-name2" className="text-sm text-gray-700 dark:text-slate-300">{tr('Your full name')}</label>
               <input id="crew-name2" className={box} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></>)}
-            <label htmlFor="crew-reason" className="text-sm text-gray-700 dark:text-slate-300">Why not?</label>
+            <label htmlFor="crew-reason" className="text-sm text-gray-700 dark:text-slate-300">{tr('Why not?')}</label>
             <textarea id="crew-reason" rows={3} className={box} value={reason} onChange={(e) => setReason(e.target.value)} />
-            <button type="button" disabled={busy || name.trim().length < 2 || !reason.trim()} onClick={() => post('/reject', { name, reason })} className={`${big} bg-red-700 text-white`}>Send my answer</button>
+            <button type="button" disabled={busy || name.trim().length < 2 || !reason.trim()} onClick={() => post('/reject', { name, reason })} className={`${big} bg-red-700 text-white`}>{tr('Send my answer')}</button>
           </section>
         )}
-        <p className="text-xs text-gray-500 dark:text-slate-500 text-center pt-2">This page is private to you. Please don’t share the link.</p>
+        <p className="text-xs text-gray-500 dark:text-slate-500 text-center pt-2">{tr('This page is private to you. Please don’t share the link.')}</p>
       </div>
     </main>
   )

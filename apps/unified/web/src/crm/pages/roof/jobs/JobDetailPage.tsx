@@ -38,6 +38,8 @@ import { formatStatus, rowsOf, stageLabel } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobCommissionPeople from './JobCommissionPeople'
+import JobStatusPanel from './JobStatusPanel'
+import JobPostsPanel from './JobPostsPanel'
 import JobBooks from './JobBooks'
 import JobPermits from './JobPermits'
 import InspectionReports from './InspectionReports'
@@ -735,6 +737,8 @@ export default function JobDetailPage() {
 
             {/* What the homeowner's portal shows of this job — behind its own switch (not ready); off for each file until chosen. */}
             {hasFeature('portal_job_files') && job.contact && <ShareWithHomeowner jobId={job.id} homeowner={job.contact.name || null} refreshKey={photos.length} />}
+            {/* Row 22 (portal_posts_packets, not ready): the job's thread with the homeowner. */}
+            {job.contact && <JobPostsPanel jobId={job.id} homeowner={job.contact.name || null} />}
 
             {/* Notes */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
@@ -866,6 +870,9 @@ export default function JobDetailPage() {
                 </div>}
               </div>
             </div>
+
+            {/* Row 20 (pipeline_statuses, not ready): the company's status inside the milestone, and its checklist. */}
+            <JobStatusPanel jobId={job.id} jobStatus={job.status} jobType={job.jobType} />
 
             {/* The other people whose commission this job carries (roof/jobPeople.ts) — a seat that reads the pay structure */}
             {hasFeature('commission_tracking') && can('commissions:read') && <JobCommissionPeople jobId={job.id} users={users} />}

@@ -25,6 +25,7 @@ import { api } from '../../../../api'
 import { useAuth, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
 import { displayName } from '../lib/user'
 import { boardOf, pipelineFor, pipelineNames, rowsOf, stageLabel } from './model'
+import { BoardEditor, boardMatches, type CustomBoard } from './CustomBoards'
 import type { Crew, Person, RoofJob } from './model'
 
 const STAGE_THRESHOLDS: Record<string, number> = {
@@ -80,8 +81,19 @@ export default function PipelineBoard() {
   const [dragJobId, setDragJobId] = useState<string | null>(null)
   // Separate Retail and Insurance boards where Pipeline Stages & Boards is on (server/crm/roof/pipeline.ts): a tab per board.
   const boardNames = pipelineNames()
-  const [board, setBoard] = useState<'all' | 'retail' | 'insurance'>('all')
-  const nameOf = (stage: string) => stageLabel(stage, board === 'all' ? undefined : board)
+  // Row 19 (pipeline_custom_boards, not ready): the company's own boards, a tab each ('c:<id>'); the editor makes and changes them.
+  const customOn = hasFeature('pipeline_custom_boards')
+  const mayShareBoards = useMayWrite('company:update')
+  const [customBoards, setCustomBoards] = useState<CustomBoard[]>([])
+  const [editing, setEditing] = useState<CustomBoard | 'new' | null>(null)
+  const loadBoards = useCallback(async () => {
+    if (!customOn) return
+    try { const r: any = await api.get('/api/roof-pipeline/boards'); setCustomBoards(Array.isArray(r?.data) ? r.data : []) } catch { setCustomBoards([]) }
+  }, [customOn]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadBoards() }, [loadBoards])
+  const [board, setBoard] = useState<string>('all')
+  const custom = board.startsWith('c:') ? customBoards.find((b) => `c:${b.id}` === board) ?? null : null
+  const nameOf = (stage: string) => stageLabel(stage, board === 'retail' || board === 'insurance' ? board : undefined)
 
   const load = useCallback(async () => {
     try {
@@ -110,7 +122,8 @@ export default function PipelineBoard() {
     if (filterType && j.jobType !== filterType) return false
     if (filterPriority && j.priority !== filterPriority) return false
     if (filterCanvassing && j.source !== 'canvassing') return false
-    if (boardNames && board !== 'all' && boardOf(j.jobType) !== board) return false
+    if (boardNames && (board === 'retail' || board === 'insurance') && boardOf(j.jobType) !== board) return false
+    if (custom && !boardMatches(custom, j as any)) return false
     return true
   })
 
@@ -188,9 +201,9 @@ export default function PipelineBoard() {
 
   return (
     <div className="h-full flex flex-col">
-      {boardNames && (
-        <div role="tablist" aria-label="Boards" className="flex gap-2 px-6 pt-3 bg-white flex-shrink-0 dark:bg-slate-900">
-          {([['all', 'All jobs'], ...boardNames.boards.map((b) => [b.id, b.name])] as Array<['all' | 'retail' | 'insurance', string]>).map(([id, label]) => {
+      {(boardNames || customOn) && (
+        <div role="tablist" aria-label="Boards" className="flex flex-wrap gap-2 px-6 pt-3 bg-white flex-shrink-0 dark:bg-slate-900">
+          {([['all', 'All jobs'], ...(boardNames ? boardNames.boards.map((b) => [b.id, b.name]) : [])] as Array<[string, string]>).map(([id, label]) => {
             const count = jobs.filter((j) => j.status !== 'lost' && j.status !== 'cancelled' && (id === 'all' || boardOf(j.jobType) === id)).length
             return (
               <button key={id} type="button" role="tab" aria-selected={board === id} onClick={() => setBoard(id)}
@@ -199,7 +212,28 @@ export default function PipelineBoard() {
               </button>
             )
           })}
+          {customBoards.map((b) => {
+            const id = `c:${b.id}`
+            const count = jobs.filter((j) => j.status !== 'lost' && j.status !== 'cancelled' && boardMatches(b, j as any)).length
+            return (
+              <span key={id} className="flex items-center">
+                <button type="button" role="tab" aria-selected={board === id} onClick={() => setBoard(id)}
+                  className={`text-sm px-3 py-1.5 rounded-t-lg border-b-2 font-medium flex items-center gap-1.5 ${board === id ? 'text-gray-900 dark:text-slate-100' : 'border-transparent text-gray-600 dark:text-slate-300'}`} style={board === id ? { borderColor: b.color } : undefined}>
+                  <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: b.color }} aria-hidden="true" />{b.name} ({count})
+                </button>
+                {b.mayEdit && board === id && <button type="button" className="text-xs text-gray-500 hover:underline dark:text-slate-400" onClick={() => setEditing(b)}>Change</button>}
+              </span>
+            )
+          })}
+          {customOn && <button type="button" className="text-sm px-2 py-1.5 text-orange-700 hover:underline dark:text-orange-300" onClick={() => setEditing('new')}>+ New board</button>}
         </div>
+      )}
+      {editing && (
+        <BoardEditor board={editing === 'new' ? null : editing} mayShare={mayShareBoards}
+          people={users.map((u) => ({ id: u.id, name: displayName(u) }))}
+          subs={[...new Map(jobs.filter((j: any) => j.subcontractorId).map((j: any) => [j.subcontractorId, { id: j.subcontractorId, name: j.subcontractorName || j.subcontractor?.name || 'Subcontractor' }])).values()]}
+          locations={[...new Map(jobs.filter((j: any) => j.locationId).map((j: any) => [j.locationId, { id: j.locationId, name: j.locationName || j.location?.name || 'Location' }])).values()]}
+          onClose={() => setEditing(null)} onDone={() => { setEditing(null); void loadBoards() }} />
       )}
       {/* Filter Bar */}
       <div className="flex items-center gap-3 px-6 py-4 bg-white border-b flex-shrink-0 overflow-x-auto dark:bg-slate-900">

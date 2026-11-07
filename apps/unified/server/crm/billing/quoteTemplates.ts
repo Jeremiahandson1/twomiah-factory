@@ -33,10 +33,14 @@ interface TemplateLine {
   description: string; quantity: number; unitPrice: number
   type?: string; unitCost?: number; pricebookItemId?: string; optional?: boolean; selected?: boolean
   section?: string; markupPct?: number; allowance?: boolean; costCode?: string
+  /** Formula estimating (contractor parity row 9): the line's name and formulas, kept as written. */
+  formulaKey?: string; quantityFormula?: string; priceFormula?: string
 }
 interface TemplateBody {
   name: string; notes: string; terms: string; customerMessage: string; taxRate: number
   depositType: 'percent' | 'fixed' | null; depositValue: number; lineItems: TemplateLine[]
+  /** The quote's own parameters (row 9), as numbers to start from. */
+  parameters?: Array<{ key: string; label?: string; value: number; unit?: string }>
 }
 
 /** One quote line as a template keeps it: only what was set, as plain numbers. */
@@ -50,6 +54,9 @@ const lineOf = (li: any): TemplateLine => ({
   ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
   ...(li.allowance ? { allowance: true } : {}),
   ...(li.costCode ? { costCode: li.costCode } : {}),
+  ...(li.formulaKey ? { formulaKey: li.formulaKey } : {}),
+  ...(li.quantityFormula ? { quantityFormula: li.quantityFormula } : {}),
+  ...(li.priceFormula ? { priceFormula: li.priceFormula } : {}),
 })
 
 /** The template as the caller may see it: without what the company pays unless they hold margin:read. */
@@ -101,6 +108,7 @@ export function createQuoteTemplateRoutes(d: CrmDeps) {
       name: q.name, notes: q.notes || '', terms: q.terms || '', customerMessage: q.customerMessage || '', taxRate: Number(q.taxRate) || 0,
       depositType: q.depositType === 'percent' || q.depositType === 'fixed' ? q.depositType : null, depositValue: Number(q.depositValue) || 0,
       lineItems: lines.map(lineOf),
+      ...(Array.isArray(q.parameters) && q.parameters.length ? { parameters: q.parameters } : {}),
     }
     const [row] = await db.insert(quoteTemplate).values({ companyId: user.companyId, name: parsed.data.name, body, createdById: user.userId ?? null }).returning()
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'quote_template', entityId: row.id, entityName: row.name, metadata: { fromQuote: q.number, lines: lines.length }, req: c })

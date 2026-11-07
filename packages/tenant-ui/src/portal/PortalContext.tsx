@@ -48,7 +48,8 @@ export interface PortalContextValue {
   preview?: boolean
 }
 
-const PortalContext = createContext<PortalContextValue | null>(null)
+/** Exported for tests that hand a page its session directly; pages read it through usePortal(). */
+export const PortalContext = createContext<PortalContextValue | null>(null)
 
 async function readError(response: Response, fallback: string): Promise<string> {
   try { const body = await response.json(); return body?.error || fallback } catch { return fallback }

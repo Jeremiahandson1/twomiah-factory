@@ -27,6 +27,7 @@ import { createSalonReports, createSalonReportRoutes } from './reports.ts'
 import { createSalonRetail, createSalonRetailRoutes } from './retail.ts'
 import { createRetailStock, createRetailStockRoutes } from './retailStock.ts'
 import { createChairCheckout, createChairCheckoutRoutes } from './chairCheckout.ts'
+import { createClientAppRoutes, createClientAppSettingsRoutes } from './clientApp.ts'
 import { createLateTips } from './lateTip.ts'
 import { createSaleReceipts } from './saleReceipt.ts'
 import { createServiceRecordRoutes } from './serviceRecords.ts'
@@ -169,6 +170,9 @@ export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
     { path: '/api/salon-retail', access: 'user', feature: 'salon_retail', router: createSalonRetailRoutes(d, retail) } as Mount,
     { path: '/api/salon-retail-stock', access: 'user', feature: 'salon_retail', router: createRetailStockRoutes(d, retailStock) } as Mount,
     // Card reader at the chair: the client pays on a Stripe reader, the tip goes to the stylist (not ready: owner tests it first).
+    // Row 25: the salon's own client app (the portal, installable in its name) and its directory listing (not ready).
+    { path: '/api/client-app', access: 'public', feature: 'salon_client_app', router: createClientAppRoutes(d) } as Mount,
+    { path: '/api/client-app-settings', access: 'user', feature: 'salon_client_app', router: createClientAppSettingsRoutes(d) } as Mount,
     { path: '/api/chair-checkout', access: 'user', feature: 'chair_checkout', router: createChairCheckoutRoutes(d, createChairCheckout(d, { receipts, afterPaid: giftCards.activateRecorded })) } as Mount,
     // The receipt's private tip page (404 while Checkout at the chair is off).
     { path: '/api/late-tip', access: 'public', feature: 'chair_checkout', router: lateTips.routes() } as Mount,

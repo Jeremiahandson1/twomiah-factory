@@ -19,12 +19,12 @@ Vagaro, Boulevard and GlossGenius: no help-centre page on processing time was re
 | Another client can be booked into the gap (Fresha) | At the desk and online. A cut at 13:00 fits inside a colour that processes 13:00–14:00 for the same stylist; a cut that would touch the hands-on stretches is refused (409 APPOINTMENT_CONFLICT) | **Matches** |
 | Online booking respects the gap | Online times offered for a stylist account for other clients' gaps | **Matches** |
 | Shown on the calendar as a faded/partial segment (Fresha, Square) | Drawn on the Book's time grid (#3) as a hatched stretch inside the card (see salon-book-grid.md) | **Matches** |
-| Several gap kinds per service: processing, blocked, extra servicing; reorderable (Fresha) | One gap per service | **Not built** |
-| A service can carry more than one gap in a sequence | No | **Not built** |
+| Several gap kinds per service: processing, blocked, extra servicing; reorderable (Fresha) | Built (salon parity row 7, `service_segments`): any number of steps — hands-on, processing, blocked, extra — in order, reorderable; only processing frees the stylist | **Matches** |
+| A service can carry more than one gap in a sequence | Built (row 7): the steps are a sequence; the desk's clash check, online availability and the Book's drawing all follow it | **Matches** |
 
 ## Decisions and limits to know
 
 - **Off by default.** The feature id `processing_time` is registered not-ready (hidden). Until a salon is given it, the service form shows no gap fields and the server refuses them (409 FEATURE_OFF); everything books as the whole span, as today.
-- A booking that itself has a gap holds its **whole span** when taken online (conservative: two gap bookings cannot interleave online); the desk can double-book into gaps.
+- With `service_segments` (row 7), a booking with steps taken online holds only its hands-on, blocked and extra steps: it is offered around another booking sitting in its processing, the way the desk books into gaps. Off, it holds its whole span online, as before.
 - Cancelled and no-show appointments free their time.
 - Proving test: `apps/unified/tests/salon-processing-time.test.ts` — fails without the change (the 13:00 cut is a clash on the whole span).

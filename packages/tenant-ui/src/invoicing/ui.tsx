@@ -9,6 +9,7 @@ import { api } from '../api/client'
 import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
 import { useConfirm } from '../ui/confirmContext'
 import { groupLines } from './sections'
+import { applyLineFormulas, type Parameter } from './formulasUi'
 import { applyDefaultMarkup, lineMargin, type MarkupDefaults } from './markup'
 
 // ---------------------------------------------------------------- formatting
@@ -545,6 +546,7 @@ export function pricebookLine(pb: PricebookPick, option?: { name?: string | null
     type: kind,
     ...cost,
     pricebookItemId: pb.id,
+    ...(pb.quantityFormula ? { quantityFormula: pb.quantityFormula } : {}),
   }
 }
 
@@ -583,10 +585,19 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
     images?: { upload: (file: File) => Promise<string> }
     /** "+ Add text": a line of words only — a heading or a note, no quantity or price (quote_text_lines). */
     textLines?: boolean
+    /**
+     * Formula estimating (quote_formulas): each line takes a name and quantity / price formulas over these parameters and
+     * other lines, worked out as they are typed (formulasUi.ts); a formula that does not work out is said on its line.
+     */
+    formulas?: { parameters: Parameter[] }
   }
   /** Offer an "Option" name on each line: lines sharing a name are one option (Good / Better / Best) the customer picks between. */
 }) {
-  const update = (i: number, patch: Partial<LineItemInput>) => onChange(items.map((li, idx) => {
+  const formulas = estimating?.formulas
+  /** The lines as they go back to the form: with formulas on, every formula worked out again first. */
+  const emit = (list: LineItemInput[]) => onChange(formulas ? applyLineFormulas(list, formulas.parameters).items : list)
+  const formulaErrors = formulas ? applyLineFormulas(items, formulas.parameters).errors : {}
+  const update = (i: number, patch: Partial<LineItemInput>) => emit(items.map((li, idx) => {
     if (idx !== i) return li
     // A price typed by itself is the price: the markup that set it no longer holds (a cost or markup change sets both).
     const typedPrice = 'unitPrice' in patch && !('markupPct' in patch) && !('unitCost' in patch)
@@ -613,7 +624,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
   const addFromPricebook = (id: string) => {
     const pb = (pricebook?.items || []).find(p => p.id === id)
     if (!pb) return
-    onChange([...items, pricebookLine(pb)])
+    emit([...items, pricebookLine(pb)])
   }
   // Sections, in the order each first appears (same rule as the server's and the customer's page).
   const groups = est ? groupLines(items.map((li) => ({ ...li, total: round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)) }))) : null
@@ -695,6 +706,20 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
             )}
           </div>
         )}
+        {formulas && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-700 dark:text-slate-200" data-testid="line-formulas">
+            <label className="flex items-center gap-1" title="Other lines read this line's quantity by this name.">Name
+              <input aria-label="Line name for formulas" value={li.formulaKey || ''} onChange={(e) => update(i, { formulaKey: e.target.value || undefined })} placeholder="studs" className={`${inputCls} w-24 py-0.5 text-xs`} />
+            </label>
+            <label className="flex items-center gap-1">Qty =
+              <input aria-label="Quantity formula" value={li.quantityFormula || ''} onChange={(e) => update(i, { quantityFormula: e.target.value || undefined })} placeholder="ceil(wall_length / 1.33)" className={`${inputCls} w-48 py-0.5 text-xs font-mono`} />
+            </label>
+            <label className="flex items-center gap-1">Price =
+              <input aria-label="Price formula" value={li.priceFormula || ''} onChange={(e) => update(i, { priceFormula: e.target.value || undefined })} placeholder="optional" className={`${inputCls} w-36 py-0.5 text-xs font-mono`} />
+            </label>
+            {formulaErrors[i] && <p role="alert" className="w-full text-red-700 dark:text-red-300" data-testid="formula-error">{formulaErrors[i]}</p>}
+          </div>
+        )}
       </td>
       {showCost && (
         <td className="px-3 py-2">
@@ -708,7 +733,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
           </select>
         </td>
       )}
-      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Quantity" value={li.quantity} onValue={n => update(i, { quantity: n })} className={inputCls} /></td>
+      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Quantity" value={li.quantity} onValue={n => update(i, { quantity: n })} disabled={!!(formulas && li.quantityFormula)} title={formulas && li.quantityFormula ? 'Worked out from the quantity formula' : undefined} className={inputCls} /></td>
       {showCost && (
         <td className="px-3 py-2">
           {/*
@@ -745,7 +770,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
         </td>
       )}
       {/* typing a price over a markup-priced line takes the markup off it: the price typed is the price */}
-      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
+      <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} disabled={!!(formulas && li.priceFormula)} title={formulas && li.priceFormula ? 'Worked out from the price formula' : undefined} className={inputCls} /></td>
       <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
       {optional && (
         <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-200">

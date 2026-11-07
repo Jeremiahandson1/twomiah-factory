@@ -21,6 +21,7 @@ export function terminalStripeFake() {
   const state = { n: 0, offline: false, declineIncrement: false, bankCapability: true }
   const readers = new Map<string, any>()
   const intents = new Map<string, any>()
+  const idemKeys = new Map<string, string>()
   const sessions = new Map<string, any>()
   // Every refund, as Stripe keeps them: GET /v1/refunds?payment_intent= lists them (newest first, as Stripe does).
   const refunds: any[] = []
@@ -37,6 +38,8 @@ export function terminalStripeFake() {
     const p = u.pathname
     calls.push({ method, path: p, params, account: headers.get('stripe-account') })
     let m: RegExpMatchArray | null
+    // Stripe Terminal's SDK on a phone (Tap to Pay) asks the server for a connection token, scoped to a Location.
+    if (p === '/v1/terminal/connection_tokens' && method === 'POST') return json({ object: 'terminal.connection_token', secret: `pst_test_${++state.n}`, location: param(params, 'location') })
     if (p === '/v1/terminal/locations' && method === 'POST') return json({ id: `tml_${++state.n}`, object: 'terminal.location', display_name: param(params, 'display_name'), address: { line1: param(params, 'address[line1]'), city: param(params, 'address[city]'), state: param(params, 'address[state]'), postal_code: param(params, 'address[postal_code]'), country: param(params, 'address[country]') } })
     if ((m = p.match(/^\/v1\/terminal\/locations\/([^/]+)$/)) && method === 'POST') return json({ id: m[1], object: 'terminal.location', configuration_overrides: param(params, 'configuration_overrides') })
     if (p === '/v1/terminal/configurations' && method === 'POST') return json({ id: `tmc_${++state.n}`, object: 'terminal.configuration', tipping: { usd: { percentages: arr(params, 'tipping[usd][percentages]').map(Number) } } })
@@ -103,6 +106,9 @@ export function terminalStripeFake() {
     // The connected account itself: whether bank debits are switched on for it (capabilities.us_bank_account_ach_payments).
     if ((m = p.match(/^\/v1\/accounts\/([^/]+)$/)) && method === 'GET') return json({ id: m[1], object: 'account', capabilities: { card_payments: 'active', transfers: 'active', us_bank_account_ach_payments: state.bankCapability ? 'active' : 'inactive' } })
     if (p === '/v1/payment_intents' && method === 'POST') {
+      // An Idempotency-Key Stripe has seen answers the PaymentIntent it made then (docs.stripe.com/api/idempotent_requests).
+      const idem = headers.get('idempotency-key')
+      if (idem && idemKeys.has(idem)) return json(intents.get(idemKeys.get(idem)!))
       const pi: any = { id: `pi_${++state.n}`, object: 'payment_intent', created: Math.floor(Date.now() / 1000), client_secret: `pi_secret_${state.n}`, payment_method: param(params, 'payment_method'), amount: Number(param(params, 'amount')), currency: param(params, 'currency'), status: 'requires_payment_method', amount_received: 0, capture_method: param(params, 'capture_method'), payment_method_types: arr(params, 'payment_method_types'), customer: param(params, 'customer'), setup_future_usage: param(params, 'setup_future_usage'), metadata: {} as Record<string, string>, amount_details: {}, last_payment_error: null, next_action: null, payment_method_options: { card_present: { request_incremental_authorization_support: param(params, 'payment_method_options[card_present][request_incremental_authorization_support]') } } }
       // confirm=true with a saved card is an off-session charge: the declining test card fails the way Stripe's does.
       if (param(params, 'confirm') === 'true') {
@@ -118,6 +124,7 @@ export function terminalStripeFake() {
       } else if (pi.payment_method_types.includes('us_bank_account') && !state.bankCapability) return err(400, 'The us_bank_account payment method type is not enabled for this account.', 'payment_method_unactivated')
       for (const [k, v] of params) { const mm = k.match(/^metadata\[(.+)\]$/); if (mm) pi.metadata[mm[1]] = v }
       intents.set(pi.id, pi)
+      if (idem) idemKeys.set(idem, pi.id)
       return json(pi)
     }
     if ((m = p.match(/^\/v1\/payment_intents\/([^/]+)$/)) && method === 'GET') {

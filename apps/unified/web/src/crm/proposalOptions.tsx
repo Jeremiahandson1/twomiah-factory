@@ -82,6 +82,14 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
   const [busy, setBusy] = useState(false)
   const [pages, setPages] = useState(false)
   const doc: DocumentView | null = record.document || null
+  // Roofing parity row 30: each option's estimated monthly payment, as the customer sees it (proposal_financing, not ready).
+  const [monthly, setMonthly] = useState<Record<string, { asLowAs: number }>>({})
+  const [disclosure, setDisclosure] = useState('')
+  const showMonthly = optionCount > 0 && hasFeature('consumer_financing') && hasFeature('proposal_financing') && can('financing:read')
+  useEffect(() => {
+    if (!showMonthly) return
+    client.get(`/api/financing/quotes/${record.id}/options`).then((r: any) => { setMonthly(r?.options || {}); setDisclosure(r?.disclosure || '') }).catch(() => setMonthly({}))
+  }, [showMonthly, record.id])
   if (!can('quotes:read') || (!optionCount && !hasFeature('quote_proposals'))) return null
 
   // The page reads the quote when it opens; a change here reloads it, so the total and the lines follow.
@@ -111,6 +119,7 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
       {optionCount > 0 && (
         <>
           <p className="mb-2 text-gray-600 dark:text-slate-300">{needsChoice ? 'The customer has not chosen yet. Each price is for the whole job with that option; the quote total counts only what is chosen so far.' : 'The customer has chosen. The quote is priced at their picks.'}</p>
+          {Object.keys(monthly).length > 0 && <p className="mb-2 text-xs text-gray-600 dark:text-slate-300" data-testid="option-monthly-note">*The customer sees each option's estimated monthly payment, and checks their financing once they have chosen. {disclosure}</p>}
           <div className="space-y-4">
             {sets.map((s) => (
               <div key={s.index} data-testid="proposal-set">
@@ -128,6 +137,7 @@ export function ProposalPanel({ record }: { record: Record<string, any> }) {
                           )}
                         </div>
                         <div className="text-right shrink-0"><p className="font-semibold">{s.kind === 'any' ? `+ ${money(o.addPrice ?? o.price)}` : money(o.price)}</p>
+                          {s.kind === 'one' && monthly[o.id] && <p className="text-xs text-emerald-800 dark:text-emerald-300" data-testid="option-monthly">or {money(monthly[o.id].asLowAs)}/mo*</p>}
                           {mayChoose && s.kind === 'one' && !o.chosen && <button type="button" disabled={busy} onClick={() => choose(o.id)} className="text-xs font-medium text-orange-700 underline dark:text-orange-200">Choose for the customer</button>}
                           {mayChoose && s.kind === 'any' && <button type="button" disabled={busy} onClick={() => choose(o.id, !o.chosen)} className="text-xs font-medium text-orange-700 underline dark:text-orange-200">{o.chosen ? 'Remove for the customer' : 'Add for the customer'}</button>}
                         </div>

@@ -95,7 +95,7 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
       .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
     return row || null
   }
-  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; description?: string | null; at?: Date; place?: TapPlace; source?: ClockSource; auto?: boolean } = {}): Promise<ClockResult> {
+  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; costCode?: string | null; description?: string | null; at?: Date; place?: TapPlace; source?: ClockSource; auto?: boolean } = {}): Promise<ClockResult> {
     const open = await activeEntry(person.userId, person.companyId)
     if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
     // `at`: the moment the person tapped, when the phone sent it later (no signal). Without it, now.
@@ -115,6 +115,8 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
       ...(t.timeEntry.timeSetByPhone && movedByPhone(data.at) ? { timeSetByPhone: true } : {}),
       ...(t.timeEntry.clockInLat && place ? { clockInLat: place.lat, clockInLng: place.lng } : {}),
       ...(t.timeEntry.clockSource && data.source ? { clockSource: data.source } : {}),
+      // The cost code the hours are worked against (contractor parity row 11: clocked to a project and cost code from the phone).
+      ...(t.timeEntry.costCode && data.costCode ? { costCode: data.costCode } : {}),
     }).returning()
     return { ok: true, entry: row }
   }
@@ -538,12 +540,12 @@ export function createTimeRoutes(deps: TimeDeps) {
 
   app.post('/clock-in', requirePermission('time:create'), async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = entrySchema.pick({ jobId: true, projectId: true, description: true, notes: true }).extend({ at: tappedAt, place: tapPlace, source: z.enum(['phone', 'web']).optional() }).safeParse(await c.req.json().catch(() => ({})))
+    const parsed = entrySchema.pick({ jobId: true, projectId: true, costCode: true, description: true, notes: true }).extend({ at: tappedAt, place: tapPlace, source: z.enum(['phone', 'web']).optional() }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
     const data = parsed.data
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
-    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, description: data.description || data.notes || null, at: data.at, place: data.place, source: data.source ?? (data.at || data.place ? 'phone' : 'web') })
+    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, costCode: (data as any).costCode ?? null, description: data.description || data.notes || null, at: data.at, place: data.place, source: data.source ?? (data.at || data.place ? 'phone' : 'web') })
     if (!r.ok) return c.json({ error: r.error, ...(r.entry ? { entry: r.entry } : {}) }, r.status)
     return c.json((r as any).entry, 201)
   })

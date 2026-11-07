@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, List, Map as MapIcon, Plus, Star, X, Zap } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, useMayWrite, useToast } from '../../../../shared'
+import { errorText, useMayWrite, useToast, useAuth } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
 import PinMap, { coord, type Pin } from './PinMap'
@@ -60,11 +60,16 @@ interface StormLead {
   jobId: string | null
   contactId: string | null
   isExistingCustomer: boolean
+  /** Row 25 (storm_data_tools): the lead's score (0–100) and why. */
+  score?: number
+  scoreReasons?: string[]
 }
 
 type LeadStatus = 'new' | 'contacted' | 'converted' | 'dismissed'
 
 export default function StormLeadsPage() {
+  // Row 25 (storm_data_tools, not ready; AccuLynx Lead Intelligence): leads scored, highest first.
+  const scoring = useAuth().hasFeature('storm_data_tools')
   // The whole board writes through storms:create: raise an event, generate the leads, dismiss
   // one, convert in bulk or one at a time. The reads stay — a crew can see the storm. (T42)
   const mayWorkStorms = useMayWrite('storms:create')
@@ -125,7 +130,7 @@ export default function StormLeadsPage() {
    */
   const loadLeads = async (eventId: string, page = 1, status: string = filterStatus) => {
     try {
-      const reply = await api.get(`/api/storms/events/${encodeURIComponent(eventId)}/leads`, { page, limit: 50, status: status || undefined })
+      const reply = await api.get(`/api/storms/events/${encodeURIComponent(eventId)}/leads`, { page, limit: 50, status: status || undefined, ...(scoring ? { sort: 'score' } : {}) })
       setLeads(listOf<StormLead>(reply))
     } catch (e) { toastRef.current.error(errorText(e, 'Failed to load leads')) }
   }
@@ -362,6 +367,7 @@ export default function StormLeadsPage() {
                       <th className="px-4 py-2">Address</th>
                       <th className="px-4 py-2">City/Zip</th>
                       <th className="px-4 py-2">Damage</th>
+                      {scoring && <th className="px-4 py-2">Score</th>}
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2"></th>
                     </tr>
@@ -386,6 +392,7 @@ export default function StormLeadsPage() {
                             </span>
                           )}
                         </td>
+                        {scoring && <td className="px-4 py-2" title={(lead.scoreReasons || []).join(' · ')}><span className={`font-semibold ${(lead.score ?? 0) >= 70 ? 'text-red-700 dark:text-red-400' : (lead.score ?? 0) >= 45 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-600 dark:text-slate-300'}`}>{lead.score ?? '—'}</span><span className="block text-[10px] text-gray-500 dark:text-slate-400">{(lead.scoreReasons || []).slice(0, 2).join(' · ')}</span></td>}
                         <td className="px-4 py-2">
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_COLORS[lead.status] || ''}`}>
                             {codeLabel(lead.status)}

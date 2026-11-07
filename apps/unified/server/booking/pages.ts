@@ -23,7 +23,8 @@ const openingText = (date: string, time: string) => {
   const [h, m] = time.split(':').map(Number)
   return `${day} · ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
-import { icsOf } from './happenings.ts'
+import { icsOf, bookedName } from './happenings.ts'
+import { RWG_FEATURE, cleanToken, rwgCookie } from './googleRedirect.ts'
 import { renderBody, escHtml } from '../site/render.ts'
 import { EMBED_CSP } from '../http/guards.ts'
 import type { SiteContext } from '../site/context.ts'
@@ -69,6 +70,15 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   const keep = (c: Context, sep: '?' | '&' = '?') => (embedded(c) ? sep + 'embed=1' : '')
   const top = (c: Context) => (embedded(c) ? ' target="_top"' : '')
 
+  /**
+   * Reserve with Google (row 23): a client who came from Google's Book button carries ?rwg_token=; it is kept 30 days (a new one replaces it)
+   * so the booking made in that window is reported to Google (googleRedirect.ts). Only with the salon's switch on.
+   */
+  async function keepReferral(c: Context, companyId: string) {
+    const token = cleanToken(c.req.query('rwg_token'))
+    if (token && (await deps.isFeatureEnabled(companyId, RWG_FEATURE).catch(() => false))) c.header('Set-Cookie', rwgCookie(token), { append: true })
+  }
+
   const closed = (c: Context, ctx: SiteContext) => html(c, ctx, `<section class="book-empty"><div class="container"><h1>Online booking is closed</h1><p>Please <a href="/contact">get in touch</a> to arrange a time.</p></div></section>`, 'Book online', '/book')
 
   // Cross-origin by design: it is loaded by the business's other website.
@@ -78,6 +88,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
 
   app.get('/book', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
+    await keepReferral(c, s.ctx.companyId)
     if (!s.settings.enabled) return closed(c, s.ctx)
     const services = await engine.listServices(s.ctx.companyId, { activeOnly: true })
     const body = !services.length
@@ -90,7 +101,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   /** The picker, for a new booking or (with the booking) a new time for an existing one. */
   // askZip: only where somebody covers named ZIP codes (Settings › Service areas) — the ZIP picks who is offered. A salon
   // that has none asked every client for one (salon live test, 2026-10-25).
-  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false, people: Array<{ id: string; name: string }> = [], whoRequired = false) {
+  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false, askZip = false, people: Array<{ id: string; name: string }> = [], whoRequired = false, also?: { max: number; services: ServiceRow[] }) {
     const tips = Array.isArray(svc.tipPresets) && svc.price != null ? (svc.tipPresets as number[]) : []
     // The waitlist's dates are held to the booking window like a booking's (engine.customerRules).
     const win = engine.window(settings)
@@ -98,6 +109,8 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       `data-service="${escHtml(svc.slug)}"`,
       moving ? `data-token="${escHtml(moving.token)}"` : '',
       embed ? 'data-embed="1"' : '',
+      // Row 9: more services after this one (book-flow.ts draws the rows; the server checks every one).
+      also && also.max > 1 && also.services.length ? `data-also-max="${also.max - 1}" data-also-options="${escHtml(JSON.stringify(also.services.map((x) => ({ slug: x.slug, name: x.name, minutes: x.durationMinutes }))))}"` : '',
     ].filter(Boolean).join(' ')
     const details = moving ? `
         <form id="book-form" novalidate>
@@ -131,6 +144,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <div class="book-step book-step--date">
         <h2>Pick a date</h2>
         ${moving || !people.length ? '' : `<div class="book-who"><label>Your stylist<select id="book-who" name="who"${whoRequired ? ' required' : ''}><option value="">${whoRequired ? 'Choose your stylist' : 'Anyone — first available'}</option>${people.map((p) => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('')}</select></label></div>`}
+        ${moving || !also || also.max < 2 || !also.services.length ? '' : `<div class="book-also" id="book-also"><div class="book-also__rows" id="book-also-rows"></div><button type="button" class="book-also__add" id="book-also-add">+ Add another service</button><p class="book-also__hint">Each service follows the one before.</p></div>`}
         ${moving || !askZip ? '' : `<div class="book-zip"><label>Your ZIP code (optional)<input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" id="book-zip" name="zip" autocomplete="postal-code"></label></div>`}
         <div class="book-dates" id="book-dates"><p class="book-loading">Finding open days…</p></div>
       </div>
@@ -175,7 +189,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <h1>${escHtml(s.settings.thanksMessage || "You're booked.")}</h1>
       <p class="book-thanks__lead">A confirmation is on its way to <strong>${escHtml(b.customerEmail)}</strong>.</p>
       <div class="book-thanks__summary">
-        <div><span>Service</span><strong>${escHtml(svc?.name || 'Booking')}</strong></div>
+        <div><span>Service</span><strong>${escHtml(bookedName(b, svc))}</strong></div>
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
       </div>
@@ -186,6 +200,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
 
   app.get('/book/:slug', async (c) => {
     const s = await site(c); if (!s) return c.notFound()
+    await keepReferral(c, s.ctx.companyId)
     if (!s.settings.enabled) return closed(c, s.ctx)
     const svc = await engine.serviceBySlug(s.ctx.companyId, c.req.param('slug'))
     if (!engine.offered(svc)) return c.notFound()
@@ -193,7 +208,8 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>
       <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + servicePrice(svc) : ''}</p>
-      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0), await engine.people(s.ctx.companyId), await engine.peopleRequired(s.ctx.companyId))}
+      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c), (await engine.listZones(s.ctx.companyId)).some((z: any) => Array.isArray(z.zips) && z.zips.length > 0), await engine.people(s.ctx.companyId), await engine.peopleRequired(s.ctx.companyId),
+        { max: await engine.basketMax(s.ctx.companyId), services: (await engine.listServices(s.ctx.companyId, { activeOnly: true })).filter((x) => engine.offered(x)) })}
     </div></section>`
     return html(c, s.ctx, body, `Book ${svc.name}`, '/book/' + svc.slug)
   })
@@ -245,7 +261,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <h1>Your booking</h1>
       ${note}${lateHtml}
       <div class="book-thanks__summary">
-        <div><span>Service</span><strong>${escHtml(svc?.name || 'Booking')}</strong></div>
+        <div><span>Service</span><strong>${escHtml(bookedName(b, svc))}</strong></div>
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         <div><span>Status</span><strong>${escHtml(status)}</strong></div>
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
@@ -270,9 +286,9 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       </form>` : held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>${svc?.prepay ? `Pay ${escHtml(amount)}` : `Pay the ${escHtml(amount)} deposit`}</a></div>
       <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>` : ''}
       ${open ? `<div class="book-actions">
-        ${svc?.active ? `<a class="book-submit book-submit--secondary" href="/booking/${escHtml(b.token)}/reschedule"${top(c)}>Reschedule</a>` : ''}
+        ${svc?.active && !engine.isBasket(b) ? `<a class="book-submit book-submit--secondary" href="/booking/${escHtml(b.token)}/reschedule"${top(c)}>Reschedule</a>` : ''}
         <form method="post" action="/booking/${escHtml(b.token)}/cancel" data-confirm="Cancel this booking?"${top(c)}><button type="submit" class="book-submit book-submit--danger">Cancel booking</button></form>
-      </div>` : (b.status === 'confirmed' || b.status === 'pending') ? `<p class="book-thanks__lead">It's too close to the start to change this online. Please <a href="/contact">get in touch</a>.</p>` : ''}
+      </div>${engine.isBasket(b) ? `<p class="book-thanks__lead">This booking has several services. To move it, please <a href="/contact">get in touch</a> and we'll move it for you.</p>` : ''}` : (b.status === 'confirmed' || b.status === 'pending') ? `<p class="book-thanks__lead">It's too close to the start to change this online. Please <a href="/contact">get in touch</a>.</p>` : ''}
       ${b.status !== 'cancelled' ? `<p class="book-thanks__addcal"><a href="/booking/${escHtml(b.token)}/ics">Add to your calendar</a></p>` : ''}
     </div></section>
     <script src="/scripts/book-flow.js" defer></script>`
@@ -408,7 +424,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
     if (!b) return c.notFound()
     const svc = b.serviceId ? await engine.serviceById(s.ctx.companyId, b.serviceId) : null
-    if (!svc || !svc.active || !engine.selfServiceOpen(b, s.settings)) return c.redirect('/booking/' + b.token)
+    if (!svc || !svc.active || engine.isBasket(b) || !engine.selfServiceOpen(b, s.settings)) return c.redirect('/booking/' + b.token)
     const body = `<section class="book-picker"><div class="container container--narrow">
       <a class="book-picker__back" href="/booking/${escHtml(b.token)}">← Your booking</a>
       <h1 class="book-picker__title">Reschedule</h1>

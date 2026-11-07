@@ -70,6 +70,15 @@ export interface StripeServiceDeps {
 export function createStripeService(deps: StripeServiceDeps) {
   const { db, tables: { contact, invoice, payment, company }, options } = deps
   const afterInvoicePayment = options.afterInvoicePayment
+  /**
+   * How an invoice may be paid online (contractor parity row 12, payment_method_choice; Jobber's card / bank / both): an invoice that
+   * names 'card' or 'bank' is offered that alone; otherwise every method the business's Stripe account has on. A template's invoice
+   * has no such column and is offered every method, as before.
+   */
+  const methodsFor = (invoiceRow: any): Record<string, unknown> =>
+    invoiceRow?.paymentMethods === 'card' ? { payment_method_types: ['card'] }
+      : invoiceRow?.paymentMethods === 'bank' ? { payment_method_types: ['us_bank_account'] }
+        : { automatic_payment_methods: { enabled: true } }
 
   const stripe = deps.stripe !== undefined ? deps.stripe : process.env.STRIPE_SECRET_KEY
     ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
@@ -184,7 +193,7 @@ export function createStripeService(deps: StripeServiceDeps) {
   /**
    * Create payment intent for an invoice
    */
-  async function createPaymentIntent(invoiceRow: any, contactRow: any) {
+  async function createPaymentIntent(invoiceRow: any, contactRow: any, opts: { tipCents?: number } = {}) {
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
 
@@ -195,20 +204,23 @@ export function createStripeService(deps: StripeServiceDeps) {
       throw new Error('Invoice has no balance due')
     }
 
+    // A tip (row 12, invoice_tips) rides on top of the payment and is named in the metadata, so the paid step keeps it apart.
+    const tipCents = Math.max(0, Math.round(opts.tipCents || 0))
     const paymentIntent = await stripe!.paymentIntents.create({
-      amount,
+      amount: amount + tipCents,
       currency: 'usd',
       customer: customer.id,
-      description: `Invoice ${invoiceRow.number}`,
+      description: `Invoice ${invoiceRow.number}${tipCents ? ' (tip included)' : ''}`,
       metadata: {
         invoice_id: invoiceRow.id,
         invoice_number: invoiceRow.number,
         company_id: invoiceRow.companyId,
         contact_id: contactRow.id,
+        ...(tipCents ? { tip_cents: String(tipCents) } : {}),
       },
       // Keep the card on file so recurring agreements can be charged later.
       setup_future_usage: 'off_session',
-      automatic_payment_methods: { enabled: true },
+      ...methodsFor(invoiceRow),
     }, requestOpts(stripeAccount))
 
     // publishableKey: what the browser initialises Stripe.js with. The portal's payment form refused to
@@ -238,12 +250,12 @@ export function createStripeService(deps: StripeServiceDeps) {
    * Row 18: charge `amount` (dollars) on the invoice with the card the customer entered, plus `surchargeCents`, confirmed now. The
    * surcharge rides in the metadata so the paid event adds it to the invoice as its own line (options.onSurcharge).
    */
-  async function createSurchargedIntent(invoiceRow: any, contactRow: any, amount: number, paymentMethodId: string, surchargeCents: number, pct: number) {
+  async function createSurchargedIntent(invoiceRow: any, contactRow: any, amount: number, paymentMethodId: string, surchargeCents: number, pct: number, tipCents = 0) {
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
     const base = Math.round(amount * 100)
     const pi = await stripe!.paymentIntents.create({
-      amount: base + surchargeCents,
+      amount: base + surchargeCents + tipCents,
       currency: 'usd',
       customer: customer.id,
       payment_method: paymentMethodId,
@@ -254,6 +266,7 @@ export function createStripeService(deps: StripeServiceDeps) {
         invoice_id: invoiceRow.id, invoice_number: invoiceRow.number, company_id: invoiceRow.companyId, contact_id: contactRow.id,
         ...(base < Math.round(invoiceOwed(invoiceRow) * 100) ? { partial_payment: 'true' } : {}),
         ...(surchargeCents > 0 ? { surcharge_cents: String(surchargeCents), surcharge_pct: String(pct) } : {}),
+        ...(tipCents > 0 ? { tip_cents: String(tipCents) } : {}),
       },
     }, requestOpts(stripeAccount))
     return { clientSecret: pi.client_secret, paymentIntentId: pi.id, status: pi.status, amount: pi.amount, stripeAccount }
@@ -277,7 +290,7 @@ export function createStripeService(deps: StripeServiceDeps) {
   /**
    * Create payment intent for partial payment
    */
-  async function createPartialPaymentIntent(invoiceRow: any, contactRow: any, amount: number) {
+  async function createPartialPaymentIntent(invoiceRow: any, contactRow: any, amount: number, opts: { tipCents?: number } = {}) {
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
 
@@ -288,19 +301,21 @@ export function createStripeService(deps: StripeServiceDeps) {
     if (amountCents <= 0) throw new Error('Amount must be greater than 0')
     if (amountCents > maxAmount) throw new Error('Amount exceeds invoice balance')
 
+    const tipCents = Math.max(0, Math.round(opts.tipCents || 0))
     const paymentIntent = await stripe!.paymentIntents.create({
-      amount: amountCents,
+      amount: amountCents + tipCents,
       currency: 'usd',
       customer: customer.id,
-      description: `Partial payment - Invoice ${invoiceRow.number}`,
+      description: `Partial payment - Invoice ${invoiceRow.number}${tipCents ? ' (tip included)' : ''}`,
       metadata: {
         invoice_id: invoiceRow.id,
         invoice_number: invoiceRow.number,
         company_id: invoiceRow.companyId,
         contact_id: contactRow.id,
         partial_payment: 'true',
+        ...(tipCents ? { tip_cents: String(tipCents) } : {}),
       },
-      automatic_payment_methods: { enabled: true },
+      ...methodsFor(invoiceRow),
     }, requestOpts(stripeAccount))
 
     return {
@@ -860,7 +875,9 @@ export function createStripeService(deps: StripeServiceDeps) {
       return { handled: false }
     }
 
-    const amount = round2(paymentIntent.amount / 100)
+    // A tip (row 12) is the customer's gift on top: recorded as the payment's tip, never as money toward the invoice.
+    const tipCents = Math.max(0, Math.min(Number(paymentIntent.metadata?.tip_cents || 0) || 0, paymentIntent.amount))
+    const amount = round2((paymentIntent.amount - tipCents) / 100)
     // A surcharged card payment (row 18): the surcharge becomes the invoice's own line first.
     const surchargeCents = Number(paymentIntent.metadata?.surcharge_cents || 0)
     if (surchargeCents > 0 && options.onSurcharge) {
@@ -892,6 +909,9 @@ export function createStripeService(deps: StripeServiceDeps) {
       return { handled: true, duplicate: true, paymentId: outcome.payment.id, invoiceId: invoice_id, amount, newStatus: outcome.newStatus }
     }
 
+    // A tip added online (contractor parity row 12) goes on the payment it came with. It is not part of what the invoice owes, so it is
+    // written once the payment is recorded, outside the balance's lock; a retried delivery (duplicate, above) has it already.
+    if (tipCents > 0 && payment.tipAmount) await db.update(payment).set({ tipAmount: String(round2(tipCents / 100)) }).where(eq(payment.id, outcome.payment.id))
     if (afterInvoicePayment) await afterInvoicePayment(invoice_id).catch((err) => console.error('[events] invoice due-date sync failed', err))
 
     return {
@@ -1296,6 +1316,8 @@ export interface StripeRoutesDeps {
    * customer's pay page enters the card first, is shown the surcharge (credit cards only), then pays. Absent: unchanged.
    */
   surchargeFor?: (companyId: string) => Promise<number | null>
+  /** Contractor parity row 12 (invoice_tips): may this business's customers add a tip when they pay online? Absent: no tips. */
+  tipsFor?: (companyId: string) => Promise<boolean>
 }
 
 export function createStripeRoutes(deps: StripeRoutesDeps) {
@@ -1600,11 +1622,21 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
   }
 
   app.post('/portal/payment-intent', async (c) => {
-    const { invoiceId, portalToken, linkToken, amount } = await c.req.json().catch(() => ({} as any))
+    const { invoiceId, portalToken, linkToken, amount, tip } = await c.req.json().catch(() => ({} as any))
     const who = await portalPayer(c, invoiceId, portalToken, linkToken)
     if ('res' in who) return who.res
     const { inv, contactRow } = who
     if (invoiceBalance(inv) <= 0) return c.json({ error: 'This invoice has nothing left to pay.' }, 400)
+    // A tip (contractor parity row 12, invoice_tips): only where the business takes them; never more than the payment itself.
+    let tipCents = 0
+    if (tip !== undefined && tip !== null && tip !== '' && Number(tip) !== 0) {
+      if (!deps.tipsFor || !(await deps.tipsFor(inv.companyId).catch(() => false))) return c.json({ error: 'This business does not take tips online.' }, 400)
+      const t = Number(tip)
+      const payingNow = amount ? Number(amount) : invoiceBalance(inv)
+      if (!Number.isFinite(t) || t < 0) return c.json({ error: 'Enter the tip in dollars, like 20.00.' }, 400)
+      if (t > payingNow + 0.005) return c.json({ error: 'A tip cannot be more than the payment itself.' }, 400)
+      tipCents = Math.round(t * 100)
+    }
 
     // A part amount (the amount box, roofing parity row 16): a number, at least $1 (Stripe's floor is 50¢), never over the balance.
     if (amount !== undefined && amount !== null && amount !== '') {
@@ -1623,18 +1655,18 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     // inv.balance is not a column (the partial path never ran) — #157
     let result
     if (amount && amount < invoiceBalance(inv)) {
-      result = await stripeService.createPartialPaymentIntent(inv, contactRow, amount)
+      result = await stripeService.createPartialPaymentIntent(inv, contactRow, amount, { tipCents })
     } else {
-      result = await stripeService.createPaymentIntent(inv, contactRow)
+      result = await stripeService.createPaymentIntent(inv, contactRow, { tipCents })
     }
 
-    return c.json(result)
+    return c.json({ ...result, ...(tipCents ? { tip: round2(tipCents / 100) } : {}) })
   })
 
   // Row 18: the card the customer entered, priced — a credit card carries the business's surcharge, a debit or prepaid card none.
   // /portal/surcharge-quote answers what it will be (shown before paying); /portal/surcharge-pay charges it, worked out again here.
   const surchargeStep = async (c: any, pay: boolean) => {
-    const { invoiceId, portalToken, linkToken, amount, paymentMethodId } = await c.req.json().catch(() => ({} as any))
+    const { invoiceId, portalToken, linkToken, amount, paymentMethodId, tip } = await c.req.json().catch(() => ({} as any))
     const who = await portalPayer(c, invoiceId, portalToken, linkToken)
     if ('res' in who) return who.res
     const { inv, contactRow } = who
@@ -1649,9 +1681,17 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     try { funding = await stripeService.cardFunding(inv.companyId, paymentMethodId) } catch { return c.json({ error: 'That card could not be read. Enter it again.' }, 400) }
     // Credit cards only — never debit, prepaid, or a card Stripe cannot say.
     const surchargeCents = funding === 'credit' && pct > 0 ? Math.round(round2(base * pct / 100) * 100) : 0
-    if (!pay) return c.json({ funding, surchargePct: surchargeCents ? pct : 0, surcharge: round2(surchargeCents / 100), amount: round2(base), total: round2(base + surchargeCents / 100) })
+    // A tip (row 12) on top of the payment, never surcharged.
+    let tipCents = 0
+    if (tip !== undefined && tip !== null && tip !== '' && Number(tip) !== 0) {
+      if (!deps.tipsFor || !(await deps.tipsFor(inv.companyId).catch(() => false))) return c.json({ error: 'This business does not take tips online.' }, 400)
+      const t = Number(tip)
+      if (!Number.isFinite(t) || t < 0 || t > base + 0.005) return c.json({ error: 'A tip cannot be more than the payment itself.' }, 400)
+      tipCents = Math.round(t * 100)
+    }
+    if (!pay) return c.json({ funding, surchargePct: surchargeCents ? pct : 0, surcharge: round2(surchargeCents / 100), amount: round2(base), total: round2(base + (surchargeCents + tipCents) / 100), ...(tipCents ? { tip: round2(tipCents / 100) } : {}) })
     try {
-      const r = await stripeService.createSurchargedIntent(inv, contactRow, round2(base), paymentMethodId, surchargeCents, pct)
+      const r = await stripeService.createSurchargedIntent(inv, contactRow, round2(base), paymentMethodId, surchargeCents, pct, tipCents)
       return c.json({ ...r, surcharge: round2(surchargeCents / 100), publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '' })
     } catch (err: any) {
       return c.json({ error: err?.raw?.message || err?.message || 'The card was not charged.' }, 402)

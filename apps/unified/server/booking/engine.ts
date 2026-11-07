@@ -82,6 +82,12 @@ export interface BookingAddOn {
    */
   busy?(exec: any, companyId: string, from: Date, to: Date): Promise<Array<{ userId: string | null; start: Date; end: Date }>>
   /**
+   * The stretches of a service that hold its person, as minutes from the start, by booking service id (salon parity row 7: only
+   * processing frees the stylist). A service not listed holds its whole time. Online, a new booking may then fit around another's
+   * processing — and another booking's processing is free time for it — the way the desk books into gaps.
+   */
+  holds?(exec: any, companyId: string): Promise<Map<string, Array<{ fromMin: number; toMin: number }>>>
+  /**
    * The vertical keeps the list of what customers book, by name (the salon's 'Service Menu'). Then a service is offered
    * and booked only while it is linked to that list (booking_service.service_menu_id, kept by the list's own writes);
    * what it is — name, description, length, price, whether it is offered — is the list's to change, and Booking
@@ -112,6 +118,11 @@ export interface BookingAddOn {
     request(a: { companyId: string; token: string }): Promise<{ form: IntakeFormOffer; clientName: string; state: 'open' | 'done' } | null>
     answerRequest(a: { companyId: string; token: string }, answers: Record<string, unknown>, signedName: string, extra?: FormExtra): Promise<string | null>
   }
+  /**
+   * Several services in one online booking (salon parity row 9; Fresha, Vagaro, Square): whether this business takes them, and how many
+   * at most. Each service runs after the one before, each with its own person (chosen, or whoever is free). Absent or off: one service.
+   */
+  basket?: { enabled(companyId: string): Promise<boolean>; max: number }
   card?: {
     /** Before the booking's transaction (it reads the business's own settings and payment link): does THIS customer, by email, have to leave a card? False when the option is off or cards can't be taken. */
     needed(a: { companyId: string; email: string; service: ServiceRow }): Promise<boolean>
@@ -165,7 +176,14 @@ export interface BookInput {
   smsConsent?: boolean
   /** The person the customer chose to book with (BookingAddOn.people); null/absent = whoever is free. */
   who?: string | null
+  /** Row 9 (BookingAddOn.basket): more services after the first, in order, each with its own chosen person (or whoever is free). */
+  also?: Array<{ service: string; who?: string | null }> | null
+  /** Reserve with Google (row 23): the referral token the client arrived with (googleRedirect.ts), reported once the booking stands. */
+  rwgToken?: string | null
 }
+
+/** A service after the first in a several-service booking: when it starts (minutes after the first) and who was asked for. */
+type Extra = { svc: ServiceRow; who: string | null; offset: number }
 
 const ACTIVE = ['pending', 'confirmed'] as const
 const STATUSES = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'] as const
@@ -430,15 +448,32 @@ export function createBookingEngine(deps: EngineDeps) {
     return deps.addOn.people.order ? orderTeam(list, await deps.addOn.people.order(companyId).catch(() => [])) : list
   }
   /** The forms this booking still asks its client to fill in (empty: none, or the booking is over). */
+  /** The booking's services (several, row 9), the first first. */
+  async function servicesOf(b: Pick<BookingRow, 'companyId' | 'serviceId' | 'basket'>): Promise<ServiceRow[]> {
+    const ids = Array.isArray(b.basket) && b.basket.length ? b.basket.map((x) => x.serviceId) : b.serviceId ? [b.serviceId] : []
+    const out: ServiceRow[] = []
+    for (const id of ids) { const x = await serviceById(b.companyId, id); if (x) out.push(x) }
+    return out
+  }
+  const menuIdsOf = async (b: Pick<BookingRow, 'companyId' | 'serviceId' | 'basket'>) => {
+    const ids = (await servicesOf(b)).map((x) => (x as any).serviceMenuId ?? null)
+    return ids.length ? [...new Set(ids)] : [null]
+  }
   async function formsPending(b: BookingRow) {
     if (!deps.addOn?.forms || !b.contactId || b.status === 'cancelled' || b.status === 'no_show') return []
-    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
-    return deps.addOn.forms.pending({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null })
+    const seen = new Set<string>(), out: IntakeFormOffer[] = []
+    for (const serviceMenuId of await menuIdsOf(b)) {
+      for (const f of await deps.addOn.forms.pending({ companyId: b.companyId, contactId: b.contactId, serviceMenuId })) if (!seen.has(f.id)) { seen.add(f.id); out.push(f) }
+    }
+    return out
   }
   async function formSubmit(b: BookingRow, formId: string, answers: Record<string, unknown>, signedName: string, extra?: FormExtra): Promise<string | null> {
     if (!deps.addOn?.forms || !b.contactId) return 'Forms are not available for this booking.'
-    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
-    const problem = await deps.addOn.forms.submit({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: (svc as any)?.serviceMenuId ?? null, token: b.token }, formId, answers, signedName, extra)
+    // The service the form is asked for (several services: the first that asks it).
+    const ids = await menuIdsOf(b)
+    let serviceMenuId = ids[0]
+    for (const id of ids) if ((await deps.addOn.forms.pending({ companyId: b.companyId, contactId: b.contactId, serviceMenuId: id })).some((f) => f.id === formId)) { serviceMenuId = id; break }
+    const problem = await deps.addOn.forms.submit({ companyId: b.companyId, contactId: b.contactId, serviceMenuId, token: b.token }, formId, answers, signedName, extra)
     if (!problem) await formsReleased(b.companyId, b.contactId)
     return problem
   }
@@ -462,11 +497,15 @@ export function createBookingEngine(deps: EngineDeps) {
     const held: BookingRow[] = await db.select().from(booking).where(and(eq(booking.companyId, companyId), eq(booking.contactId, contactId), eq(booking.status, 'pending'), eq(booking.depositStatus, 'forms')))
     let moved = 0
     for (const b of held) {
-      const svc = b.serviceId ? await serviceById(companyId, b.serviceId) : null
+      const svcs = await servicesOf(b)
+      const svc = svcs[0]
       if (!svc) continue
-      if ((await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (svc as any).serviceMenuId ?? null })) > 0) continue
+      let blocked = false
+      for (const x of svcs) if (!blocked && (await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (x as any).serviceMenuId ?? null })) > 0) blocked = true
+      if (blocked) continue
       const owesDeposit = b.depositAmount != null && !!deps.deposits
-      const owesCard = !owesDeposit && !!deps.addOn.card && await deps.addOn.card.needed({ companyId, email: b.customerEmail, service: svc })
+      let owesCard = false
+      if (!owesDeposit && deps.addOn.card) for (const x of svcs) if (!owesCard && await deps.addOn.card.needed({ companyId, email: b.customerEmail, service: x })) owesCard = true
       const set = owesDeposit || owesCard
         ? { depositStatus: 'pending', holdFrom: new Date(now()), ...(owesDeposit ? {} : { depositAmount: null, keepCard: false }), updatedAt: new Date(now()) }
         : { status: 'confirmed', depositStatus: 'none', depositAmount: null, keepCard: false, updatedAt: new Date(now()) }
@@ -731,7 +770,8 @@ export function createBookingEngine(deps: EngineDeps) {
     // Inside a transaction the caller hands it in (claim); otherwise it is read here.
     const external = (externalBusy ?? await externalFor(companyId, s, firstDate, lastDate)).filter((e) => !ours.has(e.eventId))
     const own = [...(deps.addOn?.busy ? await deps.addOn.busy(exec, companyId, from, to) : []), ...await jobsBusy(exec, companyId, from, to, tz)]
-    return { tz, hours, daysOff, zones, bookings: rows, external, own }
+    const holds: Map<string, Array<{ fromMin: number; toMin: number }>> = deps.addOn?.holds ? await deps.addOn.holds(exec, companyId).catch(() => new Map()) : new Map()
+    return { tz, hours, daysOff, zones, bookings: rows, external, own, holds }
   }
   type Range = Awaited<ReturnType<typeof loadRange>>
 
@@ -744,34 +784,100 @@ export function createBookingEngine(deps: EngineDeps) {
     return e > s ? { s, e } : null
   }
 
-  const rulesOf = (svc: ServiceRow, s: SettingsRow): ServiceRules => ({
+  const rulesOf = (svc: ServiceRow, s: SettingsRow, holds?: Map<string, Array<{ fromMin: number; toMin: number }>>): ServiceRules => ({
     id: svc.id, durationMinutes: svc.durationMinutes, bufferBeforeMinutes: svc.bufferBeforeMinutes, bufferAfterMinutes: svc.bufferAfterMinutes,
     slotStepMinutes: svc.slotStepMinutes, capacity: svc.capacity, driveTimeMinutes: s.driveTimeMinutes,
+    ...(holds?.get(svc.id) ? { holds: holds.get(svc.id) } : {}),
   })
 
   /** One day's times, three ways: every time the hours offer, the free ones, and the free ones a customer may still book. */
-  function dayTimes(range: Range, svc: ServiceRow, s: SettingsRow, date: string, zip?: string | null, who?: string | null) {
+  function dayTimes(range: Range, svc: ServiceRow, s: SettingsRow, date: string, zip?: string | null, who?: string | null, also: Extra[] = []) {
     const busy: Busy[] = []
     for (const r of range.bookings) {
       const d = onDay(r.b.startAt, r.b.endAt, date, range.tz)
-      if (d) busy.push({ userId: r.b.assignedUserId, startMinute: d.s, endMinute: d.e, padBefore: r.before ?? 0, padAfter: r.after ?? 0, serviceId: r.b.serviceId })
+      if (!d) continue
+      // Row 9: a booking of several services holds each person only for their own service (a chair-only stylist, no login, takes nobody's).
+      const items: BookingRow['basket'] = Array.isArray(r.b.basket) && r.b.basket.length ? r.b.basket : null
+      const sp = tzParts(r.b.startAt, range.tz)
+      if (items && sp.date === date) {
+        items.forEach((it: NonNullable<BookingRow['basket']>[number], i: number) => {
+          const at = sp.minutes + it.offsetMin
+          const held = range.holds?.get(it.serviceId)
+          const pieces = held && held.length ? held.map((h) => ({ a: at + h.fromMin, z: at + h.toMin })) : [{ a: at, z: at + it.durationMin }]
+          pieces.forEach((pc, j) => {
+            if (pc.z > pc.a) busy.push({ userId: it.userId, startMinute: pc.a, endMinute: Math.min(24 * 60, pc.z), padBefore: i === 0 && j === 0 ? r.before ?? 0 : 0, padAfter: i === items.length - 1 && j === pieces.length - 1 ? r.after ?? 0 : 0, serviceId: it.serviceId })
+          })
+        })
+        continue
+      }
+      // A booking whose service frees its person in processing (row 7) holds only its other stretches.
+      const held = r.b.serviceId ? range.holds?.get(r.b.serviceId) : undefined
+      if (held && held.length) {
+        const startMin = d.s
+        held.forEach((h, i) => {
+          const a = startMin + h.fromMin, z = Math.min(d.e, startMin + h.toMin)
+          if (z > a) busy.push({ userId: r.b.assignedUserId, startMinute: a, endMinute: z, padBefore: i === 0 ? r.before ?? 0 : 0, padAfter: i === held.length - 1 ? r.after ?? 0 : 0, serviceId: r.b.serviceId })
+        })
+        continue
+      }
+      busy.push({ userId: r.b.assignedUserId, startMinute: d.s, endMinute: d.e, padBefore: r.before ?? 0, padAfter: r.after ?? 0, serviceId: r.b.serviceId })
     }
     for (const x of [...range.external, ...range.own]) {
       const d = onDay(x.start, x.end, date, range.tz)
       if (d) busy.push({ userId: x.userId, startMinute: d.s, endMinute: d.e })
     }
     const base = {
-      dayOfWeek: weekdayOf(date), service: rulesOf(svc, s),
+      dayOfWeek: weekdayOf(date), service: rulesOf(svc, s, range.holds),
       hours: range.hours, daysOff: range.daysOff.filter((d: any) => d.date === date),
       zones: range.zones.map((z: any) => ({ userId: z.userId, zips: Array.isArray(z.zips) ? z.zips.map(String) : [] })), customerZip: zip,
     }
     const offered = freeSlots({ ...base, busy: [] })
     // A customer who chose a person is offered only the times that person can take.
-    const free = freeSlots({ ...base, busy }).filter((x) => !who || x.who.includes(who))
+    let free = freeSlots({ ...base, busy }).filter((x) => !who || x.who.includes(who))
+    // Row 9: each later service must be free at its own start (after the ones before it) for its own person, on any minute.
+    const rest = also.map((a) => {
+      const slots = freeSlots({ ...base, service: { ...rulesOf(a.svc, s, range.holds), slotStepMinutes: 1 }, busy })
+      return { a, at: new Map(slots.map((x) => [x.startMinute, x.who.filter((w) => !a.who || w === a.who)])) }
+    })
+    const alsoWho = (start: number) => rest.map((r) => r.at.get(start + r.a.offset) ?? [])
+    if (rest.length) free = free.filter((x) => alsoWho(x.startMinute).every((w) => w.length > 0))
     const earliest = now() + s.leadTimeMinutes * 60_000
     const bookable = free.filter((x) => zonedWallTimeToUtc(date, hm(x.startMinute), range.tz).getTime() >= earliest)
-    return { offered, free, bookable }
+    return { offered, free, bookable, alsoWho }
   }
+
+  /**
+   * The services after the first (row 9), checked: the business takes several at once, no more than it allows, each offered online, each
+   * with a person the customer may choose. Their starts follow one after another. `forBooking`: a required choice of person is enforced.
+   */
+  async function extrasOf(companyId: string, first: ServiceRow, also: BookInput['also'], customer: boolean, forBooking = false): Promise<Extra[]> {
+    const list = Array.isArray(also) ? also.filter((x) => x && String(x.service || '').trim()) : []
+    if (!list.length) return []
+    const basket = deps.addOn?.basket
+    if (!basket || !(await basket.enabled(companyId))) throw new BookingError('Please book one service at a time online.', 400, 'basket_off')
+    if (list.length + 1 > basket.max) throw new BookingError(`You can book up to ${basket.max} services at once online — please call us for more.`, 400, 'basket_max')
+    let offset = first.durationMinutes
+    const out: Extra[] = []
+    for (const x of list) {
+      const svc = customer ? await activeService(companyId, String(x.service)) : await serviceById(companyId, String(x.service)) ?? await serviceBySlug(companyId, String(x.service))
+      if (!svc) throw new BookingError('Choose a service.', 404)
+      assertListed(svc)
+      const who = customer ? await chosenPerson(companyId, x.who, forBooking) : (x.who ? String(x.who) : null)
+      out.push({ svc, who, offset })
+      offset += svc.durationMinutes
+    }
+    return out
+  }
+  /** How many services one online booking may hold (row 9); 1 = one at a time. */
+  async function basketMax(companyId: string): Promise<number> {
+    const basket = deps.addOn?.basket
+    return basket && (await basket.enabled(companyId)) ? basket.max : 1
+  }
+  /** "slug" or "slug~person", comma-separated (the public page's ?also=): the services after the first. */
+  const parseAlso = (q: string | null | undefined): BookInput['also'] => String(q || '').split(',').map((p) => p.trim()).filter(Boolean).slice(0, 12).map((p) => {
+    const [service, who] = p.split('~')
+    return { service, who: who || null }
+  })
 
   const slotOut = (date: string, tz: string) => (x: Slot) => ({ time: hm(x.startMinute), label: label(x.startMinute), startAt: zonedWallTimeToUtc(date, hm(x.startMinute), tz).toISOString() })
 
@@ -786,7 +892,7 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   /** The days in the window with at least one bookable time (a full day isn't offered). */
-  async function availableDates(companyId: string, slug: string, zip?: string | null, who?: string | null) {
+  async function availableDates(companyId: string, slug: string, zip?: string | null, who?: string | null, also?: BookInput['also']) {
     const s = await settingsOf(companyId)
     if (!s.enabled) return []
     await expireHolds(companyId, s)
@@ -795,14 +901,16 @@ export function createBookingEngine(deps: EngineDeps) {
     const person = await chosenPerson(companyId, who)
     // Where a named stylist is required, no day is offered until one is chosen.
     if (!person && await peopleRequired(companyId)) return []
+    const extra = await extrasOf(companyId, svc, also, true)
+    if (extra.some((x) => !x.who) && await peopleRequired(companyId)) return []
     const range = await loadRange(companyId, s, w.first, w.last, db)
     const out: string[] = []
-    for (let d = w.first; d <= w.last; d = addDays(d, 1)) if (dayTimes(range, svc, s, d, zip, person).bookable.length) out.push(d)
+    for (let d = w.first; d <= w.last; d = addDays(d, 1)) if (dayTimes(range, svc, s, d, zip, person, extra).bookable.length) out.push(d)
     return out
   }
 
   /** The bookable times on one day. `except`: the booking being moved (it doesn't block itself). */
-  async function availableTimes(companyId: string, slug: string, date: string, zip?: string | null, except?: string, who?: string | null) {
+  async function availableTimes(companyId: string, slug: string, date: string, zip?: string | null, except?: string, who?: string | null, also?: BookInput['also']) {
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
     if (!isRealDate(date)) throw new BookingError(`${date} is not a real date — check the month and day.`)
     const s = await settingsOf(companyId)
@@ -813,19 +921,21 @@ export function createBookingEngine(deps: EngineDeps) {
     if (date < w.first || date > w.last) return []
     const person = await chosenPerson(companyId, who)
     if (!person && await peopleRequired(companyId)) return []
+    const extra = await extrasOf(companyId, svc, also, true)
+    if (extra.some((x) => !x.who) && await peopleRequired(companyId)) return []
     const range = await loadRange(companyId, s, date, date, db, except)
-    return dayTimes(range, svc, s, date, zip, person).bookable.map(slotOut(date, range.tz))
+    return dayTimes(range, svc, s, date, zip, person, extra).bookable.map(slotOut(date, range.tz))
   }
 
   /**
    * Is this time bookable, inside the day's lock — and if not, say which thing is wrong (the CRMs' T58d: a time never
    * offered isn't "just taken", and a time inside the notice isn't either). Returns who can take it.
    */
-  async function claim(tx: any, companyId: string, s: SettingsRow, svc: ServiceRow, date: string, time: string, zip: string | null, opts: { except?: string; customer: boolean; override?: boolean; external: Awaited<ReturnType<typeof externalFor>> }) {
+  async function claim(tx: any, companyId: string, s: SettingsRow, svc: ServiceRow, date: string, time: string, zip: string | null, opts: { except?: string; customer: boolean; override?: boolean; external: Awaited<ReturnType<typeof externalFor>>; also?: Extra[]; out?: { alsoWho?: Array<Array<string | null>> } }) {
     await lockBookingDay(tx, companyId, date)
     if (opts.override) return [] as Array<string | null>
     const range = await loadRange(companyId, s, date, date, tx, opts.except, opts.external)
-    const t = dayTimes(range, svc, s, date, zip)
+    const t = dayTimes(range, svc, s, date, zip, null, opts.also ?? [])
     const minute = toMinutes(time)
     if (!t.offered.length) throw new BookingError('That day is not open for booking — please pick another date.', 409, 'closed')
     const free = t.free.find((x) => x.startMinute === minute)
@@ -839,6 +949,7 @@ export function createBookingEngine(deps: EngineDeps) {
     if (opts.customer && !t.bookable.some((x) => x.startMinute === minute)) {
       throw new BookingError(s.leadTimeMinutes <= 0 ? `${label(minute)} has already passed — please pick a later time.` : `${label(minute)} is too soon — please book at least ${noticeWords(s.leadTimeMinutes)} ahead.`, 409, 'notice')
     }
+    if (opts.out) opts.out.alsoWho = t.alsoWho(minute)
     return free.who
   }
   const noticeWords = (m: number) => m % 1440 === 0 ? `${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `${m / 60} hour${m === 60 ? '' : 's'}` : `${m} minutes`
@@ -909,37 +1020,54 @@ export function createBookingEngine(deps: EngineDeps) {
     const chosen = customer ? await chosenPerson(companyId, input.who, true) : null
     const assignedUserId = opts.assignedUserId ?? chosen
     if (assignedUserId && !(await companyUserIds(companyId)).has(assignedUserId)) throw new BookingError(NOT_BOOKABLE)
+    // Row 9: the services after the first, each after the one before, each with its own person.
+    const extra = await extrasOf(companyId, svc, input.also, customer, customer)
+    if (extra.some((x) => x.who) && !opts.override) {
+      const team = await companyUserIds(companyId)
+      if (extra.some((x) => x.who && !team.has(x.who))) throw new BookingError(NOT_BOOKABLE)
+    }
+    const all = [svc, ...extra.map((x) => x.svc)]
 
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(input.date, input.time, tz)
-    const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
-    // "Take the full price online" (a salon service's prepay) wins over any deposit: the whole price is the deposit.
-    const depositOwed = svc.prepay && svc.price != null && dollars(svc.price) > 0 ? dollars(svc.price)
-      : svc.depositAmount != null ? dollars(svc.depositAmount) : svc.depositPercent != null ? dollars(svc.price) * svc.depositPercent / 100 : 0
+    const endAt = new Date(startAt.getTime() + all.reduce((t, x) => t + x.durationMinutes, 0) * 60_000)
+    // "Take the full price online" (a salon service's prepay) wins over any deposit: the whole price is the deposit. Several services: their sum.
+    const depositOf = (x: ServiceRow) => x.prepay && x.price != null && dollars(x.price) > 0 ? dollars(x.price)
+      : x.depositAmount != null ? dollars(x.depositAmount) : x.depositPercent != null ? dollars(x.price) * x.depositPercent / 100 : 0
+    const depositOwed = all.reduce((t, x) => t + depositOf(x), 0)
     const takeDeposit = customer && depositOwed > 0 && !!deps.deposits
-    const cardNeeded = customer && !!deps.addOn?.card && await deps.addOn.card.needed({ companyId, email, service: svc })
+    let cardNeeded = false
+    if (customer && deps.addOn?.card) for (const x of all) if (!cardNeeded && await deps.addOn.card.needed({ companyId, email, service: x })) cardNeeded = true
     // A deposit and a card to keep ride ONE Stripe page (salon parity row 5): the client agrees to the policy on the booking's page,
     // then pays and the paying card is kept. Only a booking with no deposit waits on a card page of its own.
     const depositCard = takeDeposit && cardNeeded
     const cardHold = cardNeeded && !takeDeposit
     const tipPercent = input.tipPercent != null && Array.isArray(svc.tipPresets) && (svc.tipPresets as number[]).includes(Number(input.tipPercent)) ? Number(input.tipPercent) : null
-    const tip = tipPercent && svc.price != null ? dollars(svc.price) * tipPercent / 100 : null
+    // A tip chosen online is a share of every service's price.
+    const priced = all.filter((x) => x.price != null)
+    const tip = tipPercent && priced.length ? priced.reduce((t, x) => t + dollars(x.price), 0) * tipPercent / 100 : null
 
     // People's calendars are read before the day is locked: an outside call never holds the lock.
     const external = opts.override ? [] : await externalFor(companyId, s, input.date, input.date)
     let formsFirst = false
     const row: BookingRow = await db.transaction(async (tx: any) => {
-      const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override, external })
+      const out: { alsoWho?: Array<Array<string | null>> } = {}
+      const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override, external, also: extra, out })
       if (assignedUserId && !opts.override && !who.includes(assignedUserId) && (chosen || !who.includes(null))) throw new BookingError(chosen ? 'That time has just been taken — please pick another.' : "That person isn't free then.", 409, 'taken')
       const contactId = await contactFor(tx, companyId, { name, email, phone, address, zip })
-      // Forms the salon wants done before this is confirmed: the booking is held (before any deposit or card step) until they are.
-      formsFirst = customer && !!deps.addOn?.forms && (await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (svc as any).serviceMenuId ?? null }, tx)) > 0
+      // Forms the salon wants done before this is confirmed: the booking is held (before any deposit or card step) until they are. Every service's forms.
+      if (customer && deps.addOn?.forms) for (const x of all) if (!formsFirst && (await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (x as any).serviceMenuId ?? null }, tx)) > 0) formsFirst = true
+      const firstWho = assignedUserId ?? pickWho(who)
+      const basket = extra.length ? [
+        { serviceId: svc.id, offsetMin: 0, durationMin: svc.durationMinutes, userId: firstWho, name: svc.name, ...(chosen ? { requested: true } : {}) },
+        ...extra.map((x, i) => ({ serviceId: x.svc.id, offsetMin: x.offset, durationMin: x.svc.durationMinutes, userId: x.who ?? pickWho(out.alsoWho?.[i] ?? []), name: x.svc.name, ...(x.who ? { requested: true } : {}) })),
+      ] : null
       const [made] = await tx.insert(booking).values({
         companyId, serviceId: svc.id, contactId, seriesId: opts.seriesId ?? null, seriesIndex: opts.seriesIndex ?? null,
         startAt, endAt, customerName: name, customerEmail: email, customerPhone: phone, customerAddress: address, customerZip: zip,
         customerNotes: String(input.notes || '').trim().slice(0, 2000) || null,
         status: formsFirst || takeDeposit || cardHold ? 'pending' : 'confirmed',
-        assignedUserId: assignedUserId ?? pickWho(who),
+        assignedUserId: firstWho, basket, rwgToken: customer && input.rwgToken ? String(input.rwgToken).slice(0, 1000) : null,
         source: opts.source ?? (customer ? 'public' : 'staff'),
         sourcePath: text(input.sourcePath, 500) ?? null, sourceReferrer: text(input.sourceReferrer, 1000) ?? null, sourceVariant: text(input.sourceVariant, 60) ?? null,
         token: newToken(),
@@ -973,7 +1101,7 @@ export function createBookingEngine(deps: EngineDeps) {
       }
     }
     if (final.status === 'confirmed') await emit({ event: 'booking.created', booking: final, service: svc, settings: s, by: opts.by })
-    return { booking: final, service: svc, deposit, card: !formsFirst && (cardHold || depositCard), forms: formsFirst }
+    return { booking: final, service: svc, services: all, deposit, card: !formsFirst && (cardHold || depositCard), forms: formsFirst }
   }
 
   /** The provider's page for a booking's deposit (its amount and tip as booked), open until the hold runs out. */
@@ -1162,11 +1290,15 @@ export function createBookingEngine(deps: EngineDeps) {
       throw new BookingError(`It's too close to the start to change this online — please call us.`, 409, 'cutoff')
     }
   }
+  /** Several services (row 9). */
+  const isBasket = (b: Pick<BookingRow, 'basket'>) => Array.isArray(b.basket) && b.basket.length > 1
   const selfServiceOpen = (b: BookingRow, s: SettingsRow) => (ACTIVE as readonly string[]).includes(b.status) && b.startAt.getTime() - now() >= s.selfServiceCutoffMinutes * 60_000
 
   async function reschedule(companyId: string, b: BookingRow, date: string, time: string, opts: { by: 'customer' | 'staff'; override?: boolean; userId?: string | null }) {
     const s = await settingsOf(companyId)
     changeable(b, s, opts.by)
+    // Row 9: a booking of several services is moved by the business (on the Book), where each service's person is re-checked.
+    if (isBasket(b)) throw new BookingError(opts.by === 'customer' ? 'This booking has several services, so it can’t be moved online — please call us and we’ll move it for you.' : 'This booking has several services: move it on the Book, where each service’s stylist is checked.', 409, 'basket')
     if (!isRealDate(date) || !HM_RE.test(String(time))) throw new BookingError('Choose a real date and time.')
     const svc = b.serviceId ? await serviceById(companyId, b.serviceId) : null
     if (!svc) throw new BookingError("This booking's service no longer exists; book a new one instead.", 409)
@@ -1343,7 +1475,7 @@ export function createBookingEngine(deps: EngineDeps) {
     settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService, offered, assertListed,
     getHours, setHours, followOpeningHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
-    availableDates, availableTimes, expireHolds, people, peopleRequired, formsPending, formSubmit, formsReleased, waitingForForms, holdStart, formRequest, formAnswerRequest,
+    availableDates, availableTimes, parseAlso, servicesOf, isBasket, basketMax, expireHolds, people, peopleRequired, formsPending, formSubmit, formsReleased, waitingForForms, holdStart, formRequest, formAnswerRequest,
     book, depositTerms, depositPaid, depositRefunded, depositPage, cardTerms, cardPage, cardSaved, lateNote, waitingForCard, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     convertToJob, jobOf,
     isBanned, emit,

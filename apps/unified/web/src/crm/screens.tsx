@@ -179,18 +179,24 @@ export function Schedule() {
   // The business's hours muted on the calendar (Jobber), with Tech Availability (not ready): company.settings.businessHours.
   const businessHours = hasFeature('tech_availability') ? ((company as any)?.settings?.businessHours ?? null) : null
   // The week's bookings are the app's own (one booking engine for site and CRM), when the business takes bookings.
+  // Roofing parity row 28 (crew_scheduling, not ready): sent work orders on the schedule at their start, each opening its job.
+  const woJobs = new Map<string, string>()
   const loadBookings = async (from: string, to: string) => {
-    if (!hasFeature('online_booking')) return []
-    const r: any = await client.get('/api/booking/bookings', { from, to, limit: 500 })
-    // Converted bookings are drawn as their jobs, once, wherever the job sits (booking/scheduleBookings.ts).
-    return scheduleBookingsOf(r?.data || [])
+    const bookings = hasFeature('online_booking') ? scheduleBookingsOf(((await client.get('/api/booking/bookings', { from, to, limit: 500 })) as any)?.data || []) : []
+    if (!(isRoofing && hasFeature('crew_scheduling'))) return bookings
+    const r: any = await client.get('/api/work-orders/schedule', { from, to }).catch(() => null)
+    const orders = ((r?.data || []) as any[]).map((o) => {
+      woJobs.set(`wo:${o.id}`, o.jobId)
+      return { id: `wo:${o.id}`, startAt: o.startDate, status: o.status, customerName: o.crewName || o.recipientName, serviceName: `Work order: ${o.title}`, customerAddress: o.address ?? null, calendarId: null, source: 'crm' as const }
+    })
+    return [...bookings, ...orders]
   }
   // Appointments (test drives, drop-offs, deliveries) where the vertical has them (VerticalScreens.schedule; the RV copy's
   // SchedulePage passed events: true).
   // A lane per person and "Optimise route" where the jobs carry people (2026-10-24): every vertical with jobs but roofing,
   // whose work is booked to crews (assignedCrewId), not to people.
   const people = hasFeature('jobs') && !isRoofing
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => `/crm/bookings/${b.id}`, events: !!v().schedule?.events, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours }} />
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => (woJobs.has(String(b.id)) ? `/crm/jobs/${woJobs.get(String(b.id))}` : `/crm/bookings/${b.id}`), events: !!v().schedule?.events, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 // A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are

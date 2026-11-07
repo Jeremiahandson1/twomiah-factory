@@ -8,6 +8,7 @@
 // show-to-customer (and fieldservice/landscaping had no columns for them, nor for the flat-rate page's partsIncluded);
 // options were read for any item id without an ownership check and came back best/better/good (alphabetical); search
 // did not escape LIKE wildcards and the page size had no ceiling; the API answered with the feature switched off.
+import { namesIn } from '../invoicing/formulas'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, count, eq, ilike, inArray, max, or, sql } from 'drizzle-orm'
@@ -67,6 +68,9 @@ const itemFields = {
   // Blank is "not known": the Pricebook form sends null for an empty box, an import or an older client ''. Refusing null
   // refused every item saved from the form without labour hours ("laborHours: Invalid input"). (2026-10-19)
   laborHours: z.union([z.number(), z.string().trim().regex(/^\d+(\.\d+)?$/), z.literal(''), z.null()]).transform((v) => (v === '' || v === null ? null : Number(v))).pipe(z.number().min(0).max(1000).nullable()).optional(),
+  // Formula estimating (contractor parity row 9): the quantity formula a quote line picked from this item starts with. Kept
+  // only where the table has the column; a typo is refused in words (invoicing/formulas.ts).
+  quantityFormula: text(500).nullable().optional(),
 }
 export const itemCreateSchema = z.object(itemFields)
 export const itemUpdateSchema = partialOf(z.object(itemFields))
@@ -165,6 +169,11 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     set('price', d.price === undefined ? undefined : String(d.price)); set('cost', d.cost === undefined ? undefined : String(d.cost))
     set('unit', d.unit); set('type', d.type); set('taxable', d.taxable); set('active', d.active); set('showToCustomer', d.showToCustomer)
     set('imageUrl', d.imageUrl === '' ? null : d.imageUrl); set('laborHours', d.laborHours === undefined ? undefined : d.laborHours === null ? null : String(d.laborHours))
+    if (I.quantityFormula && d.quantityFormula !== undefined) {
+      const f = d.quantityFormula ? String(d.quantityFormula).trim() : ''
+      if (f) { try { namesIn(f) } catch (e: any) { throw new PricebookError(400, `Quantity formula: ${e.message}`) } }
+      out.quantityFormula = f || null
+    }
     return out
   }
   const checkCategory = async (companyId: string, categoryId: any) => {

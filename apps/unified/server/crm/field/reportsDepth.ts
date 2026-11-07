@@ -12,7 +12,8 @@
 //
 // WIP (work in progress), per open project:
 //   contract value = the project's approved quotes + its approved change orders (the project's estimated value, marked as
-//                    such, when no quote has been approved yet)
+//                    such, when no quote has been approved yet); with shared_allowances, also approved selections' charges
+//                    and credits that raised no change order (row 7)
 //   billed         = invoices raised on the project or on its jobs, drafts and voids left out, each counted once
 //   cost to date   = what its jobs have cost so far (labour, materials, expenses, vendor bills — the Job Costing figures)
 //   % complete     = cost to date ÷ the budget's cost where the approved quotes gave one (cost-to-cost); else the project's own
@@ -24,7 +25,7 @@
 import { Hono } from 'hono'
 import { and, asc, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import { businessToday, companyTimeZone, invoiceBalance, round2 } from '@twomiah/tenant-backend'
-import { changeOrder, contact, invoice, job, project, projectBudgetLine, quote } from '../../db/schema/index.ts'
+import { changeOrder, contact, invoice, job, project, projectBudgetLine, projectSelection, quote } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -118,6 +119,12 @@ export function createWipRoutes(d: CrmDeps) {
     const cos = projectIds.length ? await db.select({ projectId: changeOrder.projectId, amount: changeOrder.amount }).from(changeOrder)
       .where(and(eq(changeOrder.companyId, companyId), eq(changeOrder.status, 'approved'), inArray(changeOrder.projectId, projectIds))) as any[] : []
     const budgets = projectIds.length ? await db.select().from(projectBudgetLine).where(and(eq(projectBudgetLine.companyId, companyId), inArray(projectBudgetLine.projectId, projectIds))) as any[] : []
+    // Selection / allowance changes (row 7, shared_allowances): an approved selection's charge or credit is part of the contract
+    // when it raised no change order (approved with "no change order"); one that did is counted when that change order is.
+    const selectionsOn = projectIds.length > 0 && (await d.features.isFeatureEnabled(companyId, 'shared_allowances'))
+    const sels = selectionsOn ? await db.select({ projectId: projectSelection.projectId, diff: projectSelection.priceDifference }).from(projectSelection)
+      .where(and(eq(projectSelection.companyId, companyId), inArray(projectSelection.projectId, projectIds), inArray(projectSelection.status, ['approved', 'ordered', 'received']), isNull(projectSelection.changeOrderId))) as any[] : []
+    const selected = sumBy(sels, (x) => x.projectId, (x) => Number(x.diff) || 0)
     const quoted = sumBy(quotes, (q) => q.projectId, (q) => Number(q.total) || 0)
     const changed = sumBy(cos, (o) => o.projectId, (o) => Number(o.amount) || 0)
     const budgetCost = sumBy(budgets, (b) => b.projectId, (b) => Number(b.estimatedCost) || 0)
@@ -128,9 +135,10 @@ export function createWipRoutes(d: CrmDeps) {
       const cost = round2([...onProjects].filter((j) => j.projectId === p.id).reduce((s, j) => s + (costs.get(j.id)?.totalCost || 0), 0))
       const approvedQuotes = quoted.get(p.id) || 0
       const approvedChanges = changed.get(p.id) || 0
+      const selectionChanges = selected.get(p.id) || 0
       const estimate = Number(p.estimatedValue) || 0
       const contractSource = approvedQuotes > 0 ? 'quotes' : estimate > 0 ? 'estimate' : 'none'
-      const contract = round2((approvedQuotes > 0 ? approvedQuotes : estimate) + approvedChanges)
+      const contract = round2((approvedQuotes > 0 ? approvedQuotes : estimate) + approvedChanges + selectionChanges)
       const budgetedCost = budgetCost.get(p.id) || 0
       const costToCost = budgetedCost > 0
       const percent = costToCost ? Math.min(100, Math.round((cost / budgetedCost) * 1000) / 10) : Number(p.progress) || 0
@@ -138,7 +146,7 @@ export function createWipRoutes(d: CrmDeps) {
       const earned = round2(contract * percent / 100)
       rows.push({
         kind: 'project', id: p.id, number: p.number, name: p.name, status: p.status,
-        contractValue: contract, approvedChanges, contractSource,
+        contractValue: contract, approvedChanges, ...(selectionsOn ? { selectionChanges } : {}), contractSource,
         billed, costToDate: cost, percentComplete: percent, percentSource: costToCost ? 'cost' : 'progress',
         costsMissingOnBudget: Number(uncosted.get(p.id) || 0) > 0,
         earned, overUnder: round2(billed - earned),

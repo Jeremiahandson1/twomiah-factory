@@ -166,6 +166,8 @@ export const project = pgTable('project', {
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  /** Formula estimating (0091, row 9): the job's parameters, which every quote on it reads unless it sets its own. */
+  parameters: json('parameters'),
 }, (t) => [
   index('project_company_id_idx').on(t.companyId),
   index('project_status_idx').on(t.status),
@@ -265,6 +267,10 @@ export const job = pgTable('job', {
   qbCustomerName: text('qb_customer_name'),
   assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
   assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
+  // Roofing parity row 20 (pipeline_statuses): the company status the job is at inside its milestone, and the checklist items ticked
+  // there ({ [itemId]: { at, by } }). A status of another milestone is read as none (the job moved on).
+  roofStatusId: text('roof_status_id'),
+  roofStatusChecks: json('roof_status_checks'),
   // How the job's revenue is shared when several people are on it: null/'equal' = equal shares, 'hours' = by the billable hours each
   // logged on the job, 'percent' = the office's own split (`percents`, keyed "u:<user id>" / "m:<member id>", totalling 100).
   // Written only by /api/team-revenue/jobs/:id/split, which checks it against the crew; read by the team revenue reports.
@@ -437,6 +443,8 @@ export const quote = pgTable('quote', {
   salespersonId: text('salesperson_id').references(() => user.id, { onDelete: 'set null' }),
   // When the quote became a job (stamped by the convert route); the "converted" date basis of the team revenue report.
   convertedAt: timestamp('converted_at'),
+  /** Formula estimating (0091, contractor parity row 9; quote_formulas): the quote's own parameters [{ key, label, value, unit }]. */
+  parameters: json('parameters'),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_salesperson_idx').on(t.salespersonId),
@@ -489,6 +497,14 @@ export const quoteLineItem = pgTable('quote_line_item', {
   optionRole: text('option_role'),
 
   quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
+  /**
+   * Formula estimating (0091, row 9; packages/tenant-backend invoicing/formulas.ts). `formula_key` is the name other lines read
+   * this line's quantity by; `quantity_formula` / `price_formula` work the quantity and unit price out from the parameters and
+   * other lines — the server writes the results into quantity and unit_price on every save.
+   */
+  formulaKey: text('formula_key'),
+  quantityFormula: text('quantity_formula'),
+  priceFormula: text('price_formula'),
 }, (t) => [
   index('quote_line_item_quote_id_idx').on(t.quoteId),
   index('quote_line_item_proposal_option_id_idx').on(t.proposalOptionId),
@@ -662,6 +678,8 @@ export const invoice = pgTable('invoice', {
   billKind: text('bill_kind'),
   billedQuoteId: text('billed_quote_id').references((): AnyPgColumn => quote.id, { onDelete: 'set null' }),
   creditApplied: decimal('credit_applied', { precision: 12, scale: 2 }).default('0').notNull(),
+  /** How the customer may pay it online (0095, contractor parity row 12; Jobber): 'card' | 'bank' | null (both). */
+  paymentMethods: text('payment_methods'),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_billed_quote_id_idx').on(t.billedQuoteId),
@@ -856,6 +874,8 @@ export const document = pgTable('document', {
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  // Roofing parity row 22 (portal_posts_packets): a company document (warranty terms, a brochure) every homeowner's portal shows.
+  sharedWithAllCustomers: boolean('shared_with_all_customers').default(false).notNull(),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
   // From the near-copy CRMs (see each column): document's columns they added.
@@ -1276,4 +1296,21 @@ export const staffAccountEntry = pgTable('staff_account_entry', {
 }, (t) => [
   index('staff_account_entry_company_id_idx').on(t.companyId),
   index('staff_account_entry_user_id_idx').on(t.userId),
+])
+
+/**
+ * A payment plan on an invoice (0095, contractor parity row 12; feature payment_plans): the total split into installments, each
+ * due on its day. Payments fill them in order; the invoice's due date is kept on the first one not paid in full, so the automatic
+ * reminders (crm/billing/invoiceReminders.ts — a moved due date earns its own steps) remind for each installment in turn.
+ */
+export const invoiceInstallment = pgTable('invoice_installment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  dueDate: timestamp('due_date').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('invoice_installment_invoice_id_idx').on(t.invoiceId),
 ])

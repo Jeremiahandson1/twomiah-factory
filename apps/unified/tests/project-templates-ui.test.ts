@@ -130,3 +130,42 @@ describe('save a project as a template', () => {
     }
   }, 30_000)
 })
+
+// Contractor parity row 7b (template_parts, not ready): ticks for which parts to keep on saving and to bring in on starting.
+describe('template parts: the ticks', () => {
+  const PARTS = ['project_templates', 'template_parts']
+  test('saving sends the parts left ticked; starting sends what to bring in', async () => {
+    const s = stub()
+    try {
+      let root = await mount('/crm/projects', { features: PARTS })
+      await click(document.querySelector('button[aria-label="Row actions"]'))
+      await click([...document.querySelectorAll('[role="menu"] button, [role="menuitem"]')].find((b: any) => b.textContent.trim() === 'Save as template'))
+      const keep = document.querySelector('[data-testid="template-keep"]') as any
+      const box = (label: string) => [...keep.querySelectorAll('label')].find((l: any) => l.textContent === label)!.querySelector('input') as any
+      await click(box('Budget lines'))
+      await click(button('Save template'))
+      expect(s.calls.find((c) => c.url === '/api/project-templates/from-project')?.body).toEqual({ projectId: 'p1', name: 'Kitchen — Ruiz template', includePunchList: true, includeBudget: false, includeSelections: true, includeLinks: true })
+      root.unmount()
+
+      root = await mount('/crm/projects?new=1', { features: PARTS })
+      await setSelect(document.querySelector('#project-template'), 't1')
+      const bring = document.querySelector('[data-testid="template-import"]') as any
+      await click([...bring.querySelectorAll('label')].find((l: any) => l.textContent === 'Selections and allowances')!.querySelector('input'))
+      await click(button('Create'))
+      expect(s.calls.find((c) => c.url === '/api/project-templates/t1/start')?.body.import).toEqual({ schedule: true, punchList: true, budget: true, selections: false })
+      root.unmount()
+    } finally { s.undo() }
+  }, 30_000)
+
+  test('off: no ticks, and nothing extra is sent', async () => {
+    const s = stub()
+    try {
+      const root = await mount('/crm/projects?new=1')
+      await setSelect(document.querySelector('#project-template'), 't1')
+      expect(document.querySelector('[data-testid="template-import"]')).toBeNull()
+      await click(button('Create'))
+      expect('import' in (s.calls.find((c) => c.url === '/api/project-templates/t1/start')?.body || {})).toBe(false)
+      root.unmount()
+    } finally { s.undo() }
+  }, 30_000)
+})

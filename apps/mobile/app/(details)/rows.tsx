@@ -8,13 +8,16 @@ import { useTile } from '../../src/home/useTile'
 import { FilterBanner } from '../../src/home/FilterBanner'
 import { rowView } from '../../src/home/rows'
 import { reqUrl } from '../../src/home/tiles'
+import { useVertical } from '../../src/vertical/VerticalContext'
 
 export default function RowsScreen() {
   const router = useRouter()
   const { tile, clear } = useTile()
   const { rows, total, loading, error, refresh, loadMore } = useList(tile ? reqUrl(tile.list) : null)
   const [refreshing, setRefreshing] = useState(false)
-  const items = tile ? rows.map((r, i) => rowView(tile.id, r, i)) : []
+  // The contractor's project screens (row 11, contractor_phone): a project row opens its page.
+  const { hasFeature } = useVertical()
+  const items = tile ? rows.map((r, i) => rowView(tile.id, r, i, { projectScreens: hasFeature('contractor_phone') })) : []
   const count = tile ? tile.total({ data: rows, pagination: { total }, items: rows }) : undefined
   return (
     <Screen title={tile?.label || 'List'} onBack={() => router.back()} refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false) }}>
