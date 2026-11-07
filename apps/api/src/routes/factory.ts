@@ -74,6 +74,10 @@ factory.use('*', async (c, next) => {
     // Stripe portal link with X-Factory-Key (checked in lifecycle.ts). Exact match on the id segment so
     // the admin-only POST /customers/:id/checkout/subscription is NOT let through.
     || /\/customers\/[0-9a-f-]{36}\/(subscription|billing-portal-link)$/i.test(c.req.path)
+    // The own-it licence from the CRM's Billing page: the offer and its checkout, X-Factory-Key checked in lifecycle.ts. Left out of this
+    // list, every CRM's Billing page said "The licence could not be reached" — the global gate answered 401 first (salon live test 11/07).
+    || (c.req.method === 'GET' && /\/customers\/[0-9a-f-]{36}\/license$/i.test(c.req.path))
+    || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/license-checkout$/i.test(c.req.path))
     // Restart after the subscription ended: the CRM's lock page asks for a checkout with X-Factory-Key (lifecycle.ts).
     || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/restart-checkout$/i.test(c.req.path))
     // Twomiah Ads registration after deploy: the tenant CRM calls it with X-Factory-Key (checked in lifecycle.ts).

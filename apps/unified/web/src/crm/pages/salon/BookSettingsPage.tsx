@@ -138,7 +138,7 @@ export default function BookSettingsPage() {
           </label>
           <p className={hint}>
             Off by default: an online booking goes to whoever is free. On: the client picks a stylist, or &ldquo;anyone&rdquo;, and sees only that
-            person&rsquo;s open times. Only stylists who have their own online booking hours (Settings › Online booking) can be picked.
+            person&rsquo;s open times. Only stylists who have their own online booking hours (Settings › Online booking) can be picked. A chair-only stylist (one with no login) is never offered online.
           </p>
           {pick && (
             <>

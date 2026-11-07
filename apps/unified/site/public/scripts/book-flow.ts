@@ -215,6 +215,8 @@
         var pay = body.deposit && body.deposit.url
         // A card is asked for first (the salon's policy): on to the booking's own page, which shows the policy and the card button.
         if (body.needsCard) { window.location.href = '/booking/' + encodeURIComponent(body.token) + (embed ? '?embed=1' : ''); return }
+        // Forms to fill in before it is confirmed: on to the booking's own page, which lists them (it is not booked yet).
+        if (body.needsForms) { window.location.href = '/booking/' + encodeURIComponent(body.token) + (embed ? '?embed=1' : ''); return }
         if (embed) window.location.href = (pay ? '/booking/' : '/book/done?token=') + encodeURIComponent(body.token) + (pay ? '?embed=1' : '&embed=1')
         else window.location.href = typeof pay === 'string' && pay.indexOf('https://checkout.stripe.com/') === 0 ? pay : '/book/done?token=' + encodeURIComponent(body.token)
       })

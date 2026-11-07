@@ -160,4 +160,17 @@ describe('salon: several services in one online booking', () => {
     expect(await times('cut', `&who=${bea}`, day2)).toContain('11:30')
     expect(await times('cut', `&who=${ana}`, day2)).not.toContain('11:30')
   })
+
+  test('the thank-you page tells the truth: a booking still held for its form is "Almost booked", with the way to finish', async () => {
+    const r = await book('cut', '09:30', 'held@example.com', {}, day2)
+    expect(r.status).toBe(201)
+    const confirmed = await (await t.call(`/book/done?token=${r.body.token}`)).text()
+    expect(confirmed).toContain('You&#39;re booked.')
+    await t.db.update(t.schema.booking).set({ status: 'pending', depositStatus: 'forms' } as any).where(eq(t.schema.booking.token, r.body.token))
+    const held = await (await t.call(`/book/done?token=${r.body.token}`)).text()
+    expect(held).not.toContain('You&#39;re booked.')
+    expect(held).toContain('Almost booked')
+    expect(held).toContain('Fill in your form to confirm it.')
+    expect(held).toContain(`/booking/${r.body.token}`)
+  })
 })
