@@ -13,8 +13,6 @@ export interface TeamConfig {
   /** Column + field label for the roster role — "Job Title / Trade" (trades), "Role / Specialty" (salon / vet). */
   roleLabel?: string
   rolePlaceholder?: string
-  /** What this business calls each login rung (a salon's "Stylist" for field), as its Settings › Users does; absent → ROLE_LABELS. */
-  roleWord?: (role: string) => string
   /** The template's feature check. With multi_location on, each person can be put at a branch. Absent → no branch field. */
   hasFeature?: (id: string) => boolean
   /**

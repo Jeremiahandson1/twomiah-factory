@@ -39,7 +39,6 @@ import { TextComposer } from './textComposer'
 import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
 import { QuotesAwaitingReply } from './pages/LeadPipelineStrip'
 import { OwnerDashboard, CrewDashboard } from './pages/HomePanels'
-import { roleWord } from './viewAs'
 
 const v = verticalScreens
 const client = api as any
@@ -208,8 +207,7 @@ export function Expenses() {
 }
 export function Team() {
   const { hasFeature } = useAuth()
-  // A login's rung in this business's own words (a salon's Stylist), the same word Settings › Users shows (salon live test 11/07).
-  return <TeamPage api={client} toast={useToast()} config={{ ...v().team, hasFeature, roleWord } as any} />
+  return <TeamPage api={client} toast={useToast()} config={{ ...v().team, hasFeature } as any} />
 }
 export function Documents() {
   const { hasFeature } = useAuth()
