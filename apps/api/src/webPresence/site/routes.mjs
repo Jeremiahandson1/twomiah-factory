@@ -17,6 +17,8 @@ export const ROUTES = {
   // Sell a download. Public: the buy button, the page after paying, the buyer's link. The owner's (signed in): the file, the sales,
   // linking Stripe. The Factory's (signed with the site's secret): a sale paid, a sale refunded, Stripe linked or unlinked.
   '/api/buy': 'api/buy', '/thanks': 'thanks', '/download': 'download',
+  // A free file anyone can download (a guide, a checklist): the public address any button can link to, and the owner's upload.
+  '/free': 'free', '/api/free/file': 'api/free/file',
   '/api/download/file': 'api/download/file', '/api/sales': 'api/sales', '/api/sales.csv': 'api/sales.csv', '/api/sales/resend': 'api/sales/resend',
   '/api/stripe': 'api/stripe', '/api/stripe/start': 'api/stripe/start', '/api/stripe/disconnect': 'api/stripe/disconnect',
   '/api/sale': 'api/sale', '/api/refund': 'api/refund', '/api/stripe-link': 'api/stripe-link',
