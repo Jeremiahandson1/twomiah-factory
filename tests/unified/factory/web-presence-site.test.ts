@@ -40,7 +40,7 @@ async function site(siteId = 'site-a', opts: { model?: any; factory?: (url: stri
     return opts.factory ? opts.factory(String(url), init) : new Response(JSON.stringify({ error: 'no factory' }), { status: 500 })
   }
   const env = { WP_SITE_ID: siteId, WP_SECRET: secret, WP_FACTORY_URL: 'https://factory.test', WP_TENANT_ID: 'tenant-a', WP_FACTORY_KEY: 'k' }
-  const handler = createHandler({ store, env, fetchImpl, now: () => t.now, initial: { index: '<html>initial</html>', privacy: '<html>privacy</html>', model: opts.model || model() }, spec: { limits: {} } })
+  const handler = createHandler({ store, env, fetchImpl, now: () => t.now, initial: { index: '<html>initial</html>', privacy: '<html>privacy</html>', model: opts.model || model(), css: '/* deployed look */', cssVersion: 'v-deployed' }, spec: { limits: {} } })
   const call = (r: string, init: any = {}, headers: Record<string, string> = {}) =>
     handler(new Request('https://acme.netlify.app/.netlify/functions/site?r=' + r, { ...init, headers: { 'x-nf-client-connection-ip': '1.2.3.4', host: 'acme.netlify.app', ...(init.headers || {}), ...headers } }))
   const cookieFor = async (id = siteId, sec = secret) => 'wp_s=' + encodeURIComponent(await mintSession(sec, id, t.now))
@@ -157,6 +157,85 @@ describe('the editor saves into the site, not the Factory', () => {
     let last = 0
     for (let i = 0; i < 125; i++) last = (await s.call('api/model', post(model()), h)).status
     expect(last).toBe(429)
+  })
+})
+
+// 11/07: the stylesheet was a deployed file, so a look changed in the editor (which deploys nothing) drew the new page with the
+// FIRST look's stylesheet — the live test site showed The Hobby Starter's words in the old dark serif look. It is the function's now,
+// saved with the page.
+describe('the stylesheet goes with the page', () => {
+  const drawn = (m: any, css: string | undefined, v: string) => ({ ok: true, model: m, notes: [], cssVersion: v, files: { 'index.html': `<html><link href="/styles/main.css?v=${v}">saved</html>`, 'privacy/index.html': 'p', ...(css === undefined ? {} : { 'styles/main.css': css }) } })
+  const factoryDrawing = (css: string | undefined, v: string) => async (_u: string, init: any) => new Response(JSON.stringify(drawn(JSON.parse(init.body).model, css, v)), { status: 200 })
+
+  test('before any save, the deployed stylesheet is served; a year in cache only under its own version', async () => {
+    const s = await site()
+    const r = await s.call('css&v=v-deployed')
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toMatch(/^text\/css/)
+    expect(await r.text()).toBe('/* deployed look */')
+    expect(r.headers.get('cache-control')).toMatch(/immutable/)
+    expect(r.headers.get('x-content-type-options')).toBe('nosniff')
+    const other = await s.call('css&v=something-else')
+    expect(await other.text()).toBe('/* deployed look */')
+    expect(other.headers.get('cache-control')).not.toMatch(/immutable/)
+    expect(other.headers.get('netlify-cdn-cache-control')).not.toMatch(/immutable/)
+  })
+
+  test('a save that changes the look serves the new stylesheet under the new version, with no deploy', async () => {
+    const s = await site('site-a', { factory: factoryDrawing('/* foundry, his colours */', 'v-foundry') })
+    expect((await s.call('api/model', post(model({ look: { design: 'foundry' } })), await s.authed())).status).toBe(200)
+    expect(await (await s.call('page')).text()).toContain('main.css?v=v-foundry')
+    const r = await s.call('css&v=v-foundry')
+    expect(await r.text()).toBe('/* foundry, his colours */')
+    expect(r.headers.get('cache-control')).toMatch(/immutable/)
+    // a page cached from before asks for the old version: it gets the current sheet, held for seconds — never pinned for a year
+    const stale = await s.call('css&v=v-deployed')
+    expect(await stale.text()).toBe('/* foundry, his colours */')
+    expect(stale.headers.get('cache-control')).not.toMatch(/immutable/)
+    // and a redeploy (a new function with a new first page) does not undo the owner's look
+    const again = createHandler({ store: s.store, env: { WP_SITE_ID: 'site-a', WP_SECRET: s.secret }, fetchImpl: fetch, now: () => s.t.now, initial: { index: 'x', privacy: 'p', model: model(), css: '/* NEW DEPLOY */', cssVersion: 'v-new' }, spec: {} })
+    expect(await (await again(new Request('https://acme.netlify.app/styles/main.css?v=v-foundry'))).text()).toBe('/* foundry, his colours */')
+  })
+
+  test('the stylesheet is written before the page (a page is never out ahead of the sheet it asks for)', async () => {
+    const s = await site('site-a', { factory: factoryDrawing('/* new */', 'v-new') })
+    const order: string[] = []
+    const set = s.store.set
+    s.store.set = async (k: string, v: any, o?: any) => { order.push(k); return set(k, v, o) }
+    await s.call('api/model', post(model()), await s.authed())
+    expect(order.indexOf('css')).toBeGreaterThanOrEqual(0)
+    expect(order.indexOf('css')).toBeLessThan(order.indexOf('page'))
+  })
+
+  test('when the Factory cannot draw it, the stylesheet is not touched either', async () => {
+    const s = await site('site-a', { factory: async () => new Response('x', { status: 500 }) })
+    await s.call('api/model', post(model()), await s.authed())
+    expect(s.store.m.has('css')).toBe(false)
+    expect(await (await s.call('css&v=v-deployed')).text()).toBe('/* deployed look */')
+  })
+
+  test('a Factory that sends no stylesheet leaves the one held (an older Factory, mid-release)', async () => {
+    const s = await site('site-a', { factory: factoryDrawing('/* first save */', 'v1') })
+    await s.call('api/model', post(model()), await s.authed())
+    const h = createHandler({ store: s.store, env: { WP_SITE_ID: 'site-a', WP_SECRET: s.secret, WP_FACTORY_URL: 'https://factory.test' }, fetchImpl: factoryDrawing(undefined, 'v2') as any, now: () => s.t.now, initial: { index: 'x', privacy: 'p', model: model(), css: '/* deployed */', cssVersion: 'v0' }, spec: { limits: {} } })
+    const res = await h(new Request('https://acme.netlify.app/api/model', { method: 'POST', body: JSON.stringify(model()), headers: { 'content-type': 'application/json', cookie: await s.cookieFor(), 'x-wp': '1', host: 'acme.netlify.app' } }))
+    expect(res.status).toBe(200)
+    expect(await (await h(new Request('https://acme.netlify.app/styles/main.css?v=v1'))).text()).toBe('/* first save */')
+  })
+
+  test("the Factory's adopt (a change of trade) brings its stylesheet with the page", async () => {
+    const s = await site()
+    const body = JSON.stringify({ model: model(), page: '<html>new trade</html>', privacy: 'p', css: '/* adopted */', cssVersion: 'v-adopt' })
+    const ts = String(Math.floor(s.t.now / 1000))
+    expect((await s.call('api/adopt', { method: 'POST', body }, { 'x-wp-ts': ts, 'x-wp-sig': await signRequest(s.secret, ts, body) })).status).toBe(200)
+    const r = await s.call('css&v=v-adopt')
+    expect(await r.text()).toBe('/* adopted */')
+    expect(r.headers.get('cache-control')).toMatch(/immutable/)
+  })
+
+  test('the stylesheet route only reads: a POST to it is not served', async () => {
+    const s = await site()
+    expect((await s.call('css', { method: 'POST', body: 'x' })).status).toBe(404)
   })
 })
 

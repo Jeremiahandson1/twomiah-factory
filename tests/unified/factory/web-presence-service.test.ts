@@ -184,8 +184,12 @@ describe('set-up: one Netlify site per customer', () => {
     // the deploy: static files + the function, no page files (the function serves them from the site's own Blobs)
     const dep = w.nl.log.find((x) => x.op === 'deploy')!
     expect(dep.functions).toEqual(['site'])
-    expect(dep.files).toEqual(expect.arrayContaining(['/styles/main.css', '/sitemap.xml', '/robots.txt', '/llms.txt', '/edit/index.html', '/forms.html', '/_redirects', '/_headers']))
+    expect(dep.files).toEqual(expect.arrayContaining(['/sitemap.xml', '/robots.txt', '/llms.txt', '/edit/index.html', '/forms.html', '/_redirects', '/_headers']))
     expect(dep.files).not.toContain('/index.html')
+    // the stylesheet is the function's too (an editor save changes the look with no deploy); a deployed copy would shadow it
+    expect(dep.files).not.toContain('/styles/main.css')
+    // every self-hosted typeface ships, whatever the first page used: the owner can pick other letters without a deploy
+    expect(dep.files).toEqual(expect.arrayContaining(['/styles/fonts.css', '/fonts/Lora-400.woff2', '/fonts/Cinzel-400.woff2']))
     expect(dep.envAtDeploy).toContain('WP_SECRET')
     // the row and the tenant
     const row = (await siteRowFor(w.d, { tenantId: 't-1' }))!
@@ -315,6 +319,20 @@ describe('the site asks the Factory (signed with the site\'s own secret)', () =>
     const noHiringSection = { ...withHiring, sections: withHiring.sections.map((s: any) => (s.type === 'hiring' ? { ...s, hidden: true } : s)) }
     const gone = ((await renderForSite(w.d, row, { model: noHiringSection, prev: withHiring })).body as any).files['index.html'] as string
     expect(gone).not.toContain('/api/apply')
+  })
+  test('a save hands back the stylesheet with the page, under the version the page links; a new look is a new version', async () => {
+    const { w, row } = await live()
+    const m1 = ((await renderForSite(w.d, row, { model: firstModel() })).body as any).model
+    const a = (await renderForSite(w.d, row, { model: m1, prev: m1 })).body as any
+    expect(typeof a.files['styles/main.css']).toBe('string')
+    expect(a.files['styles/main.css'].length).toBeGreaterThan(1000)
+    expect(a.files['index.html']).toContain('/styles/main.css?v=' + a.cssVersion)
+    const looks = buildSpec('roofing').designs.map((d) => d.id)
+    const other = looks.find((id) => id !== a.model.look.design)!
+    const b = (await renderForSite(w.d, row, { model: { ...m1, look: { ...m1.look, design: other } }, prev: m1 })).body as any
+    expect(b.cssVersion).not.toBe(a.cssVersion)
+    expect(b.files['index.html']).toContain('/styles/main.css?v=' + b.cssVersion)
+    expect(b.files['styles/main.css']).not.toBe(a.files['styles/main.css'])
   })
   test('a site that is not live takes no changes', async () => {
     const { w, row } = await live()
