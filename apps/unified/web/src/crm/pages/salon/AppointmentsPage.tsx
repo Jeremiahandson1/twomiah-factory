@@ -6,6 +6,7 @@ import { api } from '../../../api'
 import ClientPicker from './ClientPicker';
 import ServiceRecordEditorModal from './ServiceRecordEditorModal';
 import { VisitServicesModal } from './VisitServicesModal';
+import { visitMinutes } from './visitLength';
 import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
@@ -874,7 +875,12 @@ function NewAppointmentModal({ defaultDay, defaultTime, defaultStylistId, scope,
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End</label>
+                {/* Several services: the visit ends when the last one does (the server sets it so) — shown as that time. */}
+                {more.some((m) => m.serviceId) && form.startTime ? (
+                  <input type="time" readOnly aria-label="End, when the last service finishes" value={shiftTime(form.startTime, visitMinutes(Number(services.find((x) => x.id === form.serviceId)?.durationMin) || 0, more.filter((m) => m.serviceId).map((m) => ({ minutes: Number(services.find((x) => x.id === m.serviceId)?.durationMin) || 0, withFirst: together && !!m.withFirst }))))} className="w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-slate-800" />
+                ) : (
                 <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
