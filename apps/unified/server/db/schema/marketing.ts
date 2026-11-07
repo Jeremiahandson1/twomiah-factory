@@ -123,6 +123,8 @@ export const scheduledText = pgTable('scheduled_text', {
   error: text('error'),
   messageId: text('message_id'),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  // Roofing parity row 17 (invoice_text_requests): the invoice a payment-request text is about — its unsent ones are cancelled once it is paid.
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   cancelledAt: timestamp('cancelled_at'),
   sentAt: timestamp('sent_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

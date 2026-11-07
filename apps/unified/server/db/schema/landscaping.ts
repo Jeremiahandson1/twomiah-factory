@@ -3,6 +3,7 @@
 import { pgTable, text, boolean, integer, decimal, timestamp, index, uniqueIndex, json } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { isNull } from 'drizzle-orm'
+import { budgetIsActive } from '../../data/indexWhere.ts'
 import { company, user } from './core.ts'
 import { contact, invoice, invoiceLineItem, job } from './crm.ts'
 import { site } from './trades.ts'
@@ -386,4 +387,82 @@ export const visitCrewTime = pgTable('visit_crew_time', {
 }, (t) => [
   index('visit_crew_time_company_id_idx').on(t.companyId),
   index('visit_crew_time_job_id_idx').on(t.jobId),
+])
+
+// A route saved as a template (landscaping parity row 28; Yardbook's copy route; route_copy, not ready): the route's crew, start time,
+// billing mode, season and its stops in order, kept apart from the board so a template never makes visits. "Use" makes a new route
+// from it on a chosen day. `stops`: [{ siteId, contactId, serviceType, estimatedMinutes, pricePerVisit, skipVisitMessage }] in order.
+export const recurringRouteTemplate = pgTable('recurring_route_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  estimatedHours: decimal('estimated_hours', { precision: 5, scale: 2 }).default('0').notNull(),
+  startTime: text('start_time').default('08:00').notNull(),
+  billingMode: text('billing_mode'),
+  seasonStart: text('season_start'),
+  seasonEnd: text('season_end'),
+  notes: text('notes'),
+  stops: json('stops').default([]).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('recurring_route_template_company_id_idx').on(t.companyId),
+])
+
+// The company's operating budget for a year (landscaping parity row 27; LMN's budget → overhead recovery → markup; feature
+// company_budget, not ready). `lines`: [{ section, name, amount?, count?, hours?, wage?, prevAmount? }] — section is sales, labor,
+// equipment, materials, subs, overhead or overhead_wage. A budget is a draft until activated; the active one for a year is locked
+// (change it by copying it to a new draft). The rates come from data/companyBudget.ts and fill the quote form's markup defaults.
+export const companyBudget = pgTable('company_budget', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  year: integer('year').notNull(),
+  name: text('name').notNull(),
+  status: text('status').default('draft').notNull(), // draft, active, archived
+  method: text('method').default('mors').notNull(), // mors, flh, sors
+  profitPct: decimal('profit_pct', { precision: 6, scale: 2 }).default('10').notNull(),
+  laborBurdenPct: decimal('labor_burden_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  overheadBurdenPct: decimal('overhead_burden_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  overtimePct: decimal('overtime_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  overtimeMultiplier: decimal('overtime_multiplier', { precision: 4, scale: 2 }).default('1.5').notNull(),
+  unbillablePct: decimal('unbillable_pct', { precision: 6, scale: 2 }).default('0').notNull(),
+  // MORS: the overhead recovered on each of these (the rest is recovered on labor).
+  materialsMarkupPct: decimal('materials_markup_pct', { precision: 6, scale: 2 }).default('10').notNull(),
+  equipmentMarkupPct: decimal('equipment_markup_pct', { precision: 6, scale: 2 }).default('25').notNull(),
+  subsMarkupPct: decimal('subs_markup_pct', { precision: 6, scale: 2 }).default('5').notNull(),
+  lines: json('lines').default([]).notNull(),
+  activatedAt: timestamp('activated_at'),
+  activatedById: text('activated_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('company_budget_company_id_idx').on(t.companyId),
+  uniqueIndex('company_budget_active_year_idx').on(t.companyId, t.year).where(budgetIsActive),
+])
+
+// A takeoff on an uploaded plan (landscaping parity row 4; Aspire's property takeoffs; feature plan_takeoffs, not ready): the plan file
+// (PDF or picture, in storage at fileKey), the page measured, its scale (feet per page width) and the measured items — areas, lengths
+// and counts, each a list of points in page-width units ([x, y], 0..1 across). data/planTakeoffs.ts measures them; a takeoff becomes
+// quote lines.
+export const planTakeoff = pgTable('plan_takeoff', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  fileKey: text('file_key').notNull(),
+  fileType: text('file_type').notNull(), // application/pdf, image/png, image/jpeg
+  fileName: text('file_name'),
+  page: integer('page').default(1).notNull(),
+  // The page's height ÷ its width, as the screen rendered it (points are in page-width units on both axes).
+  pageAspect: decimal('page_aspect', { precision: 8, scale: 5 }),
+  feetPerWidth: decimal('feet_per_width', { precision: 14, scale: 4 }),
+  items: json('items').default([]).notNull(),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('plan_takeoff_company_id_idx').on(t.companyId),
+  index('plan_takeoff_site_id_idx').on(t.siteId),
 ])

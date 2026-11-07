@@ -9,6 +9,9 @@ import type { CrmDeps } from '../deps.ts'
 import { createRecurringRouteRoutes } from './recurringRoutes.ts'
 import { createRouteBillingRoutes } from './routeBilling.ts'
 import { createRainDayRoutes } from './rainDay.ts'
+import { createRouteTemplateRoutes } from './routeTemplates.ts'
+import { createCompanyBudgetRoutes } from './companyBudget.ts'
+import { createPlanTakeoffRoutes } from './planTakeoffs.ts'
 import { createAreaPricingRoutes } from './areaPricing.ts'
 import { createMeasurePrintRoutes, MEASURE_PRINT_FEATURE } from './measurePrint.ts'
 import { photoMarkupMounts } from '../roof/photoMarkup/index.ts'
@@ -53,6 +56,8 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     { path: '/api/recurring-routes/billing', access: 'user', feature: 'recurring_routes', router: createRouteBillingRoutes(d) },
     // Rain day: push a day's jobs forward and text the customers. Before the board's router for the same reason.
     { path: '/api/recurring-routes/rain-day', access: 'user', feature: 'recurring_routes', router: createRainDayRoutes(d) },
+    // Row 28: copy a route, and route templates (route_copy, read per request). Before the board's router for the same reason.
+    { path: '/api/recurring-routes/templates', access: 'user', feature: 'recurring_routes', router: createRouteTemplateRoutes(d) },
     { path: '/api/recurring-routes', access: 'user', feature: 'recurring_routes', router: createRecurringRouteRoutes(d) },
     { path: '/api/area-pricing', access: 'user', feature: 'area_pricing', router: createAreaPricingRoutes(d) },
     { path: '/api/measure-print', access: 'user', feature: MEASURE_PRINT_FEATURE, router: createMeasurePrintRoutes(d) },
@@ -68,6 +73,10 @@ export function landscapingMounts(d: CrmDeps): Mount[] {
     // Drawing on a visit's photos from the phone (landscaping parity row 9; roofing's photo_markup, not ready). Roofing mounts the same
     // route itself (crm/roof/index.ts), so it is mounted here only where roofing's add-on is not.
     ...(d.settings?.roof ? [] : photoMarkupMounts(d)),
+    // Row 27: the operating budget → overhead recovery → markup (LMN). NOT READY (hidden; company_budget read per request).
+    { path: '/api/budgets', access: 'user', router: createCompanyBudgetRoutes(d) },
+    // Row 4: takeoffs on uploaded plans (Aspire). NOT READY (hidden; plan_takeoffs read per request).
+    { path: '/api/plan-takeoffs', access: 'user', router: createPlanTakeoffRoutes(d) },
     { path: '/api/sites', access: 'user', feature: ['snow_billing', 'area_pricing', 'recurring_routes'], router: createSiteRoutes(d) },
   ]
 }

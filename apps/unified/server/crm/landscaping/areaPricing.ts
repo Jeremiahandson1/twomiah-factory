@@ -7,6 +7,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { serviceRate, site, quote, quoteLineItem } from '../../db/schema/index.ts'
 import { retotalQuote } from '@twomiah/tenant-backend'
 import { readShapes, replaceShapes, shapesOf } from '../../data/siteShapes.ts'
+import { AERIAL_FEATURE, providerFor, readView, detectAreas } from '../../data/aerialDetect.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { readNumber, type NumberRule } from '../../http/numberInput.ts'
@@ -143,6 +144,22 @@ export function createAreaPricingRoutes(d: CrmDeps) {
     if (!updated) return fail(c, 404, 'Site not found')
     audit.log({ req: c, action: audit.ACTIONS.UPDATE, entity: 'site_measurements', entityId: updated.id, entityName: updated.name, userId: u.userId, companyId: u.companyId, metadata: { shapes: read.shapes.length, source: 'map' } })
     return one(c, { site: updated, shapes: await shapesOf(db, u.companyId, updated.id) })
+  })
+
+  // POST /api/area-pricing/sites/:siteId/detect { center: { lat, lng }, bounds? } — row 3 (aerial_detect, not ready): the provider's
+  // outlines of the lawn, beds and hardscape, checked as drawn shapes are, and NOT saved: the map shows them to check and edit, and
+  // the ordinary save keeps them. No provider is connected yet (data/aerialDetect.ts): the answer says so (NO_PROVIDER).
+  app.post('/sites/:siteId/detect', requirePermission('contacts:update'), async (c) => {
+    const u = c.get('user')
+    if (!(await d.features.isFeatureEnabled(u.companyId, AERIAL_FEATURE).catch(() => false))) return fail(c, 404, 'Not found')
+    const [s] = await db.select().from(site).where(and(eq(site.id, c.req.param('siteId')), eq(site.companyId, u.companyId))).limit(1)
+    if (!s) return fail(c, 404, 'Site not found')
+    const view = readView(await c.req.json().catch(() => ({})))
+    if ('error' in view) return fail(c, 400, view.error)
+    const address = [s.address, s.city, s.state, s.zip].filter(Boolean).join(', ')
+    const out = await detectAreas(providerFor(), { address, ...view })
+    if (out.status === 'error') return fail(c, out.code === 'NO_PROVIDER' ? 501 : 502, out.error, out.code)
+    return one(c, { provider: out.provider, shapes: out.shapes, dropped: out.dropped })
   })
 
   // ---- Quote a service for a site from its measured area ----

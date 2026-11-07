@@ -30,6 +30,12 @@ export interface TabDef {
   feature?: string
   /** Only this kind of seat: 'field' (a technician / caregiver) or 'office' (owner, admin, manager, viewer). Absent: both. */
   seat?: 'field' | 'office'
+  /**
+   * While this tab is shown, the named tab is not: the slot is swapped, so the bar keeps its five. (Landscaping's crew seat: Today's
+   * route takes the Dashboard's slot, as Jobber's crew app opens on the day.) When this tab is not shown — its switch off, another
+   * seat — the named tab keeps its slot.
+   */
+  replaces?: string
 }
 
 /**
@@ -38,8 +44,10 @@ export interface TabDef {
  * web. Order is the vertical's. The tab layout and the tests both ask this.
  */
 export function visibleTabs(tabs: TabDef[], can: (permission: string) => boolean, hasFeature: (feature: string) => boolean, field?: boolean): TabDef[] {
-  return tabs.filter((tab) => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature))
+  const open = tabs.filter((tab) => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature))
     && (field === undefined || !tab.seat || (tab.seat === 'field') === field))
+  const swapped = new Set(open.map((tab) => tab.replaces).filter(Boolean))
+  return open.filter((tab) => !swapped.has(tab.name))
 }
 
 /**
@@ -99,6 +107,10 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'more', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
   landscaping: [
+    // Landscaping parity row 32 (LMN Crew, Jobber: the crew's day is the home tab): a crew seat opens on Today's route, in the
+    // Dashboard's slot — the Dashboard is still a row in More. Only while the Route Board (recurring_routes) is on; office seats
+    // keep the bar they had.
+    { name: 'land-route', title: 'Today', icon: 'leaf-outline', activeIcon: 'leaf', permission: 'jobs:read', feature: 'recurring_routes', seat: 'field', replaces: 'dashboard' },
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
     { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
     { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar', permission: 'jobs:read' },

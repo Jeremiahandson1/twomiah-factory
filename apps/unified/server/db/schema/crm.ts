@@ -698,6 +698,8 @@ export const payment = pgTable('payment', {
   reference: text('reference'),
   notes: text('notes'),
   paidAt: timestamp('paid_at').defaultNow().notNull(),
+  // Roofing parity row 17 (invoice_text_requests): when the payment's receipt was emailed to the customer and the rep — once.
+  receiptSentAt: timestamp('receipt_sent_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
