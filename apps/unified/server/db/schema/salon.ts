@@ -720,7 +720,10 @@ export const salonTerminalCharge = pgTable('salon_terminal_charge', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
-  readerId: text('reader_id').notNull().references(() => salonReader.id, { onDelete: 'cascade' }),
+  /** The reader it went to; null for a card tapped on the phone (salon parity row 26, Tap to Pay). */
+  readerId: text('reader_id').references(() => salonReader.id, { onDelete: 'cascade' }),
+  /** 'reader' | 'phone' (Tap to Pay on the stylist's or the desk's phone). */
+  source: text('source').notNull().default('reader'),
   stripeAccount: text('stripe_account').notNull(),
   paymentIntentId: text('payment_intent_id').notNull(),
   /** What goes on the sale, in cents (without the tip). */

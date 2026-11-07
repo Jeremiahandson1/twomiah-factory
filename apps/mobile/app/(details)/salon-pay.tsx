@@ -197,7 +197,7 @@ function PayFlow({ sdk, appointmentId, location, onDone }: { sdk: any; appointme
           <Card>
             <View style={{ gap: space[2] }}>
               <DText variant="caption" tone="textSecondary">Part on a gift card</DText>
-              <TextField label="Gift card number" autoCapitalize="characters" value={gift} onChangeText={setGift} />
+              <TextField label="Gift card code" autoCapitalize="characters" value={gift} onChangeText={setGift} />
               <Button label="Use the gift card" variant="secondary" onPress={useGift} disabled={!gift.trim()} />
             </View>
           </Card>

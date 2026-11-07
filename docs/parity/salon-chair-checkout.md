@@ -51,7 +51,9 @@ What the pages say:
 
 ## Money: whose account
 
-Every call to Stripe carries the salon's own connected account (the one Settings › Integrations connects). The reader, its Location, its PaymentIntents and its refunds are all on that account; Twomiah holds nothing. The phone app takes no cards and has no new screen: the card is tapped on the reader.
+Every call to Stripe carries the salon's own connected account (the one Settings › Integrations connects). The reader, its Location, its PaymentIntents and its refunds are all on that account; Twomiah holds nothing. The card is tapped on the reader — or, with Tap to Pay (row 26, below), on the phone itself.
+
+**Tap to Pay at the chair on the phone (row 26, 11/07; Square; `chair_checkout` + `tap_to_pay`, both not ready).** A finished visit on the phone's Today's book offers "Take payment on this phone" to a seat that may take a card (`invoices:update` or `cardreader:use`). The screen (`apps/mobile/app/(details)/salon-pay.tsx`) shows what is owing, lets a gift card take part of it (`/api/salon-gift-cards/redeem`), offers the salon's tip percentages worked on the services, and takes the tap with Stripe Terminal's SDK. The server (`chairCheckout.ts`): `POST /api/chair-checkout/phone/connection-token` (a token and the salon's Location, on its own account), `POST /phone/charges` (the same card_present PaymentIntent and charge row as the reader's, `source: 'phone'`, no reader; the phone's attempt key gives the same PaymentIntent back), `POST /phone/charges/:id/declined` (the card network's words; the PaymentIntent cancelled unless Stripe has it, when it is recorded), and `GET /visits/:appointmentId/sale`. Recording is the reader's: only when Stripe says the PaymentIntent succeeded, once, the tip beside it; a part payment is a split; the refund to the card is the reader's. Migration 0100. Proof: `tests/salon-chair-tap.test.ts`, `tests/mobile/salon-chair-pay.test.ts`. **Not seen on a real phone**: Tap to Pay needs the app built with the SDK (and Apple's entitlement on iPhone; see docs/parity/tap-to-pay.md).
 
 ## Decisions and limits to know
 

@@ -701,6 +701,13 @@
       "when": 1794031513237,
       "tag": "0099_booking_basket",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1794033849282,
+      "tag": "0100_salon_phone_charge",
+      "breakpoints": true
     }
   ]
 }
