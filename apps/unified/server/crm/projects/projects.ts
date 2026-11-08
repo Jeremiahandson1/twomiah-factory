@@ -9,6 +9,7 @@ import { changeOrderTotalsByStatus, projectActivity } from '../../data/projects.
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, listAll } from '../../http/reply.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
+import { ownProjectsWhere } from '../ownWork.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 
 /**
@@ -107,11 +108,12 @@ const projectSchema = projectFields.refine(dateOrderCheck, {
  * from a request — the create route above and "start from a template" (projectTemplates.ts) both come through here, so a
  * templated project is numbered and shaped exactly as any other.
  */
-export async function insertProject(tx: any, companyId: string, data: z.infer<typeof projectFields>) {
+export async function insertProject(tx: any, companyId: string, data: z.infer<typeof projectFields>, createdById?: string) {
   const number = await nextNumber(tx, project, project.number, project.companyId, companyId, { prefix: 'PRJ', pad: 4 })
   const [row] = await tx.insert(project).values({
     ...data,
     number,
+    ...(createdById ? { createdById } : {}),
     startDate: data.startDate ? new Date(data.startDate) : null,
     endDate: data.endDate ? new Date(data.endDate) : null,
     estimatedValue: data.estimatedValue?.toString(),
@@ -135,6 +137,29 @@ export function createProjectRoutes(d: CrmDeps) {
     const u = c.get('user') as any
     try { return hasPermission(u?.role, 'change-orders:update', await getExtraPermissions(u?.userId)) } catch { return false }
   }
+  /**
+   * The projects a seat without projects:read-all reads — its own (crm/ownWork.ts ownProjectsWhere: the contractor's Sales rep; re-check
+   * 11/08: "The rep still sees both projects in Projects and 'Active projects 1' on the dashboard") — or null for every project.
+   */
+  const ownProjects = async (c: any) => {
+    const u = c.get('user') as any
+    let all = false
+    try { all = hasPermission(u?.role, 'projects:read-all', await getExtraPermissions(u?.userId)) } catch { all = false }
+    return all ? null : ownProjectsWhere(db, String(u?.userId || ''))
+  }
+  // Every door on one project answers "not found" for one that is not this seat's own, as the quote and lead doors do.
+  const NOT_AN_ID = new Set(['stats'])
+  const ownProjectDoor = async (c: any, next: any) => {
+    const id = c.req.param('id')
+    if (!id || NOT_AN_ID.has(id)) return next()
+    const scope = await ownProjects(c)
+    if (!scope) return next()
+    const u = c.get('user') as any
+    const [hit] = await db.select({ id: project.id }).from(project).where(and(eq(project.id, id), eq(project.companyId, u.companyId), scope)).limit(1)
+    return hit ? next() : fail(c, 404, 'Project not found')
+  }
+  app.use('/:id', ownProjectDoor)
+  app.use('/:id/*', ownProjectDoor)
 
   app.get('/', async (c) => {
     const currentUser = c.get('user') as any
@@ -144,6 +169,8 @@ export function createProjectRoutes(d: CrmDeps) {
     const limit = Math.min(+(c.req.query('limit') || '50'), 100)
 
     const conditions = [eq(project.companyId, currentUser.companyId)]
+    const scope = await ownProjects(c)
+    if (scope) conditions.push(scope)
     if (status) conditions.push(eq(project.status, status))
     if (search) {
       conditions.push(or(
@@ -174,7 +201,8 @@ export function createProjectRoutes(d: CrmDeps) {
 
   app.get('/stats', async (c) => {
     const currentUser = c.get('user') as any
-    const projects: any[] = await db.select({ status: project.status, estimatedValue: project.estimatedValue, budget: project.budget }).from(project).where(eq(project.companyId, currentUser.companyId))
+    const scope = await ownProjects(c)
+    const projects: any[] = await db.select({ status: project.status, estimatedValue: project.estimatedValue, budget: project.budget }).from(project).where(scope ? and(eq(project.companyId, currentUser.companyId), scope) : eq(project.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: projects.length, planning: 0, active: 0, completed: 0, totalValue: 0 }
     projects.forEach(p => { stats[p.status] = (stats[p.status] || 0) + 1; stats.totalValue += Number(p.estimatedValue || 0) })
     // The counts are work; the VALUE is the contract total of every project, the most sensitive figure here.
@@ -274,7 +302,7 @@ export function createProjectRoutes(d: CrmDeps) {
     const data = projectSchema.parse(await c.req.json())
 
     // PRJ numbers only go forwards: locked, never reissued after a delete (T58k).
-    const newProject = await db.transaction((tx: any) => insertProject(tx, currentUser.companyId, data))
+    const newProject = await db.transaction((tx: any) => insertProject(tx, currentUser.companyId, data, currentUser.userId))
 
     return one(c, newProject, 201)
   })

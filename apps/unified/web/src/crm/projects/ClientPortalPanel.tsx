@@ -100,7 +100,13 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
     // It raises the invoice AND sends it to the client at once, so it asks first (contractor live test 11/07: "sends the invoice
     // immediately with no confirmation").
     if (!(await confirm(`This raises the invoice for “${p.name}” and sends it to the client now.`, { title: 'Release and send this invoice?', confirmText: 'Release and send', danger: false }))) return
-    try { const r: any = await api.post(`/api/client-portal/payments/${p.id}/release`, {}); toast.success(`Invoice ${r?.invoice?.number || ''} raised and sent`); setPay(r?.schedule ?? null) } catch (e) { fail(e, 'Could not release it') }
+    let r: any
+    try { r = await api.post(`/api/client-portal/payments/${p.id}/release`, {}); setPay(r?.schedule ?? null) } catch (e) { fail(e, 'Could not release it'); return }
+    // Then it goes out as the invoice's own Send does — the email with its private link (re-check 11/08: "raised and sent", but no
+    // email came; the release only raised it).
+    const number = r?.invoice?.number || ''
+    try { await api.post(`/api/invoices/${r?.invoice?.id}/send`, {}); toast.success(`Invoice ${number} raised and emailed to the client`) }
+    catch (e: any) { toast.error(`Invoice ${number} raised, but not emailed: ${e?.message || 'the email could not be sent'} Send it from the invoice.`) }
   }
   const sendToSign = async () => {
     if (!signDraft.documentId || !signDraft.title.trim()) { toast.error('Pick the PDF and give it a title'); return }

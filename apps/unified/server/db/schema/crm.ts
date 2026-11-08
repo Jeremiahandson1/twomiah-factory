@@ -43,6 +43,8 @@ export const contact = pgTable('contact', {
   // "Don't send this customer automatic job reminders" — their own switch, apart from STOP and unsubscribe (crm/field/jobReminders.ts).
   jobRemindersOff: boolean('job_reminders_off').default(false).notNull(),
   emailOptOutAt: timestamp('email_opt_out_at'),
+  // Who added it — a seat that reads its own customers (the contractor's Sales rep) reads the ones it added (re-check 11/08).
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -165,6 +167,8 @@ export const project = pgTable('project', {
   budget: decimal('budget', { precision: 12, scale: 2 }),
   progress: integer('progress').default(0).notNull(),
   notes: text('notes'),
+  // Who made it — a seat without projects:read-all (the contractor's Sales rep) reads the projects it made or sells (re-check 11/08).
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 

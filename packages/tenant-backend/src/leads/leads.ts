@@ -251,7 +251,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return all ? null : eq(t.lead.assignedToId, String(u?.userId || ''))
   }
   // Every door on one enquiry (/:id and /:id/…) answers "not found" for one that is not this seat's own.
-  const NOT_AN_ID = new Set(['sources', 'stats', 'manual', 'inbound'])
+  const NOT_AN_ID = new Set(['sources', 'stats', 'manual', 'inbound', 'workers'])
   const ownLeadDoor = async (c: any, next: any) => {
     const id = c.req.param('id')
     if (id && !NOT_AN_ID.has(id)) {
@@ -292,6 +292,25 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     try { return await deps.canSee(u?.role, 'integrations:update', u?.userId) } catch { return false }
   }
   const withoutSecret = <T extends Record<string, any>>(row: T): T => { const { webhookSecret, ...rest } = row as any; return rest as T }
+
+  /** The logins this company may hand an enquiry to: active, and able to work leads (re-check 11/08: the Crew login was offered). */
+  const workersOf = async (companyId: string) => {
+    if (!t.user) return [] as any[]
+    const rows = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, role: t.user.role, isActive: t.user.isActive })
+      .from(t.user).where(eq(t.user.companyId, companyId)).orderBy(asc(t.user.firstName), asc(t.user.id))
+    const out: any[] = []
+    for (const u of rows as any[]) {
+      if (u.isActive === false) continue
+      let ok = !deps.canSee
+      if (deps.canSee) { try { ok = !!(await deps.canSee(u.role, 'leads:read', u.id)) && !!(await deps.canSee(u.role, 'leads:update', u.id)) } catch { ok = false } }
+      if (ok) out.push({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email })
+    }
+    return out
+  }
+  app.get('/workers', mayWork, async (c) => {
+    if (await ownLeads(c)) return c.json({ error: 'Only the office hands out leads.' }, 403)
+    return c.json({ data: await workersOf((c as any).get('user').companyId) })
+  })
 
   app.get('/sources', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
@@ -598,6 +617,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     if (parsed.data.assignedToId) {
       const [who] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, parsed.data.assignedToId), eq(t.user.companyId, currentUser.companyId))).limit(1)
       if (!who) return c.json({ error: 'That person is not on your team.' }, 400)
+      if (!(await workersOf(currentUser.companyId)).some((w) => w.id === who.id)) return c.json({ error: 'That person cannot work leads. Give them a role that does first (Settings › Users).' }, 400)
     }
     const [updated] = await db.update(t.lead).set({ assignedToId: parsed.data.assignedToId, updatedAt: new Date() }).where(and(eq(t.lead.id, existing.id), eq(t.lead.companyId, currentUser.companyId))).returning()
     await audit.log({ action: 'update', entity: 'lead', entityId: existing.id, metadata: { assignedToId: parsed.data.assignedToId }, req: { user: currentUser } })

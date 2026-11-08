@@ -564,7 +564,9 @@ export function createContactRoutes(deps: ContactDeps) {
       }
     }
 
-    const [created] = await db.insert(t.contact).values({ ...data, companyId: currentUser.companyId }).returning()
+    // Who added it: a seat that reads its own customers reads the ones it added (the contractor's Sales rep — re-check 11/08: "A contact
+    // the rep created never shows in the rep's Contacts or in the quote Client list").
+    const [created] = await db.insert(t.contact).values({ ...data, companyId: currentUser.companyId, ...(t.contact.createdById ? { createdById: currentUser.userId } : {}) }).returning()
     const safe = withoutPortalCredential(created)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, safe)
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: created.id, entityName: created.name, req: c })

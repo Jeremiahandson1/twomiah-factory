@@ -26,7 +26,7 @@ beforeAll(async () => {
   ownerId = s.owner.id
   await t.db.update(t.schema.company).set({
     email: 'office@builder.example', timezone: 'America/Chicago',
-    enabledFeatures: ['jobs', 'contacts', 'quotes', 'invoices', 'projects', 'change_orders', 'commission_tracking', 'job_costing', 'job_budgets', 'cost_by_code', 'expense_tracking', 'vendor_portal', 'purchase_orders'],
+    enabledFeatures: ['jobs', 'contacts', 'quotes', 'invoices', 'projects', 'change_orders', 'commission_tracking', 'job_costing', 'job_budgets', 'cost_by_code', 'expense_tracking', 'vendor_portal', 'purchase_orders', 'wip_report'],
   } as any).where(eq(t.schema.company.id, companyId))
   t.services.features.forgetFeatures()
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json() as any).accessToken
@@ -88,6 +88,11 @@ test('a cost filed on the project with no job counts in the project budget', asy
   const b = await json(await as(`/api/job-costing/budget/${projectId}`))
   expect(b.status).toBe(200)
   expect(b.body.actualCost).toBe(300)
+  // …and Reports › Work in progress counts the same cost (re-check 11/08: "Cost so far $0.00" beside Job Costing's $250).
+  const wip = await json(await as('/api/wip'))
+  expect(wip.status).toBe(200)
+  const row = (wip.body.rows ?? wip.body.data ?? []).find((r: any) => r.id === projectId)
+  expect(row?.costToDate).toBe(300)
 }, 60_000)
 
 test('a purchase order sent to a vendor emails them their portal link', async () => {

@@ -366,7 +366,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // Everyone's jobs, customers and bookings, not only the ones assigned to them. Every vertical's field seat keeps
     // these; one that runs Jobber's rule (a crew sees its own work) withholds them — every job trade does (unified
     // CREW_SCOPE_WITHHELD, 2026-10-24).
-    'jobs:read-all', 'contacts:read-all', 'bookings:read-all',
+    // projects:read-all: every project, not only its own — a seat without it (the contractor's Sales rep) reads the projects it made or
+    // sells or works on (unified crm/ownWork.ts ownProjectsWhere; re-check 11/08).
+    'jobs:read-all', 'contacts:read-all', 'bookings:read-all', 'projects:read-all',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
     'tasks:read', 'tasks:create', 'tasks:update',
     // Sees a balance and a card. Spending and correcting are widened per-vertical, because who works
@@ -391,7 +393,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'bookings:read',
     // Reads the whole business, as it did (the field row's note on the read-all verbs). quotes:read-all: every quote, not only the ones
     // this seat wrote — a seat without it (the contractor's Sales rep) reads its own (invoicing/quotes.ts).
-    'jobs:read-all', 'contacts:read-all', 'bookings:read-all', 'quotes:read-all',
+    'jobs:read-all', 'contacts:read-all', 'bookings:read-all', 'quotes:read-all', 'projects:read-all',
     // Sees revenue, not cost (owner's decision) — what it read before revenue:read existed. (T62; note on admin)
     'revenue:read',
     'bar:read',

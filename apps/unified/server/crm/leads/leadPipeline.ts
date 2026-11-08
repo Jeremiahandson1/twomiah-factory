@@ -11,8 +11,8 @@
 // Days waiting are counted on the company's calendar, not the server's. Nothing here moves money.
 import { Hono } from 'hono'
 import { and, count, eq, gte, inArray, isNotNull } from 'drizzle-orm'
-import { companyTimeZone, daysUntilMarker, storeDateString } from '@twomiah/tenant-backend'
-import { lead, quote, contact, reminderLog } from '../../db/schema/index.ts'
+import { companyTimeZone, countNewLeads, daysUntilMarker, storeDateString } from '@twomiah/tenant-backend'
+import { lead, quote, contact, reminderLog, job, invoice } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -58,8 +58,12 @@ export function createLeadPipelineRoutes(d: CrmDeps) {
     const withVisit = open.filter((l: any) => l.siteVisitAt && new Date(l.siteVisitAt) >= now).length
     const [{ n: lost }] = await db.select({ n: count() }).from(lead)
       .where(and(eq(lead.companyId, companyId), eq(lead.status, 'lost'), gte(lead.lostAt, since), myLeads ?? undefined))
+    // New also counts the lead contacts nothing has been done for yet — the dashboard's "New leads" tile's own rule (tenant-backend
+    // reporting/newLeads.ts), so the strip and the tile agree (re-check 11/08: "1 New leads" beside "New 0"). A seat that works only its
+    // own enquiries counts only those, as its inbox lists them.
+    const newContacts = myLeads ? 0 : (await countNewLeads(db, { contact, quote, job, invoice }, companyId, { inbox: false })).contacts
     const stages: Stage[] = [
-      { id: 'new', label: 'New', count: open.filter((l: any) => l.status === 'new' && !(l.siteVisitAt && new Date(l.siteVisitAt) >= now)).length },
+      { id: 'new', label: 'New', count: open.filter((l: any) => l.status === 'new' && !(l.siteVisitAt && new Date(l.siteVisitAt) >= now)).length + newContacts },
       { id: 'contacted', label: 'Contacted', count: open.filter((l: any) => l.status === 'contacted' && !(l.siteVisitAt && new Date(l.siteVisitAt) >= now)).length },
       { id: 'site_visit', label: 'Site visit booked', count: withVisit },
     ]

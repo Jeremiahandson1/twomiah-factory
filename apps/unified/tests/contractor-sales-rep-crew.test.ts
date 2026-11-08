@@ -91,3 +91,37 @@ test('a lead the rep adds is theirs; the office hands it out and only it can', a
   expect((await json(await call('rep', '/api/leads'))).body.data.length).toBe(2)
   expect((await call('owner', `/api/leads/${office.body.id}/assign`, { method: 'PUT', json: { assignedToId: 'not-a-person' } })).status).toBe(400)
 }, 60_000)
+
+// Contractor re-check 11/08: a contact the rep added never showed in its Contacts; the rep could not make a project to quote and saw
+// every project; the Crew login was offered as someone to work a lead.
+test('the rep reads the contacts it added and makes its own projects, and reads only those', async () => {
+  const cora = await json(await call('rep', '/api/contacts', { method: 'POST', json: { name: 'Cora Commission', email: 'cora@home.example', type: 'lead' } }))
+  expect(cora.status).toBe(201)
+  expect((await json(await call('rep', '/api/contacts'))).body.data.map((c: any) => c.name)).toContain('Cora Commission')
+  const office = await json(await call('owner', '/api/projects', { method: 'POST', json: { name: 'Office project' } }))
+  expect(office.status).toBe(201)
+  const mine = await json(await call('rep', '/api/projects', { method: 'POST', json: { name: 'Cora bathroom', contactId: cora.body.id } }))
+  expect(mine.status).toBe(201)
+  const list = await json(await call('rep', '/api/projects'))
+  expect(list.body.data.map((p: any) => p.name)).toEqual(['Cora bathroom'])
+  expect((await json(await call('rep', '/api/projects/stats'))).body.total).toBe(1)
+  expect((await call('rep', `/api/projects/${office.body.id}`)).status).toBe(404)
+  expect((await call('rep', `/api/projects/${mine.body.id}`)).status).toBe(200)
+  expect((await json(await call('owner', '/api/projects'))).body.data.length).toBe(2)
+  // A quote on the rep's own project.
+  const q = await json(await call('rep', '/api/quotes', { method: 'POST', json: { contactId: cora.body.id, projectId: mine.body.id, name: 'Cora bath quote', taxRate: 0, lineItems: [{ description: 'Tile', quantity: 1, unitPrice: 4000 }] } }))
+  expect(q.status).toBe(201)
+  // The crew still reads every project, as a field seat did.
+  expect((await json(await call('crew', '/api/projects'))).body.data.length).toBe(2)
+}, 60_000)
+
+test('only the people who can work leads are offered to work one', async () => {
+  const workers = await json(await call('owner', '/api/leads/workers'))
+  expect(workers.status).toBe(200)
+  const ids2 = workers.body.data.map((w: any) => w.id)
+  expect(ids2).toContain(ids.sales_rep)
+  expect(ids2).not.toContain(ids.crew)
+  expect((await call('rep', '/api/leads/workers')).status).toBe(403)
+  const l = await json(await call('owner', '/api/leads/manual', { method: 'POST', json: { name: 'Carl Crewlead', phone: '715-555-0103' } }))
+  expect((await call('owner', `/api/leads/${l.body.id}/assign`, { method: 'PUT', json: { assignedToId: ids.crew } })).status).toBe(400)
+}, 60_000)

@@ -69,7 +69,8 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const [team, setTeam] = useState<Array<{ id: string; name: string }>>([])
   useEffect(() => {
     if (!mayAssign) return
-    api.get('/api/company/users').then((r: any) => setTeam(((Array.isArray(r) ? r : r?.data || []) as any[]).filter((u) => u.isActive !== false).map((u) => ({ id: String(u.id), name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email })))).catch(() => setTeam([]))
+    // Only the people who can work leads (re-check 11/08: the Crew login was offered).
+    api.get('/api/leads/workers').then((r: any) => setTeam(((r?.data || []) as any[]).map((u) => ({ id: String(u.id), name: u.name })))).catch(() => setTeam([]))
   }, [api, mayAssign])
   const assign = async (id: string, assignedToId: string) => {
     setBusy(id)
