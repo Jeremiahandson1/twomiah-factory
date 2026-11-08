@@ -108,7 +108,7 @@ export default function CrewLinkPage() {
         <section className="bg-white dark:bg-slate-900 rounded-xl border p-4 space-y-2 dark:border-slate-700">
           <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('For ')}</span>{order.recipientName}</p>
           {order.address && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('Where ')}</span><a className="underline" href={`https://maps.google.com/?q=${encodeURIComponent(order.address)}`}>{order.address}</a></p>}
-          {order.startDate && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('Start ')}</span>{whenDate(order.startDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>}
+          {order.startDate && <p className="text-sm"><span className="text-gray-600 dark:text-slate-400">{tr('Start ')}</span>{whenDate(order.startDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }, order.language === 'es' ? 'es-US' : undefined)}</p>}
           {order.scope && <p className="text-sm whitespace-pre-wrap pt-2">{order.scope}</p>}
         </section>
 
@@ -160,7 +160,7 @@ export default function CrewLinkPage() {
         )}
         {(order.can.arrive || order.can.leave) && (
           <section className="space-y-2" data-testid="crew-attendance">
-            {order.arrivedAt && !order.leftAt && <p className="text-sm text-gray-600 dark:text-slate-400">{tr('On site since')} {whenDate(order.arrivedAt, { hour: 'numeric', minute: '2-digit' })}</p>}
+            {order.arrivedAt && !order.leftAt && <p className="text-sm text-gray-600 dark:text-slate-400">{tr('On site since')} {whenDate(order.arrivedAt, { hour: 'numeric', minute: '2-digit' }, order.language === 'es' ? 'es-US' : undefined)}</p>}
             {order.can.arrive && (order.status !== 'in_progress' || order.leftAt) && <button type="button" disabled={busy} onClick={() => post('/arrive', {})} className={`${big} bg-blue-700 text-white`}>{tr('I’m here')}</button>}
             {order.can.leave && !order.leftAt && <button type="button" disabled={busy} onClick={() => post('/leave', {})} className={`${big} bg-white border dark:bg-slate-900 dark:border-slate-700`}>{tr('Leaving for now')}</button>}
           </section>
