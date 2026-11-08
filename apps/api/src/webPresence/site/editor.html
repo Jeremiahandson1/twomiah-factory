@@ -229,6 +229,32 @@
   }
 
   // ---- tabs ----
+  // A free download (a guide, a checklist): any page can have one; links and buttons point at it at /free. On the Page tab, next
+  // to the Top menu card where its menu link is added.
+  // The Page tab redraws on every move and edit: what the file is, and the last upload message, are kept in `state` (asked for
+  // once), so a redraw neither asks the site again nor loses "Uploaded".
+  function freeDownloadCard() {
+    var fstatus = h('span', { class: 'small', role: 'status' }, state.freeMsg || '');
+    var finfo = h('p');
+    function say(t) { state.freeMsg = t; fstatus.textContent = t; }
+    function showFree(f) { state.free = f || null; finfo.textContent = ''; if (f) finfo.appendChild(document.createTextNode(f.name + ' (' + (f.size / 1000000).toFixed(2) + ' MB), uploaded ' + String(f.at || '').slice(0, 10))); else finfo.textContent = 'No free download yet.'; }
+    if (state.free === undefined) { finfo.textContent = 'Checking…'; api('/api/free/file').then(function (r) { if (r.ok) showFree(r.d.file); else { finfo.textContent = 'Could not check your free download. Reload the page to try again.'; } }); }
+    else showFree(state.free);
+    var finput = h('input', { type: 'file', accept: '.pdf,.zip,application/pdf,application/zip', 'aria-label': 'Choose the free file', onchange: function () {
+      var f = finput.files[0]; if (!f) return;
+      var max = state.spec.limits.downloadBytes || 4000000;
+      if (f.size > max) { say('That file is ' + (f.size / 1000000).toFixed(1) + ' MB. The most is ' + Math.round(max / 1000000) + ' MB.'); return; }
+      say('Uploading…');
+      fetch('/api/free/file', { method: 'POST', credentials: 'same-origin', headers: { 'x-wp': '1', 'content-type': 'application/octet-stream', 'x-file-name': encodeURIComponent(f.name) }, body: f })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (r) { if (!r.ok) { say(r.d.error || 'Upload failed.'); return; } showFree(r.d.file); say('Uploaded. Anyone can download it at /free.'); })
+        .catch(function () { say('Upload failed. Check your connection.'); });
+    } });
+    return h('div', { class: 'card' }, h('h2', null, 'A free download'),
+      h('p', { class: 'hint' }, 'A free guide or checklist anyone can download: a PDF or a ZIP, up to ' + Math.round((state.spec.limits.downloadBytes || 4000000) / 1000000) + ' MB. To show it, add it to the Top menu above ("Add your free download"), or link any button to /free.'),
+      finfo, h('label', null, 'Choose the file'), finput, fstatus,
+      h('p', null, h('button', { type: 'button', class: 'link danger', onclick: function () { if (!confirm('Take the free download off your page? Links and buttons to /free will show "Nothing to download yet".')) return; api('/api/free/file', { method: 'DELETE' }).then(function (r) { if (r.ok) { showFree(null); say('Removed.'); } }); } }, 'Remove it')));
+  }
   function basics() {
     var b = state.model.business;
     var hoursBox = h('div', null, DAYS.map(function (d) {
@@ -258,29 +284,9 @@
           np.value = ''; np2.value = ''; state.hasPassword = true; pmsg.className = 'msg good'; pmsg.textContent = 'Password saved. Use it next time you sign in.';
         });
       } }, 'Save password')), pmsg);
-    // A free download (a guide, a checklist): any page can have one; buttons link to it at /free.
-    var fstatus = h('span', { class: 'small', role: 'status' });
-    var finfo = h('p');
-    function showFree(f) { finfo.textContent = ''; if (f) finfo.appendChild(document.createTextNode(f.name + ' (' + (f.size / 1000000).toFixed(2) + ' MB), uploaded ' + String(f.at || '').slice(0, 10))); else finfo.textContent = 'No free download yet.'; }
-    api('/api/free/file').then(function (r) { showFree(r.ok ? r.d.file : null); });
-    var finput = h('input', { type: 'file', accept: '.pdf,.zip,application/pdf,application/zip', 'aria-label': 'Choose the free file', onchange: function () {
-      var f = finput.files[0]; if (!f) return;
-      var max = state.spec.limits.downloadBytes || 4000000;
-      if (f.size > max) { fstatus.textContent = 'That file is ' + (f.size / 1000000).toFixed(1) + ' MB. The most is ' + Math.round(max / 1000000) + ' MB.'; return; }
-      fstatus.textContent = 'Uploading…';
-      fetch('/api/free/file', { method: 'POST', credentials: 'same-origin', headers: { 'x-wp': '1', 'content-type': 'application/octet-stream', 'x-file-name': encodeURIComponent(f.name) }, body: f })
-        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (r) { if (!r.ok) { fstatus.textContent = r.d.error || 'Upload failed.'; return; } showFree(r.d.file); fstatus.textContent = 'Uploaded. Anyone can download it at /free.'; })
-        .catch(function () { fstatus.textContent = 'Upload failed. Check your connection.'; });
-    } });
-    var freeCard = h('div', { class: 'card' }, h('h2', null, 'A free download'),
-      h('p', { class: 'hint' }, 'A free guide or checklist anyone can download: a PDF or a ZIP, up to ' + Math.round((state.spec.limits.downloadBytes || 4000000) / 1000000) + ' MB. Link a button to /free, for example the second button at the top of your page.'),
-      finfo, h('label', null, 'Choose the file'), finput, fstatus,
-      h('p', null, h('button', { type: 'button', class: 'link danger', onclick: function () { if (!confirm('Take the free download off your page? Buttons that link to /free will show "Nothing to download yet".')) return; api('/api/free/file', { method: 'DELETE' }).then(function (r) { if (r.ok) { showFree(null); fstatus.textContent = 'Removed.'; } }); } }, 'Remove it')));
     return h('div', null, pwCard,
       h('div', { class: 'card' }, h('h2', null, 'Your business'), t('name', 'Business name', 'text', 80), t('tagline', 'One line about you', 'text', 140), h('div', { class: 'row' }, t('phone', 'Phone', 'tel', 30), t('email', 'Email shown on the page', 'email', 120)), t('address', 'Street address', 'text', 160), h('div', { class: 'row' }, t('city', 'City', 'text', 60), t('state', 'State', 'text', 30), t('zip', 'ZIP', 'text', 12)), h('label', null, 'Logo'), imageField(b, 'logo'),
         h('label', null, 'Logo size in the top bar'), h('div', { class: 'row tight' }, [['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Extra large']].map(function (o) { return h('button', { type: 'button', 'aria-pressed': (b.logoSize || 'standard') === o[0] ? 'true' : 'false', onclick: function () { if (o[0] === 'standard') delete b.logoSize; else b.logoSize = o[0]; touch(); render(); } }, o[1]); }))),
-      freeCard,
       h('div', { class: 'card' }, h('h2', null, 'Opening hours'), h('p', { class: 'hint' }, 'Leave a day blank to leave it off the page.'), hoursBox),
       h('div', { class: 'card' }, h('h2', null, 'Where you work'), h('label', null, 'Towns and areas, one per line'), areas));
   }
@@ -359,12 +365,12 @@
     var menuCard = h('div', { class: 'card' }, h('h2', null, 'Top menu'), h('label', null, home, ' Show "Home" first in the menu'),
       h('p', { class: 'hint' }, 'The menu lists your sections in page order, then your own links, up to six in all. Open a section to change its word in the menu.'),
       h('h3', null, 'Your own links'),
-      h('p', { class: 'hint' }, 'A link at the end of the menu: /free for your free download (upload it on the Business tab), or a web address starting with https://.'),
+      h('p', { class: 'hint' }, 'A link at the end of the menu: /free for your free download (upload it in "A free download" below), or a web address starting with https://.'),
       linkRows,
       links.length < 2 ? h('p', { class: 'row tight' },
         hasFree ? null : h('button', { type: 'button', onclick: function () { addLink({ label: 'Free guide', href: '/free' }); } }, 'Add your free download'),
         h('button', { type: 'button', onclick: function () { addLink({ label: '', href: '' }); } }, 'Add a link')) : null);
-    return h('div', null, h('p', { class: 'hint' }, 'This is a one-page site: every section below is part of that page. You can add, hide, move and change sections, but not add pages.'), menuCard, list, addable.length ? h('div', { class: 'card' }, pick) : null);
+    return h('div', null, h('p', { class: 'hint' }, 'This is a one-page site: every section below is part of that page. You can add, hide, move and change sections, but not add pages.'), menuCard, freeDownloadCard(), list, addable.length ? h('div', { class: 'card' }, pick) : null);
   }
   function forms() {
     var f = state.model.forms, hasContact = state.model.sections.some(function (s) { return s.id === 'contact' && !s.hidden; }), hasHiring = state.model.sections.some(function (s) { return s.id === 'hiring' && !s.hidden; });
