@@ -117,9 +117,9 @@ export function createTechRoutes(deps: TechRoutesDeps) {
     } as any).returning({ id: t.formTemplate.id })
     return made.id as string
   }
-  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any) => {
+  const runHook = async (hook: JobHook | undefined, job: any, currentUser: any, note?: string) => {
     if (!hook) return {}
-    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId })) || {} } catch (err: any) { console.warn('[tech] hook failed:', err?.message || err); return {} }
+    try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId, note: note || null })) || {} } catch (err: any) { console.warn('[tech] hook failed:', err?.message || err); return {} }
   }
 
   app.get('/my-jobs', async (c) => {
@@ -170,7 +170,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
       } as any).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId), eq(t.job.status, existing.status))).returning()
       if (!updated) return c.json({ error: 'This job changed while you were looking at it. Pull down to refresh.', code: 'changed' }, 409)
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: rule.to })
-      const more = await runHook(hook(), updated, currentUser)
+      const more = await runHook(hook(), updated, currentUser, notes)
       return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })
   }

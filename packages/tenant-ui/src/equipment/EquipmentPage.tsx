@@ -12,6 +12,7 @@ import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { whenDate } from '../time/companyClock'
 import { money } from '../money';
 import { codeLabel } from '../labels/codes'
+import { useOptionalToast } from '../ui/Toast'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -534,6 +535,8 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
 }
 
 function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged, config, onSave, onClose }: EquipmentFormModalProps) {
+  // Every save says so (landscaping live test 11/08: "several adds show no toast").
+  const toast = useOptionalToast()
   const [form, setForm] = useState<{
     name: string;
     categoryId: string;
@@ -640,6 +643,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
       } else {
         await api.post('/api/equipment', payload);
       }
+      toast?.success(equipment ? 'Equipment saved' : 'Equipment added');
       onSave();
     } catch (error) {
       alert('Failed to save equipment');
@@ -855,7 +859,8 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            {/* Pinned to the bottom of the box: the form is taller than a laptop screen (landscaping live test 11/08). */}
+            <div className="sticky -bottom-6 -mx-6 -mb-6 flex gap-3 border-t bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">
                 Cancel
               </button>

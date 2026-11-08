@@ -14,6 +14,7 @@ import { money } from '../invoicing/ui'
 import { whenDate, daysUntilDay } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
 import { codeLabel } from '../labels/codes'
+import { useOptionalToast } from '../ui/Toast';
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -146,6 +147,7 @@ interface AgreementFormModalProps {
  * Service Agreements / Memberships Page
  */
 export default function AgreementsPage({ api, config }: AgreementsPageProps) {
+  const toast = useOptionalToast();
   /**
    * THREE BUTTONS THAT ONLY EVER LED TO A 403. (T41)
    *
@@ -473,9 +475,10 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
     if (!(await confirm('Renew this agreement for another term?', { title: 'Renew agreement', confirmText: 'Renew it', danger: false }))) return;
     try {
       await api.post(`/api/agreements/${agreementId}/renew`);
+      toast?.success('Agreement renewed');
       loadData();
     } catch (error) {
-      alert('Failed to renew agreement');
+      alert(error instanceof Error && error.message ? error.message : 'Failed to renew agreement');
     }
   }
 
@@ -881,6 +884,7 @@ function VisitsTab() {
 }
 
 function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
+  const toast = useOptionalToast();
   const { api, planNamePlaceholder } = useAgreements();
   const [form, setForm] = useState<{
     name: string;
@@ -928,6 +932,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
       } else {
         await api.post('/api/agreements/plans', payload);
       }
+      toast?.success(plan ? 'Plan saved' : 'Plan added');
       onSave();
     } catch (error) {
       alert('Failed to save plan');
@@ -1060,6 +1065,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
 }
 
 function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementFormModalProps) {
+  const toast = useOptionalToast();
   const { api, recurrence } = useAgreements();
   // Opening an existing agreement without agreements:update shows it as a record: every field disabled, Close
   // only — PUT /:id would refuse the save anyway. Prices follow the table: none without invoices:read. (T69)
@@ -1173,6 +1179,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
           await saveRecurrence(created.id, true);
         }
       }
+      toast?.success(agreement ? 'Agreement saved' : 'Agreement added');
       onSave();
     } catch (error) {
       alert(error instanceof Error && error.message ? error.message : 'Failed to save agreement');

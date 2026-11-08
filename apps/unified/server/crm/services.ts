@@ -44,7 +44,8 @@ import { startLowStockDigest } from './lowStockDigest.ts'
 import { billOnComplete } from '../data/routeBilling.ts'
 import { stampVisitStart, recordVisitTime } from '../data/routeVisits.ts'
 import { addSurchargeLine } from '../data/cardSurcharge.ts'
-import { sendVisitReport, visitSendDeps } from '../data/visitReports.ts'
+import { sendVisitReport, visitSendDeps, getReport, saveReport } from '../data/visitReports.ts'
+import { visitSharesOf } from '../data/visitInvoiceShares.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -90,6 +91,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const commissionEarner = createCommissionEarner({
     // The job an invoice names first (invoice.job_id, everyone's column now), then the job raised from its quote.
     db, tables: { commission, commissionPlan, user, job, invoice, company }, invoiceJobLink: 'jobId',
+    // A bill for several visits (a route's month, a storm): each visit's crew earns on their own visits.
+    visitShares: (inv: any) => visitSharesOf(db, inv),
   } as any)
   // Commissions a vertical earns in its own way beside the job-based engine (the salon pays the stylist of a visit): each module hands in
   // what it earns for a bill (and its sweep); every door that records money earns through earnCommission.
@@ -296,6 +299,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
       if (await isFeatureEnabled(companyId, 'visit_reports').catch(() => false)) {
         const tools = await isFeatureEnabled(companyId, 'visit_message_tools').catch(() => false)
         const survey = await isFeatureEnabled(companyId, 'visit_survey').catch(() => false)
+        // What the crew wrote on Complete is the visit's note to the customer, unless the visit already has one (landscaping live test
+        // 11/08: the crew's note was not in the visit-done message).
+        if (ctx.note && !(await getReport(db, companyId, done.id).catch(() => null))?.note) await saveReport(db, companyId, done.id, { note: ctx.note }).catch(() => null)
         await sendVisitReport(db, visitSendDeps((m) => email.sendRaw(m)), companyId, done.id, { tools, survey }).catch((err: any) => logger.warn('[jobs] visit message not sent', { error: err?.message }))
       }
       // A visit of a recurring agreement makes the next one (the screen reads nextServiceDate either way).

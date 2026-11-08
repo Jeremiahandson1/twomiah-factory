@@ -106,6 +106,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** The toasts where the screen sits inside a ToastProvider, else null — for shared screens that also run without one. */
+export function useOptionalToast(): ToastActions | null {
+  return useContext(ToastContext)
+}
+
 export function useToast(): ToastActions {
   const context = useContext(ToastContext)
   if (!context) throw new Error('useToast must be used within ToastProvider')

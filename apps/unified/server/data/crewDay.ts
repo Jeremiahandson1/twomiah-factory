@@ -9,7 +9,7 @@
 //   · each crew member's own clock on a visit, and the Crew Score — budget hours against actual man-hours (row 15).
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { companyTimeZone, jobLocalDay, storeDayRange, dayMarker } from '@twomiah/tenant-backend'
-import { contact, job, jobAssignee, teamMember, user, visitCrewTime, visitMaterial, visitReport, visitSkip } from '../db/schema/index.ts'
+import { contact, job, jobAssignee, teamMember, timeEntry, user, visitCrewTime, visitMaterial, visitReport, visitSkip } from '../db/schema/index.ts'
 import { ownJobsWhere } from '../crm/ownWork.ts'
 
 /** The reasons the crew picks from (LMN's list: weather, access, the customer, the equipment). Labels are the screen's. */
@@ -226,19 +226,35 @@ export async function clockCrew(db: any, companyId: string, byUserId: string, jo
  * crew's clocks, else start to finish), by the crew lead (the person the visit is assigned to). Score = budget ÷ actual × 100: over
  * 100 is under budget. Visits with no budget or no hours are counted but not scored.
  */
+const MIN_SPAN_HOURS = 5 / 60
+
+/** Hours logged by hand (time entries) against each visit. */
+export async function loggedHoursOf(db: any, companyId: string, jobIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (!jobIds.length) return out
+  const rows: any[] = await db.select({ jobId: timeEntry.jobId, hours: timeEntry.hours }).from(timeEntry).where(and(eq(timeEntry.companyId, companyId), inArray(timeEntry.jobId, jobIds)))
+  for (const r of rows) if (r.jobId) out.set(r.jobId, (out.get(r.jobId) ?? 0) + (Number(r.hours) || 0))
+  return out
+}
+
 export async function crewScore(db: any, companyId: string, from: string, to: string, tz: string) {
   const rows: any[] = await db.select({ id: job.id, assignedToId: job.assignedToId, estimatedHours: job.estimatedHours, startedAt: job.startedAt, completedAt: job.completedAt, first: user.firstName, last: user.lastName })
     .from(job).leftJoin(user, eq(job.assignedToId, user.id))
     .where(and(eq(job.companyId, companyId), eq(job.status, 'completed'), sql`${jobLocalDay(job.scheduledDate, job.source, tz)} >= ${from}::date`, sql`${jobLocalDay(job.scheduledDate, job.source, tz)} <= ${to}::date`))
   const crew = await crewHoursOf(db, companyId, rows.map((r) => r.id))
+  // Hours logged by hand against the visit (Time page) count when no crew timer ran — LMN's Crew Score reads the timesheets
+  // (live test 11/08: 0.75 h logged by hand was ignored and the score read 1833 off a few seconds between Arrived and Complete).
+  const logged = await loggedHoursOf(db, companyId, rows.map((r) => r.id))
   const by = new Map<string, { leadId: string | null; lead: string; visits: number; scored: number; budgetHours: number; actualHours: number }>()
   for (const r of rows) {
     const k = r.assignedToId ?? 'none'
     const g = by.get(k) ?? { leadId: r.assignedToId ?? null, lead: [r.first, r.last].filter(Boolean).join(' ') || 'Not assigned', visits: 0, scored: 0, budgetHours: 0, actualHours: 0 }
     g.visits++
     const budget = Number(r.estimatedHours) || 0
-    const actual = crew.has(r.id) ? crew.get(r.id)! : r.startedAt && r.completedAt ? Math.max(0, (new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()) / 3_600_000) : 0
-    if (budget > 0 && actual > 0) { g.scored++; g.budgetHours += budget; g.actualHours += actual }
+    const span = r.startedAt && r.completedAt ? Math.max(0, (new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()) / 3_600_000) : 0
+    // Arrived → Complete stands in only when it is a believable visit (5 minutes or more); a tap-through is not hours worked.
+    const actual = crew.get(r.id) || logged.get(r.id) || (span >= MIN_SPAN_HOURS ? span : 0)
+    if (budget > 0 && actual >= MIN_SPAN_HOURS) { g.scored++; g.budgetHours += budget; g.actualHours += actual }
     by.set(k, g)
   }
   return [...by.values()].map((g) => ({

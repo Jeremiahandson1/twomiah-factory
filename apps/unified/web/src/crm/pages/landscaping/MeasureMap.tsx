@@ -41,7 +41,7 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
   const box = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const draft = useRef<{ line: any; points: any[] }>({ line: null, points: [] })
-  const [ready, setReady] = useState<'loading' | 'ok' | 'nokey'>('loading')
+  const [ready, setReady] = useState<'loading' | 'ok' | 'nokey' | 'refused'>('loading')
   const [shapes, setShapes] = useState<Shape[]>([])
   const [, bump] = useState(0)
   const [areaType, setAreaType] = useState('lawnSqft')
@@ -72,6 +72,9 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
     ;(async () => {
       try { await loadGooglePlaces() } catch { if (!dead) setReady('nokey'); return }
       if (dead || !box.current) return
+      // Google refuses the key at map time (the Maps JavaScript API not switched on for it, or the site not allowed): it calls
+      // gm_authFailure and paints "Oops! Something went wrong" over the box. Say it in words instead (landscaping live test 11/08).
+      ;(window as any).gm_authFailure = () => { if (!dead) setReady('refused') }
       const g = (window as any).google.maps
       const [{ Map }, { Geocoder }] = await Promise.all([g.importLibrary('maps'), g.importLibrary('geocoding')])
       const map = new Map(box.current, { center: { lat: 39.5, lng: -98.35 }, zoom: 4, mapTypeId: 'satellite', tilt: 0, streetViewControl: false, fullscreenControl: true, mapTypeControl: false })
@@ -155,6 +158,7 @@ export default function MeasureMap({ siteId, onSaved }: { siteId: string; onSave
     finally { setSaving(false) }
   }
 
+  if (ready === 'refused') return <p className="text-sm text-gray-600 dark:text-slate-300" role="status">Google would not show the satellite map for this business’s map key, so outlines can’t be drawn here yet — ask Twomiah support to switch the map on. You can still type the measurements in above.</p>
   if (ready === 'nokey') return <p className="text-sm text-gray-500 dark:text-slate-400">The satellite map is not switched on for this business yet (it needs a Google Maps key). You can still type the measurements in above.</p>
   return (
     <div className="space-y-3">

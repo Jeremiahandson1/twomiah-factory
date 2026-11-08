@@ -37,7 +37,7 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
   const [busy, setBusy] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [stops, setStops] = useState<Stop[]>([])
-  const [fig, setFig] = useState({ pushes: '1', snowfallInches: '', saltApplied: false, hours: '' })
+  const [fig, setFig] = useState({ pushes: '1', snowfallInches: '', saltApplied: false, hours: '', saltQuantity: '' })
   const [bill, setBill] = useState<{ lines: BillLine[]; invoices: number; total: number } | null>(null)
   // Rows 25 and 30 (snow_tools, not ready): the snowfall expected, the forecast's proposals, starting on its own, the storm text.
   const tools = useAuth().hasFeature('snow_tools')
@@ -221,6 +221,8 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
                     <label className="text-xs text-gray-600 dark:text-slate-400">Snowfall (in)<input className="input w-full mt-1" type="number" aria-label="Snowfall for all" value={fig.snowfallInches} onChange={(e) => setFig({ ...fig, snowfallInches: e.target.value })} /></label>
                     <label className="text-xs text-gray-600 dark:text-slate-400">Hours (hourly contracts)<input className="input w-full mt-1" type="number" aria-label="Hours for all" value={fig.hours} onChange={(e) => setFig({ ...fig, hours: e.target.value })} /></label>
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={fig.saltApplied} onChange={(e) => setFig({ ...fig, saltApplied: e.target.checked })} /> Salt</label>
+                    {/* Salt by amount, for the contracts that count it (bags, tons…); a flat-salt contract reads only the tick. */}
+                    <label className="text-xs text-gray-600 dark:text-slate-400">Salt amount (contracts that count it)<input className="input w-full mt-1" type="number" min="0" step="0.25" aria-label="Salt amount for all" value={fig.saltQuantity} onChange={(e) => setFig({ ...fig, saltQuantity: e.target.value })} /></label>
                     <button className="btn-secondary" disabled={busy} onClick={() => logAll(s.id)}>Log all open stops</button>
                   </div>
                 )}

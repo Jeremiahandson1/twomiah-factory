@@ -220,7 +220,7 @@ export const SETTINGS_SUB_PAGES = [
  * Inventory is the shared Inventory page on parts_tracking, as its server mount is), so its menu stays its own.
  */
 const verticalShell = (): ShellConfig => {
-  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]>; navGroups?: Record<string, string>; navGroupOrder?: string[]; navHiddenFor?: Record<string, string[]> }
+  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]>; navGroups?: Record<string, string>; navGroupOrder?: string[]; navHiddenFor?: Record<string, string[]>; navOnlyFor?: Record<string, string[]> }
   const names = sc.nav || {}
   const sections = sc.navSections || {}
   const hidden = new Set(Array.isArray(sc.navHidden) ? sc.navHidden : [])
@@ -228,6 +228,8 @@ const verticalShell = (): ShellConfig => {
   // Items a role of the vertical's own leaves out of its menu (screens.navHiddenFor: { crew: ['/crm/reviews', …] }), by address.
   const hiddenFor: Record<string, string[]> = {}
   for (const [role, paths] of Object.entries(sc.navHiddenFor || {})) for (const p of paths) (hiddenFor[p] ||= []).push(role)
+  // A role whose menu is only these pages (screens.navOnlyFor: landscaping's Crew member, its day): every other item leaves its menu.
+  for (const [role, paths] of Object.entries(sc.navOnlyFor || {})) for (const item of SHELL.nav) if (!paths.includes(item.to)) (hiddenFor[item.to] ||= []).push(role)
   return {
     ...SHELL,
     nav: applyNavGroups(SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {

@@ -38,6 +38,15 @@ export interface TechViewConfig {
   /** "My Jobs" / "My Visits" */
   title?: string
   checklist: { title: string; subtitle: string; items: TechChecklistItemDef[] }
+  /**
+   * The app's own panels on a job (under the Job card): the office's checklists, and a trade's crew tools — each person's timer,
+   * materials used, "Couldn't do it" (landscaping live test 11/08: those were only on the phone app). `refresh` reloads the job.
+   */
+  jobExtras?: (job: { id: string; status: string; number: string; title: string }, refresh: () => void) => React.ReactNode
+  /** Beside Remove in the full-size photo viewer (a trade's "Draw on it"); `reload` reloads the job's photos. */
+  photoActions?: (photo: { id: string; url?: string; caption?: string }, reload: () => void) => React.ReactNode
+  /** Above the day's list (a trade's Finish Day). */
+  listExtras?: (refresh: () => void) => React.ReactNode
 }
 export interface TechViewProps { api: TechApi; toast: TechToast; config: TechViewConfig }
 
@@ -146,6 +155,10 @@ export function TechView({ api, toast, config }: TechViewProps) {
         onSite={() => move('on-site', 'Arrived on site')}
         onComplete={(notes) => move('complete-job', 'Job completed', notes)}
         onChecklist={() => setScreen('checklist')}
+        photoActions={config.photoActions}
+        extras={config.jobExtras?.(selected, async () => {
+          try { const all = await api.get('/api/tech/my-jobs'); const list: Job[] = Array.isArray(all) ? all : all?.data || []; setJobs(list); const j = list.find((x) => x.id === selected.id); if (j) refreshSelected(j) } catch { /* the next load shows it */ }
+        })}
       />
     )
   }
@@ -157,6 +170,7 @@ export function TechView({ api, toast, config }: TechViewProps) {
         <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">{whenDate(companyTodayKey(), { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
       <div className="flex-1 overflow-y-auto pb-20">
+        {listTab === 'today' && config.listExtras?.(loadJobs)}
         {loading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-orange-600 dark:text-orange-200" /></div>
         ) : shown.length === 0 ? (
@@ -171,7 +185,7 @@ export function TechView({ api, toast, config }: TechViewProps) {
           </div>
         )}
       </div>
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-40 dark:bg-slate-900 dark:border-slate-700" aria-label="Job lists">
+      <nav className="fixed bottom-0 left-0 lg:left-[var(--shell-left,0px)] right-0 bg-white border-t border-gray-200 flex z-40 dark:bg-slate-900 dark:border-slate-700" aria-label="Job lists">
         <TabButton active={listTab === 'today'} label="Today" count={todayJobs.length} icon={Clock} onClick={() => setListTab('today')} />
         <TabButton active={listTab === 'upcoming'} label="Upcoming" count={upcomingJobs.length} icon={CalendarDays} onClick={() => setListTab('upcoming')} />
         <TabButton active={listTab === 'completed'} label="Done" count={doneJobs.length} icon={CheckCircle} onClick={() => setListTab('completed')} />
@@ -221,9 +235,11 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
   )
 }
 
-function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onMyWay, onSite, onComplete, onChecklist }: {
+function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onMyWay, onSite, onComplete, onChecklist, extras, photoActions }: {
   api: TechApi; toast: TechToast; job: Job; checklist: TechViewConfig['checklist']; acting: boolean
   onBack: () => void; onNavigate: () => void; onMyWay: () => void; onSite: () => void; onComplete: (notes?: string) => void; onChecklist: () => void
+  extras?: React.ReactNode
+  photoActions?: TechViewConfig['photoActions']
 }) {
   /**
    * Every write here — the three moves, the checklist, adding or removing a photo — is jobs:update on the server.
@@ -235,6 +251,9 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
   const [photos, setPhotos] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
   const [caption, setCaption] = useState('')
+  // Before or after the work: the visit-done message and the customer's portal carry these (landscaping live test 11/08: the crew's
+  // photo was in neither — it went up untagged). On site it is an after-photo unless they say before.
+  const [photoKind, setPhotoKind] = useState<'before' | 'after'>('after')
   const [previewFile, setPreviewFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [fullscreen, setFullscreen] = useState<any>(null)
@@ -249,7 +268,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 10 * 1024 * 1024) { toast.error('A photo must be under 10 MB'); return }
-    setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); setCaption('')
+    setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); setCaption(''); setPhotoKind(job.status === 'in_progress' ? 'after' : 'before')
   }
   const upload = async () => {
     if (!previewFile) return
@@ -258,6 +277,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
       const fd = new FormData()
       fd.append('photo', previewFile)
       if (caption) fd.append('caption', caption)
+      fd.append('kind', photoKind)
       await api.request(`/api/jobs/${job.id}/photos`, { method: 'POST', body: fd })
       toast.success('Photo added')
       setPreviewFile(null); setPreviewUrl('')
@@ -315,6 +335,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
             {job.equipment.serialNumber && <p className="text-xs text-gray-600 dark:text-slate-400 font-mono mt-1">S/N: {job.equipment.serialNumber}</p>}
           </div>
         )}
+        {extras}
         {mayMove && !isClosed(job.status) && (
           <button onClick={onChecklist} className={`${card} w-full flex items-center gap-3 border-l-4 border-l-purple-400 text-left`}>
             <ClipboardList className="w-6 h-6 text-purple-700 dark:text-purple-300" />
@@ -341,6 +362,9 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
           {!mayMove ? null : previewUrl ? (
             <div className="space-y-2">
               <img src={previewUrl} alt="Photo to add" className="w-full rounded-lg max-h-48 object-cover" />
+              <div className="flex gap-2" role="group" aria-label="Before or after the work">
+                {(['before', 'after'] as const).map((k) => <button key={k} type="button" aria-pressed={photoKind === k} onClick={() => setPhotoKind(k)} className={`flex-1 py-2 text-sm rounded-lg ${photoKind === k ? 'bg-orange-700 text-white' : 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'}`}>{k === 'before' ? 'Before' : 'After'}</button>)}
+              </div>
               <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption (optional)" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600" />
               <div className="flex gap-2">
                 <button onClick={() => { setPreviewFile(null); setPreviewUrl('') }} className="flex-1 py-2 text-sm text-gray-800 bg-gray-100 rounded-lg dark:text-slate-200 dark:bg-slate-800">Cancel</button>
@@ -363,7 +387,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
         index={fullscreen ? Math.max(0, photos.findIndex((p: any) => p.id === fullscreen.id)) : null}
         onIndex={(i) => setFullscreen(photos[i] ?? null)}
         onClose={() => setFullscreen(null)}
-        actions={(p) => (mayMove && p.id ? <button aria-label="Remove photo" onClick={() => removePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20"><Trash2 className="w-5 h-5" /></button> : null)}
+        actions={(p) => (mayMove && p.id ? <>{photoActions?.({ id: p.id as string, url: p.src as string, caption: p.caption as string }, loadPhotos)}<button aria-label="Remove photo" onClick={() => removePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20"><Trash2 className="w-5 h-5" /></button></> : null)}
       />
 
       {confirmComplete && (
@@ -380,7 +404,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 dark:bg-slate-900 dark:border-slate-700">
+      <div className="fixed bottom-0 left-0 lg:left-[var(--shell-left,0px)] right-0 bg-white border-t border-gray-200 p-4 z-40 dark:bg-slate-900 dark:border-slate-700">
         {!mayMove && !isClosed(job.status) && <div className="text-center py-3 text-gray-700 font-semibold dark:text-slate-300">You can see this job. The office updates its progress.</div>}
         {mayMove && NOT_STARTED.includes(job.status) && (
           <div className="flex gap-2">
@@ -462,7 +486,7 @@ function ChecklistScreen({ api, toast, job, def, onBack, onDone }: { api: TechAp
           <textarea value={overallNotes} onChange={(e) => setOverallNotes(e.target.value)} placeholder="Anything else the office should know…" rows={3} className="w-full border border-gray-300 rounded-lg p-3 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600" />
         </div>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 dark:bg-slate-900 dark:border-slate-700">
+      <div className="fixed bottom-0 left-0 lg:left-[var(--shell-left,0px)] right-0 bg-white border-t border-gray-200 p-4 z-40 dark:bg-slate-900 dark:border-slate-700">
         <button onClick={submit} disabled={saving} className="w-full flex items-center justify-center gap-2 py-4 bg-purple-700 text-white rounded-xl font-bold text-lg disabled:opacity-50">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardList className="w-5 h-5" />}Save checklist</button>
       </div>
     </div>

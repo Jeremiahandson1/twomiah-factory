@@ -45,7 +45,15 @@ const landscaping: VerticalSettings = {
   // Jobber's rule: a crew login sees the jobs assigned to it, the customers on those jobs and its own bookings — not the
   // whole business (live retest, 2026-10-24: a crew seat was shown every job and every customer's name).
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
+  // A lawn company's own crew seats (LMN / Aspire: crew leader and crew member; landscaping live test 11/08: "there is no crew lead
+  // role", the second crew member saw the whole menu and the price book's prices). Both are the Field rung — their own visits and
+  // customers — without the price list's sale prices. A Crew member's menu is their day only (screens.navOnlyFor below). An existing
+  // Staff login keeps Staff.
+  roleLabels: { field: 'Staff', crew_lead: 'Crew lead', crew: 'Crew member' },
+  roleMapping: { crew_lead: 'field', crew: 'field' },
+  roleWithheld: { crew_lead: ['prices:read'], crew: ['prices:read'] },
   crm: {
+    team: { roles: ['admin', 'manager', 'crew_lead', 'crew', 'field', 'viewer'] },
     serviceSites: true,
     visitReports: true,
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
@@ -138,7 +146,23 @@ const landscaping: VerticalSettings = {
     marketing: {},
     messages: {},
     reviews: {},
-    settings: {},
+    // The role picker (Settings › Users): the lawn company's seats, each said by what it holds.
+    settings: {
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'read-only: sees the jobs, the schedule and the reports; changes nothing' },
+        { value: 'crew', label: 'Crew member', description: 'their own visits today: the field view, photos, checklists, materials and their own time; no prices and no company money' },
+        { value: 'crew_lead', label: 'Crew lead', description: 'runs their crew’s visits: the field view, the crew’s timers, materials, checklists and “couldn’t do it”; no prices and no company money' },
+        { value: 'field', label: 'Staff', description: 'day-to-day work on the jobs they are on; not settings, the team or billing' },
+        { value: 'manager', label: 'Manager', description: 'runs the jobs, routes, crews and quotes; not billing or company settings' },
+        { value: 'admin', label: 'Admin', description: 'full access, including billing, company settings and logins' },
+      ],
+    },
+    // A Crew member's menu is the day (live test 11/08): the dashboard's Today, the field view and their time. A crew lead keeps the
+    // field pages and loses the office's. Typed in, each other page answers as it does for any Staff seat.
+    navOnlyFor: { crew: ['/crm/dashboard', '/crm/tech', '/crm/time'] },
+    navHiddenFor: {
+      crew_lead: ['/crm/reviews', '/crm/google-reviews', '/crm/agreements', '/crm/commissions', '/crm/fleet', '/crm/inventory', '/crm/bookings', '/crm/bookings/calendar', '/crm/bookings/waitlist', '/crm/bookings/insights', '/crm/bookings/settings', '/crm/support', '/crm/marketing', '/crm/warranties', '/crm/equipment', '/crm/lead-sources', '/crm/pricebook'],
+    },
     commissions: { roleWords: { technician: 'Crew', sales_rep: 'Sales', manager: 'Manager', all: 'All roles' }, planExample: 'Crew standard' },
     tech: {
       title: 'My Visits',

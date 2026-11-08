@@ -77,7 +77,7 @@ export default function RouteBillingPanel() {
   const s = preview?.skipped
   const leftOut = s ? [
     s.alreadyBilled ? `${s.alreadyBilled} already billed` : '',
-    s.notMonthly ? `${s.notMonthly} on routes not billed monthly${preview!.leftOutRoutes.length ? ` (${preview!.leftOutRoutes.map((r) => `${r.name}: ${MODE_WORDS[r.mode] || r.mode}`).join('; ')})` : ''}` : '',
+    s.notMonthly ? `${s.notMonthly} on routes not billed monthly${preview!.leftOutRoutes.length ? ` (${preview!.leftOutRoutes.map((r: any) => `${r.name}: ${r.why || MODE_WORDS[r.mode] || r.mode}`).join('; ')})` : ''}` : '',
     s.noPrice ? `${s.noPrice} with no price on the stop` : '',
     s.noCustomer ? `${s.noCustomer} with no customer` : '',
     s.noRoute ? `${s.noRoute} whose stop was removed from its route (bill those one at a time)` : '',

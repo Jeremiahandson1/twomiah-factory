@@ -54,8 +54,8 @@ const contractBody = (f: ContractForm, tools: boolean) => {
   }
 }
 
-type EventForm = { pushes: string; snowfallInches: string; hours: string; saltApplied: boolean; billBelowTrigger: boolean; notes: string }
-const EMPTY_EVENT: EventForm = { pushes: '1', snowfallInches: '', hours: '', saltApplied: false, billBelowTrigger: false, notes: '' }
+type EventForm = { pushes: string; snowfallInches: string; hours: string; saltApplied: boolean; billBelowTrigger: boolean; notes: string; saltQuantity: string }
+const EMPTY_EVENT: EventForm = { pushes: '1', snowfallInches: '', hours: '', saltApplied: false, billBelowTrigger: false, notes: '', saltQuantity: '' }
 
 /** A row of GET /api/snow/contracts: the contract and the site it covers. Rates are decimal strings. */
 interface Contract {
@@ -65,6 +65,8 @@ interface Contract {
   siteAddress?: string | null;
   billingMode: string;
   triggerDepthInches: string | number;
+  /** Salt counted by amount (row 24): its unit, or empty for a flat salt charge. */
+  saltUnit?: string | null;
 }
 
 /** A row of GET /api/snow/summary. */
@@ -360,6 +362,13 @@ export default function SnowBillingPage() {
                 <label className="flex items-center gap-2 text-sm col-span-2">
                   <input type="checkbox" checked={evForm.saltApplied} onChange={(e) => setEvForm({ ...evForm, saltApplied: e.target.checked })} /> Salt applied
                 </label>
+                {/* A contract that counts salt by the bag, ton or pound bills the amount put down (landscaping live test 11/08: the form had only
+                    the tick, so a by-the-bag contract charged no salt). */}
+                {selected.saltUnit && (
+                  <Field id="snow-salt-qty" label={`Salt used (${selected.saltUnit})`} className="col-span-2">
+                    <input id="snow-salt-qty" className="input w-full" type="number" step="0.25" min="0" placeholder={`How many ${selected.saltUnit}`} value={evForm.saltQuantity} onChange={(e) => setEvForm({ ...evForm, saltQuantity: e.target.value, saltApplied: Number(e.target.value) > 0 || evForm.saltApplied })} />
+                  </Field>
+                )}
                 {/* Shown only when this visit IS below the trigger: below it, ploughing is not charged unless the customer
                     asked for the push. Salt is charged either way. (T58d) */}
                 {belowTriggerNow && (
