@@ -20,7 +20,7 @@ beforeAll(async () => {
   t = await bootTenant({ vertical: 'contractor' })
   const s = await seedOwner(t)
   companyId = s.company.id
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'quotes', 'invoices', 'pricebook', 'team', 'lead_inbox', 'projects'] } as any).where(eq(t.schema.company.id, companyId))
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'quotes', 'invoices', 'pricebook', 'team', 'lead_inbox', 'projects', 'dashboard'] } as any).where(eq(t.schema.company.id, companyId))
   t.services.features.forgetFeatures()
   tok.owner = (await login('owner@test.example', s.password)).accessToken
   for (const role of ['crew', 'sales_rep']) {
@@ -124,4 +124,14 @@ test('only the people who can work leads are offered to work one', async () => {
   expect((await call('rep', '/api/leads/workers')).status).toBe(403)
   const l = await json(await call('owner', '/api/leads/manual', { method: 'POST', json: { name: 'Carl Crewlead', phone: '715-555-0103' } }))
   expect((await call('owner', `/api/leads/${l.body.id}/assign`, { method: 'PUT', json: { assignedToId: ids.crew } })).status).toBe(400)
+}, 60_000)
+
+// Contractor re-check 2 (11/08): the rep's dashboard said "No recent quotes" beside three of its own.
+test('the rep’s dashboard lists its own recent quotes, and only those', async () => {
+  const r = await json(await call('rep', '/api/dashboard/recent-activity'))
+  expect(r.status).toBe(200)
+  const names = r.body.recentQuotes.map((q: any) => q.name)
+  expect(names).toContain('Rep quote')
+  expect(names).not.toContain('Office quote')
+  expect(r.body.recentInvoices).toEqual([])
 }, 60_000)
