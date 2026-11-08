@@ -63,6 +63,20 @@ describe('the menu and logo size are cleaned like everything else', () => {
     const nm = cleanModel({ ...model, sections: model.sections.map((s: any, k: number) => (k === 0 ? { ...s, noMenu: true, menu: 'x' } : k === 1 ? { ...s, noMenu: 'yes' } : s)) }, spec)
     expect(nm.sections[0].noMenu).toBe(true); expect('menu' in nm.sections[0]).toBe(false); expect('noMenu' in nm.sections[1]).toBe(false)
   })
+  test("the owner's own menu links: a short word and an allowed link each, two at most; anything else dropped", () => {
+    const spec = buildSpec('roofing')
+    const { model } = first('roofing')
+    const c = cleanModel({ ...model, menu: { home: true, links: [
+      { label: 'Free Collector Guide', href: '/free' },
+      { label: 'Bad', href: 'javascript:alert(1)' },
+      { label: '', href: '/free' },
+      { label: 'x'.repeat(40), href: 'https://shop.example.com/a' },
+      { label: 'Third', href: '/free' },
+    ] } }, spec)
+    expect(c.menu.links).toEqual([{ label: 'Free Collector Guide', href: '/free' }, { label: 'x'.repeat(24), href: 'https://shop.example.com/a' }])
+    expect(cleanModel({ ...model, menu: { links: 'nope' } }, spec).menu).toEqual({ home: false })
+    expect(cleanModel({ ...model, menu: { links: [{ label: '"><script>', href: '/free"onmouseover=x' }] } }, spec).menu).toEqual({ home: false })
+  })
 })
 
 describe('the published page', () => {
@@ -103,6 +117,22 @@ describe('the published page', () => {
     expect(out.join()).not.toMatch(/#services/)
     const page = String((await draw('roofing', { ...model, sections: sections.map((s: any) => (s.id === 'services' ? { ...s, noMenu: true } : s)) })).files['index.html'])
     expect(page).toMatch(/id="services"/)                                   // still on the page
+  })
+  test("the owner's own links come last in the menu, on desktop and phone, and always get their places", async () => {
+    const { model } = first('roofing')
+    const navs = (html: string) => ['primary-nav', 'mobile-nav'].map((cls) => [...(new RegExp(`<nav class="${cls}"[^>]*>([\\s\\S]*?)<\\/nav>`).exec(html)![1].matchAll(/<a href="([^"]*)"[^>]*>([^<]*)<\/a>/g))].map((m) => m[2] + ' ' + m[1]))
+    const html = String((await draw('roofing', { ...model, menu: { home: true, links: [{ label: 'Free Collector Guide', href: '/free' }] } })).files['index.html'])
+    for (const items of navs(html)) {
+      expect(items).toContain('Free Collector Guide /free')
+      expect(items.indexOf('Free Collector Guide /free')).toBeGreaterThan(items.indexOf('Home #top'))
+    }
+    const [desk] = navs(html)
+    expect(desk[desk.length - 1]).toBe('Free Collector Guide /free')
+    expect(desk.length).toBeLessThanOrEqual(6)
+    // A full menu: Home + many sections + two links → the links are still there, six in all.
+    const full = navs(String((await draw('roofing', { ...model, menu: { home: true, links: [{ label: 'Guide', href: '/free' }, { label: 'Shop', href: 'https://shop.example.com' }] } })).files['index.html']))[0]
+    expect(full.slice(-2)).toEqual(['Guide /free', 'Shop https://shop.example.com'])
+    expect(full.length).toBeLessThanOrEqual(6)
   })
   test("logo size: the owner's pick sets the header logo's height; none leaves the design's own 44px", async () => {
     const { model } = first('roofing')

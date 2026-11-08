@@ -26,8 +26,8 @@ export interface OnePageSection { id: string; type: string; variant: string; hid
 export interface OnePageModel {
   business: { name: string; phone?: string; email?: string; address?: string; city?: string; state?: string; zip?: string; tagline?: string; hours?: Record<string, any>; serviceAreas?: string[]; logo?: string; logoSize?: 'large' | 'xlarge' }
   look: { design?: string; palette?: Record<string, string>; style?: Record<string, string> }
-  /** The top menu: "Home" first when asked for. */
-  menu?: { home?: boolean }
+  /** The top menu: "Home" first when asked for; the owner's own links (cleaned by clean.mjs) last. */
+  menu?: { home?: boolean; links?: Array<{ label: string; href: string }> }
   forms: { lead: { on: boolean; inbox?: string; extraFields?: Array<{ label: string }> }; hiring: { on: boolean; inbox?: string } }
   sections: OnePageSection[]
 }
@@ -161,15 +161,18 @@ export async function renderOnePage(i: OnePageInput): Promise<OnePageOutput> {
   const { sections, forms } = rendererSections(i)
 
   // The in-page menu: "Home" first when the owner asked for it, then the shown sections that have a menu word — the owner's
-  // own word for the section, else the section's usual one — in page order, six in all. "#top" is the top of the page in HTML.
+  // own word for the section, else the section's usual one — in page order, then the owner's own links (a free guide at /free),
+  // six in all. The owner's links always get their places: they were added on purpose. "#top" is the top of the page in HTML.
   const nav: Array<{ label: string; href: string }> = []
+  const own = (m.menu?.links || []).filter((l) => l && l.label && l.href).slice(0, MENU_MAX)
   if (m.menu?.home) nav.push({ label: 'Home', href: '#top' })
   for (const s of m.sections) {
     const c = i.caps[s.id]
     const word = String(s.menu || '').trim() || c?.nav
     if (!c || !word || s.noMenu || !shown(i, s, forms)) continue
-    if (nav.length < MENU_MAX) nav.push({ label: word, href: '#' + c.anchor })
+    if (nav.length < MENU_MAX - own.length) nav.push({ label: word, href: '#' + c.anchor })
   }
+  for (const l of own) if (nav.length < MENU_MAX) nav.push({ label: l.label, href: l.href })
   const hasContact = sections.some((s) => s.type === 'contact')
   const hours = (b.hours && Object.keys(b.hours).length ? b.hours : null) as any
   const settingsExtra: Record<string, any> = {

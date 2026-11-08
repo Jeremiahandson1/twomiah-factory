@@ -190,7 +190,7 @@
       var el = multi ? h('textarea', { id: id, maxlength: m[2] }) : h('input', { id: id, type: type, maxlength: m ? m[2] : (shape === 'link' ? 500 : 10) });
       el.value = obj[key] || '';
       el.addEventListener('input', function () { obj[key] = el.value; touch(); });
-      return h('div', null, h('label', { for: id }, name), shape === 'link' ? h('div', { class: 'hint' }, 'A web address starting with https://, a phone link, or #section') : null, el);
+      return h('div', null, h('label', { for: id }, name), shape === 'link' ? h('div', { class: 'hint' }, 'A web address starting with https://, a phone link, #section, or /free for your free download') : null, el);
     }
     if (Array.isArray(shape) && shape.length === 2 && typeof shape[1] === 'number') {
       if (!Array.isArray(obj[key])) obj[key] = [];
@@ -341,8 +341,29 @@
     });
     var menu = m.menu || (m.menu = { home: false });
     var home = h('input', { type: 'checkbox', checked: !!menu.home, onchange: function (e) { menu.home = e.target.checked; touch(); } });
+    // The owner's own links at the end of the menu (a free guide at /free, a shop elsewhere): a word and a link each, two at most.
+    var links = menu.links || (menu.links = []);
+    var linkRows = links.map(function (l, n) {
+      var lw = h('input', { id: 'ml-w' + n, type: 'text', maxlength: 24, placeholder: 'Free guide' }); lw.value = l.label || '';
+      lw.addEventListener('input', function () { l.label = lw.value; touch(); });
+      var lh = h('input', { id: 'ml-h' + n, type: 'text', maxlength: 500, placeholder: '/free' }); lh.value = l.href || '';
+      // The links the server keeps (clean.mjs cleanLink); anything else would vanish on Save, so say so here.
+      var bad = h('div', { class: 'hint', role: 'status' });
+      var check = function () { var v = lh.value.trim(); bad.textContent = !v || /^(https:\/\/[^\/\s]+\.[^\/\s]+\S*|\/(?!\/)[A-Za-z0-9_.\/-]*|#[A-Za-z0-9_-]+|tel:\+?[0-9()-]{3,30}|mailto:\S+@\S+\.\S+)$/.test(v) ? '' : 'Use /free, or a web address starting with https://'; };
+      lh.addEventListener('input', function () { l.href = lh.value.trim(); check(); touch(); });
+      return h('div', { class: 'row' }, h('div', null, h('label', { for: 'ml-w' + n }, 'Word in the menu'), lw), h('div', null, h('label', { for: 'ml-h' + n }, 'Link'), lh, bad),
+        h('div', null, h('label', null, ' '), h('button', { type: 'button', class: 'link danger', onclick: function () { links.splice(n, 1); touch(); render(); } }, 'Remove')));
+    });
+    var addLink = function (l) { links.push(l); touch(); render(); };
+    var hasFree = links.some(function (l) { return l.href === '/free'; });
     var menuCard = h('div', { class: 'card' }, h('h2', null, 'Top menu'), h('label', null, home, ' Show "Home" first in the menu'),
-      h('p', { class: 'hint' }, 'The menu lists your sections in page order, up to six. Open a section to change its word in the menu.'));
+      h('p', { class: 'hint' }, 'The menu lists your sections in page order, then your own links, up to six in all. Open a section to change its word in the menu.'),
+      h('h3', null, 'Your own links'),
+      h('p', { class: 'hint' }, 'A link at the end of the menu: /free for your free download (upload it on the Business tab), or a web address starting with https://.'),
+      linkRows,
+      links.length < 2 ? h('p', { class: 'row tight' },
+        hasFree ? null : h('button', { type: 'button', onclick: function () { addLink({ label: 'Free guide', href: '/free' }); } }, 'Add your free download'),
+        h('button', { type: 'button', onclick: function () { addLink({ label: '', href: '' }); } }, 'Add a link')) : null);
     return h('div', null, h('p', { class: 'hint' }, 'This is a one-page site: every section below is part of that page. You can add, hide, move and change sections, but not add pages.'), menuCard, list, addable.length ? h('div', { class: 'card' }, pick) : null);
   }
   function forms() {

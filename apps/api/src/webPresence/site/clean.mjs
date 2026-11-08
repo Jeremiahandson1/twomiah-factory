@@ -26,6 +26,13 @@ export function cleanLink(v) {
   if (/^\/(?!\/)[A-Za-z0-9_./-]{0,200}$/.test(s) && !s.includes('..')) return s
   return ''
 }
+/** How many links of their own an owner may add to the top menu. */
+export const MENU_LINKS = 2
+/** The owner's own menu links, cleaned: a short word and a link this file allows. One without either is dropped. None: {}. */
+function menuLinks(v) {
+  const links = (Array.isArray(v) ? v : []).map((l) => ({ label: cleanLine(l && l.label, 24), href: cleanLink(l && l.href) })).filter((l) => l.label && l.href).slice(0, MENU_LINKS)
+  return links.length ? { links } : {}
+}
 /** A photo: one this site stores (/media?h=<hash>), one of the shared library, or an https address. */
 export function cleanImage(v) {
   const s = cleanLine(v, 500)
@@ -166,8 +173,9 @@ export function cleanModel(raw, spec, prev = null) {
       lead: { on: !!(r.forms && r.forms.lead && r.forms.lead.on === true), inbox: cleanEmail(r.forms && r.forms.lead && r.forms.lead.inbox), extraFields: [] },
       hiring: { on: !!(r.forms && r.forms.hiring && r.forms.hiring.on === true), inbox: cleanEmail(r.forms && r.forms.hiring && r.forms.hiring.inbox) },
     },
-    // The top menu: "Home" first when the owner asks for it; each section's own word is on the section (`menu`).
-    menu: { home: !!(r.menu && r.menu.home === true) },
+    // The top menu: "Home" first when the owner asks for it; each section's own word is on the section (`menu`); then the owner's
+    // own links (a free guide at /free, a shop elsewhere), each a word and a link that passes cleanLink, MENU_LINKS at most.
+    menu: { home: !!(r.menu && r.menu.home === true), ...menuLinks(r.menu && r.menu.links) },
     sections: [],
   }
   const lead = r.forms && r.forms.lead
