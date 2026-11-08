@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth, useConfirm, usePermissions, usePrompt, useToast } from '../../../../shared';
 import { api, errorMessage, rows } from '../lib/http';
 import { ViewAsUserButton, roleWord } from '../../../viewAs';
+import { phoneText } from '../lib/phone'
 
 interface Login {
   id: string;
@@ -102,7 +103,7 @@ export default function UserManagement() {
       <tr key={u.id} style={active ? undefined : { opacity: 0.55 }}>
         <td><strong>{name || '—'}</strong></td>
         <td>{u.email}</td>
-        <td>{u.phone || '—'}</td>
+        <td>{u.phone ? phoneText(u.phone) : '—'}</td>
         <td><span className="hc-badge hc-badge-info">{roleWord(u.role || 'caregiver')}</span></td>
         <td>
           {active

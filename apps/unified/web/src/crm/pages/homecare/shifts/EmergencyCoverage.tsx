@@ -14,6 +14,7 @@ import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { SOLID, field } from './ui'
 import { agencyToday } from '../lib/agencyClock'
+import { phoneText } from '../lib/phone'
 
 /** One open call-out (an absences row of type call_out, with its caregiver and the visit it was for). */
 interface MissReport {
@@ -290,7 +291,7 @@ const EmergencyCoverage = () => {
                       </span>
                     </div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                      {cg.phone && <span>📞 {cg.phone}</span>}
+                      {cg.phone && <span>📞 {phoneText(cg.phone)}</span>}
                       <span>📊 {(parseFloat(String(cg.scheduledHoursThisWeek ?? 0)) || 0).toFixed(2)}h this week</span>
                       {parseFloat(String(cg.avgRating ?? 0)) > 0 && <span>⭐ {cg.avgRating} avg rating</span>}
                       {certs.length > 0 && <span>🎓 {certs.join(', ')}</span>}

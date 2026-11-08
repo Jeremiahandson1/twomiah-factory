@@ -15,6 +15,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { useConfirm, usePermissions, useToast } from '../../../../shared'
+import { phoneText } from '../lib/phone'
 
 interface SmsMessage {
   id: string
@@ -414,7 +415,7 @@ const SendMessageForm = ({ templates, caregivers, clients, onSend, onSendBulk, o
               {recipients.map((r) => (
                 <label key={r.id} className="block cursor-pointer p-1">
                   <input type="checkbox" checked={formData.recipientIds.includes(r.id)} onChange={() => toggleRecipient(r.id)} className="mr-2" />
-                  {r.firstName} {r.lastName} {r.phone ? `(${r.phone})` : '(no phone)'}
+                  {r.firstName} {r.lastName} {r.phone ? `(${phoneText(r.phone)})` : '(no phone)'}
                 </label>
               ))}
             </div>

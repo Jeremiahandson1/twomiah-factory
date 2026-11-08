@@ -26,6 +26,7 @@ import { useAuth, usePermissions, usePrompt, useToast } from '../../../../shared
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { PasswordInput } from '../../../../shared'
+import { phoneText } from '../lib/phone'
 
 type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canManagePayments' | 'canMessage'
 // A relative's switches: [the API's name, the label].
@@ -413,7 +414,7 @@ export default function FamilyPortalAdmin() {
                         {member.isPrimaryContact && <span style={{ marginLeft: '0.35rem', fontSize: '0.72rem', color: 'var(--hc-ink-soft)' }}>(primary)</span>}
                       </td>
                       <td>{member.email}</td>
-                      <td>{member.phone || '-'}</td>
+                      <td>{member.phone ? phoneText(member.phone) : '-'}</td>
                       <td>{member.clientFirstName} {member.clientLastName}</td>
                       <td>{getRelationshipBadge(member.relationship)}</td>
                       <td>

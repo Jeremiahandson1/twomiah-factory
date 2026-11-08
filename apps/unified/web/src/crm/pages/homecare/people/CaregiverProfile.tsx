@@ -19,6 +19,7 @@ import { api, errorMessage, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
 import { agencyDayHasBegun } from '../lib/agencyClock'
 import { useMay } from '../lib/useMay'
+import { phoneText } from '../lib/phone'
 
 interface CaregiverSummary {
   id: string
@@ -234,7 +235,7 @@ export default function CaregiverProfile() {
         <div className="hc-card">
           <h3>Contact Information</h3>
           <p><strong>Email:</strong> {caregiver.email}</p>
-          <p><strong>Phone:</strong> {caregiver.phone || 'Not provided'}</p>
+          <p><strong>Phone:</strong> {caregiver.phone ? phoneText(caregiver.phone) : 'Not provided'}</p>
           <p><strong>Hire Date:</strong> {caregiver.hireDate ? formatDate(caregiver.hireDate) : 'N/A'}</p>
           <p><strong>Role:</strong> <span className="hc-badge hc-badge-info">{caregiver.role?.toUpperCase()}</span></p>
         </div>

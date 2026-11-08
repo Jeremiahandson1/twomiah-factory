@@ -11,6 +11,7 @@ import { useConfirm, useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { useMay } from '../lib/useMay'
+import { phoneText } from '../lib/phone'
 
 interface Reference { name?: string; relationship?: string; phone?: string; email?: string }
 
@@ -166,7 +167,7 @@ export default function ApplicationDetail({ applicationId, onBack }: Props) {
         <div className="hc-card">
           <h3>Contact Information</h3>
           <p><strong>Email:</strong> <a href={`mailto:${app.email}`}>{app.email}</a></p>
-          <p><strong>Phone:</strong> <a href={`tel:${app.phone}`}>{app.phone}</a></p>
+          <p><strong>Phone:</strong> <a href={`tel:${app.phone}`}>{phoneText(app.phone)}</a></p>
           {app.dateOfBirth && <p><strong>DOB:</strong> {formatDate(app.dateOfBirth)}</p>}
           {app.address && <p><strong>Address:</strong> {app.address}, {app.city}, {app.state} {app.zip}</p>}
           <p><strong>Applied:</strong> {formatDate(app.createdAt)}</p>
@@ -220,7 +221,7 @@ export default function ApplicationDetail({ applicationId, onBack }: Props) {
           {references.map((r, i) => (
             <div className="reference-item" key={i}>
               <p><strong>{r.name}</strong>{r.relationship ? ` (${r.relationship})` : ''}</p>
-              {r.phone && <p>Phone: <a href={`tel:${r.phone}`}>{r.phone}</a></p>}
+              {r.phone && <p>Phone: <a href={`tel:${r.phone}`}>{phoneText(r.phone)}</a></p>}
               {r.email && <p>Email: <a href={`mailto:${r.email}`}>{r.email}</a></p>}
             </div>
           ))}

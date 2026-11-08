@@ -268,7 +268,7 @@ export default function ApplicationsDashboard() {
                   {/* Applicant Summary */}
                   <div style={{ padding: '0.75rem', background: 'var(--hc-success-bg)', borderRadius: '8px', border: '1px solid var(--hc-success-line)', fontSize: '0.82rem', marginBottom: '1rem', color: 'var(--hc-success-ink)' }}>
                     <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Applicant Info</div>
-                    <div>📞 {hireModal.phone || 'No phone'}</div>
+                    <div>📞 {hireModal.phone ? phoneText(hireModal.phone) : 'No phone'}</div>
                     <div>📍 {[hireModal.city, hireModal.state].filter(Boolean).join(', ') || 'No city given'}</div>
                     {/* A number in `{n && …}` prints a bare "0" when it is 0 — compare instead. */}
                     {Number(hireModal.yearsExperience) > 0 && <div>💼 {hireModal.yearsExperience} yrs experience</div>}

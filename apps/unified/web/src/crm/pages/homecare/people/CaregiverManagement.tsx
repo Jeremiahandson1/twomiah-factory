@@ -21,6 +21,7 @@ import { formatDate } from '../lib/date'
 import AddCaregiverModal from './AddCaregiverModal'
 import CaregiverDetail from './CaregiverDetail'
 import { fullName, money, type CaregiverRow } from './shared'
+import { phoneText } from '../lib/phone'
 
 interface CareType { id: string; name: string }
 interface CareTypeRate {
@@ -69,7 +70,7 @@ function CaregiverCard({ caregiver, onEdit, onRates, onProfile, onPromote }: Car
         <div>
           <span style={{ color: 'var(--hc-muted)' }}>📞</span>{' '}
           {caregiver.phone ? (
-            <a href={`tel:${caregiver.phone}`}>{caregiver.phone}</a>
+            <a href={`tel:${caregiver.phone}`}>{phoneText(caregiver.phone)}</a>
           ) : (
             <span style={{ color: 'var(--hc-muted)' }}>N/A</span>
           )}
@@ -415,7 +416,7 @@ export default function CaregiverManagement() {
                   </td>
                   <td><strong>{caregiver.firstName} {caregiver.lastName}</strong></td>
                   <td>{caregiver.email}</td>
-                  <td><a href={`tel:${caregiver.phone}`}>{caregiver.phone || 'N/A'}</a></td>
+                  <td><a href={`tel:${caregiver.phone}`}>{caregiver.phone ? phoneText(caregiver.phone) : 'N/A'}</a></td>
                   <td style={{ fontSize: '0.85rem' }}>
                     {caregiver.address ? (
                       <span>{[caregiver.city, caregiver.state].filter(Boolean).join(', ')} {caregiver.latitude ? '📍' : '⚠️'}</span>

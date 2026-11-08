@@ -99,3 +99,13 @@ test('an authorization shows what the visits worked used, beside what was billed
   const list = await json(await as(`/api/authorizations?clientId=${martha}`))
   expect(list.body.data[0]).toMatchObject({ workedUnits: 1, usedUnits: expect.anything() })
 })
+
+// ── Re-check 2 (11/08) ──
+test('a training picked from the list is a credential under its name as people read it ("CPR Certification", not "cpr")', async () => {
+  const made = await json(await as(`/api/caregivers/${caregiverId}/training-records`, { method: 'POST', json: { trainingType: 'cpr', completionDate: '2025-01-10', expirationDate: '2027-01-10' } }))
+  expect(made.status).toBe(201)
+  const found = await json(await as(`/api/credentials/search?caregiverId=${caregiverId}`))
+  expect(found.body.data.map((r: any) => r.certificationType)).toContain('CPR Certification')
+  expect((await as(`/api/training-records/${made.body.id}`, { method: 'DELETE' })).status).toBeLessThan(300)
+  expect((await json(await as(`/api/credentials/search?caregiverId=${caregiverId}`))).body.data.map((r: any) => r.certificationType)).not.toContain('CPR Certification')
+})

@@ -20,6 +20,7 @@ import { cancelReasonLabel } from '../lib/cancelReasons'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
 import { formatAgencyDate, agencyWall, agencyToday } from '../lib/agencyClock'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { phoneText } from '../lib/phone'
 
 type Num = string | number | null | undefined
 
@@ -2102,7 +2103,7 @@ const BillingDashboard = () => {
                     {company?.address && <div>{company.address}</div>}
                     {coLine && <div>{coLine}</div>}
                     <div>U.S.A</div>
-                    {company?.phone && <div>{company.phone}</div>}
+                    {company?.phone && <div>{phoneText(company.phone)}</div>}
                     {company?.email && <div>{company.email}</div>}
                   </div>
                 </div>

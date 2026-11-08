@@ -68,7 +68,7 @@ export default function VisitQuestions() {
     setForm({ prompt: q.prompt, kind: q.kind, phase: q.phase, required: q.required, optionsText: Array.isArray(q.options) ? q.options.join('\n') : '', flagOn: q.flagOn || '', min: s(n?.min), max: s(n?.max), flagBelow: s(n?.flagBelow), flagAbove: s(n?.flagAbove) })
   }
   const patch = async (q: Question, body: Partial<Question>) => {
-    try { await api.put(`/api/visit-questions/${q.id}`, body); loadQuestions() } catch (e) { toast.error(errorMessage(e)) }
+    try { await api.put(`/api/visit-questions/${q.id}`, body); if ('isActive' in body) toast.success(`Question switched ${body.isActive ? 'on' : 'off'}`); loadQuestions() } catch (e) { toast.error(errorMessage(e)) }
   }
   const move = async (i: number, dir: -1 | 1) => {
     if (!questions) return

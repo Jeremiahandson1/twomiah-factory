@@ -17,6 +17,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { useToast } from '../../../../shared'
 import { SOLID, backdrop, field } from './ui'
 import { useMay } from '../lib/useMay'
+import { phoneText } from '../lib/phone'
 
 interface NoShowAlert {
   id: string
@@ -204,7 +205,7 @@ export default function NoShowAlerts() {
                     </div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--hc-muted)' }}>
                       Shift: {a.shiftDate} at {a.expectedStart?.slice(0, 5)}
-                      {a.caregiverPhone && <span style={{ marginLeft: '0.75rem' }}>📞 {a.caregiverPhone}</span>}
+                      {a.caregiverPhone && <span style={{ marginLeft: '0.75rem' }}>📞 {phoneText(a.caregiverPhone)}</span>}
                     </div>
                     {a.smsSent && <div style={{ fontSize: '0.75rem', color: 'var(--hc-green-ink)', marginTop: '0.2rem' }}>✓ SMS sent</div>}
                     {a.resolutionNote && <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginTop: '0.35rem', fontStyle: 'italic' }}>"{a.resolutionNote}"</div>}
