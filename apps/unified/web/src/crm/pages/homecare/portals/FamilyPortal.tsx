@@ -526,6 +526,8 @@ export function DailyCareView({ base = '/api/family-portal/portal' }: { base?: s
               <span>{t.taskName}</span><span style={BADGE(t.state === 'done' || t.state === 'done_earlier' ? 'green' : t.state === 'not_recorded' ? 'yellow' : 'blue')}>{t.stateLabel}</span>
             </div>
           ))}
+          {/* Said either way (home care live re-check 11/08: with none recorded, "meals" were nowhere). */}
+          {v.meals.length === 0 && <div style={{ ...SOFT, marginTop: '6px' }}>Meals: none recorded on this visit.</div>}
           {v.meals.length > 0 && (
             <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--hc-line)' }}>
               <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '4px' }}>Meals</div>

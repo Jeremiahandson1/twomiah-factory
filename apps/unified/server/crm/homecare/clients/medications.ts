@@ -24,7 +24,7 @@
 // medication_name → medicationName, administered_time → administeredTime, caregiver_first → caregiverFirst …).
 import { Hono } from 'hono'
 import { and, asc, desc, eq, getTableColumns, gte, lt, lte } from 'drizzle-orm'
-import { medications, medicationLogs, clientVitals, timeEntries, user as users } from '../../../db/schema/index.ts'
+import { clients, medications, medicationLogs, clientVitals, timeEntries, user as users } from '../../../db/schema/index.ts'
 import { medicationAdherence, databaseToday } from '../../../data/homecareClients.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
@@ -199,6 +199,15 @@ export function createMedicationRoutes(core: HomecareCore, d: CrmDeps, access: C
       if (!oneDose || !core.offlineSaves.isDoseKeyClash(e)) throw e
       const dup = await core.offlineSaves.doseAlreadyRecorded(companyId, med.id, b.clientId, scheduledTime)
       return fail(c, 409, dup?.sentence ?? 'Someone already recorded this dose as given. If you gave it too, tell the office before giving anything more.', 'dose_already_recorded')
+    }
+    // A dose recorded as missed or refused tells the office (home care live re-check 11/08: "Missed" reached nobody — only a dose
+    // nobody recorded did, through the reminders' sweep). Never fails the save.
+    if (status === 'missed' || status === 'refused') {
+      try {
+        const [cl] = await db.select({ f: clients.firstName, l: clients.lastName }).from(clients).where(and(eq(clients.id, b.clientId), eq(clients.companyId, companyId))).limit(1)
+        await core.notify.notifyAdmins(companyId, 'medication_missed', status === 'missed' ? 'Dose missed' : 'Dose refused',
+          `${cl ? `${cl.f} ${cl.l}: ` : ''}${med.name}${med.dosage ? ` ${med.dosage}` : ''} was recorded as ${status}${b.notes ? ` — "${String(b.notes).slice(0, 200)}"` : ''}.`)
+      } catch { /* the dose is saved; the notice is extra */ }
     }
     // A dose of a stopped medicine is recorded (it happened) and the office is told.
     const stopped = offline && status !== 'refused' && status !== 'missed' && status !== 'held' && await core.offlineSaves.tellOfficeIfStopped(companyId, med, administeredAt)

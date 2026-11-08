@@ -47,6 +47,8 @@ interface Medication {
   dosage?: string | null
   route?: string | null
   frequency?: string | null
+  /** The times of day a dose is due ("HH:MM", the agency's clock). */
+  doseTimes?: string[] | null
   instructions?: string | null
   isPrn?: boolean | null
 }
@@ -171,7 +173,7 @@ export default function VisitCarePanel({ timeEntryId, clientId }: { timeEntryId:
             return (
               <div key={med.id} className="mt-2 border-t pt-2 border-gray-200 dark:border-slate-600">
                 <div className="text-sm font-semibold">{medName(med)}{med.isPrn ? ' (as needed)' : ''}</div>
-                <div className={MUTED}>{[med.dosage, med.route, med.frequency].filter(Boolean).join(' · ')}</div>
+                <div className={MUTED}>{[med.dosage, med.route, med.frequency, doseAt(med.doseTimes)].filter(Boolean).join(' · ')}</div>
                 {med.instructions && <div className={MUTED}>{med.instructions}</div>}
                 {last && <div className={OK}>Recorded this visit: {statusLabel(last.status)}</div>}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -235,4 +237,11 @@ export default function VisitCarePanel({ timeEntryId, clientId }: { timeEntryId:
       </div>
     </div>
   )
+}
+
+/** "at 10:00 AM, 8:00 PM" from the dose times (home care live re-check 11/08: the visit screen had no time), or null. */
+function doseAt(times: unknown): string | null {
+  const list = (Array.isArray(times) ? times : []).map(String).filter((t) => /^\d{2}:\d{2}/.test(t))
+  if (!list.length) return null
+  return `at ${list.map((t) => { const [h, m] = t.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` }).join(', ')}`
 }

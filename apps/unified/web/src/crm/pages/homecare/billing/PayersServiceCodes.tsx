@@ -11,6 +11,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { useMay } from '../lib/useMay'
 import { useAuth } from '../../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { phoneText } from '../lib/phone'
 
 // The payer's billing classification (referral_sources.payer_type). Claims, EVV, the punch rules and the
 // reports read it; the values match server/crm/homecare/billing/payers.ts PAYER_TYPES and payerRouter.PAYER_ROUTES.
@@ -227,7 +228,7 @@ const PayersServiceCodes = () => {
                     <td>{getTypeBadge(p.payerType)}</td>
                     <td>{p.payerIdNumber || '—'}</td>
                     <td>{p.contactName || '—'}</td>
-                    <td>{p.phone || '—'}</td>
+                    <td>{p.phone ? phoneText(p.phone) : '—'}</td>
                     <td>
                       <span style={pill(p.isActivePayer ? '#2e7d32' : '#616161')}>{p.isActivePayer ? 'YES' : 'NO'}</span>
                     </td>

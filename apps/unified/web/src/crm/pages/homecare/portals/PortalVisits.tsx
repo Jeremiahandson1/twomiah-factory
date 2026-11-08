@@ -18,6 +18,7 @@ import { useToast } from '../../../../shared'
 import { formatDate as formatDay, parseLocalDate, toLocalYMD } from '../lib/date'
 import { listRows, usePortal } from './portalHttp'
 import { agencyToday } from '../lib/agencyClock'
+import { phoneText } from '../lib/phone'
 
 interface Visit {
   id: string
@@ -374,7 +375,7 @@ export default function PortalVisits() {
                   {visit.caregiverPhone && (
                     <div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--hc-muted)', marginBottom: '2px' }}>PHONE</div>
-                      <a href={`tel:${visit.caregiverPhone}`} style={{ fontWeight: 600, color: 'var(--hc-blue-ink)', textDecoration: 'none' }}>{visit.caregiverPhone}</a>
+                      <a href={`tel:${visit.caregiverPhone}`} style={{ fontWeight: 600, color: 'var(--hc-blue-ink)', textDecoration: 'none' }}>{phoneText(visit.caregiverPhone)}</a>
                     </div>
                   )}
                 </div>

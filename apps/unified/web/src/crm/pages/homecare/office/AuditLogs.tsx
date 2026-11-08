@@ -210,7 +210,9 @@ const AuditLogs = () => {
       case 'access': return { class: 'hc-badge-secondary', label: 'Access' }
       case 'export': return { class: 'hc-badge-warning', label: 'Export' }
       case 'failed_login': return { class: 'hc-badge-danger', label: 'Failed Login' }
-      default: return { class: 'hc-badge-secondary', label: action }
+      // The app's trail names an action from the request's path: a record id there ("YXQY2GUK…") is a change to that
+      // record, and the rest read as words (home care live re-check 11/08: "CHECK WEEKLY HOUR", ids).
+      default: return { class: 'hc-badge-secondary', label: /^[a-z0-9]{16,}$/i.test(action) && /\d/.test(action) ? 'Changed' : action.replace(/[_-]+/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase()) }
     }
   }
 

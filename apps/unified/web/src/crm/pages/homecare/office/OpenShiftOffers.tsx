@@ -20,7 +20,7 @@ const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 interface Counts { sent: number; accepted: number; declined: number; hidden: number; noAnswer: number }
 interface Posting {
   id: string; shiftDate: string; startTime: string; endTime: string; status: string; clientFirstName: string | null; clientLastName: string | null
-  offerStatus: string; offerStatusLabel: string; counts: Counts; respondBy: string | null; seriesId: string | null; bonusAmount?: number | string | null
+  offerStatus: string; offerStatusLabel: string; counts: Counts; respondBy: string | null; seriesId: string | null; bonusAmount?: number | string | null; declines?: { caregiverId: string; name: string; reason: string }[]
 }
 interface Message { id: string; caregiverId: string; firstName: string; lastName: string; channel: string; channelLabel: string; target: string | null; status: string; statusLabel: string; detail: string | null; createdAt: string }
 interface Settings { visibility: string; daysAhead: number | null; visibilityOptions: { code: string; label: string }[] }
@@ -119,6 +119,7 @@ function BoardTab() {
           <div className={soft} style={{ marginTop: 4 }}>
             Sent to {s.counts.sent} · Accepted {s.counts.accepted} · Declined {s.counts.declined} · Hid it {s.counts.hidden} · No answer {s.counts.noAnswer}
           </div>
+          {s.declines?.length ? <div className={soft}>Turned down by: {s.declines.map((x) => `${x.name}${x.reason ? ` (${x.reason})` : ''}`).join(' · ')}</div> : null}
           <button className={btn2} style={{ marginTop: 8 }} onClick={() => setOpenId(openId === s.id ? null : s.id)}>{openId === s.id ? 'Close messages' : 'Messages and resend'}</button>
           {openId === s.id && <Outbox s={s} onChanged={load} />}
         </div>

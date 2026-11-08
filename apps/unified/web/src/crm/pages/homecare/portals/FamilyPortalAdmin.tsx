@@ -616,6 +616,8 @@ export default function FamilyPortalAdmin() {
 interface AddForm {
   clientId: string; firstName: string; lastName: string; email: string; phone: string; relationship: string; password: string
   canViewSchedule: boolean; canViewCarePlan: boolean; canViewMedications: boolean; canViewVitals: boolean; canViewDocuments: boolean; canManagePayments: boolean; canMessage: boolean
+  /** Their yes to arrival / departure texts (needs a phone; the server keeps the words they agreed to with it). */
+  visitTextOptIn?: boolean
 }
 
 function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[]; onSubmit: (f: AddForm) => void; onCancel: () => void }) {
@@ -626,6 +628,8 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
   })
   const contentOn = useAuth().hasFeature('care_family_content')
   const addPaymentsOn = useAuth().hasFeature('care_autopay')
+  // Home care live re-check 11/08: the client's Portal tab pointed here for "Text them", and adding a relative had no such tick.
+  const addTextsOn = useAuth().hasFeature('care_family_texts')
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -698,6 +702,15 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
           <PasswordInput value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min 8 characters" required />
         </div>
       </div>
+      {addTextsOn && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <input type="checkbox" checked={!!formData.visitTextOptIn} disabled={!formData.phone.trim()} onChange={(e) => setFormData({ ...formData, visitTextOptIn: e.target.checked })} />
+            Text them when the caregiver arrives and when they leave
+          </label>
+          <small style={{ color: 'var(--hc-ink-soft)' }}>{formData.phone.trim() ? 'Only with their yes.' : 'Add their mobile number first.'} Texts go out from your agency&apos;s texting number (Settings › Texting): until it is set up, nothing is sent.</small>
+        </div>
+      )}
 
       <div className="form-group">
         <label>Portal Permissions</label>

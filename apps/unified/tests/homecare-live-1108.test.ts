@@ -82,3 +82,20 @@ test('a calendar day is that day on a clock west of UTC (Nov 14 never "Nov 13")'
   expect(formatAgencyDate('2026-11-14')).toBe('Nov 14, 2026')
   expect(formatAgencyDate('2027-01-06')).toBe('Jan 6, 2027')
 })
+
+// ── The re-check (11/08) ──
+test('a dose recorded as missed tells the office', async () => {
+  const med = await ins(t.schema.medications, { companyId, clientId: martha, name: 'Vitamin D (test)', dosage: '1000 IU', status: 'active' })
+  const r = await as('/api/medications/log', { method: 'POST', json: { medicationId: med.id, clientId: martha, status: 'missed', notes: 'Asleep' } })
+  expect(r.status).toBe(201)
+  const notes = (await t.db.select().from(t.schema.notifications).where(eq(t.schema.notifications.companyId, companyId))) as any[]
+  expect(notes.some((n) => n.type === 'medication_missed' && /Vitamin D \(test\).*missed/.test(n.message))).toBe(true)
+})
+
+test('an authorization shows what the visits worked used, beside what was billed', async () => {
+  const payer = await ins(t.schema.referralSources, { companyId, name: 'Medicaid (test)', type: 'payer' })
+  await ins(t.schema.authorizations, { companyId, clientId: martha, payerId: payer.id, authorizedUnits: '40', unitType: 'hours', startDate: '2026-11-01', endDate: '2026-12-31', status: 'active' })
+  await ins(t.schema.timeEntries, { companyId, caregiverId, clientId: martha, startTime: new Date('2026-11-08T17:44:00Z'), endTime: new Date('2026-11-08T18:44:00Z'), durationMinutes: 60 })
+  const list = await json(await as(`/api/authorizations?clientId=${martha}`))
+  expect(list.body.data[0]).toMatchObject({ workedUnits: 1, usedUnits: expect.anything() })
+})

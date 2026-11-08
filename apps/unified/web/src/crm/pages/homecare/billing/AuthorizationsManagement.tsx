@@ -33,7 +33,7 @@ const formatDate = (dateStr: string | null | undefined) => {
 type Num = string | number | null | undefined
 interface Authorization {
   id: string; clientId: string; payerId: string | null; authNumber: string | null; procedureCode: string | null
-  modifier: string | null; authorizedUnits: Num; unitType: string | null; usedUnits: Num
+  modifier: string | null; authorizedUnits: Num; unitType: string | null; usedUnits: Num; workedUnits?: Num
   startDate: string | null; endDate: string | null; status: string | null; lowUnitsAlertThreshold: Num; notes: string | null
   client?: { firstName: string | null; lastName: string | null }
   payer?: { name: string | null }
@@ -269,8 +269,8 @@ const AuthorizationsManagement = () => {
 
       {/* Home care live test 11/08: "Used stays 0.00" while the forecast counted the scheduled hours. */}
       <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 0.75rem' }}>
-        &ldquo;Used&rdquo; grows as visits are billed on claims to the authorization&apos;s payer; the hours already scheduled against it show in the
-        revenue forecast. Claims are made from the payer&apos;s invoices, so a private-pay client&apos;s visits are not billed against it: to bill
+        &ldquo;Worked&rdquo; is the client&apos;s visits clocked in and out inside the authorization&apos;s dates; &ldquo;Used (billed)&rdquo; grows as visits
+        are billed on claims to its payer; the hours still scheduled show in the revenue forecast. What is left counts the larger of the two. Claims are made from the payer&apos;s invoices, so a private-pay client&apos;s visits are not billed against it: to bill
         one to this payer, set the payer on the client (the client&apos;s Billing tab).
       </p>
       {/* Table */}
@@ -283,6 +283,7 @@ const AuthorizationsManagement = () => {
               <th>Auth #</th>
               <th>Procedure</th>
               <th>Authorized</th>
+              <th title="The client's visits clocked in and out inside the authorization's dates, in its unit.">Worked</th>
               <th title="Units billed on claims to this payer. Scheduled visits count in the revenue forecast, not here.">Used (billed)</th>
               <th>Utilization</th>
               <th>Start</th>
@@ -293,7 +294,7 @@ const AuthorizationsManagement = () => {
           </thead>
           <tbody>
             {authorizations.length === 0 ? (
-              <tr><td colSpan={11} style={{ textAlign: 'center', padding: '2rem', color: 'var(--hc-muted)' }}>No authorizations found</td></tr>
+              <tr><td colSpan={12} style={{ textAlign: 'center', padding: '2rem', color: 'var(--hc-muted)' }}>No authorizations found</td></tr>
             ) : authorizations.map((auth) => (
               <tr key={auth.id}>
                 <td style={{ fontWeight: 600 }}>
@@ -303,8 +304,9 @@ const AuthorizationsManagement = () => {
                 <td style={{ fontFamily: 'monospace' }}>{auth.authNumber || '—'}</td>
                 <td style={{ fontFamily: 'monospace' }}>{auth.procedureCode || '—'}{auth.modifier ? `:${auth.modifier}` : ''}</td>
                 <td>{auth.authorizedUnits || 0} {auth.unitType || ''}</td>
+                <td>{auth.workedUnits ?? 0}</td>
                 <td>{auth.usedUnits || 0}</td>
-                <td style={{ minWidth: '120px' }}>{getUtilizationBar(auth.usedUnits, auth.authorizedUnits)}</td>
+                <td style={{ minWidth: '120px' }}>{getUtilizationBar(Math.max(Number(auth.usedUnits) || 0, Number(auth.workedUnits) || 0), auth.authorizedUnits)}</td>
                 <td>{formatDate(auth.startDate)}</td>
                 <td>{formatDate(auth.endDate)}</td>
                 <td>{getStatusBadge(auth.status)}</td>
