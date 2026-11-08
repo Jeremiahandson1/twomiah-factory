@@ -58,6 +58,7 @@ import { SandataPrompt, SandataIdBox, SandataHelp, SandataNotice, useSandataCont
 import { useGeolocation, type GeoPosition } from './useGeolocation'
 import { useVisitQuestions, VisitQuestionFields, answersBody, unanswered, type VisitAnswers } from './caregiver/VisitQuestionFields'
 import { savePunch, newLocalId, offlineSession, flushPunches, isUnreachable, pendingPunches, postPunch } from './offlinePunches'
+import { phoneText } from '../lib/phone'
 
 // ── The rows this screen reads ───────────────────────────────────────────────────────────────
 
@@ -935,6 +936,7 @@ const CaregiverDashboard = () => {
       setPendingPhotos([])
       setOutAnswers({})
       setShowNoteModal(false)
+      say(`Clocked out of ${getClientName(outClientId)}`)
       // The clock-out prompt follows the clock-in decision.
       promptSandata('out', outClientId, outData && outData.sandataRequired != null ? outData.sandataRequired : outSandataRequired)
       loadData()
@@ -1070,11 +1072,16 @@ const CaregiverDashboard = () => {
         <div className="hc-card" style={{ background: 'linear-gradient(135deg, #4338ca 0%, #6b21a8 100%)', color: '#fff', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '0.9rem' }}>Hours This Week</div>
+              {/* /api/scheduling/caregiver-hours counts the week's SCHEDULED shifts, so the tile says so (re-check 2, 11/08). */}
+              <div style={{ fontSize: '0.9rem' }}>Hours Scheduled This Week</div>
               <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{myHoursThisWeek.toFixed(2)}h</div>
-              {payRate !== null && (
+              {payRate !== null ? (
                 <div style={{ fontSize: '0.85rem' }} data-testid="my-pay-estimate">
-                  ${payRate.toFixed(2)}/h · about ${(myHoursThisWeek * payRate).toFixed(2)} this week before tax and overtime
+                  ${payRate.toFixed(2)}/h · about ${(myHoursThisWeek * payRate).toFixed(2)} for these hours, before tax and overtime
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.85rem' }} data-testid="my-pay-estimate">
+                  No pay rate on file yet — ask the office to set yours.
                 </div>
               )}
             </div>
@@ -1205,7 +1212,7 @@ const CaregiverDashboard = () => {
                         <div className={`mt-1 text-sm ${PAIR_MUTED}`}>🕐 {formatTime(appt.startTime)} - {formatTime(appt.endTime)}</div>
                         {client && (
                           <div className={`mt-2 text-[0.85rem] ${PAIR_MUTED}`}>
-                            {client.phone && <span>📞 {client.phone}</span>}
+                            {client.phone && <span>📞 {phoneText(client.phone)}</span>}
                             {client.address && <span style={{ marginLeft: client.phone ? '1rem' : 0 }}>📍 {client.address}{client.city ? `, ${client.city}` : ''}</span>}
                           </div>
                         )}
@@ -1725,7 +1732,7 @@ const CaregiverDashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 style={{ margin: 0 }}>{c.firstName} {c.lastName}</h4>
-                    <p style={{ margin: '0.25rem 0 0 0', color: 'var(--hc-muted)', fontSize: '0.9rem' }}>📞 {c.phone || 'N/A'} • 📍 {c.city || 'N/A'}</p>
+                    <p style={{ margin: '0.25rem 0 0 0', color: 'var(--hc-muted)', fontSize: '0.9rem' }}>📞 {c.phone ? phoneText(c.phone) : 'N/A'} • 📍 {c.city || 'N/A'}</p>
                   </div>
                   <span style={{ color: 'var(--hc-blue-ink)', fontSize: '1.2rem' }} aria-hidden="true">→</span>
                 </div>

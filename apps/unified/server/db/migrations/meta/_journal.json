@@ -736,6 +736,13 @@
       "when": 1794162578357,
       "tag": "0104_training_expiry_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1794170853559,
+      "tag": "0105_training_credential_names",
+      "breakpoints": true
     }
   ]
 }

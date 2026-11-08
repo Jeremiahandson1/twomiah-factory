@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
 import { usePermissions } from '../../../../shared'
+import { phoneText } from '../lib/phone'
 
 /** The office's screen for whoever holds `office`; the read-only one for a seat holding only care-office:read. */
 export function OfficeOr({ office, Full, View }: { office: string; Full: ComponentType; View: ComponentType }) {
@@ -82,7 +83,7 @@ export function ClientDirectory() {
               ) : shown.map((c) => (
                 <tr key={c.id}>
                   <td style={{ fontWeight: 600 }}>{fullName(c)}{c.email && <div style={muted}>{c.email}</div>}</td>
-                  <td>{c.phone || '—'}</td>
+                  <td>{c.phone ? phoneText(c.phone) : '—'}</td>
                   <td>{[c.address, c.city, c.state, c.zip].filter(Boolean).join(', ') || '—'}</td>
                   <td>{c.serviceType ? c.serviceType.replace(/_/g, ' ') : '—'}</td>
                   <td>{(c.assignments || []).map((a) => fullName(a.caregiver)).filter((n) => n !== '—').join(', ') || '—'}</td>
@@ -191,7 +192,7 @@ export function CaregiverRoster() {
               ) : people.map((p) => (
                 <tr key={p.id}>
                   <td style={{ fontWeight: 600 }}>{fullName(p)}</td>
-                  <td>{p.phone || '—'}</td>
+                  <td>{p.phone ? phoneText(p.phone) : '—'}</td>
                   <td>{p.email || '—'}</td>
                   <td>{p.isActive ? 'Active' : 'Inactive'}</td>
                 </tr>

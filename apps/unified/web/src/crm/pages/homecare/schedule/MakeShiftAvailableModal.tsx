@@ -13,6 +13,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { C, dialog, field, overlay, tint } from './theme'
+import { phoneText } from '../lib/phone'
 
 /** The visit being offered: a schedule row, or the Schedule Hub's edit box (its date may be the edited day). */
 export interface OfferedVisit {
@@ -211,7 +212,7 @@ export default function MakeShiftAvailableModal({ schedule, date, clientName, ca
                       )}
                     </div>
                     {c.expiredCertifications && c.expiredCertifications.length > 0 && <div style={{ fontSize: '0.74rem', color: red.ink }}>{c.expiredCertifications.join(', ')}</div>}
-                    {c.phone && <div style={{ fontSize: '0.78rem', color: C.inkSoft }}>{c.phone}</div>}
+                    {c.phone && <div style={{ fontSize: '0.78rem', color: C.inkSoft }}>{phoneText(c.phone)}</div>}
                   </div>
                 </label>
               )

@@ -15,6 +15,7 @@ import { agencyFromLocalInput } from '../lib/agencyClock'
 import { useMayWrite } from '../../../../shared'
 import VisitGpsMap from './VisitGpsMap'
 import { CHIP, EDGE, INK, RING, backdrop, field, panel, type Tone } from './ui'
+import { phoneText } from '../lib/phone'
 
 // EVV change reason codes sent with an office-set clock-out (the Alt-EVV "visit change" reasons).
 // 5 and 8 require an explanation memo — the free-text reason field doubles as it.
@@ -272,7 +273,7 @@ const LiveBoard = () => {
 
                 {selectedShift?.scheduleId === shift.scheduleId && (
                   <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--hc-line)', fontSize: '0.82rem' }}>
-                    {shift.caregiverPhone && <div style={{ color: 'var(--hc-ink-soft)' }}>Phone: {shift.caregiverPhone}</div>}
+                    {shift.caregiverPhone && <div style={{ color: 'var(--hc-ink-soft)' }}>Phone: {phoneText(shift.caregiverPhone)}</div>}
                     {shift.clientAddress && <div style={{ color: 'var(--hc-ink-soft)' }}>Address: {shift.clientAddress}, {shift.clientCity}</div>}
                     {loc && loc.lat != null && (
                       <div style={{ color: 'var(--hc-ink-soft)' }}>Clock-in GPS: {Number(loc.lat).toFixed(4)}, {Number(loc.lng).toFixed(4)}</div>

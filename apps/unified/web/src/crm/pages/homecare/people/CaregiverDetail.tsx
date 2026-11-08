@@ -34,6 +34,7 @@ import { parseLocalDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { phoneText } from '../lib/phone'
 
 const fmt$ = (n: unknown) => (n != null ? money(n) : '—')
 const fmtHrs = (n: unknown) => (n != null ? `${parseFloat(String(n || 0)).toFixed(2)}h` : '—')
@@ -1102,7 +1103,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
             <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#fff' }}>{fullName}</h2>
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)' }}>{profile?.email}</span>
-              <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)' }}>📞 {profile?.phone || '—'}</span>
+              <span style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)' }}>📞 {profile?.phone ? phoneText(profile.phone) : '—'}</span>
               <span style={s.badge(active ? 'success' : 'neutral')}>
                 {active ? '● Active' : '○ Inactive'}
               </span>

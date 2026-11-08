@@ -14,6 +14,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
 import { TextButton, useToast } from '../../../../shared'
+import { phoneText } from '../lib/phone'
 
 /** GET /api/clients/:id/caregiver-view. */
 interface ClientCard {
@@ -127,7 +128,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
                 <div className="hc-card" style={{ background: 'var(--hc-subtle)', marginBottom: '1rem' }}>
                   <h4 style={{ marginTop: 0 }}>👤 Basic Information</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    <p><strong>Phone:</strong> <a href={`tel:${client.phone || ''}`}>{client.phone || 'N/A'}</a>{client.phone && <>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>}</p>
+                    <p><strong>Phone:</strong> <a href={`tel:${client.phone || ''}`}>{client.phone ? phoneText(client.phone) : 'N/A'}</a>{client.phone && <>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>}</p>
                     <p><strong>DOB:</strong> {client.dateOfBirth ? formatDate(client.dateOfBirth) : 'N/A'}</p>
                     <p style={{ gridColumn: '1 / -1' }}>
                       <strong>Address:</strong>{' '}
@@ -156,7 +157,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
                       </p>
                       <p style={{ margin: '0.25rem 0', fontSize: '1.1rem' }}>
                         📞 <a href={`tel:${client.emergencyContactPhone || ''}`} style={{ fontWeight: 'bold', color: 'var(--hc-warning-ink)' }}>
-                          {client.emergencyContactPhone}
+                          {phoneText(client.emergencyContactPhone)}
                         </a>
                       </p>
                     </div>

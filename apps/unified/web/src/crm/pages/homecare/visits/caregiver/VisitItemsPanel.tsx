@@ -117,7 +117,7 @@ function ItemRow({ item, onRecord, onForm }: { item: Item; onRecord: (status: 'd
             : item.kind === 'goal'
               ? <button type="button" className={btnMain} onClick={() => setAsk('rating')}>How did it go?</button>
               : <button type="button" className={btnMain} onClick={() => onRecord('done')}>Done</button>}
-          {item.status !== 'skipped' && <button type="button" className={btnSoft} onClick={() => (item.required ? setAsk('skipped') : onRecord('skipped'))}>Skip</button>}
+          {item.status !== 'skipped' && <button type="button" className={btnSoft} onClick={() => setAsk('skipped')}>Skip</button>}
           {item.status !== 'refused' && <button type="button" className={btnSoft} onClick={() => setAsk('refused')}>Refused</button>}
         </div>
       )}
@@ -137,6 +137,7 @@ export default function VisitItemsPanel({ timeEntryId }: { timeEntryId: string }
     try {
       await api.put(`/api/visit-items/visit/${timeEntryId}/${item.id}`, { status, note: extra?.note || null, rating: extra?.rating, savedAt: new Date().toISOString() })
       setItems((prev) => (prev || []).map((x) => (x.id === item.id ? { ...x, status, note: extra?.note || null, rating: extra?.rating ?? null } : x)))
+      toast.success(`${item.name}: ${STATE[status]}`)
     } catch (e) { toast.error(errorMessage(e, 'That was not saved')) }
   }
   if (!items || !items.length) return null

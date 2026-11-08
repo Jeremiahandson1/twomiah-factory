@@ -104,7 +104,9 @@ export function createLtc(d: CrmDeps) {
       doc.moveDown(0.5)
       row('Insured', insured)
       row('Date of birth', usDate(head.clientDob))
-      row('Address', address(head.clientAddress, head.clientCity, head.clientState, head.clientZip))
+      // No street on file: say so, so the office adds it before mailing (re-check 2, 11/08: the packet read "Address: WI").
+      row('Address', head.clientAddress ? address(head.clientAddress, head.clientCity, head.clientState, head.clientZip)
+        : [address(head.clientCity, head.clientState, head.clientZip), 'street address not on file — add it on the client before sending'].filter(Boolean).join(' · '))
       row('Policy number', policy.policyNumber)
       row('Claim number', policy.claimNumber)
       if (policy.dailyMax) row('Policy daily maximum', money(policy.dailyMax))

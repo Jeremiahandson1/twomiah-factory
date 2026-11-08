@@ -76,7 +76,7 @@ export default function VisitItems() {
       load()
     } catch (e) { toast.error(errorMessage(e)) }
   }
-  const patch = async (i: Item, b: Partial<Item>) => { try { await api.put(`/api/visit-items/${i.id}`, b); load() } catch (e) { toast.error(errorMessage(e)) } }
+  const patch = async (i: Item, b: Partial<Item>) => { try { await api.put(`/api/visit-items/${i.id}`, b); if ('isActive' in b) toast.success(`${i.name} switched ${b.isActive ? 'on' : 'off'}`); load() } catch (e) { toast.error(errorMessage(e)) } }
   const remove = async (i: Item) => {
     if (!(await confirm(`Remove “${i.name}”? What caregivers already recorded stays on those visits.`, { danger: true }))) return
     try { await api.delete(`/api/visit-items/${i.id}`); if (editing === i.id) { setEditing(null); setForm(EMPTY) } load() } catch (e) { toast.error(errorMessage(e)) }

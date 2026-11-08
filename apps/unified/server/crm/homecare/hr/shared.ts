@@ -1,5 +1,5 @@
 // Small pieces the hr routers share. Nothing here reads anything but the session and the company's own rows.
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { seatRefusal } from '@twomiah/tenant-backend'
 import { certificationRecords, company, user } from '../../../db/schema/index.ts'
@@ -58,6 +58,24 @@ export async function insertSeatedUser(d: CrmDeps, companyId: string, values: Re
   })
 }
 
+/** Compliance › Training's types (web ComplianceTracking trainingTypes) as people read them; migration 0105 renamed the older copies. */
+export const TRAINING_LABELS: Record<string, string> = {
+  'cpr': 'CPR Certification',
+  'first_aid': 'First Aid',
+  'hipaa': 'HIPAA Training',
+  'infection_control': 'Infection Control',
+  'bloodborne_pathogen': 'Bloodborne Pathogen',
+  'safety': 'Workplace Safety',
+  'dementia_care': 'Dementia Care',
+  'fall_prevention': 'Fall Prevention',
+  'manual_handling': 'Manual Handling',
+  'medication_administration': 'Medication Administration',
+  'medication_reminders': 'Medication Reminders & Handling (PCW)',
+  'misappropriation_policy': 'Client Funds, Property & Misappropriation Policy'
+}
+/** A training's name as a credential: "CPR Certification", never the code "cpr" (re-check 2, 11/08). Anything else as typed. */
+export const trainingLabel = (name: string) => TRAINING_LABELS[name] ?? name
+
 /**
  * A training with an expiry date (a CPR card, a first-aid course) is also a credential: the Credentials page, the expiring-soon
  * list and the reminders read certification_records. Home care live test 11/08: a CPR certificate added under Compliance ›
@@ -65,11 +83,12 @@ export async function insertSeatedUser(d: CrmDeps, companyId: string, values: Re
  */
 export async function trainingAsCredential(d: CrmDeps, row: { companyId: string; caregiverId: string; trainingName: string; provider?: string | null; completedDate?: string | null; expiryDate?: string | null; certificationNumber?: string | null }) {
   if (!row.expiryDate) return
+  const name = trainingLabel(row.trainingName)
   const [same] = await d.db.select({ id: certificationRecords.id }).from(certificationRecords).where(and(eq(certificationRecords.companyId, row.companyId),
-    eq(certificationRecords.caregiverId, row.caregiverId), eq(certificationRecords.certificationType, row.trainingName), eq(certificationRecords.expiryDate, row.expiryDate))).limit(1)
+    eq(certificationRecords.caregiverId, row.caregiverId), eq(certificationRecords.certificationType, name), eq(certificationRecords.expiryDate, row.expiryDate))).limit(1)
   if (same) return
   await d.db.insert(certificationRecords).values({
-    companyId: row.companyId, caregiverId: row.caregiverId, certificationType: row.trainingName, issuingBody: row.provider || null,
+    companyId: row.companyId, caregiverId: row.caregiverId, certificationType: name, issuingBody: row.provider || null,
     issueDate: row.completedDate || null, expiryDate: row.expiryDate, certificationNumber: row.certificationNumber || null, status: 'active',
   })
 }
@@ -78,5 +97,5 @@ export async function trainingAsCredential(d: CrmDeps, row: { companyId: string;
 export async function dropTrainingCredential(d: CrmDeps, row: { companyId: string; caregiverId: string; trainingName: string; expiryDate: string | null }) {
   if (!row.expiryDate) return
   await d.db.delete(certificationRecords).where(and(eq(certificationRecords.companyId, row.companyId), eq(certificationRecords.caregiverId, row.caregiverId),
-    eq(certificationRecords.certificationType, row.trainingName), eq(certificationRecords.expiryDate, row.expiryDate)))
+    inArray(certificationRecords.certificationType, [...new Set([row.trainingName, trainingLabel(row.trainingName)])]), eq(certificationRecords.expiryDate, row.expiryDate)))
 }

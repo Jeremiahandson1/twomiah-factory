@@ -559,7 +559,7 @@ const ClientsManagement = () => {
                     <strong>{client.firstName} {client.lastName}</strong>
                     {client.dateOfBirth && (<small style={{ display: 'block', color: 'var(--hc-muted)' }}>DOB: {formatDate(client.dateOfBirth)}</small>)}
                   </td>
-                  <td><a href={`tel:${client.phone}`}>{client.phone || 'N/A'}</a>{client.phone && <>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>}</td>
+                  <td><a href={`tel:${client.phone}`}>{client.phone ? phoneText(client.phone) : 'N/A'}</a>{client.phone && <>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>}</td>
                   <td><AddressLink address={client.address} city={client.city} state={client.state} zip={client.zip} /></td>
                   <td>{client.isPrivatePay ? (<span className="text-muted">-</span>) : (getReferralSourceName(client.referredById))}</td>
                   <td>{getCareTypeName(client.careTypeId)}</td>

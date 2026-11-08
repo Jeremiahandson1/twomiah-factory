@@ -36,6 +36,7 @@ import { useMay } from '../lib/useMay'
 import { C, FILL, MARKS, dialog, field, overlay, pill, tint, type Tone } from './theme'
 import { fullName, isRecurringRow, type Caregiver, type Client, type SavedReply, type ScheduleRow } from './types'
 import { agencyToday, agencyTodayDate } from '../lib/agencyClock'
+import { phoneText } from '../lib/phone'
 
 function getWeekStart(date: Date | string): Date {
   const d = parseLocalDate(date)
@@ -1168,7 +1169,7 @@ const SchedulingHub = () => {
                 {prospects.filter(isOpenLead).map((p) => (
                   <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.75rem', background: violet.bg, border: `1px solid ${violet.line}`, borderRadius: '20px', fontSize: '0.82rem' }}>
                     <span style={{ fontWeight: 600 }}>{p.homeownerName}</span>
-                    {p.phone && <span style={{ color: C.inkSoft }}>{p.phone}</span>}
+                    {p.phone && <span style={{ color: C.inkSoft }}>{phoneText(p.phone)}</span>}
                     {mayClients.create && <button onClick={() => convertProspect(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.78rem' }} title="Convert to Client" aria-label={`Convert ${p.homeownerName || 'prospect'} to a client`}>✅</button>}
                   </div>
                 ))}
