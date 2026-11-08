@@ -15,6 +15,45 @@
 //   · both themes: every colour is a frame token or a light/dark Tailwind pair; the btn/card classes are hc-*.
 import { useState, useEffect, type FormEvent } from 'react';
 import { api, rows, errorMessage } from '../lib/http';
+import { Link } from 'react-router-dom';
+
+// Each kind of notification in words, and the page where it is dealt with. Home care live test 11/08: raw ids
+// (visit_reschedule_request, noshow_alert, supervisory_visit) showed, and a reschedule request named nowhere to answer it.
+const TYPE_WORDS: Record<string, [string, string | null]> = {
+  time_off_request: ['Time off request', '/crm/scheduling?tab=staffing&sub=swaps'],
+  schedule_alert: ['Schedule', '/crm/scheduling'],
+  absence_alert: ['Absence', '/crm/scheduling?tab=staffing&sub=swaps'],
+  incident_alert: ['Incident', '/crm/incidents'],
+  certification_warning: ['Certification', '/crm/credentials'],
+  certification_expiring: ['Certification expiring', '/crm/credentials'],
+  client_credential_expiring: ['Client document expiring', '/crm/client-documents'],
+  billing_alert: ['Billing', '/crm/billing'],
+  general: ['General', null],
+  visit_reschedule_request: ['Family reschedule request', '/crm/scheduling?tab=staffing&sub=reschedules'],
+  caregiver_reschedule_request: ['Caregiver reschedule request', '/crm/scheduling?tab=staffing&sub=reschedules'],
+  visit_cancel_request: ['Family cancel request', '/crm/scheduling?tab=staffing&sub=reschedules'],
+  visit_cancelled: ['Visit cancelled', '/crm/scheduling'],
+  client_unavailable: ['Client not available', '/crm/scheduling'],
+  family_request: ['Family request', '/crm/family-messages'],
+  noshow_alert: ['No-show', '/crm/no-show-alerts'],
+  supervisory_visit: ['Supervisory visit', '/crm/supervisory-visits'],
+  emergency_coverage: ['Emergency coverage', '/crm/emergency-coverage'],
+  open_shift_claimed: ['Open shift claimed', '/crm/scheduling?tab=staffing&sub=open-shifts'],
+  open_shift_filled: ['Open shift filled', '/crm/scheduling?tab=staffing&sub=open-shifts'],
+  overtime_alert: ['Overtime', '/crm/payroll'],
+  gps_failure: ['GPS problem', '/crm/evv'],
+  offline_punch_conflict: ['Offline punch to check', '/crm/shift-approvals'],
+  medication_not_recorded: ['Medicine not recorded', '/crm/medications'],
+  dose_after_stop: ['Dose after stop date', '/crm/medications'],
+  visit_answer_flag: ['Visit answer flagged', '/crm/visit-questions'],
+  caregiver_survey_low: ['Low caregiver survey score', '/crm/caregiver-retention'],
+  reward_requested: ['Reward requested', '/crm/pickup-rewards'],
+  autopay_failed: ['Automatic payment failed', '/crm/autopay'],
+  autopay_card_expiring: ['Card expiring', '/crm/autopay'],
+  authorization_alert: ['Authorization', '/crm/authorizations'],
+  evv_submission_failed: ['EVV submission failed', '/crm/evv'],
+  payroll_dispute: ['Pay question', '/crm/payroll'],
+};
 import { usePermissions } from '../../../../shared';
 import { parseLocalDate } from '../lib/date';
 import { formatAgencyDate } from '../lib/agencyClock';
@@ -223,15 +262,7 @@ const NotificationCenter = () => {
     general: '📬',
   } as Record<string, string>)[type || ''] || '📬';
 
-  const typeLabel = (type: string | null) => ({
-    time_off_request: 'Time Off Request',
-    schedule_alert: 'Schedule',
-    absence_alert: 'Absence',
-    incident_alert: 'Incident',
-    certification_warning: 'Certification',
-    billing_alert: 'Billing',
-    general: 'General',
-  } as Record<string, string>)[type || ''] || type || 'General';
+  const typeLabel = (type: string | null) => TYPE_WORDS[type || '']?.[0] || (type ? type.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'General');
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - parseLocalDate(dateStr).getTime();
@@ -428,6 +459,7 @@ const NotificationCenter = () => {
                         {tab === 'archived' && (
                           <button onClick={() => updateStatus(n.id, 'new')} className={SMALL.blue}>Move to New</button>
                         )}
+                        {TYPE_WORDS[n.type || '']?.[1] && <Link to={TYPE_WORDS[n.type || ''][1]!} className={SMALL.blue}>Open</Link>}
                         <button onClick={() => deleteNotification(n.id)} className={SMALL.red}>Delete</button>
                       </div>
                     </div>

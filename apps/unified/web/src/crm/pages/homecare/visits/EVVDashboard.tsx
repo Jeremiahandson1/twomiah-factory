@@ -66,6 +66,10 @@ const EVVDashboard = () => {
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState({ status: '', startDate: '', endDate: '' })
   const limit = 50
+  // Whether Sandata is connected (the office's; a seat that may not ask sees nothing here). Home care live test 11/08: an empty
+  // page did not say Sandata was not connected, nor that visits appear once caregivers clock in.
+  const [sandataOn, setSandataOn] = useState<boolean | null>(null)
+  useEffect(() => { api.get('/api/sandata/config').then((r: any) => setSandataOn(!!r?.isConfigured)).catch(() => setSandataOn(null)) }, [])
 
   const loadVisits = async () => {
     setLoading(true)
@@ -122,6 +126,11 @@ const EVVDashboard = () => {
         <h2>📍 EVV Dashboard</h2>
         <button className="hc-btn hc-btn-secondary" onClick={loadVisits}>Refresh</button>
       </div>
+      <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 1rem' }} data-testid="evv-note">
+        Each visit shows here once its caregiver clocks in and out, with the times and GPS.
+        {sandataOn === false && <> Sandata is not connected, so nothing is sent to your state&apos;s aggregator — connect it under <a href="/crm/integrations" className="underline">Integrations</a>.</>}
+        {sandataOn === true && <> Sandata is connected: verified visits are sent from Integrations.</>}
+      </p>
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: '1rem' }}>
         <div className="hc-stat-card">

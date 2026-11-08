@@ -111,6 +111,7 @@ function BoardTab() {
             <div>
               <strong>{s.shiftDate} · {hm(s.startTime)}–{hm(s.endTime)}</strong> · {clientOf(s)}
               {s.seriesId ? <span className={soft}> · part of a series</span> : null}
+              {Number(s.bonusAmount) > 0 ? <span className="font-semibold text-emerald-800 dark:text-emerald-300"> · ${Number(s.bonusAmount).toFixed(2)} bonus</span> : null}
               {s.respondBy ? <div className={soft}>Answer by {s.respondBy.replace('T', ' ').slice(0, 16)}</div> : null}
             </div>
             <div className={`font-semibold ${toneOf(s.offerStatus)}`}>{s.offerStatusLabel}</div>

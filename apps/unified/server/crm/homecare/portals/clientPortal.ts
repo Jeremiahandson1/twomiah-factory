@@ -39,8 +39,10 @@ import { clientOccurrenceCount } from '../../../data/homecareCore.ts'
 import {
   portalAccountStatusSql, portalInviteLiveSql, portalClientsOverview, clientOutstandingBalance,
   caregiversServingClient, servesClient,
+  familyScheduleRows,
 } from '../../../data/homecarePortals.ts'
 import { addDays } from '../core/agencyTime.ts'
+import { UPCOMING_DAYS } from '../core/familyContent.ts'
 import { generateInvoicePDF } from '../core/invoicePdf.ts'
 import { cardPaymentsFor } from '../../cardPayments.ts'
 import { visitInvoiceOwed } from '../billing/stripe.ts'
@@ -778,6 +780,33 @@ export function createClientPortalRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // The care plan: the client's details, active authorizations, emergency contacts, caregivers and medications.
+  // ── Daily care (care_family_content, not ready): the same as the family portal's — the tasks planned for the next visits, the
+  // last 30 days' visits with their tasks done or not and meals, and vitals. Home care live test 11/08: a relative invited from
+  // the client's Portal tab saw none of it. Feature off → 404.
+  const careOff = async (c: any) => (await core.familyContent.enabled(c.get('portalCompanyId'))) ? null : fail(c, 404, 'Not found')
+  app.get('/care/upcoming-tasks', portalAuth, async (c) => {
+    const off = await careOff(c); if (off) return off
+    const companyId = c.get('portalCompanyId')
+    const today = await core.time.today(companyId)
+    const visits = await familyScheduleRows(db, companyId, c.get('portalClientId'), today, addDays(today, UPCOMING_DAYS - 1))
+    return listAll(c, await core.familyContent.upcoming(companyId, c.get('portalClientId'), visits))
+  })
+  app.get('/care/task-log', portalAuth, async (c) => {
+    const off = await careOff(c); if (off) return off
+    return listAll(c, await core.familyContent.past(c.get('portalCompanyId'), c.get('portalClientId')))
+  })
+  app.get('/care/vitals', portalAuth, async (c) => {
+    const off = await careOff(c); if (off) return off
+    const rows = await core.vitals.listClientVitals(c.get('portalCompanyId'), c.get('portalClientId'), 60)
+    return listAll(c, rows.map((v: any) => ({
+      id: v.id, recordedAt: v.recordedAt,
+      systolicBp: v.systolicBp, diastolicBp: v.diastolicBp, pulse: v.pulse, respirations: v.respirations,
+      oxygenSaturation: v.oxygenSaturation, temperatureF: v.temperatureF, bloodGlucose: v.bloodGlucose,
+      weightLbs: v.weightLbs, painScale: v.painScale, painLocation: v.painLocation,
+      caregiverFirst: v.caregiverFirst, caregiverLast: v.caregiverLast,
+    })))
+  })
+
   app.get('/care-plan', portalAuth, async (c) => {
     const clientId = c.get('portalClientId')
     const companyId = c.get('portalCompanyId')

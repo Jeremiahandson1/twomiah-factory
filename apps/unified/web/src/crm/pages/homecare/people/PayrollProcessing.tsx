@@ -475,8 +475,8 @@ export default function PayrollProcessing() {
     try {
       const qs = new URLSearchParams({ startDate: payPeriod.startDate, endDate: payPeriod.endDate })
       saveBlob(await downloadBlob(`/api/payroll/export/quickbooks?${qs}`), `quickbooks-payroll-${payPeriod.startDate}-to-${payPeriod.endDate}.csv`)
-      setMessage('✓ QuickBooks export downloaded')
-      setTimeout(() => setMessage(''), 3000)
+      // Home care live test 11/08: "silently downloads a file" — say what it is and what to do with it.
+      toast.success('QuickBooks payroll file (CSV) downloaded. Import it in QuickBooks; nothing is sent to QuickBooks from here.')
     } catch (error) {
       toast.error('Failed to export: ' + errorMessage(error))
     }
@@ -549,7 +549,7 @@ export default function PayrollProcessing() {
           {mayPayroll.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowPTOModal(true)}>🏖️ Add PTO</button>}
           <button className="hc-btn hc-btn-secondary" onClick={() => setShowSettingsModal(true)}>⚙️ Settings</button>
           {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={() => handleExportPayroll('csv')}>📥 CSV</button>}
-          {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={handleExportQuickBooks}>📤 QuickBooks</button>}
+          {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={handleExportQuickBooks} title="Downloads a CSV of this pay period to import into QuickBooks">📤 QuickBooks file (CSV)</button>}
         </div>
       </div>
 

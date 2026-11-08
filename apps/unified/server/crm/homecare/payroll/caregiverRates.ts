@@ -11,7 +11,7 @@
 // list reply ({ data, pagination }, was a bare array).
 import { Hono } from 'hono'
 import { and, desc, eq, gte, isNull, lte, or } from 'drizzle-orm'
-import { caregiverRates } from '../../../db/schema/index.ts'
+import { caregiverRates, user } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -44,7 +44,9 @@ export function createCaregiverRateRoutes(core: HomecareCore, d: CrmDeps) {
     // The most recent of each type.
     const current: Record<string, any> = {}
     for (const r of rows as any[]) if (!current[r.rateType]) current[r.rateType] = r
-    return one(c, { caregiverId, base: current.base || null, overtime: current.overtime || null, premium: current.premium || null })
+    // The rate a pay run falls back to when no base rate is set (data/homecarePayroll.ts): the person's default pay rate.
+    const [person] = await db.select({ defaultPayRate: user.defaultPayRate }).from(user).where(and(eq(user.id, caregiverId), eq(user.companyId, companyId))).limit(1)
+    return one(c, { caregiverId, base: current.base || null, overtime: current.overtime || null, premium: current.premium || null, defaultPayRate: person?.defaultPayRate ?? null })
   })
 
   // GET /:caregiverId/history — every rate, newest first (at most 100).

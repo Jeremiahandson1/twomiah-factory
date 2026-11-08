@@ -707,6 +707,11 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
           {/* Caregivers Tab */}
           {activeTab === 'caregivers' && (
             <div>
+              {/* Home care live test 11/08: the client's needs for matching were only findable inside the Company optimizer. */}
+              <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 0.75rem' }}>
+                Skills, caregiver gender, language, certifications and things about the home that shift suggestions match on:{' '}
+                <a href={`/crm/company-optimizer?tab=restrictions&client=${client?.id ?? ""}`} className="underline">set {formData.firstName || 'this client'}&apos;s care needs</a>.
+              </p>
               <h4 style={SECTION_HEAD}>Care Preferences &amp; Routines</h4>
               <div className="form-group">
                 <textarea value={formData.carePreferences} onChange={(e) => set('carePreferences', e.target.value)} placeholder="Client preferences, daily routines, likes/dislikes, communication style..." rows={4} />
@@ -761,6 +766,13 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   {portalMessage.text}
                 </div>
               )}
+
+              {/* Home care live test 11/08: a relative invited here got no arrival texts and no per-person switch for them. */}
+              <p style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', margin: '0 0 1rem' }}>
+                A portal login sees visits, caregivers, the care plan, daily care, documents and bills. To text a relative when the caregiver
+                arrives and leaves, add them with their mobile number under <a href="/crm/family-portal" className="underline">Family Portal</a> and tick
+                &ldquo;Text them&rdquo; on their record.
+              </p>
 
               {/* Invite link display */}
               {inviteUrl && (

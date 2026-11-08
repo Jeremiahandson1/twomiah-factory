@@ -55,6 +55,7 @@ import PaydayVerificationModal, { type PendingVerification } from './caregiver/P
 import VisitCarePanel from './caregiver/VisitCarePanel'
 import { SandataPrompt, SandataIdBox, SandataHelp, SandataNotice, useSandataContext, type SandataPromptState } from './caregiver/SandataEvv'
 import { useGeolocation, type GeoPosition } from './useGeolocation'
+import { useVisitQuestions, VisitQuestionFields, answersBody, unanswered, type VisitAnswers } from './caregiver/VisitQuestionFields'
 import { savePunch, newLocalId, offlineSession, flushPunches, isUnreachable, pendingPunches, postPunch } from './offlinePunches'
 
 // ── The rows this screen reads ───────────────────────────────────────────────────────────────
@@ -141,7 +142,7 @@ interface ChangeRequest {
 }
 
 /** A row of GET /api/open-shifts/available. */
-interface OpenShift { id: string; date: string; startTime: string | null; endTime: string | null; clientFirstName: string | null; clientLastName: string | null }
+interface OpenShift { id: string; date: string; startTime: string | null; endTime: string | null; clientFirstName: string | null; clientLastName: string | null; bonusAmount?: number | string | null }
 
 /** A row of GET /api/pto (the caller's own). */
 interface TimeOffRequest { id: string; startDate: string; endDate: string; reason: string | null; status: string | null }
@@ -236,6 +237,23 @@ const CaregiverDashboard = () => {
   const [selectedClient, setSelectedClient] = useState('')
   const [elapsedTime, setElapsedTime] = useState(0)
   const [visitNote, setVisitNote] = useState('')
+  // The agency's clock-in / clock-out questions (care_visit_questions): answered here, sent with the punch.
+  // Their pay rate (the one a pay run uses: a base rate in force, else their default), for the week's estimate.
+  // Home care live test 11/08: the web view showed hours only, no pay.
+  const [payRate, setPayRate] = useState<number | null>(null)
+  useEffect(() => {
+    if (!myId) return
+    api.get(`/api/caregiver-rates/${myId}`).then((r: any) => {
+      const n = Number(r?.base?.hourlyRate ?? r?.defaultPayRate)
+      setPayRate(Number.isFinite(n) && n > 0 ? n : null)
+    }).catch(() => setPayRate(null))
+  }, [myId])
+  const inQuestions = useVisitQuestions('clock_in')
+  const outQuestions = useVisitQuestions('clock_out')
+  const [inAnswers, setInAnswers] = useState<VisitAnswers>({})
+  const [outAnswers, setOutAnswers] = useState<VisitAnswers>({})
+  const [inProblems, setInProblems] = useState<Record<string, string>>({})
+  const [outProblems, setOutProblems] = useState<Record<string, string>>({})
   const [showNoteModal, setShowNoteModal] = useState(false)
   const [recentVisits, setRecentVisits] = useState<RecentVisit[]>([])
   const [viewingClientId, setViewingClientId] = useState<string | null>(null)
@@ -560,6 +578,25 @@ const CaregiverDashboard = () => {
   const loadOpenShifts = async () => {
     try { setOpenShifts(rows<OpenShift>(await api.get('/api/open-shifts/available'))) }
     catch (error) { console.error('Failed to load open shifts:', error) }
+    // Turning a shift down with a reason (care_open_shift_offers; 404 without it, and only Claim shows).
+    api.get('/api/open-shift-offers/reasons').then((r: any) => setDeclineReasons(Array.isArray(r?.reasons) ? r.reasons : [])).catch(() => setDeclineReasons([]))
+  }
+  // Home care live test 11/08: the web view had only "Claim" — no way to say no, and the bonus did not show.
+  const [declineReasons, setDeclineReasons] = useState<{ code: string; label: string }[]>([])
+  const [declining, setDeclining] = useState<{ id: string; reason: string; note: string } | null>(null)
+  const answerOffer = async (shiftId: string, kind: 'decline' | 'hide') => {
+    try {
+      if (kind === 'decline') {
+        if (!declining?.reason) { say('Pick a reason first.', 'info'); return }
+        await api.post(`/api/open-shift-offers/${shiftId}/decline`, { reason: declining.reason, note: declining.note || undefined })
+        say('Thanks — the office knows you cannot take it.', 'success')
+      } else {
+        await api.post(`/api/open-shift-offers/${shiftId}/hide`, {})
+        say('Hidden from your list.', 'success')
+      }
+      setDeclining(null)
+      setOpenShifts((list) => list.filter((x) => x.id !== shiftId))
+    } catch (error) { say(errorMessage(error, 'That did not go through'), 'error') }
   }
 
   const loadAvailability = async () => {
@@ -752,8 +789,12 @@ const CaregiverDashboard = () => {
   const handleClockIn = async () => {
     if (!selectedClient) { say('Please select a client.', 'info'); return }
     if (clockingIn) return
+    const blankIn = unanswered(inQuestions, inAnswers)
+    if (blankIn.length) { setInProblems(Object.fromEntries(blankIn.map((id) => [id, 'This question needs an answer.']))); say('Answer the questions above Clock In first.', 'error'); return }
+    setInProblems({})
     setClockingIn(true)
     const tapAt = new Date().toISOString() // the real clock-in time, even if the send fails
+    const inBody = answersBody(inQuestions, inAnswers)
 
     try {
       // Never wait on GPS at the tap: use the fix already in hand.
@@ -761,11 +802,11 @@ const CaregiverDashboard = () => {
       const lng = location?.longitude || null
       if (!lat) getPosition?.() // warm it for the clock-out
 
-      const res = await postPunch('/api/time-entries/clock-in', { clientId: selectedClient, latitude: lat, longitude: lng }, PUNCH_TIMEOUT_MS)
+      const res = await postPunch('/api/time-entries/clock-in', { clientId: selectedClient, latitude: lat, longitude: lng, answers: inBody }, PUNCH_TIMEOUT_MS)
       if (isUnreachable(res)) {
         // No signal: save the tap on the phone with its real time; it sends itself later.
         const localId = newLocalId()
-        const saved = savePunch({ userId: myId, localId, kind: 'in', at: tapAt, clientId: selectedClient, latitude: lat, longitude: lng })
+        const saved = savePunch({ userId: myId, localId, kind: 'in', at: tapAt, clientId: selectedClient, latitude: lat, longitude: lng, answers: inBody })
         if (!saved) throw new Error('No signal, and this phone could not save the clock-in. Call the office with your start time.')
         say(`No signal — clock-in saved on your phone at ${formatAgencyDateTime(tapAt, { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.`, 'warning')
         setActiveSession({ id: `offline-${localId}`, offline: true, clientId: selectedClient, startTime: tapAt })
@@ -774,8 +815,10 @@ const CaregiverDashboard = () => {
       }
 
       // The server answered: a refusal (auto transition off, an offline overlap, …) is shown, never queued.
-      const data = (await res!.json().catch(() => ({}))) as Partial<ActiveSession> & { error?: string }
+      const data = (await res!.json().catch(() => ({}))) as Partial<ActiveSession> & { error?: string; code?: string; fields?: Record<string, string> }
+      if (data.code === 'questions_required' && data.fields) setInProblems(data.fields)
       if (!res!.ok || !data.id) throw new Error(data.error || 'Failed')
+      setInAnswers({})
 
       setActiveSession({ id: data.id, clientId: data.clientId, startTime: data.startTime || tapAt, sandataRequired: data.sandataRequired })
       if (!lat) say('Clocked in (location unavailable)', 'warning')
@@ -805,8 +848,12 @@ const CaregiverDashboard = () => {
       setNoteError('No signal — please add a short visit note so this visit can be saved on your phone.')
       return
     }
+    const blankOut = unanswered(outQuestions, outAnswers)
+    if (blankOut.length) { setOutProblems(Object.fromEntries(blankOut.map((id) => [id, 'This question needs an answer.']))); setNoteError('Answer the questions first.'); return }
+    setOutProblems({})
     setClockingOut(true)
     const tapAt = new Date().toISOString() // the real clock-out time, even if the send fails
+    const outBody = answersBody(outQuestions, outAnswers)
     const finishSavedOffline = () => {
       say(`No signal — clock-out saved on your phone at ${formatAgencyDateTime(tapAt, { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.${pendingPhotos.length ? ' Photos could not be saved offline.' : ''}`, 'warning')
       setActiveSession(null)
@@ -814,6 +861,7 @@ const CaregiverDashboard = () => {
       setVisitNote('')
       setNoteError('')
       setPendingPhotos([])
+      setOutAnswers({})
       setShowNoteModal(false)
     }
     try {
@@ -826,17 +874,17 @@ const CaregiverDashboard = () => {
         // Its clock-in is still on the phone — queue the clock-out behind it.
         const saved = savePunch({ userId: myId, localId: newLocalId(), kind: 'out', at: tapAt,
           inLocalId: String(activeSession.id).slice('offline-'.length), entryId: null,
-          latitude: lat, longitude: lng, notes: visitNote })
+          latitude: lat, longitude: lng, notes: visitNote, answers: outBody })
         if (!saved) throw new Error('This phone could not save the clock-out. Call the office with your end time.')
         finishSavedOffline()
         promptSandata('out', outClientId, outSandataRequired)
         return
       }
 
-      const res = await postPunch(`/api/time-entries/${activeSession.id}/clock-out`, { latitude: lat, longitude: lng, notes: visitNote }, PUNCH_TIMEOUT_MS)
+      const res = await postPunch(`/api/time-entries/${activeSession.id}/clock-out`, { latitude: lat, longitude: lng, notes: visitNote, answers: outBody }, PUNCH_TIMEOUT_MS)
       if (isUnreachable(res)) {
         const saved = savePunch({ userId: myId, localId: newLocalId(), kind: 'out', at: tapAt,
-          inLocalId: null, entryId: activeSession.id, latitude: lat, longitude: lng, notes: visitNote })
+          inLocalId: null, entryId: activeSession.id, latitude: lat, longitude: lng, notes: visitNote, answers: outBody })
         if (!saved) throw new Error('No signal, and this phone could not save the clock-out. Call the office with your end time.')
         finishSavedOffline()
         promptSandata('out', outClientId, outSandataRequired)
@@ -844,7 +892,13 @@ const CaregiverDashboard = () => {
       }
 
       if (!res!.ok) {
-        const data = (await res!.json().catch(() => ({}))) as { error?: string; code?: string }
+        const data = (await res!.json().catch(() => ({}))) as { error?: string; code?: string; fields?: Record<string, string> }
+        // A clock-out question unanswered or answered badly: point at it and keep the modal open.
+        if (data.code === 'questions_required') {
+          setOutProblems(data.fields || {})
+          setNoteError(data.error || 'Answer the questions first.')
+          return
+        }
         // VA client with no note: keep the modal open so they can add one and retry.
         if (data.code === 'va_note_required') {
           setNoteError(data.error || 'A visit note is required for this client.')
@@ -878,6 +932,7 @@ const CaregiverDashboard = () => {
       setVisitNote('')
       setNoteError('')
       setPendingPhotos([])
+      setOutAnswers({})
       setShowNoteModal(false)
       // The clock-out prompt follows the clock-in decision.
       promptSandata('out', outClientId, outData && outData.sandataRequired != null ? outData.sandataRequired : outSandataRequired)
@@ -1016,6 +1071,11 @@ const CaregiverDashboard = () => {
             <div>
               <div style={{ fontSize: '0.9rem' }}>Hours This Week</div>
               <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{myHoursThisWeek.toFixed(2)}h</div>
+              {payRate !== null && (
+                <div style={{ fontSize: '0.85rem' }} data-testid="my-pay-estimate">
+                  ${payRate.toFixed(2)}/h · about ${(myHoursThisWeek * payRate).toFixed(2)} this week before tax and overtime
+                </div>
+              )}
             </div>
             <div style={{ fontSize: '3rem', opacity: 0.5 }} aria-hidden="true">⏱️</div>
           </div>
@@ -1268,6 +1328,8 @@ const CaregiverDashboard = () => {
                 {/* Sandata client: the ID to paste into Sandata, ready before they even clock in. */}
                 {selectedClient && <SandataIdBox client={sandataClient(selectedClient)} />}
               </div>
+              {selectedClient && <VisitQuestionFields title="Before you start" questions={inQuestions} answers={inAnswers} problems={inProblems}
+                onChange={(a) => { setInAnswers(a); setInProblems({}) }} />}
               <div className={`mb-4 rounded-lg border px-3.5 py-2.5 text-[0.85rem] ${location
                 ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/50 dark:text-green-200'
                 : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
@@ -1331,6 +1393,7 @@ const CaregiverDashboard = () => {
                   <div style={{ fontWeight: 600 }}>{shift.clientFirstName} {shift.clientLastName}</div>
                   <div style={{ fontSize: '0.9rem', color: 'var(--hc-muted)' }}>📅 {formatDay(shift.date)}</div>
                   <div style={{ fontSize: '0.9rem', color: 'var(--hc-muted)' }}>🕐 {formatTime(shift.startTime)} - {formatTime(shift.endTime)}</div>
+                  {Number(shift.bonusAmount) > 0 && <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">💵 ${Number(shift.bonusAmount).toFixed(2)} pickup bonus</div>}
                 </div>
                 {claimedShifts[shift.id] ? (
                   <span role="status"
@@ -1350,6 +1413,26 @@ const CaregiverDashboard = () => {
               {claimedShifts[shift.id] && (
                 <div className="mt-2 rounded-md bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:bg-slate-800 dark:text-slate-200">{claimedShifts[shift.id].message}</div>
               )}
+              {!claimedShifts[shift.id] && declineReasons.length > 0 && (declining?.id === shift.id ? (
+                <div className="mt-2 flex flex-col gap-2">
+                  <select aria-label="Why you cannot take it" value={declining.reason} onChange={(e) => setDeclining({ ...declining, reason: e.target.value })}
+                    className="rounded-md border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                    <option value="">Why not?</option>
+                    {declineReasons.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
+                  </select>
+                  {declining.reason === 'other' && <input aria-label="Your reason" value={declining.note} maxLength={300} onChange={(e) => setDeclining({ ...declining, note: e.target.value })}
+                    placeholder="Say why" className="rounded-md border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />}
+                  <div className="flex gap-2">
+                    <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => answerOffer(shift.id, 'decline')}>Turn it down</button>
+                    <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setDeclining(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 flex gap-2">
+                  <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setDeclining({ id: shift.id, reason: '', note: '' })}>Not for me</button>
+                  <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => answerOffer(shift.id, 'hide')}>Hide</button>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -1738,6 +1821,8 @@ const CaregiverDashboard = () => {
             <p className={noteError ? '' : 'text-muted'} role={noteError ? 'alert' : undefined} style={noteError ? { color: 'var(--hc-red-ink)', fontWeight: 600 } : undefined}>
               {noteError || 'Add notes (optional)'}
             </p>
+            <VisitQuestionFields title="Before you finish" questions={outQuestions} answers={outAnswers} problems={outProblems}
+              onChange={(a) => { setOutAnswers(a); setOutProblems({}) }} />
             <div className="form-group">
               <textarea value={visitNote} aria-label="Visit note"
                 onChange={(e) => { setVisitNote(e.target.value); if (noteError) setNoteError('') }}

@@ -13,7 +13,7 @@ import { fail, listAll, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import {
-  billingContactList, billingContactOfClient, checkBillingContact, clientEmailsOf, familyMemberOf, saveBillingContact,
+  billingContactList, billingContactOfClient, checkBillingContact, clientEmailsOf, familyMemberOf, portalLoginOf, saveBillingContact,
 } from '../../../data/homecareBillingContacts.ts'
 import { body, who } from './shared.ts'
 
@@ -37,8 +37,11 @@ export function createBillingContactRoutes(_core: HomecareCore, d: CrmDeps) {
     const clientId = c.req.param('clientId')
     const current = await billingContactOfClient(db, companyId, clientId)
     if (!current) return fail(c, 404, 'Client not found', 'not_found')
-    const b = await body(c)
+    let b = await body(c)
     let memberEmail: string | null = null
+    // A portal login picked as the family member: kept as someone else, by its name, with its email first.
+    const login = b?.kind === 'family' && b.familyMemberId ? await portalLoginOf(db, companyId, clientId, String(b.familyMemberId)) : null
+    if (login) b = { ...b, kind: 'other', familyMemberId: null, name: login.name, emails: [login.email, ...(Array.isArray(b.emails) ? b.emails : [])] }
     if (b?.kind === 'family') {
       const m = b.familyMemberId ? await familyMemberOf(db, companyId, clientId, String(b.familyMemberId)) : null
       if (!m) return fail(c, 400, 'Choose one of this client\'s family members.', 'validation_failed', { familyMemberId: 'Not this client\'s family member' })

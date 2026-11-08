@@ -168,15 +168,16 @@ export default function OfficeHome() {
       {/* Key Metrics */}
       {summary && (
         <div className="grid">
-          <div className="hc-stat-card">
+          {/* Each tile opens its list (home care live test 11/08: they were plain boxes). */}
+          <button type="button" onClick={() => go('clients')} disabled={!mayOpen('clients')} className="hc-stat-card text-left w-full enabled:cursor-pointer enabled:hover:ring-2 enabled:hover:ring-teal-600">
             <h3>Active Clients</h3>
             <div className="value">{summary.totalClients || 0}</div>
-          </div>
-          <div className="hc-stat-card">
+          </button>
+          <button type="button" onClick={() => go('caregivers')} disabled={!mayOpen('caregivers')} className="hc-stat-card text-left w-full enabled:cursor-pointer enabled:hover:ring-2 enabled:hover:ring-teal-600">
             <h3>Active Caregivers</h3>
             <div className="value">{summary.activeCaregivers || 0}</div>
-          </div>
-          {summary.pendingInvoices && <div className="hc-stat-card">
+          </button>
+          {summary.pendingInvoices && <button type="button" onClick={() => go('billing')} disabled={!mayOpen('billing')} className="hc-stat-card text-left w-full enabled:cursor-pointer enabled:hover:ring-2 enabled:hover:ring-teal-600">
             <h3>Pending Invoices</h3>
             <div className="value value-danger">
               {money(summary.pendingInvoices?.amount)}
@@ -185,8 +186,8 @@ export default function OfficeHome() {
               {summary.pendingInvoices?.count || 0} invoice{summary.pendingInvoices?.count === 1 ? '' : 's'} owed
               {(summary.pendingInvoices?.draftCount ?? 0) > 0 && ` · ${summary.pendingInvoices!.draftCount} draft${summary.pendingInvoices!.draftCount === 1 ? '' : 's'} not sent yet`}
             </p>
-          </div>}
-          {summary.thisMonthRevenue !== undefined && <div className="hc-stat-card" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
+          </button>}
+          {summary.thisMonthRevenue !== undefined && <button type="button" onClick={() => go('billing')} disabled={!mayOpen('billing')} className="hc-stat-card text-left w-full enabled:cursor-pointer enabled:hover:ring-2 enabled:hover:ring-teal-600" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
             <h3>This Month Revenue <span style={{ fontSize: '0.7rem', color: 'var(--hc-muted)', fontWeight: 400 }}>(collected)</span></h3>
             <div className="value value-success">
               {money(summary.thisMonthRevenue)}
@@ -194,7 +195,7 @@ export default function OfficeHome() {
             <p style={{ fontSize: '0.72rem', color: 'var(--hc-muted)', margin: '0.25rem 0 0', fontWeight: 400 }}>
               Payments received this month — A/R not counted
             </p>
-          </div>}
+          </button>}
         </div>
       )}
 
@@ -318,16 +319,17 @@ export default function OfficeHome() {
           <div className="hc-card-title">📅 Today — {formatAgencyDate(new Date(), { weekday: 'long', month: 'long', day: 'numeric' })}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
             {[
-              { label: 'Shifts Today', value: summary.todayShifts || 0, icon: '📋', color: 'var(--hc-blue-ink)' },
-              { label: 'Clocked In Now', value: summary.clockedInNow || 0, icon: '✅', color: 'var(--hc-green-ink)' },
-              { label: 'Shifts Remaining', value: summary.remainingShifts || 0, icon: '⏰', color: 'var(--hc-warning-ink)' },
-              { label: 'Coverage Gaps', value: gaps, icon: '🚨', color: gaps > 0 ? 'var(--hc-red-ink)' : 'var(--hc-green-ink)' },
+              { label: 'Shifts Today', value: summary.todayShifts || 0, icon: '📋', color: 'var(--hc-blue-ink)', page: 'schedule' },
+              { label: 'Clocked In Now', value: summary.clockedInNow || 0, icon: '✅', color: 'var(--hc-green-ink)', page: 'time' },
+              { label: 'Shifts Remaining', value: summary.remainingShifts || 0, icon: '⏰', color: 'var(--hc-warning-ink)', page: 'schedule' },
+              { label: 'Coverage Gaps', value: gaps, icon: '🚨', color: gaps > 0 ? 'var(--hc-red-ink)' : 'var(--hc-green-ink)', page: 'emergency-coverage' },
             ].map((s) => (
-              <div key={s.label} style={{ padding: '0.75rem', background: 'var(--hc-subtle)', borderRadius: '8px', textAlign: 'center', border: '1px solid var(--hc-line)' }}>
+              <button type="button" key={s.label} onClick={() => go(s.page)} disabled={!mayOpen(s.page)} className="enabled:cursor-pointer enabled:hover:ring-2 enabled:hover:ring-teal-600"
+                style={{ padding: '0.75rem', background: 'var(--hc-subtle)', borderRadius: '8px', textAlign: 'center', border: '1px solid var(--hc-line)' }}>
                 <div style={{ fontSize: '1.3rem' }}>{s.icon}</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--hc-ink-soft)', fontWeight: 600, marginTop: '0.2rem' }}>{s.label}</div>
-              </div>
+              </button>
             ))}
           </div>
           {gaps > 0 && (

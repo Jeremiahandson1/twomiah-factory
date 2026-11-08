@@ -5,6 +5,7 @@
 // the app's audit log (d.audit, audit_log); both are kept, as the template kept both. Each row now carries the
 // person's company. `rowsOf` (a raw result's rows) went to server/data/: only data functions run raw SQL.
 import { auditLogs } from '../../../db/schema/index.ts'
+import { requestScope } from '../../../core/audit.ts'
 import type { CrmDeps } from '../../deps.ts'
 
 /** Home care's office line: admin or owner (the same rule requireAdmin enforces). */
@@ -28,6 +29,9 @@ export function createCareAudit(d: CrmDeps) {
    */
   async function writeCareAudit(user: any, action: string, tableName: string, recordId: string | null, newData?: unknown, oldData?: unknown,
     extra: { ipAddress?: string | null; reasonCode?: string | null } = {}) {
+    // This request is recorded: the write floor (app.ts) does not add a second, plainer row to the app's trail, which the
+    // Audit Logs page also reads.
+    const scope = requestScope.getStore(); if (scope) scope.logged = true
     try {
       await d.db.insert(auditLogs).values({
         companyId: user?.companyId,

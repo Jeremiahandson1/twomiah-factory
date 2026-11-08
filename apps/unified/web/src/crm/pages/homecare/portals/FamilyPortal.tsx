@@ -307,13 +307,14 @@ const VITAL_FIELDS: Array<{ k: VitalKey; label: string; unit: string }> = [
 ]
 type Vital = { id: string; recordedAt: string | null; notes: string | null; caregiverFirst: string | null; caregiverLast: string | null } & Partial<Record<VitalKey, string | number | null>>
 
-function VitalsView() {
+/** Also the client portal's (base /api/portal/care): the same readings for a relative invited from the client's Portal tab. */
+export function VitalsView({ base = '/api/family-portal/portal' }: { base?: string } = {}) {
   const portal = usePortal()
   const [vitals, setVitals] = useState<Vital[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    portal.get('/api/family-portal/portal/vitals')
+    portal.get(`${base}/vitals`)
       .then((reply) => { if (reply) setVitals(listRows<Vital>(reply)) })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -474,7 +475,8 @@ interface LoggedTask { taskId: string; taskName: string; state: string; stateLab
 interface LoggedMeal { id: string; mealLabel: string; description: string | null; amountLabel: string }
 interface PastVisit { timeEntryId: string; visitDate: string; startTime: string; endTime: string | null; caregiverName: string; tasks: LoggedTask[]; meals: LoggedMeal[] }
 
-function DailyCareView() {
+/** Also the client portal's (base /api/portal/care). */
+export function DailyCareView({ base = '/api/family-portal/portal' }: { base?: string } = {}) {
   const portal = usePortal()
   const [upcoming, setUpcoming] = useState<UpcomingVisit[]>([])
   const [past, setPast] = useState<PastVisit[]>([])
@@ -483,8 +485,8 @@ function DailyCareView() {
 
   useEffect(() => {
     Promise.all([
-      portal.get('/api/family-portal/portal/upcoming-tasks').then((r) => { if (r) setUpcoming(listRows<UpcomingVisit>(r)) }).catch(() => {}),
-      portal.get('/api/family-portal/portal/task-log').then((r) => { if (r) setPast(listRows<PastVisit>(r)) }).catch(() => {}),
+      portal.get(`${base}/upcoming-tasks`).then((r) => { if (r) setUpcoming(listRows<UpcomingVisit>(r)) }).catch(() => {}),
+      portal.get(`${base}/task-log`).then((r) => { if (r) setPast(listRows<PastVisit>(r)) }).catch(() => {}),
     ]).finally(() => setLoading(false))
   }, [portal])
 

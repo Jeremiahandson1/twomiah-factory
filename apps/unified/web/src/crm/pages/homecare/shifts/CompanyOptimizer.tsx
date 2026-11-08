@@ -50,7 +50,9 @@ const CompanyOptimizer = () => {
   const may = useMay('care-schedule')
   // Item 5: gender, languages and what a client needs — shown only when the agency has care_match_prefs.
   const matchPrefs = useAuth().hasFeature('care_match_prefs')
-  const [activeTab, setActiveTab] = useState<Tab>('skills')
+  // ?tab=restrictions&client=<id> opens a client's needs straight away (the link on the client's Caregivers tab).
+  const opened = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
+  const [activeTab, setActiveTab] = useState<Tab>(() => (['skills', 'restrictions', 'optimizer'] as const).find((t) => t === opened?.get('tab')) ?? 'skills')
   const [capabilities, setCapabilities] = useState<string[]>([])
   const [caregivers, setCaregivers] = useState<Person[]>([])
   const [clients, setClients] = useState<Person[]>([])
@@ -63,7 +65,7 @@ const CompanyOptimizer = () => {
 
   const [cgTraits, setCgTraits] = useState({ gender: '', languages: '', maxTravelMiles: '', avoid: '' })
   const [clientPrefs, setClientPrefs] = useState({ requiredSkills: [] as string[], caregiverGender: '', language: '', requiredCertifications: '', homeAttributes: '', mustHave: [] as string[] })
-  const [restrictionsClient, setRestrictionsClient] = useState('')
+  const [restrictionsClient, setRestrictionsClient] = useState(() => opened?.get('client') || '')
   const [restrictions, setRestrictions] = useState<Restriction[]>([])
   const [newRestriction, setNewRestriction] = useState({ caregiverId: '', reason: '' })
 
