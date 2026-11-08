@@ -31,7 +31,7 @@ export interface DocumentsConfig {
 export interface DocumentsPageProps { api: FilesApi; toast: FilesToast; config?: DocumentsConfig }
 
 export const DEFAULT_DOCUMENT_TYPES = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other']
-export const defaultDocumentsConfig: Required<Omit<DocumentsConfig, 'hasFeature'>> = { projects: false, types: DEFAULT_DOCUMENT_TYPES, markup: false, versions: true }
+export const defaultDocumentsConfig: Required<Omit<DocumentsConfig, 'hasFeature' | 'sendToSign'>> = { projects: false, types: DEFAULT_DOCUMENT_TYPES, markup: false, versions: true }
 export const resolveDocumentsConfig = (c?: DocumentsConfig) => ({ ...defaultDocumentsConfig, ...(c || {}) })
 
 export interface DocumentRow {
