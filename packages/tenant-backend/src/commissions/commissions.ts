@@ -24,7 +24,8 @@
  */
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, desc, sum, inArray, gte, lte, or, isNull, ne, asc, sql } from 'drizzle-orm'
+import { eq, and, desc, sum, inArray, gte, lt, or, isNull, ne, asc, sql } from 'drizzle-orm'
+import { companyTimeZone, storeDayStart, storeDayRange } from '../time/businessDay'
 import { partialOf } from '../partialOf'
 import { zmsg } from '../zodMessage'
 
@@ -60,6 +61,8 @@ export interface CommissionRoutesDeps {
    * (autoEarn 'visit_stylist'). Off — the default — a plan is exactly what it was; the salon turns it on.
    */
   salesKinds?: boolean
+  /** Offer a plan that pays the seller of the signed quote as its invoices are paid (QUOTE_SELLER). Absent: refused, as before. */
+  quoteSeller?: boolean
   /**
    * Where the business pays people who have no login (the salon's chair-only stylists): the people a plan can name and a commission can belong to,
    * beside the logins. `find` answers one person of this company or null. Absent: only logins can earn, exactly as before.
@@ -151,6 +154,12 @@ export function measuredOnOf(plan: { planType?: string; measuredOn?: unknown }):
 }
 /** Where a business offers it (CommissionRoutesDeps.salesKinds): the stylist of the visit the invoice was raised from. */
 export const VISIT_STYLIST = 'visit_stylist'
+/**
+ * The SELLER OF THE SIGNED QUOTE, paid as each invoice that comes from it is paid in full — a % of the contract over its invoices (the
+ * contractor: the sales rep who wrote or is the salesperson on the quote the project or job was sold on). Offered where the app earns it
+ * (CommissionDeps.quoteSeller: apps/unified crm/billing/quoteSellerCommissions.ts); refused otherwise.
+ */
+export const QUOTE_SELLER = 'quote_salesperson'
 /** What a plan is paid on, where the business offers the choice. */
 export const COMMISSION_SALES_KINDS = ['all', 'services', 'retail', 'packages', 'gift_cards', 'memberships'] as const
 /** What a tiered plan's brackets measure, and the period they are counted over (salon row 15). */
@@ -276,7 +285,7 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
   const { db, tables: t, authenticate, requirePermission, canSee } = deps
   const app = new Hono()
   app.use('*', authenticate)
-  const planShape: typeof planSchema = (deps.salesKinds ? salonPlanSchema : planSchema) as any
+  const planShape: typeof planSchema = (deps.salesKinds ? salonPlanSchema : deps.quoteSeller ? planSchema.extend({ autoEarn: z.enum([...COMMISSION_AUTO_EARN, ...COMMISSION_AUTO_EARN_JOB_ROLES, QUOTE_SELLER]).optional() }) : planSchema) as any
   /** A person who can earn: a login of this company, or (where the business pays them) someone with no login. */
   const personOf = async (companyId: string, id: string): Promise<{ id: string; name: string; isActive: boolean; login: boolean } | null> => {
     const [row] = await db.select().from(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, companyId))).limit(1)
@@ -662,8 +671,11 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const fromQ = c.req.query('from'), toQ = c.req.query('to')
     if ((fromQ && !day.test(fromQ)) || (toQ && !day.test(toQ))) return c.json({ error: 'Dates are YYYY-MM-DD' }, 400)
     const conditions: any[] = [eq(t.commission.companyId, companyId), eq(t.commission.userId, userId)]
-    if (fromQ) conditions.push(gte(t.commission.earnedAt, new Date(`${fromQ}T00:00:00`)))
-    if (toQ) conditions.push(lte(t.commission.earnedAt, new Date(`${toQ}T23:59:59.999`)))
+    // The days are the company's (contractor live test 11/07: a commission earned on the evening of 11/7 was outside 11/01–11/07, the
+    // server reading the days on UTC's clock).
+    const tz = (fromQ || toQ) ? await companyTimeZone(db, companyId) : 'UTC'
+    if (fromQ) conditions.push(gte(t.commission.earnedAt, storeDayStart(fromQ, tz)))
+    if (toQ) conditions.push(lt(t.commission.earnedAt, storeDayRange(tz, toQ).end))
     const lines = await db.select().from(t.commission).where(and(...conditions)).orderBy(asc(t.commission.earnedAt))
     const total = (status: string) => cents(lines.filter((l: any) => l.status === status).reduce((a: number, l: any) => a + Number(l.commissionAmount || 0), 0))
     const totals = { pending: total('pending'), approved: total('approved'), paid: total('paid'), disputed: total('disputed') }

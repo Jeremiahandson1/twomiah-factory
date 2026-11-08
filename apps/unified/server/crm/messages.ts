@@ -319,12 +319,12 @@ ${data.disclosure}`,
       <body><div class="container">
         <div class="header" style="background:#16a34a;"><h1 style="margin:0;">Quote Approved!</h1></div>
         <div class="content">
-          <p>${data.contactName} has approved quote <strong>${data.quoteNumber}</strong>.</p>
+          <p>${escHtml(data.contactName)} has approved quote <strong>${escHtml(data.quoteNumber)}</strong>.</p>
           <div class="highlight">
-            <p><strong>Project:</strong> ${data.projectName || 'N/A'}</p>
+            <p><strong>Project:</strong> ${escHtml(data.projectName || 'N/A')}</p>
             <p><strong>Amount:</strong> $${Number(data.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
-          <p style="text-align:center;"><a href="${appUrl}/quotes/${data.quoteId}" class="button">View Quote</a></p>
+          <p style="text-align:center;"><a href="${appUrl}/crm/quotes/${escHtml(data.quoteId)}" class="button">View Quote</a></p>
         </div>
         <div class="footer">${escHtml(b.companyName)}</div>
       </div></body></html>

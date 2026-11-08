@@ -103,7 +103,7 @@ export function createQuoteBudget(d: CrmDeps) {
   async function budgetWithActuals(companyId: string, projectId: string) {
     const budget = await budgetFor(companyId, projectId)
     const jobs = await db.select({ id: job.id }).from(job).where(and(eq(job.companyId, companyId), eq(job.projectId, projectId)))
-    const rows = await costByCode(db, companyId, jobs.map((j: any) => j.id))
+    const rows = await costByCode(db, companyId, jobs.map((j: any) => j.id), projectId)
     const key = (code: string | null | undefined) => (String(code ?? '').trim() || UNCODED).toLowerCase()
     const actual = new Map<string, { label: string; cost: number }>()
     for (const r of rows) {

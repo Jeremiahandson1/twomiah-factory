@@ -8,7 +8,7 @@ import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 
-const KINDS: Array<[string, string]> = [['labor', 'Labour'], ['material', 'Material'], ['part', 'Part'], ['service', 'Service'], ['other', 'Other']]
+const KINDS: Array<[string, string]> = [['labor', 'Labour'], ['material', 'Material'], ['part', 'Part'], ['service', 'Service'], ['subcontractor', 'Subcontractor'], ['other', 'Other']]
 type Rules = Record<string, number | null>
 type Form = Record<string, string>
 

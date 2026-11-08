@@ -194,7 +194,8 @@ const lineItemSchema = z.object({
    * the cost. The pricebook already records cost per item, and the picker fills this from it.
    */
   // 'text': a line of words only — a heading or a note, no quantity or price (Jobber "Add text"; feature quote_text_lines).
-  type: z.enum(['labor', 'material', 'part', 'service', 'other', 'text']).optional(),
+  // subcontractor: work a builder buys from a sub (contractor live test 11/07: Markup Defaults had no Sub).
+  type: z.enum(['labor', 'material', 'part', 'service', 'subcontractor', 'other', 'text']).optional(),
   unitCost: z.number().min(0, 'Cost cannot be negative').optional()
     .transform((v) => (v === undefined ? undefined : Math.round((v + Number.EPSILON) * 100) / 100)),
   pricebookItemId: z.string().optional().transform(v => (v === '' ? undefined : v)),
@@ -441,6 +442,30 @@ export function createQuoteRoutes(deps: QuoteDeps) {
 
   const app = new Hono()
   app.use('*', authenticate)
+  /**
+   * WHOSE QUOTES THIS SEAT READS: everyone's with quotes:read-all (admin, manager and viewer), else the ones it wrote or is the
+   * salesperson on — the contractor's Sales rep (contractor live test 11/07: the rep was refused Quotes outright). Null for all.
+   */
+  const ownQuotes = async (c: any): Promise<any | null> => {
+    if (!deps.canSee || !('createdById' in t.quote)) return null
+    if (await may(c, 'quotes:read-all')) return null
+    const me = String((c.get('user') as any)?.userId || '')
+    return 'salespersonId' in t.quote ? or(eq(t.quote.createdById, me), eq(t.quote.salespersonId, me)) : eq(t.quote.createdById, me)
+  }
+  // Every door on one quote (/:id and /:id/…) answers "not found" for a quote that is not this seat's own.
+  const ownQuoteDoor = async (c: any, next: any) => {
+    const id = c.req.param('id')
+    if (id && id !== 'stats') {
+      const scope = await ownQuotes(c)
+      if (scope) {
+        const [row] = await db.select({ id: t.quote.id }).from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, (c.get('user') as any).companyId))).limit(1)
+        if (row && !(await db.select({ id: t.quote.id }).from(t.quote).where(and(eq(t.quote.id, id), scope)).limit(1))[0]) return c.json({ error: 'Quote not found' }, 404)
+      }
+    }
+    return next()
+  }
+  app.use('/:id', ownQuoteDoor)
+  app.use('/:id/*', ownQuoteDoor)
 
   const companySettings = async (companyId: string) => {
     const [co] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, companyId)).limit(1)
@@ -498,6 +523,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (contactId) conditions.push(eq(t.quote.contactId, contactId))
     if (jobId) conditions.push(eq(t.quote.jobId, jobId))
     if (search) { const p = `%${search}%`; conditions.push(or(ilike(t.quote.number, p), ilike(t.quote.name, p))) }
+    const mine = await ownQuotes(c)
+    if (mine) conditions.push(mine)
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
       db.select().from(t.quote).where(where).orderBy(desc(t.quote.createdAt), asc(t.quote.id)).offset((page - 1) * limit).limit(limit),
@@ -519,7 +546,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   // ---------------------------------------------------------------- stats
   app.get('/stats', requirePermission('quotes:read'), async (c) => {
     const currentUser = c.get('user') as any
-    const quotes = await db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(eq(t.quote.companyId, currentUser.companyId))
+    const mine = await ownQuotes(c)
+    const quotes = await db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(mine ? and(eq(t.quote.companyId, currentUser.companyId), mine) : eq(t.quote.companyId, currentUser.companyId))
     // "The customer said no" is one bucket, under the word this CRM uses (Decline where the vertical declines, Reject
     // elsewhere). Counting rejected and declined separately left a phantom always-zero figure beside the real one, and
     // anything reading only its own word was short by the quotes refused under the other. (Landscaping T21 L5)

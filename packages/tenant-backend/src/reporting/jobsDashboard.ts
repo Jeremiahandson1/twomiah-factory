@@ -2,7 +2,7 @@
 // today's board, and the three recent-activity lists. Salon, vet, events and RV have their own dashboards
 // built on their own tables; this is the one the three job-based CRMs used to carry as identical copies.
 import { Hono } from 'hono'
-import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
+import { eq, and, or, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
 import { companyTimeZone, storeDayRange, markerDayIsOver } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
 import { countNewLeads, listNewLeads, type NewLeads } from './newLeads'
@@ -31,6 +31,8 @@ export interface JobsDashboardDeps {
    * silently hiding figures somebody relies on. (Field Service T30 HIGH)
    */
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
+  /** The contacts a seat without contacts:read-all reads (as the contacts routes are given it). Not wired: every contact. */
+  ownContacts?: (userId: string) => any
   options?: { openStatuses?: string[] }
 }
 
@@ -74,6 +76,23 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     try { return await deps.canSee(u?.role, permission, u?.userId) } catch { return true }
   }
   const maySeeMoney = (c: any) => maySee(c, MONEY_PERMISSION)
+  /** The quotes this seat reads (invoicing/quotes.ts ownQuotes): its own without quotes:read-all. */
+  const quoteScope = async (c: any): Promise<any | null> => {
+    if (!deps.canSee || !t.quote?.createdById) return null
+    const u = c.get('user') as any
+    let all = false
+    try { all = !!(await deps.canSee(u?.role, 'quotes:read-all', u?.userId)) } catch { all = false }
+    const me = String(u?.userId || '')
+    return all ? null : (t.quote.salespersonId ? or(eq(t.quote.createdById, me), eq(t.quote.salespersonId, me)) : eq(t.quote.createdById, me))
+  }
+  /** The contacts this seat reads (contacts/contacts.ts ownContactScope), so the count is the Contacts page's. */
+  const contactScope = async (c: any): Promise<any | null> => {
+    if (!deps.ownContacts || !deps.canSee) return null
+    const u = c.get('user') as any
+    let all = false
+    try { all = !!(await deps.canSee(u?.role, 'contacts:read-all', u?.userId)) } catch { all = false }
+    return all ? null : deps.ownContacts(String(u?.userId || ''))
+  }
   app.use('*', deps.authenticate)
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn() } catch { return fallback } }
 
@@ -105,9 +124,9 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     const jobScope = await ownJobScope(db, t, deps.canSee, (c as any).get('user'))
 
     const [contactRows, projectsByStatus, jobsByStatus, todayRows, completedTodayRows, quotes, invoices] = await Promise.all([
-      safe(() => db.select({ value: count() }).from(t.contact).where(eq(t.contact.companyId, companyId)), [{ value: 0 }]),
+      safe(async () => db.select({ value: count() }).from(t.contact).where(and(eq(t.contact.companyId, companyId), (await contactScope(c)) ?? undefined)), [{ value: 0 }]),
       safe(() => db.select({ status: t.project.status, c: count() }).from(t.project).where(eq(t.project.companyId, companyId)).groupBy(t.project.status), [] as any[]),
-      safe(() => db.select({ status: t.job.status, c: count() }).from(t.job).where(eq(t.job.companyId, companyId)).groupBy(t.job.status), [] as any[]),
+      safe(() => db.select({ status: t.job.status, c: count() }).from(t.job).where(and(eq(t.job.companyId, companyId), jobScope ?? undefined)).groupBy(t.job.status), [] as any[]),
       // Today's board: work scheduled for today that is still live.
       // scheduled_date holds a calendar-day marker for a job made here and a real instant for one made
       // by a booking, so the day is taken per row — see jobLocalDay.
@@ -116,8 +135,8 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       safe(() => db.select({ status: t.job.status, c: count() }).from(t.job)
         .where(and(eq(t.job.companyId, companyId), jobsTodayCondition(t.job, tz), jobScope ?? undefined)).groupBy(t.job.status), [] as any[]),
       safe(() => db.select({ value: count() }).from(t.job)
-        .where(and(eq(t.job.companyId, companyId), eq(t.job.status, 'completed'), gte(t.job.completedAt, today), lt(t.job.completedAt, tomorrow))), [{ value: 0 }]),
-      safe(() => db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(eq(t.quote.companyId, companyId)), [] as any[]),
+        .where(and(eq(t.job.companyId, companyId), eq(t.job.status, 'completed'), gte(t.job.completedAt, today), lt(t.job.completedAt, tomorrow), jobScope ?? undefined)), [{ value: 0 }]),
+      safe(async () => db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(and(eq(t.quote.companyId, companyId), (await quoteScope(c)) ?? undefined)), [] as any[]),
       safe(() => db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, companyId)), [] as any[]),
     ])
 
@@ -204,11 +223,14 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
   app.get('/recent-activity', async (c) => {
     const companyId = (c.get('user') as any).companyId
+    // Recent jobs are the ones this seat's Jobs list shows (contractor live test 11/07: a rep's dashboard listed the crew's job
+    // while their Jobs page said "No jobs yet").
+    const jobScope = await ownJobScope(db, t, deps.canSee, (c as any).get('user'))
     const [recentJobs, recentQuotes, recentInvoices] = await Promise.all([
       safe(() => db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate, updatedAt: t.job.updatedAt })
-        .from(t.job).where(eq(t.job.companyId, companyId)).orderBy(desc(t.job.updatedAt), asc(t.job.id)).limit(5), [] as any[]),
-      safe(() => db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, updatedAt: t.quote.updatedAt })
-        .from(t.quote).where(eq(t.quote.companyId, companyId)).orderBy(desc(t.quote.updatedAt), asc(t.quote.id)).limit(5), [] as any[]),
+        .from(t.job).where(jobScope ? and(eq(t.job.companyId, companyId), jobScope) : eq(t.job.companyId, companyId)).orderBy(desc(t.job.updatedAt), asc(t.job.id)).limit(5), [] as any[]),
+      safe(async () => db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, updatedAt: t.quote.updatedAt })
+        .from(t.quote).where(and(eq(t.quote.companyId, companyId), (await quoteScope(c)) ?? undefined)).orderBy(desc(t.quote.updatedAt), asc(t.quote.id)).limit(5), [] as any[]),
       safe(() => db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, updatedAt: t.invoice.updatedAt })
         .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), sql`${t.invoice.status} <> 'draft'`)).orderBy(desc(t.invoice.updatedAt), asc(t.invoice.id)).limit(5), [] as any[]),
     ])

@@ -454,6 +454,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
         <AddItemModal
           sheetId={selectedSheet.id}
           assemblies={assemblies}
+          onAssemblies={async () => { const r = await api.get('/api/takeoffs/assemblies'); setAssemblies(((r as { data?: AssemblyItem[] })?.data || []) as AssemblyItem[]); }}
           onSave={() => {
             setShowAddItem(false);
             loadSheet(selectedSheet.id);
@@ -876,11 +877,13 @@ function NewSheetModal({ projectId, onSave, onClose }: NewSheetModalProps) {
 interface AddItemModalProps {
   sheetId: string;
   assemblies: AssemblyItem[];
+  /** Read the assemblies again — after the standard ones are added, so the list fills where the person is (contractor live test 11/07). */
+  onAssemblies?: () => Promise<void>;
   onSave: () => void;
   onClose: () => void;
 }
 
-function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProps) {
+function AddItemModal({ sheetId, assemblies, onAssemblies, onSave, onClose }: AddItemModalProps) {
   const [form, setForm] = useState({
     assemblyId: '',
     name: '',
@@ -939,7 +942,8 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
                 onClick={async () => {
                   try {
                     await api.post('/api/takeoffs/assemblies/seed', {});
-                    onSave();
+                    // The dialog stays open and its list fills, so the measurement can be added at once.
+                    if (onAssemblies) { await onAssemblies(); toast.success('Standard assemblies added — pick one below'); } else onSave();
                   } catch {
                     toast.error('Could not add the standard assemblies');
                   }

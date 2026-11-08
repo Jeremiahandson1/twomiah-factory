@@ -420,7 +420,9 @@ export function createContactRoutes(deps: ContactDeps) {
 
   app.get('/stats', requirePermission('contacts:read'), async (c) => {
     const currentUser = c.get('user') as any
-    const rows = await db.select({ type: t.contact.type }).from(t.contact).where(eq(t.contact.companyId, currentUser.companyId))
+    // The counts are of the contacts this seat reads (contractor live test 11/07: a rep's header said "2 total" over "No contacts yet").
+    const scope = await ownScope(c)
+    const rows = await db.select({ type: t.contact.type }).from(t.contact).where(scope ? and(eq(t.contact.companyId, currentUser.companyId), scope) : eq(t.contact.companyId, currentUser.companyId))
     const stats: Record<string, number> = { total: rows.length }
     for (const ty of types) stats[ty] = 0
     for (const r of rows) stats[r.type] = (stats[r.type] || 0) + 1

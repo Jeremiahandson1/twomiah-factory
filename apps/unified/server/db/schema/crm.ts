@@ -129,6 +129,9 @@ export const lead = pgTable('lead', {
   lostAt: timestamp('lost_at'),
   siteVisitAt: timestamp('site_visit_at'),
   siteVisitEventId: text('site_visit_event_id'),
+  // Who works the enquiry (0102): a sales rep reads the leads assigned to them (no leads:read-all); one they add by hand is theirs.
+  // Null: nobody's yet — the office's.
+  assignedToId: text('assigned_to_id').references((): AnyPgColumn => user.id, { onDelete: 'set null' }),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
@@ -139,6 +142,7 @@ export const lead = pgTable('lead', {
   index('lead_status_idx').on(t.status),
   index('lead_platform_idx').on(t.sourcePlatform),
   index('lead_received_at_idx').on(t.receivedAt),
+  index('lead_assigned_to_idx').on(t.assignedToId),
 ])
 
 export const project = pgTable('project', {

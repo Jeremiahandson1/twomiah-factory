@@ -8,7 +8,7 @@ import {
   CommissionsPage, TechView, FleetPage, InventoryPage, EquipmentPage, AgreementsPage, WarrantiesPage, RecurringForm,
   RecurringList, TasksPage, ReviewsPage, MarketingPage, MessagesPage, AdsPage, PricebookPage, LeadSourcesPage,
   leadSourceGuides, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, IntegrationsPage, ImportPage, MigrationPage,
-  useAuth, useToast, MoneyStrip,
+  useAuth, useToast, MoneyStrip, usePermissions,
 } from '../shared'
 import { api } from '../api'
 import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
@@ -37,10 +37,13 @@ import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { ProposalPanel } from './proposalOptions'
 import { TextComposer } from './textComposer'
 import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
-import { QuotesAwaitingReply } from './pages/LeadPipelineStrip'
+import { QuotesAwaitingReply, LeadPipelineStrip } from './pages/LeadPipelineStrip'
 import { OwnerDashboard, CrewDashboard } from './pages/HomePanels'
+import { LostReasonsReport } from './pages/LostReasonsReport'
 
 const v = verticalScreens
+/** A builder's appointment kinds (no test drives): the site visit a lead books, and the office's own meetings. */
+const SITE_VISIT_TYPES = [{ value: 'site_visit', label: 'Site visit' }, { value: 'appointment', label: 'Appointment' }, { value: 'follow_up', label: 'Follow-up' }]
 const client = api as any
 const settingsOf = (company: unknown) => (company as { settings?: any } | null)?.settings
 
@@ -65,6 +68,9 @@ export function Dashboard() {
       <MoneyStrip api={client} hide={Own ? [] : ['overdue']} />
       {/* The owner's "needs you today" and the crew's "my day" (crm/pages/HomePanels.tsx; each its own switch, not ready). */}
       <OwnerDashboard />
+      {/* The pipeline — count and $ at each stage — on the home screen too, not only the Lead Inbox (contractor live test 11/07; its own
+          switch, lead_pipeline, and the inbox's leads:read). */}
+      <LeadPipelineStrip />
       <CrewDashboard />
       {Own ? <Own /> : <JobsDashboard />}
     </div>
@@ -193,10 +199,12 @@ export function Schedule() {
   }
   // Appointments (test drives, drop-offs, deliveries) where the vertical has them (VerticalScreens.schedule; the RV copy's
   // SchedulePage passed events: true).
+  // …and a builder's site visits once Site Visits is on (lead_site_visit — a visit booked on a lead is a Schedule entry, server
+  // crm/leads/leadSiteVisit.ts; contractor live test 11/07: "nothing appears on /crm/schedule").
   // A lane per person and "Optimise route" where the jobs carry people (2026-10-24): every vertical with jobs but roofing,
   // whose work is booked to crews (assignedCrewId), not to people.
   const people = hasFeature('jobs') && !isRoofing
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => (woJobs.has(String(b.id)) ? `/crm/jobs/${woJobs.get(String(b.id))}` : `/crm/bookings/${b.id}`), events: !!v().schedule?.events, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours }} />
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => (woJobs.has(String(b.id)) ? `/crm/jobs/${woJobs.get(String(b.id))}` : `/crm/bookings/${b.id}`), events: !!v().schedule?.events || hasFeature('lead_site_visit'), eventTypes: !v().schedule?.events && hasFeature('lead_site_visit') ? SITE_VISIT_TYPES : undefined, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 // A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are
@@ -211,7 +219,13 @@ export function Team() {
 }
 export function Documents() {
   const { hasFeature } = useAuth()
-  return <DocumentsPage api={client} toast={useToast()} config={{ ...v().documents, hasFeature } as any} />
+  // A project's PDF goes to the client to sign in their portal, where the client portal's documents are on (client_portal_plus;
+  // server crm/projects/signRequests.ts) — the same send as the project page's Client portal panel.
+  const sendToSign = hasFeature('client_portal_plus') ? async (d: any) => {
+    const r: any = await client.post(`/api/client-portal/${d.project.id}/sign-requests`, { documentId: d.id, title: d.name })
+    return r?.told === 'email' ? 'Sent to sign, and the client was emailed' : 'Sent to their portal to sign'
+  } : undefined
+  return <DocumentsPage api={client} toast={useToast()} config={{ ...v().documents, hasFeature, sendToSign } as any} />
 }
 export const Locations = () => <LocationsPage api={client} toast={useToast()} />
 export const Commissions = () => <CommissionsPage api={client} toast={useToast()} config={v().commissions} />
@@ -262,8 +276,11 @@ export function Reports() {
   const { hasFeature } = useAuth()
   const above = v().reportsAbove
   const Above = typeof above === 'string' ? REPORTS_ABOVE[above] : undefined
+  const { can } = usePermissions()
   const page = <ReportsPage api={client} config={{ ...v().reporting, eventsPipeline: !!v().reporting.eventsPipeline && hasFeature('event_bookings') }} />
-  return Above ? <div><Above />{page}</div> : page
+  // Why leads were lost, where Lost with a reason is on and the seat reads the inbox (contractor live test 11/07).
+  const lost = hasFeature('lead_lost') && can('leads:read') ? <div className="px-4 md:px-6 pt-4"><LostReasonsReport /></div> : null
+  return Above || lost ? <div>{Above && <Above />}{lost}{page}</div> : page
 }
 export const JobCosting = () => <JobCostingPage api={client} config={v().jobCosting} />
 export const LeadSources = () => <LeadSourcesPage api={client} toast={useToast()} config={v().leads as any} />

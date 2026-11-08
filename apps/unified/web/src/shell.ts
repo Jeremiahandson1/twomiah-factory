@@ -113,7 +113,7 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/aia-forms', icon: FileText, label: 'AIA G702/G703', features: ['aia_forms'], permission: 'aia-forms:read' },
   { to: '/crm/gantt', icon: BarChart3, label: 'Gantt Chart', features: ['gantt_charts'] },
   // Not ready (contractor parity row 12; roofing's row 18 page): payouts and the card surcharge. Roofing has its own item at this address.
-  { to: '/crm/card-payments', icon: CreditCard, label: 'Card payments', features: ['payments_overview', 'card_surcharge'], permission: 'invoices:read' },
+  { to: '/crm/card-payments', icon: CreditCard, label: 'Card payments', features: ['payments_overview', 'card_surcharge', 'invoice_tips'], permission: 'invoices:read' },
   { to: '/crm/website', icon: Globe, label: 'Website', section: 'Website', permission: 'site:read', exact: true },
   { to: '/crm/website/pages', icon: FileText, label: 'Pages', permission: 'site:read' },
   { to: '/crm/website/photos', icon: Image, label: 'Photos', permission: 'site:read' },
@@ -220,15 +220,19 @@ export const SETTINGS_SUB_PAGES = [
  * Inventory is the shared Inventory page on parts_tracking, as its server mount is), so its menu stays its own.
  */
 const verticalShell = (): ShellConfig => {
-  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]>; navGroups?: Record<string, string>; navGroupOrder?: string[] }
+  const sc = verticalScreens() as unknown as { vocabulary?: { gallery?: string }; nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]>; navGroups?: Record<string, string>; navGroupOrder?: string[]; navHiddenFor?: Record<string, string[]> }
   const names = sc.nav || {}
   const sections = sc.navSections || {}
   const hidden = new Set(Array.isArray(sc.navHidden) ? sc.navHidden : [])
   const widened = sc.navFeatures || {}
+  // Items a role of the vertical's own leaves out of its menu (screens.navHiddenFor: { crew: ['/crm/reviews', …] }), by address.
+  const hiddenFor: Record<string, string[]> = {}
+  for (const [role, paths] of Object.entries(sc.navHiddenFor || {})) for (const p of paths) (hiddenFor[p] ||= []).push(role)
   return {
     ...SHELL,
     nav: applyNavGroups(SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {
-      const gated = widened[item.to] ? { ...item, features: widened[item.to] } : item
+      const widenedItem = widened[item.to] ? { ...item, features: widened[item.to] } : item
+      const gated = hiddenFor[item.to] ? { ...widenedItem, hiddenForRoles: hiddenFor[item.to] } : widenedItem
       // The website's page of photos is the business's Portfolio or Gallery (VerticalSettings.vocabulary.gallery).
       const own = names[item.to] || (item.to === '/crm/website/portfolio' ? sc.vocabulary?.gallery : undefined)
       const renamed = own ? { ...gated, label: own } : gated

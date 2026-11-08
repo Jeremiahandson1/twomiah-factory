@@ -17,6 +17,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
+import { ownLeadsWhere } from './scope.ts'
 
 export const SITE_VISIT = 'site_visit'
 const CLOSED = ['lost', 'dismissed', 'spam']
@@ -33,14 +34,17 @@ export function createLeadSiteVisitRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
 
-  const find = async (companyId: string, id: string) =>
-    (await db.select().from(lead).where(and(eq(lead.id, id), eq(lead.companyId, companyId))).limit(1))[0]
+  // The company's own — and, for a seat that reads only its own enquiries (a Sales rep), only those (scope.ts).
+  const find = async (companyId: string, id: string, me?: any) => {
+    const mine = me ? await ownLeadsWhere(d, me) : null
+    return (await db.select().from(lead).where(and(eq(lead.id, id), eq(lead.companyId, companyId), mine ?? undefined)).limit(1))[0]
+  }
 
   app.post('/:id', requirePermission('leads:update'), requirePermission('schedule:create'), async (c) => {
     const parsed = bookSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const me = c.get('user')
-    const row = await find(me.companyId, c.req.param('id'))
+    const row = await find(me.companyId, c.req.param('id'), me)
     if (!row) return fail(c, 404, 'Lead not found')
     if (CLOSED.includes(row.status)) return fail(c, 409, 'This enquiry is closed. Reopen it before booking a visit.')
     const start = new Date(parsed.data.start)
@@ -76,7 +80,7 @@ export function createLeadSiteVisitRoutes(d: CrmDeps) {
 
   app.delete('/:id', requirePermission('leads:update'), requirePermission('schedule:update'), async (c) => {
     const me = c.get('user')
-    const row = await find(me.companyId, c.req.param('id'))
+    const row = await find(me.companyId, c.req.param('id'), me)
     if (!row) return fail(c, 404, 'Lead not found')
     if (!row.siteVisitAt) return fail(c, 409, 'No site visit is booked for this enquiry.')
     if (row.siteVisitEventId) {

@@ -1,7 +1,7 @@
 // Job costing: the queries of the CRM template's services/jobCosting.ts (templates/crm/backend/src/services) that carry
 // SQL expressions (sums, the rate that applies, the date a job is grouped by). One named function per query, each
 // returning camelCase objects; the arithmetic on them stays in crm/field/jobCostingService.ts.
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import {
   job, quoteLineItem, pricebookItem, timeEntry, teamMember, inventoryUsage, inventoryItem, expense, user, vendorBill,
 } from '../db/schema/index.ts'
@@ -130,19 +130,27 @@ export async function jobsForProfitability(
  * spend (open, partial, paid) at their amount, inventory drawn at its cost. A record with no cost code files under `null`
  * (the caller calls it "Uncoded"). Inventory drawn has no cost code to carry, so it is always uncoded.
  */
-export async function costByCode(db: any, companyId: string, jobIds: string[]) {
-  if (!jobIds.length) return [] as Array<{ costCode: string | null; ledger: 'labour' | 'materials' | 'expenses' | 'bills'; cost: string }>
+export async function costByCode(db: any, companyId: string, jobIds: string[], projectId?: string) {
+  // …and, given the project, what was filed on the project with no job (contractor live test 11/07: costs and hours filed on the project
+  // alone were silently left out of its budget). Materials are drawn to a job only.
+  const onWork = (jobCol: any, projectCol: any) => {
+    const parts: any[] = []
+    if (jobIds.length) parts.push(inArray(jobCol, jobIds))
+    if (projectId) parts.push(and(eq(projectCol, projectId), isNull(jobCol)))
+    return parts.length === 1 ? parts[0] : or(...parts)
+  }
+  if (!jobIds.length && !projectId) return [] as Array<{ costCode: string | null; ledger: 'labour' | 'materials' | 'expenses' | 'bills'; cost: string }>
   const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate}, NULLIF(${teamMember.hourlyRate}, 0))`
   const labour = await db.select({ costCode: timeEntry.costCode, cost: sql<string>`COALESCE(SUM(${timeEntry.hours} * COALESCE(${rate}, 0)), 0)` })
     .from(timeEntry).leftJoin(user, eq(timeEntry.userId, user.id)).leftJoin(teamMember, rosterJoin(companyId))
-    .where(and(eq(timeEntry.companyId, companyId), inArray(timeEntry.jobId, jobIds))).groupBy(timeEntry.costCode)
-  const materials = await db.select({ cost: sql<string>`COALESCE(SUM(${inventoryUsage.quantity} * COALESCE(${inventoryUsage.unitCost}, ${inventoryItem.unitCost}, 0)), 0)` })
+    .where(and(eq(timeEntry.companyId, companyId), onWork(timeEntry.jobId, timeEntry.projectId))).groupBy(timeEntry.costCode)
+  const materials = jobIds.length ? await db.select({ cost: sql<string>`COALESCE(SUM(${inventoryUsage.quantity} * COALESCE(${inventoryUsage.unitCost}, ${inventoryItem.unitCost}, 0)), 0)` })
     .from(inventoryUsage).leftJoin(inventoryItem, eq(inventoryUsage.itemId, inventoryItem.id))
-    .where(and(eq(inventoryUsage.companyId, companyId), inArray(inventoryUsage.jobId, jobIds)))
+    .where(and(eq(inventoryUsage.companyId, companyId), inArray(inventoryUsage.jobId, jobIds))) : []
   const expenses = await db.select({ costCode: expense.costCode, cost: sql<string>`COALESCE(SUM(${expense.amount}), 0)` })
-    .from(expense).where(and(eq(expense.companyId, companyId), inArray(expense.jobId, jobIds))).groupBy(expense.costCode)
+    .from(expense).where(and(eq(expense.companyId, companyId), onWork(expense.jobId, expense.projectId))).groupBy(expense.costCode)
   const bills = await db.select({ costCode: vendorBill.costCode, cost: sql<string>`COALESCE(SUM(${vendorBill.amount}), 0)` })
-    .from(vendorBill).where(and(eq(vendorBill.companyId, companyId), inArray(vendorBill.jobId, jobIds), inArray(vendorBill.status, BILL_IS_SPEND))).groupBy(vendorBill.costCode)
+    .from(vendorBill).where(and(eq(vendorBill.companyId, companyId), onWork(vendorBill.jobId, vendorBill.projectId), inArray(vendorBill.status, BILL_IS_SPEND))).groupBy(vendorBill.costCode)
   return [
     ...labour.map((r: any) => ({ costCode: r.costCode as string | null, ledger: 'labour' as const, cost: r.cost as string })),
     ...materials.map((r: any) => ({ costCode: null, ledger: 'materials' as const, cost: r.cost as string })),

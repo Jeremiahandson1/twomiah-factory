@@ -46,6 +46,8 @@ interface SelectionItem {
   categoryId?: string;
   category?: { name: string };
   selectedOption?: SelectionOption;
+  /** What the client wrote with their choice (the portal's note). */
+  clientNotes?: string | null;
   /** The shared allowance it is chosen against (row 7, shared_allowances). */
   sharedAllowance?: { id: string; name: string; amount: number; remaining: number };
 }
@@ -463,6 +465,8 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
               <p className="text-xs text-gray-500 dark:text-slate-400">
                 {selection.selectedOption.manufacturer} {selection.selectedOption.model}
               </p>
+              {/* The client's note with their choice (contractor live test 11/07: "Love the brass look" was not shown in the office). */}
+              {selection.clientNotes && <p className="mt-1 text-xs text-gray-700 dark:text-slate-300" data-testid="selection-client-note">Client’s note: “{selection.clientNotes}”</p>}
             </div>
           ) : (
             <button
@@ -505,6 +509,12 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
               className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg"
             >
               Select
+            </button>
+          )}
+          {/* A choice not yet approved can be changed: pick another option (contractor live test 11/07: "no visible way to change an option"). */}
+          {selection.status === 'selected' && (
+            <button onClick={onSelect} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg dark:border-slate-600" data-testid="selection-change">
+              Change
             </button>
           )}
           {selection.status === 'selected' && (

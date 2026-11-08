@@ -1121,7 +1121,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     loadContacts();
     api.get('/api/team/assignable').then((r: any) => {
       const list = Array.isArray(r) ? r : (r?.data || []);
-      setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' })));
+      setTeam(list.map((u: any) => ({ id: u.id, name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' })));
     }).catch(() => setTeam([]));
     if (agreement) {
       api.get(`/api/agreements/${agreement.id}/history`).then((r: any) => setHistory(r?.events || r?.data?.events || [])).catch(() => setHistory([]));

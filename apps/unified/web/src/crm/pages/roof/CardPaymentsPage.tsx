@@ -87,15 +87,38 @@ function PayoutsSection() {
   )
 }
 
+/** Tips (invoice_tips): the business's switch for the tip box on its customers' pay screen (server cardSurcharge.ts /tips). */
+function TipsSection() {
+  const toast = useToast()
+  const mayEdit = useMayWrite('company:update')
+  const [on, setOn] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { api.get('/api/card-payments/tips').then((r: any) => setOn(!!r?.on)).catch((e) => { toast.error(errorText(e, 'Could not load the tips setting')); setOn(false) }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  if (on === null) return <Loader2 className="w-5 h-5 animate-spin" />
+  const change = async (next: boolean) => {
+    setBusy(true)
+    try { await api.put('/api/card-payments/tips', { on: next }); setOn(next); toast.success(next ? 'Tips on — customers can add one when they pay online' : 'Tips off') }
+    catch (e) { toast.error(errorText(e, 'Could not save the tips setting')) } finally { setBusy(false) }
+  }
+  return (
+    <section className="rounded-lg border p-4 dark:border-slate-700 space-y-2" data-testid="tips-section">
+      <h2 className="font-semibold flex items-center gap-2"><CreditCard className="w-5 h-5" /> Tips</h2>
+      <p className="text-sm text-gray-600 dark:text-slate-300">Let customers add a tip when they pay an invoice online. The tip is kept apart from what the invoice owes. The tip box shows on the invoice's pay screen once card payments are connected (Settings › Integrations › Stripe).</p>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!mayEdit || busy} checked={on} onChange={(e) => change(e.target.checked)} /> Customers can add a tip</label>
+    </section>
+  )
+}
+
 export default function CardPaymentsPage() {
   const { hasFeature } = useAuth()
-  const surcharge = hasFeature('card_surcharge'), payouts = hasFeature('payments_overview')
+  const surcharge = hasFeature('card_surcharge'), payouts = hasFeature('payments_overview'), tips = hasFeature('invoice_tips')
   return (
     <div className="p-4 md:p-6 max-w-4xl space-y-5">
       <h1 className="text-2xl font-bold">Card payments</h1>
-      {!surcharge && !payouts && <p className="text-gray-600 dark:text-slate-300">Card payment tools are not turned on for this business.</p>}
+      {!surcharge && !payouts && !tips && <p className="text-gray-600 dark:text-slate-300">Card payment tools are not turned on for this business.</p>}
       {payouts && <PayoutsSection />}
       {surcharge && <SurchargeSection />}
+      {tips && <TipsSection />}
     </div>
   )
 }

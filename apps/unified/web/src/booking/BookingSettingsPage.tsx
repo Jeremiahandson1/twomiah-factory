@@ -81,7 +81,7 @@ function General({ settings, onSaved }: { settings: BookingSettings; onSaved: ()
     save({ ...f, requireAddress: f.requireAddress === '' ? null : f.requireAddress === 'true' })
   }
   return (
-    <Section title="Taking bookings" intro="The rules every booking follows, online and at the desk.">
+    <Section title="Booking rules" intro="The rules every booking follows, online and at the desk. Customers can book online once this is ticked, a service is bookable and your hours are set.">
       <form onSubmit={submit} className="space-y-4">
         <label className="flex items-center gap-2 text-sm text-ink"><input type="checkbox" checked={f.enabled} onChange={(e) => setF((x) => ({ ...x, enabled: e.target.checked }))} />Customers can book online</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -134,7 +134,7 @@ export interface LineItemInput {
    * nothing had ever sent it, so every quote line was NULL and the estimate was zero.
    */
   /** 'text': a heading or a note on a quote, words only (quote_text_lines). */
-  type?: 'labor' | 'material' | 'part' | 'service' | 'other' | 'text'
+  type?: 'labor' | 'material' | 'part' | 'service' | 'subcontractor' | 'other' | 'text'
   /** What the line costs US per unit, as against unitPrice which is what the customer pays. */
   unitCost?: number
   /** Which catalogue item it was priced from. */

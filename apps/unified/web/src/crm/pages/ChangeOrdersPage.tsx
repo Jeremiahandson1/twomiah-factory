@@ -171,7 +171,8 @@ export default function ChangeOrdersPage() {
   };
 
   const handleDelete = async () => { try { await api.changeOrders.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
-  const handleSubmit = async (co: Record<string, unknown>) => { try { await api.changeOrders.submit(co.id as string); toast.success('Submitted'); load(); } catch (err) { toast.error((err as Error).message); } };
+  // Says how the client was told (server emailClientChangeOrder): emailed a link to sign it, or not reachable through their portal.
+  const handleSubmit = async (co: Record<string, unknown>) => { try { const r: any = await api.changeOrders.submit(co.id as string); toast.success(r?.told === 'email' ? 'Submitted — the client was emailed a link to review and sign it' : 'Submitted. The client was not emailed: turn on their portal (and give them an email) so they can sign it there'); load(); } catch (err) { toast.error((err as Error).message); } };
   // No `approvedBy` in the body any more: the server records the signed-in user. Sending the literal
   // string "Current User" is what made that field useless on every change order ever approved. (T32 H2)
   const handleApprove = async (co: Record<string, unknown>) => { try { await api.changeOrders.approve(co.id as string, {}); toast.success('Approved'); load(); } catch (err) { toast.error((err as Error).message); } };

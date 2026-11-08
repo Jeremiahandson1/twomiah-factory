@@ -110,6 +110,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
   const navItems = useMemo(
     () => config.nav.filter((i) =>
       meetsRole(user?.role, i.minRole)
+      && !(i.hiddenForRoles && user?.role && i.hiddenForRoles.includes(user.role))
       && (!i.permission || can(i.permission))
       && (!i.features || i.features.some((f) => hasFeature(f))),
     ),

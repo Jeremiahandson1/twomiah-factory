@@ -15,7 +15,7 @@ import { one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 
-export const LINE_KINDS = ['labor', 'material', 'part', 'service', 'other'] as const
+export const LINE_KINDS = ['labor', 'material', 'part', 'service', 'subcontractor', 'other'] as const
 export type MarkupDefaults = Record<typeof LINE_KINDS[number], number | null>
 
 /** The company's markup defaults, every gap filled in as "none set". */
@@ -32,7 +32,7 @@ export function markupDefaultsOf(settings: unknown): MarkupDefaults {
 }
 
 const pct = z.number({ error: 'Enter a percent, for example 25' }).min(0, 'A markup cannot be negative').max(1000, 'At most 1000%').nullable()
-const schema = z.object({ labor: pct, material: pct, part: pct, service: pct, other: pct })
+const schema = z.object({ labor: pct, material: pct, part: pct, service: pct, subcontractor: pct.optional(), other: pct })
 
 export function createMarkupDefaultsRoutes(d: CrmDeps) {
   const { db, audit } = d

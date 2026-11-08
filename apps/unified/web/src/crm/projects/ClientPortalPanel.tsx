@@ -4,7 +4,7 @@
 // projects:update, the same as the server.
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api'
-import { useToast, usePermissions } from '../../shared'
+import { useToast, usePermissions, useConfirm } from '../../shared'
 import { formatDate } from '../date'
 
 type Settings = { schedule: 'off' | 'phases' | 'all'; scheduleWeeks: number | null; dailyLogs: boolean; photos: boolean; todos: boolean; payments: boolean; documents: boolean; shareByDefault: boolean; notify: Record<string, boolean> }
@@ -22,6 +22,7 @@ const input = 'rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-s
 
 export function ClientPortalPanel({ projectId }: { projectId: string }) {
   const toast = useToast()
+  const confirm = useConfirm()
   const { known, can } = usePermissions()
   const mayChange = known && can('projects:update')
   // The payment schedule raises invoices: the server asks invoices:create.
@@ -62,7 +63,8 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
 
   const fail = (e: unknown, words: string) => toast.error(e instanceof Error && e.message ? e.message : words)
   const save = async (patch: Partial<Settings>) => {
-    try { setS(await api.put(`/api/client-portal/${projectId}/settings`, patch) as Settings) } catch (e) { fail(e, 'Could not save that') }
+    // Saved at once, and said so (contractor live test 11/07: the switches saved with no confirmation).
+    try { setS(await api.put(`/api/client-portal/${projectId}/settings`, patch) as Settings); toast.success('Saved — the client’s portal shows this now') } catch (e) { fail(e, 'Could not save that') }
   }
   const shareLog = async (l: Log, shared: boolean) => {
     try { const r: any = await api.put(`/api/client-portal/daily-logs/${l.id}/share`, { shared }); if (r?.told === 'email') toast.success('Shared, and the client was emailed'); load() } catch (e) { fail(e, 'Could not share it') }
@@ -95,6 +97,9 @@ export function ClientPortalPanel({ projectId }: { projectId: string }) {
     } catch (e) { fail(e, 'Could not add the payment') }
   }
   const release = async (p: Pay) => {
+    // It raises the invoice AND sends it to the client at once, so it asks first (contractor live test 11/07: "sends the invoice
+    // immediately with no confirmation").
+    if (!(await confirm(`This raises the invoice for “${p.name}” and sends it to the client now.`, { title: 'Release and send this invoice?', confirmText: 'Release and send', danger: false }))) return
     try { const r: any = await api.post(`/api/client-portal/payments/${p.id}/release`, {}); toast.success(`Invoice ${r?.invoice?.number || ''} raised and sent`); setPay(r?.schedule ?? null) } catch (e) { fail(e, 'Could not release it') }
   }
   const sendToSign = async () => {

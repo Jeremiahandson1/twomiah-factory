@@ -127,12 +127,20 @@ export interface PortalProjectExtras {
   comment: (contact: any, projectId: string, taskId: string, body: string) => Promise<any | { error: string } | null>
   todo: (contact: any, projectId: string, todoId: string, change: { item?: number; done?: boolean; complete?: boolean }) => Promise<any | { error: string } | null>
   file: (contact: any, projectId: string, kind: string, id: string) => Promise<{ body: any; contentType: string; filename: string; inline: boolean } | null>
+  /** Does this project share its files with the client (the builder's per-project switch)? false closes Project Files. Absent: open. */
+  filesOn?: (contact: any, projectId: string) => Promise<boolean>
   /** Row 10c: the client signs a document sent to them, with the signing evidence (who, consent, where, when). */
   sign?: (contact: any, projectId: string, requestId: string, input: { signature?: unknown; signedBy?: unknown; consent?: unknown; ip: string | null; userAgent: string | null }) => Promise<any | { error: string } | null>
 }
 export interface PortalDeps {
   /** The contractor's project-page extras (see PortalProjectExtras). Optional: no such section without it. */
   projectExtras?: PortalProjectExtras
+  /**
+   * The vendor's own pages (purchase orders to acknowledge, invoices to submit) live at the vendor portal (/vendor/<the same token>).
+   * Wired: a vendor or sub signed in here is offered them where the business has the vendor portal on (contractor live test 11/07:
+   * "the vendor portal has no purchase orders" — the vendor was in this portal, which had no way to them).
+   */
+  vendorPortal?: boolean
   db: any
   tables: PortalTables
   /** The customer's shared job photos and documents (see PortalJobFiles). Optional: no such section without it. */
@@ -252,6 +260,7 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   upcomingVisits: ['job_reminders'],
   // The client's own appointments: only where the business switched this on (a hidden feature until the owner has tried it).
   appointments: ['portal_appointments'],
+  vendorPortal: ['vendor_portal'],
 }
 /** One id: is it on. A nested list: is ANY of them on. */
 const featureSatisfied = (need: string | string[], enabled: string[]): boolean =>
@@ -313,6 +322,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     ...(deps.jobFiles ? { jobFiles: !off('jobFiles') } : {}),
     // Only for a vertical that passes deps.projectExtras (the unified contractor CRM).
     ...(deps.projectExtras && t.project ? { projectExtras: !off('projects') } : {}),
+    ...(deps.vendorPortal ? { vendorPortal: !off('collaborators') } : {}),
     projectFiles: !!t.document && !!t.project && !!fileService && !off('projectFiles'),
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
@@ -930,7 +940,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       const jobs = t.job
         ? await db.select({ id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate }).from(t.job).where(eq(t.job.projectId, projectId)).orderBy(desc(t.job.scheduledDate), asc(t.job.id)).limit(10)
         : []
-      return c.json({ ...pick(found, PORTAL_PROJECT_FIELDS), jobs })
+      const filesShared = deps.projectExtras?.filesOn ? await deps.projectExtras.filesOn(contact, projectId).catch(() => true) : true
+      return c.json({ ...pick(found, PORTAL_PROJECT_FIELDS), jobs, ...(filesShared ? {} : { filesShared: false }) })
     })
   }
 
@@ -1842,6 +1853,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const projectId = c.req.param('projectId')
       const access = await projectAccess(contact.id, contact.companyId, projectId)
       if (!access) return c.json({ error: 'Project not found' }, 404)
+      if (access === 'owner' && deps.projectExtras?.filesOn && !(await deps.projectExtras.filesOn(contact, projectId).catch(() => true))) return c.json({ error: 'Files are not shared on this project.' }, 404)
       if (access === 'owner') {
         return c.json(await db.select(docCols()).from(t.document).where(and(eq(t.document.companyId, contact.companyId), eq(t.document.projectId, projectId))).orderBy(desc(t.document.createdAt), asc(t.document.id)))
       }

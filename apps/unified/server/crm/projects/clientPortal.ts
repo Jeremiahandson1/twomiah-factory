@@ -136,7 +136,8 @@ export function createClientPortal(d: CrmDeps) {
       out.dailyLogs = logs.map((l) => ({
         id: l.id, date: iso(l.date), weather: l.weather || null, workPerformed: l.workPerformed || null, workCompleted: l.workCompleted || null,
         // A photo by its id and caption only — never its stored path or who took it (recordPhotos.ts RecordPhoto).
-        photos: (Array.isArray(l.photos) ? l.photos : []).filter((p: any) => p?.id).map((p: any) => ({ id: String(p.id), caption: p.caption || null })),
+        // …and only with Photos & files on (contractor live test 11/07: a shared log's photo showed with the switch off).
+        photos: s.photos ? (Array.isArray(l.photos) ? l.photos : []).filter((p: any) => p?.id).map((p: any) => ({ id: String(p.id), caption: p.caption || null })) : [],
       }))
     }
     if (s.photos) {
@@ -151,6 +152,11 @@ export function createClientPortal(d: CrmDeps) {
   }
 
   const extras: PortalProjectExtras = {
+    // Photos & files off: the portal's own Project Files are closed too (contractor live test 11/07: the button still opened).
+    async filesOn(cont, projectId) {
+      if (!(await on(cont?.companyId))) return true
+      return (await settingsFor(cont.companyId, projectId)).photos
+    },
     async view(cont, projectId) {
       if (!(await on(cont?.companyId)) || !(await ownProject(cont, projectId))) return null
       return view(cont.companyId, projectId)
@@ -202,7 +208,7 @@ export function createClientPortal(d: CrmDeps) {
         const inline = INLINE.test(String(obj.contentType || '')) && INLINE.test(type)
         return { body: obj.body, contentType: inline ? type : 'application/octet-stream', filename: x.originalName || x.name || 'document', inline }
       }
-      if (kind === 'log-photo' && s.dailyLogs) {
+      if (kind === 'log-photo' && s.dailyLogs && s.photos) {
         const [logId, photoId] = String(id).split(':')
         const [l] = await db.select().from(dailyLog).where(and(eq(dailyLog.id, logId), eq(dailyLog.projectId, projectId), eq(dailyLog.companyId, cont.companyId), eq(dailyLog.sharedWithClient, true))).limit(1) as any[]
         const p = l && Array.isArray(l.photos) ? l.photos.find((x: any) => String(x?.id) === photoId) : null

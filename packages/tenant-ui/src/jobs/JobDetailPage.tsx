@@ -153,7 +153,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           )}
           {/* Ask the job's customer for a Google review now (Review Requests; reviews/ReviewRequestButton.tsx). */}
           {job.contactId && <ReviewRequestButton api={api} toast={toast} jobId={id} hasFeature={config?.hasFeature} />}
-          {mayUpdate && <NavLink to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>}
+          {mayUpdate && <NavLink to={`/crm/jobs?edit=${id}&from=detail`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>}
           {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>
@@ -175,7 +175,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
                 */}
               {job.scheduledDate
                 ? <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-900 dark:text-slate-100">{dateOnly(job.scheduledDate)} {job.scheduledTime}</p></div></div>
-                : open && <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-500 dark:text-slate-400">Not scheduled yet — <NavLink to={`/crm/jobs?edit=${id}`} className="text-orange-600 dark:text-orange-200 hover:underline">pick a date</NavLink></p></div></div>}
+                : open && <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-500 dark:text-slate-400">Not scheduled yet — <NavLink to={`/crm/jobs?edit=${id}&from=detail`} className="text-orange-600 dark:text-orange-200 hover:underline">pick a date</NavLink></p></div></div>}
               {job.estimatedHours != null && job.estimatedHours !== '' && <div className="flex items-center gap-3"><Clock className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Estimated</p><p className="text-gray-900 dark:text-slate-100">{job.estimatedHours} hours</p></div></div>}
               {(job.address || job.city) && <div className="flex items-center gap-3"><MapPin className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Location</p><p className="text-gray-900 dark:text-slate-100">{[job.address, job.city, [job.state, job.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</p></div></div>}
               {(job as any).location && <div className="flex items-center gap-3"><MapPin className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Branch</p><p className="text-gray-900 dark:text-slate-100">{(job as any).location.name}</p></div></div>}

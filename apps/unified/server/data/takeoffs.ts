@@ -284,10 +284,16 @@ export async function projectCalculatedMaterials(db: any, projectId: string, com
 /** The company's default markup on a material's cost, in percent (company.settings.takeoffMarkupPercent), or null. */
 export async function readTakeoffMarkup(db: any, companyId: string): Promise<number | null> {
   const row = rowsOf(await db.execute(sql`
-    SELECT CASE jsonb_typeof(settings::jsonb) WHEN 'object' THEN settings::jsonb ->> 'takeoffMarkupPercent' WHEN 'string' THEN (settings::jsonb #>> '{}')::jsonb ->> 'takeoffMarkupPercent' END AS markup FROM company WHERE id = ${companyId}
+    SELECT CASE jsonb_typeof(settings::jsonb) WHEN 'object' THEN settings::jsonb ->> 'takeoffMarkupPercent' WHEN 'string' THEN (settings::jsonb #>> '{}')::jsonb ->> 'takeoffMarkupPercent' END AS markup,
+           CASE jsonb_typeof(settings::jsonb) WHEN 'object' THEN settings::jsonb #>> '{markupDefaults,material}' WHEN 'string' THEN (settings::jsonb #>> '{}')::jsonb #>> '{markupDefaults,material}' END AS material
+    FROM company WHERE id = ${companyId}
   `))[0]
   const n = row?.markup == null ? NaN : Number(row.markup)
-  return Number.isFinite(n) && n >= 0 ? n : null
+  if (Number.isFinite(n) && n >= 0) return n
+  // No takeoff markup of its own: the company's usual markup on materials (Settings › Markup Defaults), so a measured sheet has a price
+  // (contractor live test 11/07: "Price as measured" stayed $0.00 with a 20% material markup set).
+  const m = row?.material == null ? NaN : Number(row.material)
+  return Number.isFinite(m) && m >= 0 ? m : null
 }
 
 /** Set (or, with null, remove) the default markup — merged into the settings blob, never replacing it. */

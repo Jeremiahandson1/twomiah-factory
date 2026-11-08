@@ -112,7 +112,7 @@ export function WipCard({ api, jobsLabel }: { api: ReportingApi; jobsLabel: stri
                   <td className={td}>{money(r.contractValue)}</td>
                   <td className={td}>{money(r.billed)}</td>
                   <td className={td}>{money(r.costToDate)}{r.costsMissingOnBudget && <span className={`block text-xs ${muted}`}>some lines have no cost</span>}</td>
-                  <td className={td}>{r.percentComplete === null ? <span className={`text-xs ${muted}`}>needs a quote with costs</span> : `${r.percentComplete}%`}{r.percentSource === 'progress' && <span className={`block text-xs ${muted}`}>from the project’s progress</span>}</td>
+                  <td className={td}>{r.percentComplete === null ? <span className={`text-xs ${muted}`}>needs a quote with costs</span> : `${r.percentComplete}%`}{r.percentSource === 'progress' && <span className={`block text-xs ${muted}`}>from the project’s progress</span>}{r.percentSource === 'cost' && <span className={`block text-xs ${muted}`}>by cost: spent so far of the budgeted cost (the project’s own progress bar is set by hand)</span>}</td>
                   <td className={`py-2 text-right whitespace-nowrap font-medium ${tone(r.overUnder)}`}>{r.overUnder === null ? '–' : r.overUnder > 0.005 ? `${money(r.overUnder)} over` : r.overUnder < -0.005 ? `${money(-r.overUnder)} under` : 'On target'}</td>
                 </tr>
               ))}

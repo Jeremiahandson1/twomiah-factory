@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, X as XIcon, Minus, Trash2, Plus } from 'lucide-react'
 import { api } from '../../api'
-import { useToast } from '../../shared'
+import { useAuth, useToast } from '../../shared'
+import { SignaturePad } from '@twomiah/tenant-ui/src/portal/SignaturePad'
 import { Modal, ConfirmModal } from '../ui/Modal'
 import { Button } from '../ui/DataTable'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
@@ -45,6 +46,10 @@ export function ChecklistModal({ inspection, canEdit: mayEdit, onClose, onChange
   const [pending, setPending] = useState<PendingPhoto[]>([])
   const [busy, setBusy] = useState(false)
   const [signOff, setSignOff] = useState<SignOff | null>(null)
+  // The customer signs here on the office's screen or a tablet on site (feature inspection_signature; contractor live test 11/07: there
+  // was nowhere to sign but the phone app). The same route and record the phone uses: POST /api/inspection-checklists/:id/sign.
+  const { hasFeature } = useAuth()
+  const [signing, setSigning] = useState<{ name: string; consent: boolean; image: string | null } | null>(null)
   // Once the customer has signed, the lines are final (the server refuses a change), so the screen offers none.
   const canEdit = mayEdit && !signOff?.signedAt
 
@@ -65,6 +70,15 @@ export function ChecklistModal({ inspection, canEdit: mayEdit, onClose, onChange
     load()
     api.get('/api/inspection-templates').then((r: any) => setTemplates(r?.data || [])).catch(() => setTemplates([]))
   }, [id, load])
+
+  const sign = async () => {
+    if (!id || !signing?.image) return
+    setBusy(true)
+    try {
+      await api.post(`/api/inspection-checklists/${id}/sign`, { signature: signing.image, signedBy: signing.name.trim(), consent: signing.consent })
+      toast.success('Signed — the checklist is kept as it stands'); setSigning(null); await load(); onChanged()
+    } catch (err) { toast.error((err as Error).message) } finally { setBusy(false) }
+  }
 
   const start = async () => {
     if (!id) return
@@ -181,6 +195,26 @@ export function ChecklistModal({ inspection, canEdit: mayEdit, onClose, onChange
                   </li>
                 ))}
               </ul>
+              {canEdit && hasFeature('inspection_signature') && lines.length > 0 && (
+                signing ? (
+                  <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-3 space-y-2" data-testid="inspection-sign">
+                    <p className="text-sm font-medium">The customer signs the checklist as it stands</p>
+                    <label className="block text-sm">Their full name<input value={signing.name} onChange={(e) => { const name = e.target.value; setSigning((s) => (s ? { ...s, name } : s)) }} className="mt-1 w-full px-3 py-2 border rounded-lg text-sm" /></label>
+                    {signing.image
+                      ? <div className="flex items-center gap-2"><img src={signing.image} alt="Signature" className="h-16 rounded bg-white border" /><button type="button" className="text-sm underline" onClick={() => setSigning((s) => (s ? { ...s, image: null } : s))}>Sign again</button></div>
+                      : <SignaturePad width={420} height={150} onSave={(image) => setSigning((s) => (s ? { ...s, image } : s))} />}
+                    <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={signing.consent} onChange={(e) => { const consent = e.target.checked; setSigning((s) => (s ? { ...s, consent } : s)) }} /> I agree to sign this checklist electronically.</label>
+                    <div className="flex gap-2">
+                      <Button onClick={sign} disabled={busy || !signing.image || !signing.name.trim() || !signing.consent}>{busy ? 'Saving…' : 'Save signature'}</Button>
+                      <Button variant="secondary" onClick={() => setSigning(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="secondary" onClick={() => setSigning({ name: '', consent: false, image: null })} disabled={lines.some((l) => l.result === 'pending')}>
+                    {lines.some((l) => l.result === 'pending') ? 'Customer signs — answer every line first' : 'Customer signs the checklist'}
+                  </Button>
+                )
+              )}
               {canEdit && (
                 <div className="flex gap-2">
                   <input value={adding} onChange={(e) => setAdding(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addLine() }} aria-label="Add a line" placeholder="Add a line to check" className="flex-1 px-3 py-2 border rounded-lg text-sm" />

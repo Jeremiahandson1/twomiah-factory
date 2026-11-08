@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search, Copy, BookmarkPlus, LayoutTemplate } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
@@ -103,7 +103,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     finally { setLoading(false) }
     // Customers only: a vendor is never who a quote is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
     // The salesperson list is the Team module's (/api/team is mounted behind the `team` feature): asked only where it is on.
-    if (cfg.quoteSalesperson && (cfg.hasFeature ? cfg.hasFeature('team') : true)) api.get('/api/team/assignable').then((r: any) => { const list = r?.data || (Array.isArray(r) ? r : []); setTeam(list.map((u: any) => ({ id: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' }))) }).catch(() => setTeam([]))
+    if (cfg.quoteSalesperson && (cfg.hasFeature ? cfg.hasFeature('team') : true)) api.get('/api/team/assignable').then((r: any) => { const list = r?.data || (Array.isArray(r) ? r : []); setTeam(list.map((u: any) => ({ id: u.id, name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || 'Team member' }))) }).catch(() => setTeam([]))
     api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     /**
@@ -130,7 +130,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     if (cfg.quoteEquipment) { if (contactId) api.get('/api/equipment', { contactId, limit: 100 }).then((r: any) => setEquipment(r?.data || [])).catch(() => setEquipment([])); else setEquipment([]) }
     if (cfg.quoteSites) { if (contactId) api.get(`/api/contacts/${contactId}/sites`).then((r: any) => setSites(Array.isArray(r) ? r : r?.data || [])).catch(() => setSites([])); else setSites([]) }
   }
-  const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
+  const openCreate = () => { templateProposal.current = null; setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
     setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', salespersonId: item.salespersonId || '', lineItems: formLines(item.lineItems, blankLine), depositType: item.depositType === 'percent' || item.depositType === 'fixed' ? item.depositType : '', depositValue: Number(item.depositValue) || 0, parameters: Array.isArray(item.parameters) ? item.parameters : [] })
@@ -157,7 +157,11 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     } catch (e) { toast.error(errMsg(e, 'Could not copy that quote')) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   /** A new quote filled in from a template: its lines and wording, and no customer until you pick one. */
+  // The template's Good / Better / Best options, put on the new quote once it is saved (PUT /api/quotes/:id/proposal — the options are a
+  // quote's own rows, made after the quote; contractor live test 11/07).
+  const templateProposal = useRef<any>(null)
   const fromTemplate = (body: any) => {
+    templateProposal.current = Array.isArray(body?.proposal?.sets) && body.proposal.sets.length ? body.proposal : null
     setEditing(null)
     setForm({
       ...emptyForm(), name: body?.name || '', notes: body?.notes || '', customerMessage: body?.customerMessage || '', terms: body?.terms || '',
@@ -260,7 +264,15 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       if (cfg.quoteDeposit) { payload.depositType = form.depositType || null; payload.depositValue = form.depositType ? form.depositValue : null }
       let saved: any
       if (editing) { saved = await api.put(`/api/quotes/${editing.id}`, payload); toast.success('Quote updated') }
-      else { saved = await api.post('/api/quotes', payload); toast.success('Quote created') }
+      else {
+        saved = await api.post('/api/quotes', payload)
+        const proposal = templateProposal.current
+        templateProposal.current = null
+        if (proposal && saved?.id) {
+          try { await api.put(`/api/quotes/${saved.id}/proposal`, proposal); toast.success('Quote created with the template’s options') }
+          catch (e) { toast.error(`Quote created, but the template’s options were not added: ${errMsg(e, 'try adding them on the quote')}`) }
+        } else toast.success('Quote created')
+      }
       if (sendAfter && saved?.id) { const sentQ = await api.post(`/api/quotes/${saved.id}/send`, {}); toast.success(quoteSentMessage(sentQ)) }
       setModalOpen(false); load()
     } catch (e) { toast.error(errMsg(e, 'Could not save the quote')) }

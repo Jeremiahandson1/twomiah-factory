@@ -31,6 +31,55 @@ interface VendorRow {
 }
 type VendorEnv = { Variables: AppEnv['Variables'] & { vendor: VendorRow } }
 
+/**
+ * The vendor's private link, minting (or renewing) the contact's portal token when it has none or it ran out — the one rule the invite
+ * and a purchase order sent to the vendor share.
+ */
+export async function ensureVendorLink(db: any, vendor: { id: string; portalToken?: string | null; portalTokenExp?: Date | null; portalEnabled?: boolean | null }): Promise<{ link: string; token: string }> {
+  let token = vendor.portalToken || ''
+  const expired = vendor.portalTokenExp && new Date() > new Date(vendor.portalTokenExp)
+  if (!vendor.portalEnabled || !token || expired) {
+    token = crypto.randomBytes(32).toString('hex')
+    await db.update(contact).set({
+      portalEnabled: true,
+      portalToken: token,
+      portalTokenExp: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
+    }).where(eq(contact.id, vendor.id))
+  }
+  const base = (process.env.FRONTEND_URL || '').replace(/\/+$/, '')
+  return { link: `${base}/vendor/${token}`, token }
+}
+
+/**
+ * A purchase order sent to its vendor: an email with the order's number and total and the vendor portal link, where they acknowledge it
+ * and send their invoice (contractor live test 11/07: "No email goes to the vendor on send"). Only where the vendor portal is on and the
+ * vendor has an email; answers whether it went.
+ */
+export async function emailPurchaseOrder(d: CrmDeps, companyId: string, po: { number: string; total: unknown; vendorId: string | null }): Promise<boolean> {
+  if (!po.vendorId) return false
+  if (!(await d.features.isFeatureEnabled(companyId, 'vendor_portal').catch(() => false))) return false
+  const [vendor] = await d.db.select().from(contact).where(and(eq(contact.id, po.vendorId), eq(contact.companyId, companyId))).limit(1)
+  if (!vendor?.email) return false
+  const { link } = await ensureVendorLink(d.db, vendor)
+  const [co] = await d.db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
+  const name = escapeHtml(co?.name || 'Your customer')
+  const total = Number(po.total || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+  try {
+    await d.services.emailService.sendRaw({
+      to: vendor.email,
+      subject: `Purchase order ${po.number} from ${co?.name || 'your customer'}`,
+      html: `<p>${name} sent you purchase order <strong>${escapeHtml(po.number)}</strong> for ${escapeHtml(total)}.</p>
+             <p><a href="${escapeHtml(link)}">Open it in your vendor portal</a> to acknowledge it and, when the work or delivery is done, send your invoice.</p>
+             <p>The link is private to you.</p>`,
+    })
+    return true
+  } catch (err: any) {
+    d.logger.warn('[vendorPortal] purchase order email failed', { error: err?.message })
+    return false
+  }
+}
+
 export function createVendorPortalRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
@@ -48,21 +97,8 @@ export function createVendorPortalRoutes(d: CrmDeps) {
     if (!vendor) return fail(c, 404, 'Contact not found')
     if (!vendor.email) return fail(c, 400, 'Contact must have an email to invite them to the portal')
 
-    let token = vendor.portalToken
-    const expired = vendor.portalTokenExp && new Date() > new Date(vendor.portalTokenExp)
-    if (!vendor.portalEnabled || !token || expired) {
-      token = crypto.randomBytes(32).toString('hex')
-      await db.update(contact).set({
-        portalEnabled: true,
-        portalToken: token,
-        portalTokenExp: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-        updatedAt: new Date(),
-      }).where(eq(contact.id, contactId))
-    }
-
+    const { link } = await ensureVendorLink(db, vendor)
     const [co] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
-    const base = (process.env.FRONTEND_URL || '').replace(/\/+$/, '')
-    const link = `${base}/vendor/${token}`
     // The template called emailService.sendEmail, which its email service does not have: the call threw inside this
     // try, was logged as a warning, and no invite email was ever sent. Sent through the app's email service; the
     // company's name is escaped into the HTML.

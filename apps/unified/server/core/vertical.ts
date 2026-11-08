@@ -37,6 +37,8 @@ export interface VerticalSettings {
   roleMapping?: Record<string, string>
   /** Permissions one of the vertical's own role names goes without (PermissionsDeps.roleWithheld): roofing's Crew, no prices. */
   roleWithheld?: Record<string, string[]>
+  /** Permissions one of the vertical's own role names holds beyond its rung (PermissionsDeps.roleExtra): the contractor's Sales rep, its leads and quotes. */
+  roleExtra?: Record<string, string[]>
   /** What the authenticator app lists two-factor under. */
   mfaIssuer: string
   /**
@@ -99,6 +101,8 @@ export interface CrmSettings {
   serviceSites?: boolean
   /** The portal's Visits section: finished visits with the crew's note and after-photos (landscaping; feature visit_reports). */
   visitReports?: boolean
+  /** A plan can pay the seller of the signed quote as its invoices are paid (crm/billing/quoteSellerCommissions.ts) — the contractor. */
+  quoteSellerCommissions?: boolean
   jobs?: {
     /** What a new job is when none is given (the database's default is 'service'). */
     defaultType?: string

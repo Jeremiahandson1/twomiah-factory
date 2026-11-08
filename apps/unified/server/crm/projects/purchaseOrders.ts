@@ -12,6 +12,7 @@ import { fail, list, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { partialOf } from '@twomiah/tenant-backend'
+import { emailPurchaseOrder } from '../office/vendorPortal.ts'
 
 const lineSchema = z.object({
   description: z.string().min(1),
@@ -223,6 +224,11 @@ export function createPurchaseOrderRoutes(d: CrmDeps) {
       const [updated] = await db.update(purchaseOrder)
         .set({ status: TARGET[action], updatedAt: new Date() })
         .where(eq(purchaseOrder.id, id)).returning()
+      // Sent: the vendor is emailed the order with their portal link (where the vendor portal is on and they have an email).
+      if (action === 'send') {
+        const emailed = await emailPurchaseOrder(d, currentUser.companyId, updated).catch(() => false)
+        return one(c, { ...updated, emailed })
+      }
       return one(c, updated)
     })
   }

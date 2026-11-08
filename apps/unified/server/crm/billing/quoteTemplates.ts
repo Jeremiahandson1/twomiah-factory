@@ -10,16 +10,16 @@
 // so numbering, totals, tax, the expiry and every rule on a new quote stay the quote route's own. A template is NOT a quote: it
 // has no number, no customer and no dates, and no report counts it. What a template keeps of a quote: the name, notes, terms,
 // customer message, tax rate, deposit and the lines (description, type, quantity, price, section, cost code, allowance, optional
-// and the markup). What it leaves: the customer, project, job, expiry, signature, status — and the Good/Better/Best options,
-// whose lines belong to a choice a customer made on that one quote.
+// and the markup, and each line's picture) and the Good / Better / Best options (each option's lines, upgrades, photos and discount —
+// never which one a customer chose). What it leaves: the customer, project, job, expiry, signature and status.
 // Cost-side line fields (unitCost, markupPct) are kept in the template and sent only to a seat with margin:read, the rule the
 // quote itself follows; a seat without it starts from the prices alone.
 // Nothing here moves money.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { round2 } from '@twomiah/tenant-backend'
-import { quote, quoteLineItem, quoteTemplate } from '../../db/schema/index.ts'
+import { quote, quoteLineItem, quoteProposalOption, quoteTemplate } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, listAll, one, done } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
@@ -35,12 +35,21 @@ interface TemplateLine {
   section?: string; markupPct?: number; allowance?: boolean; costCode?: string
   /** Formula estimating (contractor parity row 9): the line's name and formulas, kept as written. */
   formulaKey?: string; quantityFormula?: string; priceFormula?: string
+  /** The line's picture (quote_line_images): the same address — a /media photo of the business's or an https one. */
+  imageUrl?: string
+}
+/** A Good / Better / Best set as PUT /api/quotes/:id/proposal takes it, to be put on the quote made from the template. */
+interface TemplateSet {
+  name: string | null; kind: string
+  options: Array<{ name: string; tier: string | null; brand: string | null; warranty: string | null; description: string | null; photos: string[]; recommended: boolean; lines: TemplateLine[]; upgrades: TemplateLine[]; attachments: unknown; discount: { type: 'amount'; cents: number } | { type: 'percent'; percent: number } | null }>
 }
 interface TemplateBody {
   name: string; notes: string; terms: string; customerMessage: string; taxRate: number
   depositType: 'percent' | 'fixed' | null; depositValue: number; lineItems: TemplateLine[]
   /** The quote's own parameters (row 9), as numbers to start from. */
   parameters?: Array<{ key: string; label?: string; value: number; unit?: string }>
+  /** The Good / Better / Best options (contractor live test 11/07: "Templates do not carry the options or the picture"). */
+  proposal?: { sets: TemplateSet[] }
 }
 
 /** One quote line as a template keeps it: only what was set, as plain numbers. */
@@ -57,12 +66,19 @@ const lineOf = (li: any): TemplateLine => ({
   ...(li.formulaKey ? { formulaKey: li.formulaKey } : {}),
   ...(li.quantityFormula ? { quantityFormula: li.quantityFormula } : {}),
   ...(li.priceFormula ? { priceFormula: li.priceFormula } : {}),
+  ...(li.imageUrl ? { imageUrl: li.imageUrl } : {}),
 })
+/** An option's line as the proposal takes it: no optional or selected (an option's lines are its own). */
+const optionLineOf = (li: any): TemplateLine => { const { optional: _o, selected: _s, ...rest } = lineOf(li); return rest }
 
 /** The template as the caller may see it: without what the company pays unless they hold margin:read. */
 export function templateFor(body: TemplateBody, mayMargin: boolean): TemplateBody {
   if (mayMargin) return body
-  return { ...body, lineItems: body.lineItems.map(({ unitCost: _c, markupPct: _m, ...rest }) => rest) }
+  const priced = (lines: TemplateLine[]) => lines.map(({ unitCost: _c, markupPct: _m, ...rest }) => rest)
+  return {
+    ...body, lineItems: priced(body.lineItems),
+    ...(body.proposal ? { proposal: { sets: body.proposal.sets.map((st) => ({ ...st, options: st.options.map((op) => ({ ...op, lines: priced(op.lines), upgrades: priced(op.upgrades) })) })) } } : {}),
+  }
 }
 
 export function createQuoteTemplateRoutes(d: CrmDeps) {
@@ -103,12 +119,30 @@ export function createQuoteTemplateRoutes(d: CrmDeps) {
     if (await nameTaken(user.companyId, parsed.data.name)) return fail(c, 409, 'You already have a template with that name. Pick another name.')
     // Read from the saved quote itself (never from what the browser sends), minus the lines of a Good/Better/Best option.
     const lines = await db.select().from(quoteLineItem).where(and(eq(quoteLineItem.quoteId, q.id), isNull(quoteLineItem.proposalOptionId))).orderBy(asc(quoteLineItem.sortOrder), asc(quoteLineItem.id))
-    if (!lines.length) return fail(c, 400, 'That quote has no lines to save.')
+    // …and its Good / Better / Best options, each with its own lines and upgrades, as the quote's proposal takes them.
+    const options = await db.select().from(quoteProposalOption).where(eq(quoteProposalOption.quoteId, q.id)).orderBy(asc(quoteProposalOption.setIndex), asc(quoteProposalOption.sortOrder), asc(quoteProposalOption.id))
+    const optionLines = options.length ? await db.select().from(quoteLineItem).where(and(eq(quoteLineItem.quoteId, q.id), isNotNull(quoteLineItem.proposalOptionId))).orderBy(asc(quoteLineItem.sortOrder), asc(quoteLineItem.id)) : []
+    if (!lines.length && !options.length) return fail(c, 400, 'That quote has no lines to save.')
+    const sets: TemplateSet[] = []
+    for (const op of options as any[]) {
+      const si = Number(op.setIndex) || 0
+      if (!sets[si]) sets[si] = { name: op.setName ?? null, kind: op.setKind || 'one', options: [] }
+      const own = (optionLines as any[]).filter((l) => l.proposalOptionId === op.id)
+      sets[si].options.push({
+        name: op.name, tier: op.tier ?? null, brand: op.brand ?? null, warranty: op.warranty ?? null, description: op.description ?? null,
+        photos: Array.isArray(op.photos) ? op.photos : [], recommended: !!op.recommended,
+        lines: own.filter((l) => l.optionRole !== 'upgrade').map(optionLineOf), upgrades: own.filter((l) => l.optionRole === 'upgrade').map(optionLineOf),
+        attachments: Array.isArray(op.attachments) ? op.attachments : [],
+        discount: Number(op.discountCents) > 0 ? { type: 'amount', cents: Number(op.discountCents) } : Number(op.discountPercent) > 0 ? { type: 'percent', percent: Number(op.discountPercent) } : null,
+      })
+    }
+    const kept = sets.filter((st) => st && st.options.length >= 2)
     const body: TemplateBody = {
       name: q.name, notes: q.notes || '', terms: q.terms || '', customerMessage: q.customerMessage || '', taxRate: Number(q.taxRate) || 0,
       depositType: q.depositType === 'percent' || q.depositType === 'fixed' ? q.depositType : null, depositValue: Number(q.depositValue) || 0,
       lineItems: lines.map(lineOf),
       ...(Array.isArray(q.parameters) && q.parameters.length ? { parameters: q.parameters } : {}),
+      ...(kept.length ? { proposal: { sets: kept } } : {}),
     }
     const [row] = await db.insert(quoteTemplate).values({ companyId: user.companyId, name: parsed.data.name, body, createdById: user.userId ?? null }).returning()
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'quote_template', entityId: row.id, entityName: row.name, metadata: { fromQuote: q.number, lines: lines.length }, req: c })

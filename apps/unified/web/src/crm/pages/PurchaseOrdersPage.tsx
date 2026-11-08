@@ -123,9 +123,11 @@ export default function PurchaseOrdersPage() {
     finally { setSaving(false); }
   };
 
-  const transition = async (fn: (id: string) => Promise<unknown>, id: string, done: string) => {
-    try { await fn(id); toast.success(done); load(); } catch (err) { toast.error((err as Error).message); }
+  const transition = async (fn: (id: string) => Promise<unknown>, id: string, done: string | ((r: any) => string)) => {
+    try { const r = await fn(id); toast.success(typeof done === 'function' ? done(r) : done); load(); } catch (err) { toast.error((err as Error).message); }
   };
+  // What a send did: the server emails the vendor their portal link where the vendor portal is on and they have an email.
+  const sentWords = (r: any) => (r?.emailed ? 'Sent — the vendor was emailed a link to it in their vendor portal' : 'Sent — marked sent. No email went to the vendor (no email on their contact, or the vendor portal is off), so send it to them yourself')
 
   const handleDelete = async () => {
     try { await api.purchaseOrders.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); }
@@ -146,7 +148,7 @@ export default function PurchaseOrdersPage() {
   const mayUpdate = can('purchase-orders:update');
   const rowActions = [
     { label: 'Edit', icon: Edit, show: () => mayUpdate, onClick: openEdit },
-    { label: 'Send to vendor', icon: Send, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.send, r.id as string, 'Sent — the vendor can now see it in their portal') },
+    { label: 'Send to vendor', icon: Send, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.send, r.id as string, sentWords) },
     { label: 'Mark received', icon: PackageCheck, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.receive, r.id as string, 'Marked received') },
     { label: 'Cancel', icon: Ban, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.cancel, r.id as string, 'Cancelled') },
     { label: 'Reopen', icon: RotateCcw, show: () => mayUpdate, onClick: (r: Record<string, unknown>) => transition(api.purchaseOrders.reopen, r.id as string, 'Back to draft') },

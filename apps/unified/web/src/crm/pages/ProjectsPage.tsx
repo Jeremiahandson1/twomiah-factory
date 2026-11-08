@@ -113,7 +113,9 @@ export default function ProjectsPage() {
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
-  const openCreate = (contactId = '') => { setEditing(null); setTemplateId(''); setBring({ schedule: true, punchList: true, budget: true, selections: true }); setForm({ ...initialForm, contactId }); setModalOpen(true); };
+  // The client's address is the job site until somebody types another (contractor live test 11/07: started from a lead, the address was blank).
+  const addressOf = (c: Record<string, unknown> | null | undefined) => (c ? { address: String(c.address || ''), city: String(c.city || ''), state: String(c.state || ''), zip: String(c.zip || '') } : {});
+  const openCreate = (contactId = '', from?: Record<string, unknown> | null) => { setEditing(null); setTemplateId(''); setBring({ schedule: true, punchList: true, budget: true, selections: true }); setForm({ ...initialForm, contactId, ...addressOf(from) }); setModalOpen(true); };
 
   // A lead that has just become a contact starts a project from the Lead Inbox (/crm/projects?new=1&contactId=…): the form
   // opens with that person chosen. Their record is fetched if the first page of the picker does not hold them.
@@ -121,16 +123,18 @@ export default function ProjectsPage() {
     if (searchParams.get('new') !== '1' || !can('projects:create')) return;
     const contactId = searchParams.get('contactId') || '';
     let cancelled = false;
+    let found: Record<string, unknown> | null = null;
     const finish = () => {
       if (cancelled) return;
-      openCreate(contactId);
+      openCreate(contactId, found);
       searchParams.delete('new'); searchParams.delete('contactId');
       setSearchParams(searchParams, { replace: true });
     };
     if (!contactId) { finish(); return () => { cancelled = true; }; }
     api.contacts.get(contactId).then((row: unknown) => {
       if (cancelled || !row) return;
-      setStartContact(row as Record<string, unknown>);
+      found = row as Record<string, unknown>;
+      setStartContact(found);
     }).catch(() => {}).finally(finish);
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -227,7 +231,7 @@ export default function ProjectsPage() {
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Type</label><select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{types.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}</select></div>
-          <div><label className="block text-sm font-medium mb-1">Client</label><select value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, contactId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{[...contacts, ...(startContact && !contacts.some((c) => c.id === startContact.id) ? [startContact] : [])].filter((c: Record<string, unknown>) => c.type === 'client' || (!!form.contactId && c.id === form.contactId)).map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}</select></div>
+          <div><label className="block text-sm font-medium mb-1">Client</label><select value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const id = e.target.value; const picked = [...contacts, ...(startContact ? [startContact] : [])].find((c) => c.id === id); setForm((f) => ({ ...f, contactId: id, ...(!f.address && !f.city ? addressOf(picked) : {}) })); }} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{[...contacts, ...(startContact && !contacts.some((c) => c.id === startContact.id) ? [startContact] : [])].filter((c: Record<string, unknown>) => c.type === 'client' || (!!form.contactId && c.id === form.contactId)).map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Estimated Value</label><input type="number" value={form.estimatedValue} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, estimatedValue: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Budget</label><input type="number" value={form.budget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, budget: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Start Date</label><input type="date" value={form.startDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>

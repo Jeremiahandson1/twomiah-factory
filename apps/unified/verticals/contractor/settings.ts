@@ -9,15 +9,31 @@ const contractor: VerticalSettings = {
   featureSet: 'crm',
   // Crew scope: a crew login reads its own and its crews' jobs and their customers (server/core/vertical.ts).
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
+  // A builder's Sales rep and Crew (Buildertrend's and JobTread's seats; contractor live test 11/07: the rep was refused their own leads and
+  // quotes, and the crew read the price list's prices). Both are the Field rung — the jobs they are on and their customers — and everything
+  // that ranks a role reads them as Field. The Sales rep also works leads and writes quotes: its OWN (leads assigned to it, quotes it wrote
+  // or is the salesperson on — without leads:read-all / quotes:read-all the routes narrow it) and its own commissions. A Crew seat goes
+  // without the price list's prices. An existing Staff (field) login keeps Staff.
+  roleLabels: { sales_rep: 'Sales rep', crew: 'Crew' },
+  roleMapping: { sales_rep: 'field', crew: 'field' },
+  roleExtra: { sales_rep: ['leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update'] },
+  roleWithheld: { crew: ['prices:read'], sales_rep: ['leads:read-all', 'quotes:read-all'] },
   // Exterior Visualizer: the screens open company.visionUrl when the feature is on.
   visionUrl: () => process.env.VISION_URL || null,
   // A new job is for a customer (packages/tenant-backend jobs.ts options.requireCustomer).
-  crm: { ...BASE_CRM, jobs: { ...BASE_CRM.jobs, requireCustomer: true } },
+  // quoteSellerCommissions: the sales rep who sold the project earns a % of the contract as its invoices are paid (contractor live test 11/07).
+  // team.roles: the seats a login may be given here, the shared ones and the contractor's Sales rep and Crew (roleMapping above).
+  crm: { ...BASE_CRM, jobs: { ...BASE_CRM.jobs, requireCustomer: true }, quoteSellerCommissions: true, team: { roles: ['admin', 'manager', 'sales_rep', 'crew', 'field', 'viewer'] } },
   // templates/crm/frontend/src/*Config.ts
   screens: {
     // The menu's groups (web/src/navGroups.ts): a builder reads Sales, Projects, Field, Finance, then the website and bookings.
     // Every page a builder can be offered is filed here by address; a page left out stays under the heading it had.
     navGroupOrder: ['Sales', 'Projects', 'Field', 'Finance', 'Website', 'Bookings', 'Account'],
+    // The crew's menu is their work (contractor live test 11/07: it listed Reviews, Agreements, Commissions, Fleet, Inventory, Bookings and
+    // Support): the office's pages leave it. Typed in, each still answers as it does for any Staff seat.
+    navHiddenFor: {
+      crew: ['/crm/reviews', '/crm/google-reviews', '/crm/agreements', '/crm/commissions', '/crm/fleet', '/crm/inventory', '/crm/bookings', '/crm/bookings/calendar', '/crm/bookings/waitlist', '/crm/bookings/insights', '/crm/bookings/settings', '/crm/support', '/crm/marketing', '/crm/warranties', '/crm/equipment', '/crm/lead-sources'],
+    },
     navGroups: {
       '/crm/dashboard': '',
       '/crm/contacts': 'Sales',
@@ -135,7 +151,8 @@ const contractor: VerticalSettings = {
     expenses: {},
     // A roster row can be a crew with logins on it; their field seats read its jobs (crew scope, 2026-10-24).
     team: { crewLogins: true },
-    commissions: { roleWords: { technician: 'Crew', sales_rep: 'Sales', manager: 'Project managers', all: 'Everyone' }, planExample: 'Standard sales plan' },
+    // A builder's sales plan is a % of the contract, earned by the rep on the signed quote as its invoices are paid (contractor live test 11/07).
+    commissions: { roleWords: { technician: 'Crew', sales_rep: 'Sales rep', manager: 'Project managers', all: 'Everyone' }, planExample: 'Sales rep 5% of contract', quoteSeller: true, planTypeWords: { percent_of_invoice: '% of the contract (on each invoice, before tax)' } },
     portal: {},
     // What a lead can start the moment it becomes a contact (web/src/crm/screens.tsx LeadInbox): only the shared screens that open with
     // the contact chosen (?contactId=). Offered only if the business has the feature and the seat may create it.
@@ -147,7 +164,17 @@ const contractor: VerticalSettings = {
     fleet: { gps: true },
     reviews: {},
     migration: {},
-    settings: {},
+    // The role picker (Settings › Users): the contractor's seats, each said by what it holds.
+    settings: {
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'read-only: sees the projects, jobs, quotes and reports; changes nothing' },
+        { value: 'crew', label: 'Crew', description: 'the jobs they are on, daily logs, punch lists, photos and their own time; no prices and no company money' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads, quotes and site visits, the jobs they are on and their own commissions; not settings, the team or billing' },
+        { value: 'field', label: 'Staff', description: 'the jobs they are on and day-to-day work; not settings, the team or billing' },
+        { value: 'manager', label: 'Manager', description: 'runs the projects, jobs, crews, quotes and purchase orders; not billing or company settings' },
+        { value: 'admin', label: 'Admin', description: 'full access, including billing, company settings and logins' },
+      ],
+    },
     tech: {
       title: 'My Jobs',
       checklist: {

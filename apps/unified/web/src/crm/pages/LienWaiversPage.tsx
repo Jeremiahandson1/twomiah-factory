@@ -37,7 +37,9 @@ export default function LienWaiversPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
-  const [form, setForm] = useState({ projectId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: '', amountCurrent: '', amountTotal: 0, notes: '' });
+  // The vendors and subs on file, to pick from (contractor live test 11/07: "waiver vendor is free text"); a name can still be typed.
+  const [vendors, setVendors] = useState<Array<{ id: string; name: string; type: string }>>([]);
+  const [form, setForm] = useState({ projectId: '', vendorId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: '', amountCurrent: '', amountTotal: 0, notes: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => {
@@ -45,14 +47,16 @@ export default function LienWaiversPage() {
       // Projects is its own module; switched off it answers 403 and the page simply offers no project.
       const [{ data }, projRes] = await Promise.all([api.get('/api/lien-waivers'), (projectsOn ? api.get('/api/projects') : Promise.resolve({ data: [] })).catch(() => ({ data: [] }))]);
       setWaivers(data || []); setProjects(projRes.data || projRes || []);
+      const people: any = await api.get('/api/contacts', { limit: 200 }).catch(() => ({ data: [] }));
+      setVendors(((people?.data || []) as any[]).filter((c) => ['vendor', 'subcontractor', 'supplier'].includes(String(c.type))).map((c) => ({ id: String(c.id), name: String(c.company || c.name), type: String(c.type) })));
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const createWaiver = async (e: React.FormEvent) => {
     e.preventDefault();
     const total = Number(form.amountPrevious) + Number(form.amountCurrent);
-    await api.post('/api/lien-waivers', { ...form, amountPrevious: Number(form.amountPrevious), amountCurrent: Number(form.amountCurrent), amountTotal: total });
-    setShowCreate(false); setForm({ projectId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: '', amountCurrent: '', amountTotal: 0, notes: '' });
+    await api.post('/api/lien-waivers', { ...form, vendorId: form.vendorId || undefined, amountPrevious: Number(form.amountPrevious), amountCurrent: Number(form.amountCurrent), amountTotal: total });
+    setShowCreate(false); setForm({ projectId: '', vendorId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: '', amountCurrent: '', amountTotal: 0, notes: '' });
     load();
   };
 
@@ -98,7 +102,13 @@ export default function LienWaiversPage() {
             <h2 className="text-xl font-bold mb-4">New Lien Waiver</h2>
             <form onSubmit={createWaiver} className="space-y-3">
               <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="w-full border rounded-lg px-3 py-2"><option value="">Select project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-              <input required placeholder="Vendor / subcontractor name" value={form.vendorName} onChange={(e) => setForm({ ...form, vendorName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              {vendors.length > 0 && (
+                <select aria-label="Vendor on file" value={form.vendorId} onChange={(e) => { const v = vendors.find((x) => x.id === e.target.value); setForm((f) => ({ ...f, vendorId: e.target.value, vendorName: v ? v.name : f.vendorName, vendorType: v ? (v.type === 'vendor' ? 'supplier' : v.type) : f.vendorType })); }} className="w-full border rounded-lg px-3 py-2">
+                  <option value="">Pick a vendor or sub on file…</option>
+                  {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              )}
+              <input required placeholder="Vendor / subcontractor name" value={form.vendorName} onChange={(e) => { const vendorName = e.target.value; setForm((f) => ({ ...f, vendorName, vendorId: '' })); }} className="w-full border rounded-lg px-3 py-2" />
               <div className="grid grid-cols-2 gap-3">
                 <select value={form.vendorType} onChange={(e) => setForm({ ...form, vendorType: e.target.value })} className="border rounded-lg px-3 py-2"><option value="contractor">Contractor</option><option value="subcontractor">Subcontractor</option><option value="supplier">Supplier</option><option value="laborer">Laborer</option></select>
                 <select value={form.waiverType} onChange={(e) => setForm({ ...form, waiverType: e.target.value })} className="border rounded-lg px-3 py-2">{Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>

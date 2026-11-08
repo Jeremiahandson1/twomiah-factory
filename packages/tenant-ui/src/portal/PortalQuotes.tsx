@@ -402,7 +402,7 @@ export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {
                     <p className="font-medium">Deposit due: {moneyShort(quote.deposit.balance)} ({quote.deposit.number})</p>
                     {quote.deposit.payOnline && quote.deposit.path
                       ? <a href={quote.deposit.path} className={`${btnSuccess} mt-2`}>Pay the deposit</a>
-                      : <p className="mt-1 text-gray-700 dark:text-slate-300">{business} does not take card payments online. To pay the deposit, please contact them{reach ? ` at ${reach}` : ''}.</p>}
+                      : <p className="mt-1 text-gray-700 dark:text-slate-300">{business} does not take payments online yet. To pay the deposit, please contact them{reach ? ` at ${reach}` : ''}.</p>}
                   </div>
                 )}
                 {quote.deposit && Number(quote.deposit.balance) <= 0 && <p className="mt-2 text-sm text-green-800 dark:text-green-300">Deposit paid ({quote.deposit.number}). Thank you.</p>}

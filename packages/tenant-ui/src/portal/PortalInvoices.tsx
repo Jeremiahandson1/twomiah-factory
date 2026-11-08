@@ -144,7 +144,8 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoice {invoice.number}</h1>{invoice.project && <p className="text-gray-500 dark:text-slate-400">Project: {invoice.project.name}</p>}</div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>{Number(invoice.balance) > 0 ? invoiceStatusLabel(invoice.status) : settledLabel(invoice.status)}</span>
           </div>
-          {invoice.dueDate && <p className={`mt-2 ${overdue ? 'text-red-600 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>{overdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}</p>}
+          {/* With a payment plan the due date is the next installment's (the server keeps it there), and says so (contractor live test 11/07). */}
+          {invoice.dueDate && <p className={`mt-2 ${overdue ? 'text-red-600 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>{overdue ? 'OVERDUE - ' : ''}{invoice.plan?.next ? 'Next installment due' : 'Due'} {formatDate(invoice.dueDate)}</p>}
         </div>
         <div className="p-6 border-b overflow-x-auto dark:border-slate-700">
           <table className="w-full">
@@ -167,7 +168,7 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
         {hasBalance && !payOnline && (
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
             <p className="font-medium text-gray-900 dark:text-slate-100">How to pay</p>
-            <p className="text-sm text-gray-700 dark:text-slate-300">{business} does not take card payments online. To pay this invoice, please contact them{reach ? ` at ${reach}` : ''}.</p>
+            <p className="text-sm text-gray-700 dark:text-slate-300">{business} does not take payments online yet. To pay this invoice, please contact them{reach ? ` at ${reach}` : ''}.</p>
           </div>
         )}
         {hasBalance && payOnline && (
@@ -183,7 +184,7 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
           <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment plan</h3>
           <div className="space-y-2">{invoice.plan.installments.map((p) => (
             <div key={p.id} className="flex justify-between text-sm py-1 border-b last:border-0 dark:border-slate-800">
-              <span className="text-gray-800 dark:text-slate-200">Due {p.dueDate}</span>
+              <span className="text-gray-800 dark:text-slate-200">Due {formatDate(p.dueDate)}</span>
               <span className="text-gray-900 dark:text-slate-100">{money(p.amount)} · {p.state === 'paid' ? 'paid' : p.state === 'part paid' ? `${money(p.owed)} left` : p.state}</span>
             </div>
           ))}</div>
