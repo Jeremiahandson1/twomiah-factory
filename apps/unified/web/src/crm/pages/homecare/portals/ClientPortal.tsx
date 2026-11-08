@@ -19,6 +19,7 @@ import PortalCarePlan from './PortalCarePlan'
 import PortalMessages from './PortalMessages'
 import PortalNotifications from './PortalNotifications'
 import PortalDocuments from './PortalDocuments'
+import { DailyCareView, VitalsView } from './FamilyPortal'
 import './portals.css'
 
 const NAV = [
@@ -26,6 +27,8 @@ const NAV = [
   { key: 'history', label: 'Visit History', icon: '🕐' },
   { key: 'caregivers', label: 'My Caregivers', icon: '👤' },
   { key: 'care-plan', label: 'Care Plan', icon: '📋' },
+  { key: 'daily-care', label: 'Daily Care', icon: '🧺' },
+  { key: 'vitals', label: 'Vitals', icon: '❤️' },
   { key: 'invoices', label: 'Billing', icon: '📄' },
   { key: 'documents', label: 'Documents', icon: '📝' },
   { key: 'messages', label: 'Messages', icon: '💬' },
@@ -58,6 +61,9 @@ export default function ClientPortal({ token, user, onLogout, onPaused }: Client
   const [profile, setProfile] = useState<Profile | null>(null)
   const [unreadCount, setUnreadCount] = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  // Daily care and vitals are the agency's care_family_content switch: the server answers 404 without it, and the tabs hide.
+  const [careOn, setCareOn] = useState(false)
+  useEffect(() => { portal.get('/api/portal/care/vitals').then(() => setCareOn(true)).catch(() => setCareOn(false)) }, [portal])
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth <= 768)
 
   useEffect(() => {
@@ -99,6 +105,8 @@ export default function ClientPortal({ token, user, onLogout, onPaused }: Client
       case 'history': return <PortalHistory />
       case 'caregivers': return <PortalCaregivers agencyState={profile?.agencyState} />
       case 'care-plan': return <PortalCarePlan />
+      case 'daily-care': return <DailyCareView base="/api/portal/care" />
+      case 'vitals': return <VitalsView base="/api/portal/care" />
       case 'invoices': return <PortalInvoices />
       case 'documents': return <PortalDocuments />
       case 'messages': return <PortalMessages onRead={() => setUnreadMessages((prev) => Math.max(0, prev - 1))} />
@@ -152,7 +160,7 @@ export default function ClientPortal({ token, user, onLogout, onPaused }: Client
           background: 'var(--hc-surface)', borderBottom: '1px solid var(--hc-line)', display: 'flex',
           padding: isMobile ? '0' : '0 20px', gap: isMobile ? 0 : '4px', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
         }}>
-          {NAV.map((tab) => {
+          {NAV.filter((tab) => careOn || (tab.key !== 'daily-care' && tab.key !== 'vitals')).map((tab) => {
             const active = activeTab === tab.key
             return (
               <button

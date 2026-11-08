@@ -41,6 +41,12 @@ export function formatAgencyDateTime(value: unknown, opts: Intl.DateTimeFormatOp
 
 /** An instant's calendar day on the agency's clock, e.g. "Oct 16, 2026". */
 export function formatAgencyDate(value: unknown, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }): string {
+  // A calendar day (YYYY-MM-DD: a visit's date, a hire date, a report's range) is that day wherever the agency is — read as
+  // UTC midnight and printed on a clock west of UTC it showed the day before (home care live test 11/08: Nov 14 → "Nov 13").
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const day = new Date(`${value}T00:00:00Z`);
+    return isNaN(day.getTime()) ? '' : day.toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' });
+  }
   const d = asDate(value);
   return d ? d.toLocaleDateString('en-US', { ...opts, timeZone: zone }) : '';
 }

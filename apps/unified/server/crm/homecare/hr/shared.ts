@@ -2,7 +2,7 @@
 import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { seatRefusal } from '@twomiah/tenant-backend'
-import { company, user } from '../../../db/schema/index.ts'
+import { certificationRecords, company, user } from '../../../db/schema/index.ts'
 import { listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 
@@ -56,4 +56,27 @@ export async function insertSeatedUser(d: CrmDeps, companyId: string, values: Re
     const [row] = await tx.insert(user).values({ ...values, companyId } as any).returning(returning as any)
     return { row }
   })
+}
+
+/**
+ * A training with an expiry date (a CPR card, a first-aid course) is also a credential: the Credentials page, the expiring-soon
+ * list and the reminders read certification_records. Home care live test 11/08: a CPR certificate added under Compliance ›
+ * Training showed "EXPIRING SOON" there and nothing on Credentials. Kept as one certification record of the same name and date.
+ */
+export async function trainingAsCredential(d: CrmDeps, row: { companyId: string; caregiverId: string; trainingName: string; provider?: string | null; completedDate?: string | null; expiryDate?: string | null; certificationNumber?: string | null }) {
+  if (!row.expiryDate) return
+  const [same] = await d.db.select({ id: certificationRecords.id }).from(certificationRecords).where(and(eq(certificationRecords.companyId, row.companyId),
+    eq(certificationRecords.caregiverId, row.caregiverId), eq(certificationRecords.certificationType, row.trainingName), eq(certificationRecords.expiryDate, row.expiryDate))).limit(1)
+  if (same) return
+  await d.db.insert(certificationRecords).values({
+    companyId: row.companyId, caregiverId: row.caregiverId, certificationType: row.trainingName, issuingBody: row.provider || null,
+    issueDate: row.completedDate || null, expiryDate: row.expiryDate, certificationNumber: row.certificationNumber || null, status: 'active',
+  })
+}
+
+/** The training removed: its credential copy goes with it. */
+export async function dropTrainingCredential(d: CrmDeps, row: { companyId: string; caregiverId: string; trainingName: string; expiryDate: string | null }) {
+  if (!row.expiryDate) return
+  await d.db.delete(certificationRecords).where(and(eq(certificationRecords.companyId, row.companyId), eq(certificationRecords.caregiverId, row.caregiverId),
+    eq(certificationRecords.certificationType, row.trainingName), eq(certificationRecords.expiryDate, row.expiryDate)))
 }

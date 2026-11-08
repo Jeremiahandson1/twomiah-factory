@@ -95,7 +95,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const on = !!(await Promise.resolve(d.features.isFeatureEnabled(companyId, BILLING_CONTACTS_FEATURE)).catch(() => false))
     const billing = await recipientsOf(db, companyId, invoice.clientId, on)
     if (billing) return { to: billing.emails, greet: billing.kind === 'client' ? clientName : billing.name || clientName }
-    return invoice.clientEmail ? { to: [invoice.clientEmail], greet: clientName } : { problem: 'No email address found for this client. Please provide an email.' }
+    return invoice.clientEmail ? { to: [invoice.clientEmail], greet: clientName } : { problem: 'No email to send this to: add an email on the client, or a billing contact (Billing contacts on the client).' }
   }
 
   /** Send to each address in turn: the addresses it went to, and each one it did not with the reason. */
@@ -624,6 +624,16 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
     const tz = await core.time.timezone(companyId)
     await appendInvoiceNote(db, companyId, id, `\nRescinded (returned to draft) on ${ymdIn(new Date(), tz)}`, 'clear')
     return done(c)
+  })
+
+  // GET /invoices/:id/recipients — who Send Invoice and Send Reminder will email, before they do: the payer (split share), the
+  // billing contacts, or the client — { to, greet } or { problem }. Home care live test 11/08: the screen asked only for the
+  // client's own email, so a billing contact (Dana) was never reached and a client with no email of their own could not be sent.
+  app.get('/invoices/:id/recipients', update, async (c) => {
+    const { companyId } = who(c)
+    const invoice = await invoiceForEmail(db, companyId, c.req.param('id'))
+    if (!invoice) return fail(c, 404, 'Invoice not found')
+    return one(c, await recipientsFor(companyId, invoice, ''))
   })
 
   // POST /invoices/:id/send-email — email the invoice with a pay link. Sending releases the draft.

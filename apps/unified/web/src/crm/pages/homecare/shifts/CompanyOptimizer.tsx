@@ -27,7 +27,7 @@ import { useState, useEffect, type CSSProperties } from 'react'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { CHIP, EDGE, INK, SOLID, type Tone } from './ui'
 import { useMay } from '../lib/useMay'
-import { useAuth } from '../../../../shared'
+import { useAuth, useToast } from '../../../../shared'
 
 interface Person { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null; weeklyAuthorizedUnits?: number | null }
 interface Restriction { id: string; caregiverId: string; notes: string | null }
@@ -50,7 +50,9 @@ const CompanyOptimizer = () => {
   const may = useMay('care-schedule')
   // Item 5: gender, languages and what a client needs — shown only when the agency has care_match_prefs.
   const matchPrefs = useAuth().hasFeature('care_match_prefs')
-  const [activeTab, setActiveTab] = useState<Tab>('skills')
+  // ?tab=restrictions&client=<id> opens a client's needs straight away (the link on the client's Caregivers tab).
+  const opened = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
+  const [activeTab, setActiveTab] = useState<Tab>(() => (['skills', 'restrictions', 'optimizer'] as const).find((t) => t === opened?.get('tab')) ?? 'skills')
   const [capabilities, setCapabilities] = useState<string[]>([])
   const [caregivers, setCaregivers] = useState<Person[]>([])
   const [clients, setClients] = useState<Person[]>([])
@@ -63,7 +65,7 @@ const CompanyOptimizer = () => {
 
   const [cgTraits, setCgTraits] = useState({ gender: '', languages: '', maxTravelMiles: '', avoid: '' })
   const [clientPrefs, setClientPrefs] = useState({ requiredSkills: [] as string[], caregiverGender: '', language: '', requiredCertifications: '', homeAttributes: '', mustHave: [] as string[] })
-  const [restrictionsClient, setRestrictionsClient] = useState('')
+  const [restrictionsClient, setRestrictionsClient] = useState(() => opened?.get('client') || '')
   const [restrictions, setRestrictions] = useState<Restriction[]>([])
   const [newRestriction, setNewRestriction] = useState({ caregiverId: '', reason: '' })
 
@@ -73,7 +75,10 @@ const CompanyOptimizer = () => {
   const [showNewCap, setShowNewCap] = useState(false)
   const [newCapName, setNewCapName] = useState('')
 
+  const toast = useToast()
   const showMsg = (text: string, type: MsgType = 'success') => {
+    // Also a toast: the message line sits at the top, out of sight of a Save lower down (home care live test 11/08).
+    if (type === 'error') toast.error(text); else toast.success(text)
     setMessage({ text, type })
     setTimeout(() => setMessage({ text: '', type: '' }), 5000)
   }

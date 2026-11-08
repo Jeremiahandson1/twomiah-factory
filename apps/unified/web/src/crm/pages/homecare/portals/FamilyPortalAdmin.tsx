@@ -805,7 +805,7 @@ function EditMemberForm({ member, onSubmit, onCancel }: { member: Member; onSubm
             <input type="checkbox" checked={form.visitTextOptIn} onChange={(e) => setForm({ ...form, visitTextOptIn: e.target.checked })} />
             Text them when the caregiver arrives and when they leave
           </label>
-          <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Needs a phone number. No texts between 9 PM and 8 AM; they can reply STOP at any time.</small>
+          <small style={{ color: 'var(--hc-ink-soft)' }}>Only with their yes. Needs a phone number. Texts go out from your agency&apos;s texting number (Settings › Texting): until it is set up, nothing is sent. None in your quiet hours; they can reply STOP at any time.</small>
           {commsOn && (
             <div style={{ marginTop: '0.4rem', fontSize: '0.82rem', color: 'var(--hc-ink-soft)' }}>
               {member.visitTextOptIn && member.visitTextConsentWording

@@ -267,6 +267,12 @@ const AuthorizationsManagement = () => {
         </div>
       </div>
 
+      {/* Home care live test 11/08: "Used stays 0.00" while the forecast counted the scheduled hours. */}
+      <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 0.75rem' }}>
+        &ldquo;Used&rdquo; grows as visits are billed on claims to the authorization&apos;s payer; the hours already scheduled against it show in the
+        revenue forecast. Claims are made from the payer&apos;s invoices, so a private-pay client&apos;s visits are not billed against it: to bill
+        one to this payer, set the payer on the client (the client&apos;s Billing tab).
+      </p>
       {/* Table */}
       <div className="hc-card" style={{ overflowX: 'auto' }}>
         <table className="data-table">
@@ -277,7 +283,7 @@ const AuthorizationsManagement = () => {
               <th>Auth #</th>
               <th>Procedure</th>
               <th>Authorized</th>
-              <th>Used</th>
+              <th title="Units billed on claims to this payer. Scheduled visits count in the revenue forecast, not here.">Used (billed)</th>
               <th>Utilization</th>
               <th>Start</th>
               <th>End</th>

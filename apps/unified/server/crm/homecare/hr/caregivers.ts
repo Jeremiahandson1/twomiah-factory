@@ -31,7 +31,7 @@ import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { requireAdminOrSelf } from '../core/selfService.ts'
 import { DEFAULT_WORKING_DAY } from '../core/workingDay.ts'
-import { all, body, companyOf, dayOrNull, holds, me, personInCompany, idOf, insertSeatedUser } from './shared.ts'
+import { all, body, companyOf, dayOrNull, holds, me, personInCompany, idOf, insertSeatedUser, trainingAsCredential } from './shared.ts'
 
 // Pay is the office's: default_pay_rate (and an assignment's pay_rate) go to whoever holds the payroll — a caregiver
 // sees their own record's pay, never a colleague's.
@@ -521,6 +521,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
       status: b.status || 'completed',
       recordedById: me(c)?.userId || null,
     }).returning()
+    await trainingAsCredential(d, row as any)
     return one(c, trainingView(row), 201)
   })
 

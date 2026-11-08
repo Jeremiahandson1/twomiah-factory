@@ -3,7 +3,7 @@
 //   GET /api/care-ltc/invoices   GET|PUT /api/care-ltc/clients/:id/policy   GET /api/care-ltc/invoices/:id/claim-packet
 //   (server/crm/homecare/billing/ltcRoutes.ts). Set a client's payer to a "Long-term care insurance" payer under Payers first.
 import { useCallback, useEffect, useState } from 'react'
-import { useToast } from '../../../../shared'
+import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll, downloadBlob, saveBlob } from '../lib/http'
 import { useMay } from '../lib/useMay'
 import { money } from '@twomiah/tenant-ui/src/money'
@@ -16,6 +16,7 @@ const inp = 'rounded-md border px-2 py-1.5 text-sm border-gray-300 bg-white text
 export default function LtcBilling() {
   const may = useMay('care-billing')
   const toast = useToast()
+  const confirm = useConfirm()
   const [invoices, setInvoices] = useState<Inv[]>([])
   const [clientId, setClientId] = useState('')
   const [policy, setPolicy] = useState<Policy | null>(null)
@@ -41,6 +42,14 @@ export default function LtcBilling() {
   const packet = async (i: Inv) => {
     try { saveBlob(await downloadBlob(`/api/care-ltc/invoices/${i.id}/claim-packet`), `claim-packet-invoice-${i.invoiceNumber}.pdf`) } catch (e) { toast.error(errorMessage(e)) }
   }
+  // A draft invoice is issued first (the packet is made from figures that no longer change), then its packet downloads.
+  // Home care live test 11/08: a draft only said "Not sent yet", with nothing to do about it here.
+  const issueAndPacket = async (i: Inv) => {
+    const ok = await confirm(`Issue invoice #${i.invoiceNumber}? It stops being a draft (the family portal shows it) and its figures are fixed for the claim. Then the claim packet downloads.`, { danger: false })
+    if (!ok) return
+    try { await api.post(`/api/billing/invoices/${i.id}/release`, {}); toast.success(`Invoice #${i.invoiceNumber} issued`); await load() } catch (e) { toast.error(errorMessage(e, 'The invoice was not issued')); return }
+    await packet(i)
+  }
   const set = (patch: Partial<Policy>) => policy && setPolicy({ ...policy, ...patch })
 
   return (
@@ -60,7 +69,7 @@ export default function LtcBilling() {
                 <td>{i.periodStart} – {i.periodEnd}</td>
                 <td>{money(Number(i.total))}</td>
                 <td>{i.payerName}</td>
-                <td className="text-right pr-3">{!i.sentAt ? 'Not sent yet' : !i.hasPolicy ? 'Policy needed' : <button type="button" className="hc-btn hc-btn-secondary hc-btn-sm" onClick={() => packet(i)}>Claim packet</button>}</td>
+                <td className="text-right pr-3">{!i.hasPolicy ? 'Policy needed' : !i.sentAt ? <button type="button" className="hc-btn hc-btn-secondary hc-btn-sm" onClick={() => issueAndPacket(i)}>Issue and get claim packet</button> : <button type="button" className="hc-btn hc-btn-secondary hc-btn-sm" onClick={() => packet(i)}>Claim packet</button>}</td>
               </tr>))}</tbody>
           </table>
         </div>

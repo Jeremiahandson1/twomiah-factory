@@ -28,7 +28,7 @@
 // figure, so a printed stub carried invented tax lines. And the weekend / night differential boxes, which no
 // calculation read. The statement prints the earnings; the provider's stub is the pay stub.
 import { useEffect, useState, type FormEvent } from 'react'
-import { useAuth, useToast, usePermissions } from '../../../../shared'
+import { useAuth, useConfirm, useToast, usePermissions } from '../../../../shared'
 import { api, downloadBlob, errorMessage, rows, saveBlob, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
@@ -144,6 +144,7 @@ export default function PayrollProcessing() {
   const { isAdmin } = usePermissions()
   const { company } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const [payPeriod, setPayPeriod] = useState({
     startDate: toLocalYMD(new Date(new Date().setDate(new Date().getDate() - 14))),
     endDate: agencyToday(),
@@ -278,20 +279,25 @@ export default function PayrollProcessing() {
     try {
       await api.patch(`/api/payroll-shift-reviews/shifts/${shiftId}`, { status, ...extras })
       await loadShifts()
+      // Home care live test 11/08: Resolve closed its box and said nothing.
+      toast.success(`Shift marked ${(shiftStatusConfig[status]?.label ?? status.replace(/_/g, ' ')).toLowerCase()}`)
     } catch (error) {
       toast.error('Failed: ' + errorMessage(error, 'Failed to update shift'))
     }
   }
 
   const handleBulkApproveShifts = async (mode: 'clocked' | 'all') => {
+    // Approving everything takes missing-punch shifts too, paid only the minutes they have (none without a clock-in): ask first
+    // (home care live test 11/08: they were approved with no payable minutes and no question).
+    const missing = shiftData.stats.missing_punch || 0
+    if (mode === 'all' && missing > 0 && !(await confirm(`Approve all shifts, including ${missing} with a missing punch? Those are approved with only the minutes recorded — none for a visit nobody clocked in to. Resolve them first to pay the right time.`, { danger: true }))) return
     try {
       const result: { approved?: number } = await api.post('/api/payroll-shift-reviews/shifts/approve-all', { startDate: payPeriod.startDate, endDate: payPeriod.endDate, mode })
       await loadShifts()
       const n = result.approved || 0
-      setMessage(mode === 'all'
+      toast.success(mode === 'all'
         ? `Approved ${n} shift${n === 1 ? '' : 's'}`
         : `Approved ${n} clocked shift${n === 1 ? '' : 's'}`)
-      setTimeout(() => setMessage(''), 5000)
     } catch (error) {
       toast.error('Failed: ' + errorMessage(error, 'Failed to bulk approve'))
     }
@@ -475,8 +481,8 @@ export default function PayrollProcessing() {
     try {
       const qs = new URLSearchParams({ startDate: payPeriod.startDate, endDate: payPeriod.endDate })
       saveBlob(await downloadBlob(`/api/payroll/export/quickbooks?${qs}`), `quickbooks-payroll-${payPeriod.startDate}-to-${payPeriod.endDate}.csv`)
-      setMessage('✓ QuickBooks export downloaded')
-      setTimeout(() => setMessage(''), 3000)
+      // Home care live test 11/08: "silently downloads a file" — say what it is and what to do with it.
+      toast.success('QuickBooks payroll file (CSV) downloaded. Import it in QuickBooks; nothing is sent to QuickBooks from here.')
     } catch (error) {
       toast.error('Failed to export: ' + errorMessage(error))
     }
@@ -549,7 +555,7 @@ export default function PayrollProcessing() {
           {mayPayroll.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowPTOModal(true)}>🏖️ Add PTO</button>}
           <button className="hc-btn hc-btn-secondary" onClick={() => setShowSettingsModal(true)}>⚙️ Settings</button>
           {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={() => handleExportPayroll('csv')}>📥 CSV</button>}
-          {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={handleExportQuickBooks}>📤 QuickBooks</button>}
+          {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={handleExportQuickBooks} title="Downloads a CSV of this pay period to import into QuickBooks">📤 QuickBooks file (CSV)</button>}
         </div>
       </div>
 

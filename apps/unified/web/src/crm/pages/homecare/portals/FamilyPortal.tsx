@@ -33,6 +33,7 @@ import CaregiverBackgroundChecks from './CaregiverBackgroundChecks'
 import PaymentMethodPanel from './PaymentMethodPanel'
 import './portals.css'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { phoneText } from '../lib/phone'
 
 export interface FamilyMember {
   id: string
@@ -307,13 +308,14 @@ const VITAL_FIELDS: Array<{ k: VitalKey; label: string; unit: string }> = [
 ]
 type Vital = { id: string; recordedAt: string | null; notes: string | null; caregiverFirst: string | null; caregiverLast: string | null } & Partial<Record<VitalKey, string | number | null>>
 
-function VitalsView() {
+/** Also the client portal's (base /api/portal/care): the same readings for a relative invited from the client's Portal tab. */
+export function VitalsView({ base = '/api/family-portal/portal' }: { base?: string } = {}) {
   const portal = usePortal()
   const [vitals, setVitals] = useState<Vital[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    portal.get('/api/family-portal/portal/vitals')
+    portal.get(`${base}/vitals`)
       .then((reply) => { if (reply) setVitals(listRows<Vital>(reply)) })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -474,7 +476,8 @@ interface LoggedTask { taskId: string; taskName: string; state: string; stateLab
 interface LoggedMeal { id: string; mealLabel: string; description: string | null; amountLabel: string }
 interface PastVisit { timeEntryId: string; visitDate: string; startTime: string; endTime: string | null; caregiverName: string; tasks: LoggedTask[]; meals: LoggedMeal[] }
 
-function DailyCareView() {
+/** Also the client portal's (base /api/portal/care). */
+export function DailyCareView({ base = '/api/family-portal/portal' }: { base?: string } = {}) {
   const portal = usePortal()
   const [upcoming, setUpcoming] = useState<UpcomingVisit[]>([])
   const [past, setPast] = useState<PastVisit[]>([])
@@ -483,8 +486,8 @@ function DailyCareView() {
 
   useEffect(() => {
     Promise.all([
-      portal.get('/api/family-portal/portal/upcoming-tasks').then((r) => { if (r) setUpcoming(listRows<UpcomingVisit>(r)) }).catch(() => {}),
-      portal.get('/api/family-portal/portal/task-log').then((r) => { if (r) setPast(listRows<PastVisit>(r)) }).catch(() => {}),
+      portal.get(`${base}/upcoming-tasks`).then((r) => { if (r) setUpcoming(listRows<UpcomingVisit>(r)) }).catch(() => {}),
+      portal.get(`${base}/task-log`).then((r) => { if (r) setPast(listRows<PastVisit>(r)) }).catch(() => {}),
     ]).finally(() => setLoading(false))
   }, [portal])
 
@@ -730,7 +733,7 @@ function OverviewView({ client, userName, permissions, setActiveTab }: { client:
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '0.88rem' }}>
             <div><span style={{ color: 'var(--hc-ink-soft)' }}>Name:</span> {first} {last}</div>
             {dob && <div><span style={{ color: 'var(--hc-ink-soft)' }}>DOB:</span> {fmtDay(dob)}</div>}
-            {client.phone && <div><span style={{ color: 'var(--hc-ink-soft)' }}>Phone:</span> {client.phone}</div>}
+            {client.phone && <div><span style={{ color: 'var(--hc-ink-soft)' }}>Phone:</span> {phoneText(client.phone)}</div>}
             {client.address && (
               <div style={{ gridColumn: '1 / -1' }}>
                 <span style={{ color: 'var(--hc-ink-soft)' }}>Address:</span> {client.address}

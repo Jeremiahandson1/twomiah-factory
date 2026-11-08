@@ -23,6 +23,7 @@ import { api, rows, downloadBlob, saveBlob, errorMessage, listAll } from '../lib
 import { formatDate, toLocalYMD } from '../lib/date'
 import VisitPhotoGallery from './VisitPhotoGallery'
 import { useMay } from '../lib/useMay'
+import { useToast } from '../../../../shared'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 import { agencyToday, agencyTodayDate } from '../lib/agencyClock'
 
@@ -87,6 +88,7 @@ const VisitDocumentation = () => {
   const [data, setData] = useState<VisitDocs | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
+  const toast = useToast()
   const [openKey, setOpenKey] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ tasks: DocTask[]; note: string }>({ tasks: [], note: '' })
   const [saving, setSaving] = useState(false)
@@ -143,9 +145,12 @@ const VisitDocumentation = () => {
       })
       setSelected(new Set())
       setMessage({ type: 'success', text: `Created draft invoice ${body?.invoiceNumber || ''} — ${money(body?.total || 0)}. Send it from Billing when it's ready.` })
+      toast.success(`Draft invoice ${body?.invoiceNumber || ''} created`)
       await load(true)
     } catch (e) {
       setMessage({ type: 'error', text: `Invoice not created: ${errorMessage(e, 'Request failed')}` })
+      // The message box sits above the list, often off screen from this button (home care live test 11/08: "does nothing").
+      toast.error(`Invoice not created: ${errorMessage(e, 'Request failed')}`)
     } finally { setCreating(false) }
   }
 

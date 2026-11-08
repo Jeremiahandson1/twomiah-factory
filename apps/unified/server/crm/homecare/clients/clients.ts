@@ -16,8 +16,9 @@ import { optionalPointProblem } from '../../../core/geo.ts'
 import { and, asc, count, desc, eq, ilike, inArray, or } from 'drizzle-orm'
 import {
   clients, clientEmergencyContacts, clientOnboarding, clientAssignments, referralSources, geofenceSettings, authorizations,
-  user as users,
+  user as users, carePlans, clientTaskTemplates,
 } from '../../../db/schema/index.ts'
+import { activePlanWhere } from '../core/carePlanStatus.ts'
 import {
   caregiverClientList, caregiverClientOne, evvWeekRows, clientCaregiverCard, clientVisitNoteFeed, insertClientCardNote,
 } from '../../../data/homecareClients.ts'
@@ -226,8 +227,20 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
     // ONE source for the medications on file (core/medicationsOnFile.ts): the Medications list, or — only for a
     // client with no rows — the client record's free-text note, labelled (medicationsSource 'client_record').
     const meds = await core.medications.medicationsOnFile(companyId, id, row.medications)
+    // The care plan in force and the client's tasks — what the caregiver is there to do (home care live test 11/08: the web
+    // view's client popup had no care plan or tasks). Goals and instructions only: no money, no insurance.
+    const today = await core.time.today(companyId)
+    const [plan] = await db.select({
+      careGoals: carePlans.careGoals, specialInstructions: carePlans.specialInstructions, precautions: carePlans.precautions,
+      mobilityNotes: carePlans.mobilityNotes, dietaryNotes: carePlans.dietaryNotes, communicationNotes: carePlans.communicationNotes,
+    }).from(carePlans).where(and(eq(carePlans.companyId, companyId), eq(carePlans.clientId, id), activePlanWhere(today))).orderBy(desc(carePlans.createdAt)).limit(1)
+    const tasks = await db.select({ taskName: clientTaskTemplates.taskName, category: clientTaskTemplates.category, timeOfDay: clientTaskTemplates.timeOfDay, cadence: clientTaskTemplates.cadence })
+      .from(clientTaskTemplates).where(and(eq(clientTaskTemplates.companyId, companyId), eq(clientTaskTemplates.clientId, id), eq(clientTaskTemplates.isActive, true)))
+      .orderBy(asc(clientTaskTemplates.sortOrder))
     return one(c, {
       ...row,
+      carePlan: plan ?? null,
+      tasks,
       medicalConditions: listLines(row.medicalConditions),
       medications: meds.lines.length ? meds.lines.join('\n') : null,
       medicationsSource: meds.source,

@@ -1,4 +1,5 @@
 import { TextField, TextAreaField, ImageUrlField, CtaField, StringListField } from '../Field'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 interface Data {
   heading?: string
@@ -20,7 +21,7 @@ export function CtaSplitForm({ data, onChange }: { data: Data; onChange: (d: Dat
         label="Bullets"
         values={data.bullets || []}
         onChange={(v) => update({ bullets: v })}
-        placeholder="What the customer can expect"
+        placeholder={`What the ${vocabulary().customer.one} can expect`}
         addLabel="Add bullet"
       />
       <CtaField label="Primary action" value={data.primaryCta || { label: 'Get in touch', href: 'contact' }} onChange={(v) => update({ primaryCta: v })} />

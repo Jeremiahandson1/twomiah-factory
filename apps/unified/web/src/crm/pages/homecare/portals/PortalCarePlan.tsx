@@ -11,6 +11,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { formatDate as formatDay } from '../lib/date'
 import { serviceLabel } from '../lib/serviceTypes'
 import { usePortal } from './portalHttp'
+import { phoneText } from '../lib/phone'
 
 interface CarePlanReply {
   client: {
@@ -77,7 +78,7 @@ export default function PortalCarePlan() {
           <InfoField label="Name" value={`${client.firstName} ${client.lastName}`} />
           <InfoField label="Date of Birth" value={formatDate(client.dateOfBirth)} />
           <InfoField label="Gender" value={client.gender} />
-          <InfoField label="Phone" value={client.phone} />
+          <InfoField label="Phone" value={client.phone ? phoneText(client.phone) : client.phone} />
           <InfoField label="Address" value={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} />
           <InfoField label="Service Type" value={client.serviceType ? serviceLabel(client.serviceType) : null} />
           {client.insuranceProvider && <InfoField label="Insurance" value={client.insuranceProvider} />}
@@ -177,7 +178,7 @@ export default function PortalCarePlan() {
                   {cg.hoursPerWeek ? <div style={{ fontSize: '0.8rem', color: 'var(--hc-ink-soft)' }}>{cg.hoursPerWeek} hrs/week</div> : null}
                 </div>
                 {cg.phone && (
-                  <a href={`tel:${cg.phone}`} style={{ color: 'var(--hcp-navy)', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}>📞 {cg.phone}</a>
+                  <a href={`tel:${cg.phone}`} style={{ color: 'var(--hcp-navy)', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}>📞 {phoneText(cg.phone)}</a>
                 )}
               </div>
             ))}
@@ -200,7 +201,7 @@ export default function PortalCarePlan() {
                   </div>
                   {ec.relationship && <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)' }}>{ec.relationship}</div>}
                 </div>
-                <a href={`tel:${ec.phone}`} style={{ color: 'var(--hc-danger-ink)', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem' }}>📞 {ec.phone}</a>
+                <a href={`tel:${ec.phone}`} style={{ color: 'var(--hc-danger-ink)', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem' }}>📞 {phoneText(ec.phone)}</a>
               </div>
             ))}
           </div>

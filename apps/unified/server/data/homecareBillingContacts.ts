@@ -111,7 +111,26 @@ export async function billingContactOfClient(q: Q, companyId: string, clientId: 
   const members = camelRows(await q.execute(sql`
     SELECT id, name, relationship, email FROM family_members
      WHERE company_id = ${companyId} AND client_id = ${clientId} AND is_active ORDER BY is_primary_contact DESC, name`))
-  return { ...shape(r), familyMembers: members }
+  // The family's portal logins too (client_portal_accounts: the Portal tab's invites) — home care live test 11/08: Dana had a portal
+  // login and no family member record, so "A family member" offered nobody. Chosen, one is kept as "someone else" with its email.
+  const known = new Set(members.map((m: any) => String(m.email ?? '').toLowerCase()).filter(Boolean))
+  const logins = (camelRows(await q.execute(sql`
+    SELECT id, email, display_name FROM client_portal_accounts
+     WHERE company_id = ${companyId} AND client_id = ${clientId} ORDER BY created_at`)) as Array<{ id: string; email: string; displayName: string | null }>)
+    .filter((a) => !known.has(a.email.toLowerCase()))
+    .map((a) => ({ id: `${PORTAL_LOGIN}${a.id}`, name: a.displayName || a.email, relationship: 'portal login', email: a.email }))
+  return { ...shape(r), familyMembers: [...members, ...logins] }
+}
+
+/** A portal login offered as a family member: its id in the list is this prefix + the account's id. */
+export const PORTAL_LOGIN = 'portal:'
+
+/** One of this client's portal logins, by the id offered in the list; null when not. */
+export async function portalLoginOf(q: Q, companyId: string, clientId: string, offeredId: string): Promise<{ name: string; email: string } | null> {
+  if (!offeredId.startsWith(PORTAL_LOGIN)) return null
+  const r = camelFirst(await q.execute(sql`
+    SELECT email, display_name FROM client_portal_accounts WHERE id = ${offeredId.slice(PORTAL_LOGIN.length)} AND client_id = ${clientId} AND company_id = ${companyId}`)) as any
+  return r ? { name: r.displayName || r.email, email: r.email } : null
 }
 
 export interface BillingContactInput { kind: BillingKind | null; familyMemberId?: string | null; name?: string | null; emails?: string[] }

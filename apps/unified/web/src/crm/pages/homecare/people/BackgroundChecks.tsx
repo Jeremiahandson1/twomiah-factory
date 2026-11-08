@@ -232,6 +232,11 @@ export default function BackgroundChecks() {
           + New Background Check
         </button>}
       </div>
+      {/* Home care live test 11/08: a manual log with nothing saying so. */}
+      <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 1rem' }}>
+        A record of each caregiver&apos;s checks. Checks are run with your own screening company — nothing is ordered from this page — so add each
+        one and record its result when it comes back.{wisconsin ? ' A WORCS check is requested on its own when a new hire signs its consent in their onboarding packet — once WORCS is set up for your agency; until then its note says it was not sent to the state.' : ''}
+      </p>
 
       {/* Summary Cards */}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: '1rem' }}>

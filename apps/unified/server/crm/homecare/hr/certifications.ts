@@ -13,7 +13,7 @@ import { done, fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { requireAdminOrSelf, selfSubject } from '../core/selfService.ts'
-import { all, body, companyOf, me, personInCompany, idOf } from './shared.ts'
+import { all, body, companyOf, me, personInCompany, idOf, trainingAsCredential, dropTrainingCredential } from './shared.ts'
 
 export function createCertificationsRoutes(_core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
@@ -129,6 +129,7 @@ export function createTrainingRecordsRoutes(_core: HomecareCore, d: CrmDeps) {
       status: b.status || 'completed',
       recordedById: me(c)?.userId || null,
     }).returning()
+    await trainingAsCredential(d, row as any)
     return one(c, row, 201)
   })
 
@@ -136,8 +137,9 @@ export function createTrainingRecordsRoutes(_core: HomecareCore, d: CrmDeps) {
   app.delete('/:id', requirePermission('care-hr:delete'), async (c) => {
     const [row] = await d.db.delete(trainingRecords)
       .where(and(eq(trainingRecords.id, idOf(c)), eq(trainingRecords.companyId, companyOf(c))))
-      .returning({ id: trainingRecords.id })
+      .returning({ id: trainingRecords.id, companyId: trainingRecords.companyId, caregiverId: trainingRecords.caregiverId, trainingName: trainingRecords.trainingName, expiryDate: trainingRecords.expiryDate })
     if (!row) return fail(c, 404, 'Training record not found')
+    await dropTrainingCredential(d, row)
     return done(c)
   })
 

@@ -10,6 +10,7 @@ import { api } from '../../api'
 import { verticalScreens } from '../../crm/vertical'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
 import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 /** What the editor edits: the draft where there is one, else the live post or work. */
 interface Article {
@@ -185,7 +186,7 @@ export function ArticleEditPage({ kind }: { kind: KindId }) {
           <p className="text-xs text-muted mb-2">
             {kind === 'posts'
               ? <>Supports # headings, **bold**, *italic*, [links](url), - lists, &gt; quotes, `code`, and ![images](url).</>
-              : <>What the customer needed, what you did, how it turned out. Supports # headings, **bold**, *italic*, [links](url) and - lists.</>}
+              : <>What the {vocabulary().customer.one} needed, what you did, how it turned out. Supports # headings, **bold**, *italic*, [links](url) and - lists.</>}
           </p>
           <textarea
             id="article-body"

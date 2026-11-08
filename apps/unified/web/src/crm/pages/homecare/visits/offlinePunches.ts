@@ -28,6 +28,8 @@ export interface Punch {
   notes?: string | null
   entryId?: string | null
   inLocalId?: string | null
+  /** The clock-in / clock-out questions' answers, [{ questionId, answer }]. */
+  answers?: { questionId: string; answer: string }[]
 }
 
 /** A visit opened by a clock-in that is still only on this phone. */
@@ -131,7 +133,7 @@ export async function flushPunches({ userId }: { userId: string }) {
       let body: Record<string, unknown>
       if (cur.kind === 'in') {
         path = '/api/time-entries/clock-in'
-        body = { clientId: cur.clientId, latitude: cur.latitude, longitude: cur.longitude, offlineAt: cur.at }
+        body = { clientId: cur.clientId, latitude: cur.latitude, longitude: cur.longitude, offlineAt: cur.at, answers: cur.answers }
       } else {
         const entryId = cur.entryId || (cur.inLocalId && syncedIds()[cur.inLocalId])
         if (!entryId) {
@@ -141,7 +143,7 @@ export async function flushPunches({ userId }: { userId: string }) {
           continue
         }
         path = `/api/time-entries/${entryId}/clock-out`
-        body = { latitude: cur.latitude, longitude: cur.longitude, notes: cur.notes, offlineAt: cur.at }
+        body = { latitude: cur.latitude, longitude: cur.longitude, notes: cur.notes, offlineAt: cur.at, answers: cur.answers }
       }
       let res: Response
       try {

@@ -316,8 +316,10 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', dirty, di
   }, [isOpen])
   if (!isOpen) return null
   const width = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size]
+  // Above every screen's own pop-ups (home care's .modal is z-index 2000): a confirm or a question opened from inside one was
+  // drawn underneath it, so the button "did nothing" (home care live test 11/08: Release to Portal, Send Invoice).
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 z-[2100] overflow-y-auto" role="dialog" aria-modal="true" aria-label={title}>
       <div className="fixed inset-0 bg-black/60" onClick={close} />
       <div className="flex min-h-full items-center justify-center p-4">
         <div className={`relative w-full ${width} bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl`}>

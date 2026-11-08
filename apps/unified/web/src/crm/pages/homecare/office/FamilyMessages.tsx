@@ -6,6 +6,7 @@
 //   Alert rules     when something happens on a visit, who is told and how, in the agency's words (row 7 extras; /api/family-comms/alert-rules)
 // Server: server/crm/homecare/portals/familyComms.ts on /api/family-comms (care-portal:update).
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
@@ -50,6 +51,10 @@ function Requests() {
         <div className={soft}>Open requests</div>
         <div style={{ fontSize: '2rem', fontWeight: 800 }}>{open}</div>
       </div>
+      <p className={soft} style={{ margin: '4px 0 12px' }}>
+        These are notes a relative writes to the office. A request to move or cancel a particular visit, picked in the portal&apos;s visit list,
+        is answered with the caregiver&apos;s times under <Link to="/crm/scheduling?tab=staffing&sub=reschedules" className="underline">Scheduling › Staffing › Reschedules</Link>.
+      </p>
       <div style={{ marginBottom: 12 }}>
         <select className={inp} style={{ width: 200 }} value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Show">
           <option value="open">Open</option><option value="done">Done</option><option value="declined">Declined</option><option value="">All</option>

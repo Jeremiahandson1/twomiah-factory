@@ -130,10 +130,11 @@ export default function VisitOptimizer() {
                         {options.length ? (
                           <select className={inp} aria-label={`Caregiver for ${p.shift.client}`} value={choice[p.shift.id] ?? ''} onChange={(e) => setChoice({ ...choice, [p.shift.id]: e.target.value })}>
                             <option value="">— leave open —</option>
-                            {options.map((o, i) => <option key={o.caregiverId} value={o.caregiverId}>{i === 0 ? '★ ' : ''}{o.name} ({o.total})</option>)}
+                            {options.map((o, i) => <option key={o.caregiverId} value={o.caregiverId}>{i === 0 ? '★ Best: ' : ''}{o.name} · {o.travelMinutes} min travel</option>)}
                           </select>
                         ) : <span className="text-red-700 dark:text-red-300">Nobody can take it</span>}
-                        {pick && <div className={`${muted} mt-1`}>{pick.reasons.filter((r) => /^(✓|⚠️)/.test(r)).join(' · ')}</div>}
+                        {/* Every reason in words (home care live test 11/08: only a score like "(-44)" showed). */}
+                        {pick && <div className={`${muted} mt-1`}>{pick.reasons.join(' · ')}</div>}
                         {!options.length && p.unfilledBecause.length > 0 && <div className={`${muted} mt-1`}>{p.unfilledBecause.join(' · ')}</div>}
                       </td>
                       <td className="py-2">{pick ? `${pick.travelMinutes} min` : '—'}{pick && pick.waitMinutes !== null ? <div className={muted}>{pick.waitMinutes} min wait</div> : null}</td>

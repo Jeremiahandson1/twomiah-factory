@@ -757,15 +757,25 @@ const BillingDashboard = () => {
     }
   }
 
+  // Who the server will email (the payer's share, the billing contacts, or the client), asked before the confirm; null after
+  // saying why it cannot be sent.
+  const recipientsOf = async (invoiceId: string): Promise<string | null> => {
+    try {
+      const r: { to?: string[]; problem?: string } = await api.get(`/api/billing/invoices/${invoiceId}/recipients`)
+      if (r?.problem || !r?.to?.length) { toast.error(r?.problem || 'No email to send this to.'); return null }
+      return r.to.join(', ')
+    } catch (error) { toast.error(errorMessage(error, 'Could not find who to send it to')); return null }
+  }
+
   const handleSendInvoiceEmail = async (invoice: InvoiceDetail) => {
     if (!invoice?.id) return
-    const emailTo = invoice.email
-    if (!emailTo) { toast.error('No email on file for this client — add one on the client first.'); return }
+    const emailTo = await recipientsOf(invoice.id)
+    if (!emailTo) return
     const ok = await confirm(`Send invoice #${invoice.invoiceNumber} to ${emailTo}?`, { danger: false })
     if (!ok) return
     setSendingInvoiceEmail(true)
     try {
-      const data: { sentTo: string } = await api.post(`/api/billing/invoices/${invoice.id}/send-email`, { email: emailTo })
+      const data: { sentTo: string } = await api.post(`/api/billing/invoices/${invoice.id}/send-email`, {})
       toast.success(`Invoice emailed to ${data.sentTo}`)
       // Emailing releases the draft to the family portal — reflect it immediately
       setSelectedInvoice((prev) => (prev && prev.id === invoice.id ? { ...prev, sentAt: prev.sentAt || new Date().toISOString() } : prev))
@@ -815,13 +825,13 @@ const BillingDashboard = () => {
       toast.info('Invoice is already paid — no reminder needed.')
       return
     }
-    const emailTo = invoice.email
-    if (!emailTo) { toast.error('No email on file for this client — add one on the client first.'); return }
+    const emailTo = await recipientsOf(invoice.id)
+    if (!emailTo) return
     const ok = await confirm(`Send a payment reminder for invoice #${invoice.invoiceNumber} to ${emailTo}?`, { danger: false })
     if (!ok) return
     setSendingInvoiceEmail(true)
     try {
-      const data: { sentTo: string; daysOverdue: number } = await api.post(`/api/billing/invoices/${invoice.id}/send-reminder`, { email: emailTo })
+      const data: { sentTo: string; daysOverdue: number } = await api.post(`/api/billing/invoices/${invoice.id}/send-reminder`, {})
       const overdueLabel = data.daysOverdue > 0 ? ` (${data.daysOverdue}d overdue)` : ''
       toast.success(`Reminder sent to ${data.sentTo}${overdueLabel}`)
       loadData()
@@ -880,6 +890,7 @@ const BillingDashboard = () => {
       await api.post('/api/billing/referral-source-rates', rateFormData)
       setRateFormData({ referralSourceId: '', careTypeId: '', rateAmount: '', rateType: 'hourly' })
       setShowRateForm(false)
+      toast.success('Rate added')
       loadData()
       loadMissingRates()
     } catch (error) {
@@ -2233,7 +2244,7 @@ const BillingDashboard = () => {
               : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'}`}>
               {selectedInvoice.sentAt
                 ? `✓ Sent — visible in the family portal since ${formatAgencyDate(selectedInvoice.sentAt)}`
-                : '🔒 DRAFT — the family cannot see this invoice until you send it, create a pay link, or release it to the portal.'}
+                : may.update ? '🔒 DRAFT — the family cannot see this invoice until you send it, create a pay link, or release it to the portal.' : '🔒 DRAFT — the family cannot see this invoice until someone who manages billing sends or releases it.'}
             </div>
 
             {/* Action Buttons (screen only) */}

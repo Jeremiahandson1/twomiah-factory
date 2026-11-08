@@ -11,6 +11,7 @@ import type { Pagination } from '../invoicing/ui'
 import { resolveContactsConfig, isValidPhone } from './types'
 import type { ContactsPageProps, ContactRow } from './types'
 import { SourceField } from './SourceField'
+import { vocabulary } from '../labels/vocabulary'
 
 interface ContactForm {
   type: string; name: string; company: string; email: string; phone: string; mobile: string
@@ -27,8 +28,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
    */
   const starts = [cfg.shows('jobs') && cfg.jobLabels.singular.toLowerCase(), cfg.shows('quotes') && 'quote', cfg.shows('events') && 'event', cfg.shows('invoices') && 'invoice'].filter(Boolean) as string[]
   const startsHere = starts.length
-    ? `Add your customers and leads here — every ${starts.length > 1 ? `${starts.slice(0, -1).join(', ')} and ${starts[starts.length - 1]}` : starts[0]} starts from a contact.`
-    : 'Add your customers and leads here.'
+    ? `Add your ${vocabulary().customer.many} and leads here — every ${starts.length > 1 ? `${starts.slice(0, -1).join(', ')} and ${starts[starts.length - 1]}` : starts[0]} starts from a contact.`
+    : `Add your ${vocabulary().customer.many} and leads here.`
   const mayCreate = cfg.can('contacts:create')
   // The row menu asks each route's question: Edit and Convert are PUT/POST on contacts:update (so is the vendor
   // invite), Delete is contacts:delete. T62 closed the detail page; the list's menu still offered both. (T63)

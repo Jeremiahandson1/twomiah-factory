@@ -37,6 +37,9 @@ interface ClientCard {
   carePreferences: string | null
   mobilityAssistanceNeeds: string | null
   notes: string | null
+  /** The care plan in force (goals and instructions only) and the client's tasks. */
+  carePlan?: { careGoals: string | null; specialInstructions: string | null; precautions: string | null; mobilityNotes: string | null; dietaryNotes: string | null; communicationNotes: string | null } | null
+  tasks?: { taskName: string; category: string | null; timeOfDay: string | null; cadence: string | null }[]
 }
 
 /** A row of GET /api/clients/:id/visit-notes. */
@@ -47,7 +50,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
   const [client, setClient] = useState<ClientCard | null>(null)
   const [visitNotes, setVisitNotes] = useState<VisitNote[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'info' | 'medical' | 'notes'>('info')
+  const [activeTab, setActiveTab] = useState<'info' | 'medical' | 'plan' | 'notes'>('info')
   const [newNote, setNewNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -90,6 +93,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
   const tabs = [
     { id: 'info' as const, label: '📋 Info' },
     { id: 'medical' as const, label: '📋 Medical' },
+    { id: 'plan' as const, label: '🧭 Care plan' },
     { id: 'notes' as const, label: '📝 Notes' },
   ]
   const plain = { marginBottom: '1rem' }
@@ -220,6 +224,20 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }: { clientId: string 
               </div>
             )}
 
+            {activeTab === 'plan' && client && (
+              <div data-testid="caregiver-care-plan">
+                {([['Goals', client.carePlan?.careGoals], ['Special instructions', client.carePlan?.specialInstructions], ['Precautions', client.carePlan?.precautions],
+                  ['Mobility', client.carePlan?.mobilityNotes], ['Meals and diet', client.carePlan?.dietaryNotes], ['Talking with them', client.carePlan?.communicationNotes]] as const)
+                  .filter(([, v]) => v && String(v).trim()).map(([k, v]) => (
+                    <div key={k} style={plain}><h4 style={{ marginTop: 0 }}>{k}</h4><p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{v}</p></div>
+                  ))}
+                {!client.carePlan && <p style={plain}>No care plan in force. Ask the office.</p>}
+                <h4>Tasks</h4>
+                {client.tasks?.length
+                  ? <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>{client.tasks.map((t, i) => <li key={i}>{t.taskName}{t.timeOfDay && t.timeOfDay !== 'any' ? ` · ${t.timeOfDay}` : ''}{t.cadence === 'weekly' ? ' · weekly' : ''}</li>)}</ul>
+                  : <p style={{ margin: 0 }}>No tasks set for this client.</p>}
+              </div>
+            )}
             {activeTab === 'notes' && (
               <div>
                 <div className="hc-card" style={plain}>

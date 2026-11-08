@@ -164,10 +164,13 @@ const SchedulingHub = () => {
   const mayClients = useMay('care-clients')
 
   // ── Navigation ──
-  const [mainTab, setMainTab] = useState<MainTab>('schedule')
+  // ?tab=staffing&sub=reschedules opens a tab straight away (a notification's "Open" link: home care live test 11/08 — a family's
+  // reschedule request said nothing about where to answer it).
+  const opened = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
+  const [mainTab, setMainTab] = useState<MainTab>(() => (['schedule', 'bookings', 'tools', 'staffing'] as const).find((t) => t === opened?.get('tab')) ?? 'schedule')
   const [scheduleView, setScheduleView] = useState<'grid' | 'month' | 'week'>('grid')
   const [toolsTab, setToolsTab] = useState<'coverage' | 'heatmap' | 'optimizer' | 'roster'>('coverage')
-  const [staffingTab, setStaffingTab] = useState<'open-shifts' | 'swaps' | 'reschedules' | 'availability'>('open-shifts')
+  const [staffingTab, setStaffingTab] = useState<'open-shifts' | 'swaps' | 'reschedules' | 'availability'>(() => (['open-shifts', 'swaps', 'reschedules', 'availability'] as const).find((t) => t === opened?.get('sub')) ?? 'open-shifts')
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   // ── Shared data ──
@@ -620,9 +623,10 @@ const SchedulingHub = () => {
         }) as SavedReply
         showSaved('Schedule created!', body)
       }
-      setFormData((prev) => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: agencyToday(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
+      // The kind of shift stays as it was (home care live test 11/08: setting up several weekly shifts, the form jumped back to
+      // One-Time after each); the client, times and days clear for the next one.
+      setFormData((prev) => ({ ...prev, clientId: '', dayOfWeek: '', date: agencyToday(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
       setSelectedDays([])
-      setRepeatChoice('')
       loadCaregiverSchedules(selectedCaregiverId)
       if (scheduleView === 'week') loadWeekView()
       if (scheduleView === 'month') loadCalendarData()
