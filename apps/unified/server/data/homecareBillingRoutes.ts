@@ -786,3 +786,23 @@ export async function reconciliationFigures(q: Q, companyId: string, start: stri
      ORDER BY total_received DESC`))
   return { summary, byPayer }
 }
+
+/**
+ * What the visits worked used of each authorization: the client's clocked-out visits inside its dates — quarter hours, visits
+ * and distinct days, for core/authUnits.ts toAuthUnits. Home care live re-check 11/08: "Used" (billed on claims) stayed 0.00
+ * after a worked visit, and nothing showed what had been delivered against the 40 hours.
+ */
+export async function authorizationWorked(q: Q, companyId: string, auths: { id: string; clientId: string; startDate: string | null; endDate: string | null }[]): Promise<Map<string, { quarterHours: number; visits: number; days: number }>> {
+  const out = new Map<string, { quarterHours: number; visits: number; days: number }>()
+  for (const a of auths) {
+    const r = camelRows(await q.execute(sql`
+      SELECT COALESCE(SUM(COALESCE(te.duration_minutes, EXTRACT(EPOCH FROM (te.end_time - te.start_time)) / 60)), 0)::float AS minutes,
+             COUNT(*)::int AS visits, COUNT(DISTINCT te.start_time::date)::int AS days
+        FROM time_entries te
+       WHERE te.company_id = ${companyId} AND te.client_id = ${a.clientId} AND te.end_time IS NOT NULL
+         ${a.startDate ? sql`AND te.start_time::date >= ${a.startDate}::date` : sql``}
+         ${a.endDate ? sql`AND te.start_time::date <= ${a.endDate}::date` : sql``}`))[0] as any
+    out.set(a.id, { quarterHours: Number(r?.minutes ?? 0) / 15, visits: Number(r?.visits ?? 0), days: Number(r?.days ?? 0) })
+  }
+  return out
+}

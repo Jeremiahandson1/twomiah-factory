@@ -53,6 +53,7 @@ import CaregiverHelp from './caregiver/CaregiverHelp'
 import CaregiverMessages from './caregiver/CaregiverMessages'
 import PaydayVerificationModal, { type PendingVerification } from './caregiver/PaydayVerificationModal'
 import VisitCarePanel from './caregiver/VisitCarePanel'
+import VisitItemsPanel from './caregiver/VisitItemsPanel'
 import { SandataPrompt, SandataIdBox, SandataHelp, SandataNotice, useSandataContext, type SandataPromptState } from './caregiver/SandataEvv'
 import { useGeolocation, type GeoPosition } from './useGeolocation'
 import { useVisitQuestions, VisitQuestionFields, answersBody, unanswered, type VisitAnswers } from './caregiver/VisitQuestionFields'
@@ -1295,6 +1296,7 @@ const CaregiverDashboard = () => {
               {liveEntryId && (
                 <div className="mt-5 rounded-xl bg-white p-1 text-left dark:bg-slate-800">
                   <CareTaskChecklist timeEntryId={liveEntryId} />
+                  <VisitItemsPanel timeEntryId={liveEntryId} />
                 </div>
               )}
               {/* During the visit: the MAR (a dose given / refused / held), vitals, and a photo now — not only on the

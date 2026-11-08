@@ -11,6 +11,7 @@ import { allRows, SECTION_HEAD, HINT, type Client, type ReferralSource, type Car
 import { useMay } from '../lib/useMay'
 import PayerSelect from './PayerSelect'
 import { agencyToday } from '../lib/agencyClock'
+import { phoneText } from '../lib/phone'
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }: { address?: string | null; city?: string | null; state?: string | null; zip?: string | null }) => {
@@ -64,7 +65,7 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, on
       <div>
         <span style={{ color: 'var(--hc-muted)' }}>📞</span>{' '}
         {client.phone ? (
-          <><a href={`tel:${client.phone}`}>{client.phone}</a>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>
+          <><a href={`tel:${client.phone}`}>{phoneText(client.phone)}</a>{' '}<TextButton phone={client.phone} name={client.firstName} compact /></>
         ) : (
           <span style={{ color: 'var(--hc-muted)' }}>N/A</span>
         )}

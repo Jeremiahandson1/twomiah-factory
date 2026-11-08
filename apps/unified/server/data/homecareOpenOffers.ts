@@ -43,10 +43,11 @@ export async function recordResponse(q: Q, companyId: string, shiftId: string, c
 export async function clearResponses(q: Q, companyId: string, shiftId: string): Promise<number> {
   return rowsOf(await q.execute(sql`DELETE FROM open_shift_response WHERE company_id = ${companyId} AND open_shift_id = ${shiftId} RETURNING id`)).length
 }
-export async function responsesFor(q: Q, companyId: string, ids: string[]): Promise<{ openShiftId: string; caregiverId: string; response: string; reason: string | null }[]> {
+export async function responsesFor(q: Q, companyId: string, ids: string[]): Promise<{ openShiftId: string; caregiverId: string; response: string; reason: string | null; caregiverName: string | null }[]> {
   if (!ids.length) return []
-  return camelRows(await q.execute(sql`SELECT open_shift_id, caregiver_id, response, reason FROM open_shift_response
-    WHERE company_id = ${companyId} AND open_shift_id IN (${list(ids)})`)) as any
+  return camelRows(await q.execute(sql`SELECT r.open_shift_id, r.caregiver_id, r.response, r.reason, TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS caregiver_name
+      FROM open_shift_response r LEFT JOIN "user" u ON u.id = r.caregiver_id
+     WHERE r.company_id = ${companyId} AND r.open_shift_id IN (${list(ids)})`)) as any
 }
 /** The postings this caregiver declined or hid, and the ones they were sent. */
 export async function mineAnswered(q: Q, companyId: string, caregiverId: string): Promise<Set<string>> {

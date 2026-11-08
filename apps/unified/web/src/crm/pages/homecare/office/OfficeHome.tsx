@@ -319,9 +319,9 @@ export default function OfficeHome() {
           <div className="hc-card-title">📅 Today — {formatAgencyDate(new Date(), { weekday: 'long', month: 'long', day: 'numeric' })}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
             {[
-              { label: 'Shifts Today', value: summary.todayShifts || 0, icon: '📋', color: 'var(--hc-blue-ink)', page: 'schedule' },
-              { label: 'Clocked In Now', value: summary.clockedInNow || 0, icon: '✅', color: 'var(--hc-green-ink)', page: 'time' },
-              { label: 'Shifts Remaining', value: summary.remainingShifts || 0, icon: '⏰', color: 'var(--hc-warning-ink)', page: 'schedule' },
+              { label: 'Shifts Today', value: summary.todayShifts || 0, icon: '📋', color: 'var(--hc-blue-ink)', page: 'scheduling' },
+              { label: 'Clocked In Now', value: summary.clockedInNow || 0, icon: '✅', color: 'var(--hc-green-ink)', page: 'live-board' },
+              { label: 'Shifts Remaining', value: summary.remainingShifts || 0, icon: '⏰', color: 'var(--hc-warning-ink)', page: 'scheduling' },
               { label: 'Coverage Gaps', value: gaps, icon: '🚨', color: gaps > 0 ? 'var(--hc-red-ink)' : 'var(--hc-green-ink)', page: 'emergency-coverage' },
             ].map((s) => (
               <button type="button" key={s.label} onClick={() => go(s.page)} disabled={!mayOpen(s.page)} className="enabled:cursor-pointer enabled:hover:ring-2 enabled:hover:ring-teal-600"

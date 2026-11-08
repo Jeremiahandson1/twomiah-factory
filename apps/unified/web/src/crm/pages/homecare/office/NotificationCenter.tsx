@@ -44,6 +44,7 @@ const TYPE_WORDS: Record<string, [string, string | null]> = {
   gps_failure: ['GPS problem', '/crm/evv'],
   offline_punch_conflict: ['Offline punch to check', '/crm/shift-approvals'],
   medication_not_recorded: ['Medicine not recorded', '/crm/medications'],
+  medication_missed: ['Dose missed or refused', '/crm/medications'],
   dose_after_stop: ['Dose after stop date', '/crm/medications'],
   visit_answer_flag: ['Visit answer flagged', '/crm/visit-questions'],
   caregiver_survey_low: ['Low caregiver survey score', '/crm/caregiver-retention'],

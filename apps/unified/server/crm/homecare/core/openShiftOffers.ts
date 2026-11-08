@@ -167,6 +167,8 @@ export function createOpenShiftOffers(d: CrmDeps, deps: { time: AgencyTime; noti
       return {
         ...s, respondBy: f?.respondBy ?? null, seriesId: f?.seriesId ?? null, offerStatus: code, offerStatusLabel: OFFER_LABELS[code],
         counts: { sent: c.sent, accepted: c.accepted, declined, hidden, noAnswer: Math.max(0, c.sent - c.accepted - declined - hidden) },
+        // Who turned it down and why (home care live re-check 11/08: the board counted "Declined 1" and said no more).
+        declines: mine.filter((r) => r.response === 'declined').map((r) => ({ caregiverId: r.caregiverId, name: r.caregiverName || 'A caregiver', reason: DECLINE_REASONS.some((x) => x.code === r.reason) ? declineLabel(r.reason) : (r.reason || '') })),
       }
     })
   }

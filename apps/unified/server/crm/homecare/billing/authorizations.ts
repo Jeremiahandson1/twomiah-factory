@@ -10,8 +10,8 @@
 import { Hono } from 'hono'
 import { and, eq, asc } from 'drizzle-orm'
 import { authorizations, clients, referralSources } from '../../../db/schema/index.ts'
-import { authorizationSummary } from '../../../data/homecareBillingRoutes.ts'
-import { normalizeAuthUnit, AUTH_UNITS, AUTH_UNIT_LABEL } from '../core/authUnits.ts'
+import { authorizationSummary, authorizationWorked } from '../../../data/homecareBillingRoutes.ts'
+import { normalizeAuthUnit, AUTH_UNITS, AUTH_UNIT_LABEL, toAuthUnits } from '../core/authUnits.ts'
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -103,8 +103,11 @@ export function createAuthorizationRoutes(_core: HomecareCore, d: CrmDeps) {
       .leftJoin(referralSources, eq(authorizations.payerId, referralSources.id))
       .where(and(...conditions))
       .orderBy(asc(authorizations.endDate))
+    // What the visits worked used, in the authorization's unit, beside what was billed on claims (usedUnits).
+    const worked = await authorizationWorked(db, who(c).companyId, auths.map((a: any) => ({ id: a.id, clientId: a.clientId, startDate: a.startDate, endDate: a.endDate })))
     const rows = auths.map(({ clientFirstName, clientLastName, payerName, ...auth }: any) => ({
       ...auth,
+      workedUnits: toAuthUnits(auth.unitType, worked.get(auth.id) ?? { quarterHours: 0, visits: 0, days: 0 }),
       client: { firstName: clientFirstName, lastName: clientLastName },
       payer: { name: payerName },
     }))

@@ -127,7 +127,7 @@ const EVVDashboard = () => {
         <button className="hc-btn hc-btn-secondary" onClick={loadVisits}>Refresh</button>
       </div>
       <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 1rem' }} data-testid="evv-note">
-        Each visit shows here once its caregiver clocks in and out, with the times and GPS.
+        Each payer-funded visit (Medicaid, a waiver, an MCO) shows here once its caregiver clocks in and out, with the times and GPS. A private-pay client&apos;s visits are not EVV visits, so they are under <a href="/crm/visit-docs" className="underline">Visit Documentation</a> and payroll, not here.
         {sandataOn === false && <> Sandata is not connected, so nothing is sent to your state&apos;s aggregator — connect it under <a href="/crm/integrations" className="underline">Integrations</a>.</>}
         {sandataOn === true && <> Sandata is connected: verified visits are sent from Integrations.</>}
       </p>

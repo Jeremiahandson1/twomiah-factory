@@ -199,7 +199,18 @@ const BillingDashboard = () => {
   const may = useMay('care-billing')
   const toast = useToast()
   const confirm = useConfirm()
-  const { company } = useAuth()
+  const { company, hasFeature } = useAuth()
+  // Invoices billed to a long-term care insurer (care_ltc_billing): their claim packet downloads from the invoice too
+  // (home care live re-check 11/08: it was only on the Long-term care page, and nothing on the invoice offered it).
+  const [ltcIds, setLtcIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (!hasFeature('care_ltc_billing')) return
+    listAll('/api/care-ltc/invoices').then((r) => setLtcIds(new Set(rows<{ id: string }>(r).map((x) => x.id)))).catch(() => setLtcIds(new Set()))
+  }, [hasFeature])
+  const claimPacket = async (invoice: InvoiceDetail) => {
+    try { saveBlob(await downloadBlob(`/api/care-ltc/invoices/${invoice.id}/claim-packet`), `claim-packet-invoice-${invoice.invoiceNumber}.pdf`); toast.success('Claim packet downloaded') }
+    catch (e) { toast.error(errorMessage(e, 'The claim packet was not made')) }
+  }
   // Each panel the header buttons open is scrolled into view, so it never opens below the fold.
   const generateRef = useRef<HTMLDivElement>(null), reconcileRef = useRef<HTMLDivElement>(null), manualRef = useRef<HTMLDivElement>(null), batchRef = useRef<HTMLDivElement>(null)
   const scheduleRef = useRef<HTMLDivElement>(null), pickRef = useRef<HTMLDivElement>(null), dueRef = useRef<HTMLDivElement>(null)
@@ -2273,6 +2284,7 @@ const BillingDashboard = () => {
                   {sendingInvoiceEmail ? '⏰ Sending...' : '⏰ Send Reminder'}
                 </button>
               )}
+              {ltcIds.has(selectedInvoice.id) && selectedInvoice.sentAt && <button type="button" className="hc-btn hc-btn-secondary" onClick={() => claimPacket(selectedInvoice)}>📄 Claim packet (LTC)</button>}
               <button className="hc-btn hc-btn-primary" onClick={() => window.print()}>🖨️ Print Invoice</button>
               <button className="hc-btn hc-btn-secondary" onClick={() => setShowInvoiceModal(false)}>Close</button>
             </div>
