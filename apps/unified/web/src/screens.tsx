@@ -113,7 +113,7 @@ export const LeadInbox = () => {
   return (
     <>
       <div className="px-6 pt-6"><LeadPipelineStrip /></div>
-      <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert, lost: hasFeature('lead_lost'), siteVisit: hasFeature('lead_site_visit') }} subscribe={subscribeLive} />
+      <LeadInboxPage api={api} toast={useToast()} config={{ ...screens.leads, ownPermission: true, phoneCalls: hasFeature('call_tracking'), spam: true, startAfterConvert, lost: hasFeature('lead_lost'), siteVisit: hasFeature('lead_site_visit'), assign: true }} subscribe={subscribeLive} />
     </>
   )
 }

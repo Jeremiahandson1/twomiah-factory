@@ -6,12 +6,21 @@
 //   GET /payouts       what is on its way and the recent payouts, from the business's own Stripe account
 //                                                                                    invoices:read   (payments_overview)
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
+import { company } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { SURCHARGE_FEATURE, getSurcharge, saveSurcharge, surchargeProblem, type SurchargeSetting } from '../../data/cardSurcharge.ts'
 
 export const PAYMENTS_OVERVIEW = 'payments_overview'
+export const INVOICE_TIPS = 'invoice_tips'
+
+/** Has the business turned tips on (company.settings.invoiceTips)? The feature offers the switch; this is the switch. */
+export async function tipsOn(db: any, companyId: string): Promise<boolean> {
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  return (co?.settings as any)?.invoiceTips === true
+}
 
 export function createCardPaymentRoutes(d: CrmDeps) {
   const { db, audit } = d
@@ -47,11 +56,28 @@ export function createCardPaymentRoutes(d: CrmDeps) {
     return one(c, out)
   })
 
+  // Tips (invoice_tips, not ready): the business's own switch for the tip box on its customers' pay screen (contractor live test 11/07:
+  // "No tip switch anywhere"). Off until the owner turns it on; the feature alone offers the switch.
+  app.get('/tips', requirePermission('invoices:read'), async (c) => {
+    if (!(await on(c, INVOICE_TIPS))) return fail(c, 404, 'Not found')
+    return one(c, { on: await tipsOn(db, c.get('user').companyId) })
+  })
+  app.put('/tips', requirePermission('company:update'), async (c) => {
+    if (!(await on(c, INVOICE_TIPS))) return fail(c, 404, 'Not found')
+    const u = c.get('user')
+    const b: any = await c.req.json().catch(() => ({}))
+    if (typeof b?.on !== 'boolean') return fail(c, 400, 'Say whether customers may add a tip.', undefined, { on: 'On or off' })
+    const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, u.companyId)).limit(1)
+    await db.update(company).set({ settings: { ...((co?.settings as any) || {}), invoiceTips: b.on }, updatedAt: new Date() } as any).where(eq(company.id, u.companyId))
+    audit.log({ action: audit.ACTIONS.UPDATE, entity: 'company', entityId: u.companyId, metadata: { invoiceTips: b.on }, req: c })
+    return one(c, { on: b.on })
+  })
+
   app.get('/payouts', requirePermission('invoices:read'), async (c) => {
     if (!(await on(c, PAYMENTS_OVERVIEW))) return fail(c, 404, 'Not found')
     try {
       const out = await (d.services as any).stripeService.payoutsFor(c.get('user').companyId)
-      if (!out) return fail(c, 409, 'Connect your Stripe account first (Settings › Online payments).', 'NOT_CONNECTED')
+      if (!out) return fail(c, 409, 'Connect your Stripe account first (Settings › Integrations › Stripe).', 'NOT_CONNECTED')
       return one(c, out)
     } catch (err: any) {
       return fail(c, 502, `Stripe did not answer: ${String(err?.message || 'try again shortly')}`)

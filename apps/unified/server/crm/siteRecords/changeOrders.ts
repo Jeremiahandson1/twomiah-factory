@@ -5,7 +5,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { createActorName, withoutSigningEvidence, nextNumber } from '@twomiah/tenant-backend'
-import { changeOrder, changeOrderLineItem, project, user } from '../../db/schema/index.ts'
+import { changeOrder, changeOrderLineItem, company, contact, project, user } from '../../db/schema/index.ts'
+import { escapeHtml } from '../../core/sanitize.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
@@ -71,6 +72,34 @@ const signatureSummary = (co: any) => {
   const out: any = { ...co, signed: !!co.signature }
   for (const k of SIGNATURE_EVIDENCE) delete out[k]
   return out
+}
+
+/**
+ * A change order sent to the client to agree: they are emailed its number, title and amount and a link to it in their portal, where they
+ * approve and sign it (contractor live test 11/07: "No email goes to the client when a change order is submitted"). Answers how they were
+ * told: 'email', or 'no-portal' (their portal is off, or there is no email), so the office knows to send it another way. Never throws.
+ */
+export async function emailClientChangeOrder(d: CrmDeps, companyId: string, co: { number: string; title?: string | null; amount?: unknown; projectId: string | null }): Promise<'email' | 'no-portal'> {
+  try {
+    if (!co.projectId) return 'no-portal'
+    const [p] = await d.db.select({ name: project.name, contactId: project.contactId }).from(project).where(and(eq(project.id, co.projectId), eq(project.companyId, companyId))).limit(1)
+    if (!p?.contactId) return 'no-portal'
+    const [who] = await d.db.select().from(contact).where(and(eq(contact.id, p.contactId), eq(contact.companyId, companyId))).limit(1) as any[]
+    const origin = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
+    if (!who || !who.portalEnabled || !who.portalToken || !String(who.email || '').trim() || who.emailOptOut || !/^https?:\/\//.test(origin)) return 'no-portal'
+    const [co_] = await d.db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
+    const link = `${origin}/portal/${who.portalToken}/change-orders`
+    const first = String(who.name || '').trim().split(/\s+/)[0] || 'there'
+    const amount = Number(co.amount || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    await (d.services as any).emailService.sendRaw({
+      to: String(who.email).trim(), subject: `Change order ${co.number} to approve — ${p.name}`,
+      html: `<p>Hi ${escapeHtml(first)},</p><p>${escapeHtml(co_?.name || 'Your builder')} sent change order <strong>${escapeHtml(co.number)}</strong>${co.title ? ` (${escapeHtml(String(co.title))})` : ''} for ${escapeHtml(amount)} on ${escapeHtml(p.name)}.</p><p><a href="${escapeHtml(link)}">Review and sign it in your portal</a></p>`,
+    })
+    return 'email'
+  } catch (err: any) {
+    d.logger.warn('[changeOrders] the client was not emailed', { error: err?.message })
+    return 'no-portal'
+  }
 }
 
 export function createChangeOrderRoutes(d: CrmDeps) {
@@ -285,7 +314,8 @@ export function createChangeOrderRoutes(d: CrmDeps) {
     if (!existing) return fail(c, 404, 'Change order not found')
     if (!SUBMITTABLE.includes(existing.status)) return refuse(c, existing, 'submitted', SUBMITTABLE)
     const [updated] = await db.update(changeOrder).set({ status: 'submitted', submittedDate: new Date(), updatedAt: new Date() }).where(eq(changeOrder.id, id)).returning()
-    return one(c, updated)
+    const told = await emailClientChangeOrder(d, currentUser.companyId, updated)
+    return one(c, { ...updated, told })
   })
 
   /**

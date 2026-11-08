@@ -138,7 +138,8 @@ export function createWipRoutes(d: CrmDeps) {
       const selectionChanges = selected.get(p.id) || 0
       const estimate = Number(p.estimatedValue) || 0
       const contractSource = approvedQuotes > 0 ? 'quotes' : estimate > 0 ? 'estimate' : 'none'
-      const contract = round2((approvedQuotes > 0 ? approvedQuotes : estimate) + approvedChanges + selectionChanges)
+      // A typed estimate already carries the change orders agreed since (their approval adds them to it): added to quotes only.
+      const contract = round2((approvedQuotes > 0 ? approvedQuotes + approvedChanges : estimate) + selectionChanges)
       const budgetedCost = budgetCost.get(p.id) || 0
       const costToCost = budgetedCost > 0
       const percent = costToCost ? Math.min(100, Math.round((cost / budgetedCost) * 1000) / 10) : Number(p.progress) || 0

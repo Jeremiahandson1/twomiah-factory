@@ -792,7 +792,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   {noEmail
                     ? <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800">Add an email address to this contact to invite them to the {isSub ? 'subcontractor' : 'customer'} portal.</p>
                     : <div className="flex items-center justify-between text-sm gap-3"><span className="text-gray-500 dark:text-slate-400">Email</span><span className="text-gray-900 dark:text-slate-100 break-all text-right">{contact.email}</span></div>}
-                  {portalStatus?.lastVisit && <div className="flex items-center justify-between text-sm"><span className="text-gray-500 dark:text-slate-400">Last Login</span><span className="text-gray-900 dark:text-slate-100">{dateOnly(portalStatus.lastVisit)}</span></div>}
+                  {portalStatus?.lastVisit && <div className="flex items-center justify-between text-sm"><span className="text-gray-500 dark:text-slate-400">Last Login</span><span className="text-gray-900 dark:text-slate-100">{instantDay(portalStatus.lastVisit)}</span></div>}
                   {portalStatus?.enabled && portalStatus?.portalUrl && (
                     <div>
                       <div className="text-sm text-gray-500 mb-1 dark:text-slate-400">Link</div>
@@ -804,6 +804,10 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                         </button>
                       </div>
                       {portalCopied && <p className="text-xs text-green-700 mt-1 dark:text-green-300">Copied</p>}
+                      {/* A vendor's purchase orders and invoices are the vendor portal's, on the same private link (contractor live test 11/07). */}
+                      {isSub && hasFeature('vendor_portal') && (
+                        <p className="text-xs text-gray-500 mt-2 dark:text-slate-400" data-testid="vendor-portal-link">Purchase orders and invoices: <code className="break-all">{portalStatus.portalUrl.replace('/portal/', '/vendor/')}</code> — also reached from the "Purchase orders &amp; invoices" tab in their portal.</p>
+                      )}
                     </div>
                   )}
                   {/* Not offered with no address to send to — the portal can be enabled through the

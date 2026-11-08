@@ -16,6 +16,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
+import { ownLeadsWhere } from './scope.ts'
 
 /** The reasons, in plain words a builder uses. `other` needs a note. */
 export const LOST_REASONS = [
@@ -42,13 +43,17 @@ export function createLeadLostRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
 
-  const find = async (companyId: string, id: string) =>
-    (await db.select().from(lead).where(and(eq(lead.id, id), eq(lead.companyId, companyId))).limit(1))[0]
+  // The company's own — and, for a seat that reads only its own enquiries (a Sales rep), only those (scope.ts).
+  const find = async (companyId: string, id: string, me?: any) => {
+    const mine = me ? await ownLeadsWhere(d, me) : null
+    return (await db.select().from(lead).where(and(eq(lead.id, id), eq(lead.companyId, companyId), mine ?? undefined)).limit(1))[0]
+  }
 
   app.get('/reasons', requirePermission('leads:read'), async (c) => {
     const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000)
+    const mine = await ownLeadsWhere(d, c.get('user'))
     const rows = await db.select({ reason: lead.lostReason, n: count() }).from(lead)
-      .where(and(eq(lead.companyId, c.get('user').companyId), eq(lead.status, 'lost'), gte(lead.lostAt, since))).groupBy(lead.lostReason)
+      .where(and(eq(lead.companyId, c.get('user').companyId), eq(lead.status, 'lost'), gte(lead.lostAt, since), mine ?? undefined)).groupBy(lead.lostReason)
     const counts = new Map<string, number>(rows.map((r: any) => [String(r.reason), Number(r.n)]))
     return listAll(c, LOST_REASONS.map((r) => ({ id: r.id, label: r.label, lost: counts.get(r.id) || 0, days: WINDOW_DAYS })))
   })
@@ -57,7 +62,7 @@ export function createLeadLostRoutes(d: CrmDeps) {
     const parsed = lostSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const user = c.get('user')
-    const row = await find(user.companyId, c.req.param('id'))
+    const row = await find(user.companyId, c.req.param('id'), user)
     if (!row) return fail(c, 404, 'Lead not found')
     if (row.status === 'converted') return fail(c, 409, 'This enquiry is already a customer, so it cannot be marked lost.')
     if (row.status === 'lost') return fail(c, 409, 'This enquiry is already marked lost.')
@@ -71,7 +76,7 @@ export function createLeadLostRoutes(d: CrmDeps) {
 
   app.delete('/:id', requirePermission('leads:update'), async (c) => {
     const user = c.get('user')
-    const row = await find(user.companyId, c.req.param('id'))
+    const row = await find(user.companyId, c.req.param('id'), user)
     if (!row) return fail(c, 404, 'Lead not found')
     if (row.status !== 'lost') return fail(c, 409, 'This enquiry is not marked lost.')
     const [updated] = await db.update(lead).set({ status: 'new', lostReason: null, lostNote: null, lostAt: null, updatedAt: new Date() })

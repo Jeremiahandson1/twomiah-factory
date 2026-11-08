@@ -38,6 +38,11 @@ export interface NavItem {
    * neither. (Live role check, 2026-10-23)
    */
   permission?: string | string[]
+  /**
+   * Role names (the user row's own, e.g. the contractor's 'crew') whose menu leaves this item out — the office's pages a crew has no use for
+   * (contractor live test 11/07: the crew's menu listed Reviews, Agreements, Fleet, Bookings…). The page itself answers as before.
+   */
+  hiddenForRoles?: string[]
   /** Optional stable id (external items have no unique route) */
   id?: string
 }

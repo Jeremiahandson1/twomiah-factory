@@ -389,8 +389,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'tasks:read',
     'loyalty:read',
     'bookings:read',
-    // Reads the whole business, as it did (the field row's note on the read-all verbs).
-    'jobs:read-all', 'contacts:read-all', 'bookings:read-all',
+    // Reads the whole business, as it did (the field row's note on the read-all verbs). quotes:read-all: every quote, not only the ones
+    // this seat wrote — a seat without it (the contractor's Sales rep) reads its own (invoicing/quotes.ts).
+    'jobs:read-all', 'contacts:read-all', 'bookings:read-all', 'quotes:read-all',
     // Sees revenue, not cost (owner's decision) — what it read before revenue:read existed. (T62; note on admin)
     'revenue:read',
     'bar:read',
@@ -415,6 +416,12 @@ export interface PermissionsDeps {
    * (the hierarchy, View As, requireRole) still reads the rung; only these permissions differ.
    */
   roleWithheld?: Record<string, string[]>
+  /**
+   * Permissions one of a vertical's OWN role names holds on top of its rung — the contractor's Sales rep is the Field rung plus its own
+   * leads and quotes (contractor live test 11/07: "You don't have access to Quotes"). Scoped to its own rows by the routes, which narrow a
+   * seat without leads:read-all / quotes:read-all (withheld from it through roleWithheld).
+   */
+  roleExtra?: Record<string, string[]>
   /** Template role names mapped onto the standard hierarchy. `user → field` is always included. */
   roleMapping?: Record<string, string>
   /**
@@ -500,6 +507,8 @@ export function createPermissions(deps: PermissionsDeps) {
     // A company taking a permission away from a role (companyGrants → "-permission"); "*" above is never touched.
     if (extra.includes(`-${permission}`)) return false
     if (permissions.includes(permission)) return true
+    // The vertical's own role name's own grants (roleExtra).
+    if (deps.roleExtra?.[role]?.includes(permission)) return true
     const [resource] = permission.split(':')
     if (permissions.includes(`${resource}:*`)) return true
     return false
@@ -509,7 +518,9 @@ export function createPermissions(deps: PermissionsDeps) {
     const normalizedRole = normalizeRole(role)
     const list = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
     const off = deps.roleWithheld?.[role]
-    return off?.length ? list.filter((p) => !off.includes(p)) : list
+    const own = deps.roleExtra?.[role]
+    const withOwn = own?.length ? Array.from(new Set([...list, ...own])) : list
+    return off?.length ? withOwn.filter((p) => !off.includes(p)) : withOwn
   }
 
   function requirePermission(permission: string) {

@@ -29,14 +29,14 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 9. Walk every step of the wizard. **Expect:** each makes sense; anything that needs an outside account says so in words.
 10. 📱 **Dashboard (owner):** numbers and tiles show, none says NaN or undefined; every tile opens the list it counts. **Owner dashboard** shows "needs you today" (quotes with no answer, bills due, jobs nobody is on) and who is on which job. The **pipeline strip** shows count and $ at each stage.
 11. **Collapse the menu to icons:** fold the left menu to the narrow rail; reload. **Expect:** it stays folded; hovering an icon names it.
-12. **Team:** add a manager `twomiah14+chromegcmgr@gmail.com`, a sales rep `twomiah14+chromegcrep@gmail.com` and a crew member `twomiah14+chromegccrew@gmail.com`. Chrome opens each invite in twomiah14's inbox; 🙋 **PERSON:** sets each password. Used in section N.
+12. **Team:** add a manager `twomiah14+chromegcmgr@gmail.com`, a sales rep `twomiah14+chromegcrep@gmail.com` (role **Sales rep**) and a crew member `twomiah14+chromegccrew@gmail.com` (role **Crew**). Chrome opens each invite in twomiah14's inbox; 🙋 **PERSON:** sets each password. Used in section N.
 13. Open the public website. 📱 **Expect:** the builder's site with its name and services.
 
 ## C. Leads
 
 14. Add a lead `Hank Homeowner`, 1200 Main St, Eau Claire, WI 54701, phone 715-555-0123, wants a kitchen remodel. **Expect:** shows in Leads / Lead Inbox.
-15. **Site visit:** book the site visit from the lead onto the schedule; move it to another time; then cancel and re-book it. **Expect:** the schedule agrees each time.
-16. Add a second lead `Lucy Lost`; mark it **Lost** with the reason "Price". **Expect:** it leaves the open list; the lost-reasons report counts it.
+15. **Site visit:** book the site visit from the lead onto the schedule; move it to another time; then cancel and re-book it. **Expect:** the visit shows on **Schedule** as a site visit appointment, and the schedule agrees each time.
+16. Add a second lead `Lucy Lost`; mark it **Lost** with the reason "Price". **Expect:** it leaves the open list; **Reports › Why leads were lost** counts it.
 17. Convert Hank to a contact and a **project** (kitchen remodel).
 
 ## D. Estimating and the quote
@@ -60,12 +60,12 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 31. **Project templates:** save the project as a template, ticking budget, selections and links. Start a new project from it, ticking only some parts. **Expect:** only the ticked parts come in.
 32. **Change order:** make one, send it, approve it as the client. **Expect:** the contract total changes.
 33. **Daily log:** today's log with a photo and the weather. **RFIs, submittals, punch list:** add one of each. **Expect:** each listed.
-34. **Inspections:** make an inspection. **Expect:** the right checklist is attached by itself (by the project's type); answer pass / fail / N/A; a failed line adds a punch-list item; the customer signs the checklist. **Expect:** the signed record is kept.
+34. **Inspections:** make an inspection. **Expect:** the right checklist is attached by itself (by the project's type); answer pass / fail / N/A; a failed line adds a punch-list item; the customer signs the checklist (**Customer signs the checklist** in the checklist window, once every line is answered). **Expect:** the signed record is kept.
 35. **Bids, takeoffs:** open Bid Management and Takeoff Tools; add one of each. **Expect:** saved.
 
 ## F. Buying and paying subs
 
-36. **Purchase order** to a vendor for the project; send it. Open the **vendor portal** link (private window); acknowledge it and submit an invoice. **Expect:** the office sees both; it shows on Bills & Payables.
+36. **Purchase order** to a vendor for the project; send it. **Expect:** the toast says the vendor was emailed. Open the **vendor portal** link from that email in Vic's inbox (or the vendor's contact page, or the "Purchase orders & invoices" tab of their portal); acknowledge it and submit an invoice. **Expect:** the office sees both; it shows on Bills & Payables.
 37. **Vendor bill:** record it and a payment against it. **Expect:** committed vs billed on the project agree.
 38. **Lien waivers, draw schedules, AIA G702/G703:** make a draw schedule and one draw request; open the AIA forms. **Expect:** the numbers agree with the contract.
 
@@ -78,7 +78,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 
 41. Make an invoice from the project. **Card, bank or both:** set this invoice to bank only. **Expect:** saved; the customer page offers only bank (or the polite not-connected note).
 42. **Invoice installments:** split the invoice into three with their own due dates. **Expect:** the portal shows each; reminders are listed.
-43. **Tips on invoices:** turn on; on the customer's invoice page the tip box shows (it won't charge — no Stripe).
+43. **Tips on invoices:** turn on under **Card payments › Tips**. **Expect:** saved and still on after reload; the page says the tip box shows on the customer's pay screen once Stripe is connected (no Stripe here).
 44. **Pay any amount / pay from the estimate** on the customer pages. **Expect:** the amount box works or the polite not-connected note.
 45. **Text invoices and receipts:** schedule the pay link to be texted every few days. **Expect:** saved (texts won't send on a test site — the reason says so).
 46. **Card surcharge** (Settings › Card payments): 3 % with the processor tick. **Expect:** WI capped at 3 %; debit and prepaid never pay it.
@@ -88,7 +88,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 ## I. Reports and money
 
 49. **Reports:** revenue, outstanding, job costing / P&L. **Receivables aging** and the **WIP report.** **Expect:** the numbers match what you did.
-50. **Commissions:** a plan for the sales rep (a % of the contract); mark the invoice paid. **Expect:** earned automatically; approve, pay, statement.
+50. **Commissions:** a plan for the sales rep ("% of the contract", paid automatically to the sales rep on the signed quote — the default for a new plan). Have the sales rep write the next quote, or name them its salesperson; mark that project's invoice paid. **Expect:** earned automatically; approve, pay, statement.
 
 ## J. Other features
 
@@ -104,7 +104,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 ## N. Roles
 
 56. Sign in as the **manager** (🙋 **PERSON** types the password). **Expect:** runs projects and jobs; no billing or team-changing controls they shouldn't have.
-57. Sign in as the **sales rep**. **Expect:** their own leads, quotes and commissions; not other reps' commissions or company Settings.
+57. Sign in as the **sales rep**. **Expect:** the Lead Inbox with the leads assigned to them (the owner assigns one under **Worked by** on the lead) and the ones they add, Quotes with the quotes they wrote, and their own commissions; not other leads, quotes or commissions, or company Settings.
 58. Sign in as the **crew member**. **Expect:** the **crew dashboard** (my jobs today and next, my hours this week, my tasks); no prices, no company money; owner-only addresses typed in the bar are refused, not shown.
 
 ## O. Finish

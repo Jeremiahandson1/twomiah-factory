@@ -57,6 +57,11 @@ export interface CommissionsConfig {
    * the month's sales, and can pay the stylist of a visit by itself. Off (absent), the page is exactly what it was.
    */
   salesKinds?: boolean
+  /**
+   * A plan can pay the seller of the signed quote by itself, as each invoice from it is paid (the contractor: server QUOTE_SELLER). A new
+   * plan starts on it, since that is what a builder's sales plan is (contractor live test 11/07: the plan was made and nothing was earned).
+   */
+  quoteSeller?: boolean
 }
 export interface CommissionsPageProps { api: CommissionsApi; toast: CommissionsToast; config: CommissionsConfig }
 
@@ -115,6 +120,8 @@ const AUTO_WORDS: Record<string, string> = {
   job_assignee: "Yes — the person assigned the job",
   job_creator: 'Yes — the person who booked the job',
 }
+/** The seller of the signed quote (CommissionsConfig.quoteSeller). */
+const QUOTE_SELLER_WORDS: Record<string, string> = { quote_salesperson: 'Yes — the sales rep on the signed quote, as each invoice for it is paid' }
 /** Offered only where the config says the trade pays the job's seller (CommissionsConfig.salesRepAutoEarn). */
 const SALES_REP_AUTO_WORDS: Record<string, string> = {
   job_sales_rep: "Yes — the job’s sales rep",
@@ -167,7 +174,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     planType === 'percent_of_margin'
       ? (salesRepAuto ? { none: AUTO_WORDS.none, ...SALES_REP_AUTO_WORDS } : { none: AUTO_WORDS.none })
       // a salon pays the stylist of a visit (salesKinds); every other trade the job's person, and roofing its seller too
-      : { ...(config.salesKinds ? SALON_AUTO_WORDS : AUTO_WORDS), ...(salesRepAuto ? SALES_REP_AUTO_WORDS : {}) }
+      : { ...(config.salesKinds ? SALON_AUTO_WORDS : AUTO_WORDS), ...(salesRepAuto ? SALES_REP_AUTO_WORDS : {}), ...(config.quoteSeller ? QUOTE_SELLER_WORDS : {}) }
+  const newPlan = () => ({ ...blankPlan(roleKeys[0] || 'all'), ...(config.quoteSeller ? { autoEarn: 'quote_salesperson' } : {}) })
 
   const [tab, setTab] = useState<'records' | 'plans' | 'statements' | 'rules'>('records')
   const [stmtWho, setStmtWho] = useState('')
@@ -183,7 +191,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
 
   const [planOpen, setPlanOpen] = useState(false)
   const [editingPlan, setEditingPlan] = useState<any | null>(null)
-  const [planForm, setPlanForm] = useState(blankPlan(roleKeys[0] || 'all'))
+  const [planForm, setPlanForm] = useState(newPlan)
 
   const [recordOpen, setRecordOpen] = useState(false)
   const [recordForm, setRecordForm] = useState(blankRecord)
@@ -296,7 +304,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   // ── plans ──
   // The people a plan can name: the team's logins (switched-off ones only where a plan already names them).
   const loadPeople = async () => { try { setPeople(asPeople(await api.get(usersPath))) } catch { setPeople([]) } }
-  const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true); loadPeople() }
+  const openNewPlan = () => { setEditingPlan(null); setPlanForm(newPlan()); setPlanOpen(true); loadPeople() }
   const openEditPlan = (p: any) => {
     setEditingPlan(p)
     setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p), salesKind: p.salesKind || 'all', tierBasis: p.tierBasis || 'sales', tierCadence: p.tierCadence || 'month', scope: scopeOf(p), measuredOn: p.measuredOn || 'contract', triggerOn: p.triggerOn || 'collected', zeroBalanceOnly: !!p.zeroBalanceOnly, tiers: Array.isArray(p.tiers) && p.tiers.length ? p.tiers.map((t: any) => ({ min: String(t.min), max: String(t.max), rate: String(t.rate) })) : blankTiers() })
@@ -662,7 +670,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               </div>
               {paysJobRole(p.autoEarn)
                 ? <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays the job&rsquo;s {JOB_ROLE_CARD_WORDS[p.autoEarn]}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically {p.triggerOn && p.triggerOn !== 'collected' ? `when the job is ${({ approved: 'Approved', completed: 'Completed', invoiced: 'Invoiced' } as Record<string, string>)[p.triggerOn]}${p.zeroBalanceOnly ? ' and nothing is owing' : ''}` : 'when the whole job is paid'}</p>
-                : p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'visit_stylist' ? 'the stylist of the visit' : p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when its invoice is paid in full</p>}
+                : p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />{p.autoEarn === 'quote_salesperson' ? <>Pays the sales rep on the signed quote{namedOn(p).length ? ', when they are on this plan,' : ''} automatically as each invoice for it is paid in full</> : <>Pays {p.autoEarn === 'visit_stylist' ? 'the stylist of the visit' : p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when its invoice is paid in full</>}</p>}
               {p.isActive === false
                 ? (mayUpdate && <button onClick={() => restorePlan(p)} className="mt-3 text-sm text-gray-700 underline dark:text-slate-300">Bring back</button>)
                 : (mayRetire && <button onClick={() => retirePlan(p)} className="mt-3 text-sm text-red-700 underline dark:text-red-300">Retire</button>)}
@@ -771,7 +779,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
               {people.length === 0 && <p className="text-xs text-gray-600 dark:text-slate-400">Loading the team…</p>}
             </div>
           </fieldset>
-          <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' && !salesRepAuto ? 'A margin plan is recorded by hand — the margin has to be entered.' : salesRepAuto && paysJobRole(autoFor(planForm.planType, planForm.autoEarn)) ? 'When every invoice on a job is paid, from now on, the person holding that role on the job earns it once, on the whole job, if this plan pays them (name the people above to pay only them). Who is on a job is set on the job. A full refund of the last invoice takes it back.' : config.salesKinds ? 'When a visit\u2019s bill is paid in full, from now on, the stylist of the visit earns it if this plan pays them \u2014 on the services or retail it covers. A full refund takes it back.' : 'When an invoice for a job is paid in full, from now on, the job\u2019s person earns it if this plan pays them. A full refund takes it back.'}>
+          <Field label="Pay it automatically?" hint={planForm.autoEarn === 'quote_salesperson' && planForm.planType !== 'percent_of_margin' ? 'Each time an invoice for a signed quote is paid in full, from now on, the quote’s sales rep (or whoever wrote it) earns this on that invoice before tax — so a % plan earns that % of the contract over its invoices. A full refund takes it back.' : planForm.planType === 'percent_of_margin' && !salesRepAuto ? 'A margin plan is recorded by hand — the margin has to be entered.' : salesRepAuto && paysJobRole(autoFor(planForm.planType, planForm.autoEarn)) ? 'When every invoice on a job is paid, from now on, the person holding that role on the job earns it once, on the whole job, if this plan pays them (name the people above to pay only them). Who is on a job is set on the job. A full refund of the last invoice takes it back.' : config.salesKinds ? 'When a visit\u2019s bill is paid in full, from now on, the stylist of the visit earns it if this plan pays them \u2014 on the services or retail it covers. A full refund takes it back.' : 'When an invoice for a job is paid in full, from now on, the job\u2019s person earns it if this plan pays them. A full refund takes it back.'}>
             <select value={autoFor(planForm.planType, planForm.autoEarn)} disabled={planForm.planType === 'percent_of_margin' && !salesRepAuto} onChange={(e) => setPlanForm((prev) => ({ ...prev, autoEarn: e.target.value }))} className={inputCls}>
               {Object.entries(autoChoices(planForm.planType)).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
             </select>

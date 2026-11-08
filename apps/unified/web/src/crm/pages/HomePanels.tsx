@@ -93,10 +93,13 @@ export function CrewDashboard() {
   }, [on])
   if (!on || !data) return null
   const where = (j: CrewJob) => [j.address, j.city].filter(Boolean).join(', ')
+  // The day and time in words, as the rest of the app says them (contractor live test 11/07: "2026-11-10 08:00").
+  const dayWords = (d?: string | null) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : d || null }
+  const timeWords = (t?: string | null) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return t || null; const h = +m[1]; return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}` }
   const row = (j: CrewJob) => (
     <li key={j.id} data-job={j.id} className="py-2">
       <Link to={`/crm/jobs/${j.id}`} className={link}>{j.number} · {j.title}</Link>
-      <span className={`block text-xs ${muted}`}>{[j.day, j.scheduledTime, j.customer, where(j), codeLabel(j.status)].filter(Boolean).join(' · ')}</span>
+      <span className={`block text-xs ${muted}`}>{[dayWords(j.day), timeWords(j.scheduledTime), j.customer, where(j), codeLabel(j.status)].filter(Boolean).join(' · ')}</span>
     </li>
   )
   return (

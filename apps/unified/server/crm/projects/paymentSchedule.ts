@@ -43,7 +43,8 @@ export function createPaymentSchedule(d: CrmDeps, tellClient: (companyId: string
     const cos = await db.select({ amount: changeOrder.amount }).from(changeOrder).where(and(eq(changeOrder.companyId, companyId), eq(changeOrder.projectId, projectId), eq(changeOrder.status, 'approved'))) as any[]
     const quoted = round2(quotes.reduce((s, q) => s + (Number(q.total) || 0), 0))
     const changes = round2(cos.reduce((s, o) => s + (Number(o.amount) || 0), 0))
-    const value = round2((quoted > 0 ? quoted : Number(p.estimatedValue) || 0) + changes)
+    // A typed estimate already carries the change orders agreed since (their approval adds them to it), so they are added to quotes only.
+    const value = round2(quoted > 0 ? quoted + changes : Number(p.estimatedValue) || 0)
     return { project: p, value, source: quoted > 0 ? 'quotes' : Number(p.estimatedValue) > 0 ? 'estimate' : 'none', quoteId: quotes.length === 1 ? quotes[0].id : null }
   }
   const amountOf = (row: any, contract: number) => round2(row.amountType === 'percent' ? (contract * Number(row.amount)) / 100 : Number(row.amount))

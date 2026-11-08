@@ -21,6 +21,11 @@ export interface DocumentsConfig {
   versions?: boolean
   /** Feature flag check from the template's auth context (used for the projects picker). */
   hasFeature?: (id: string) => boolean
+  /**
+   * Send a project's PDF to the client to e-sign in their portal (the unified app's client portal, row 10c): answers what to tell the
+   * person. Offered on a PDF filed on a project. Absent: not offered (contractor live test 11/07: "No send-for-signature in Documents").
+   */
+  sendToSign?: (doc: DocumentRow) => Promise<string>
 }
 
 export interface DocumentsPageProps { api: FilesApi; toast: FilesToast; config?: DocumentsConfig }

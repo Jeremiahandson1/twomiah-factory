@@ -50,7 +50,7 @@ export function SaveTemplateModal({ api, toast, quote, onClose }: { api: Api; to
   return (
     <Modal isOpen={!!quote} onClose={onClose} title="Save as a template" size="md">
       <div className="space-y-4">
-        <p className="text-sm text-gray-600 dark:text-slate-300">The lines, wording, tax and deposit are kept. The customer and dates are not, so you pick them each time you use it.</p>
+        <p className="text-sm text-gray-600 dark:text-slate-300">The lines and their pictures, the Good / Better / Best options, the wording, tax and deposit are kept. The customer and dates are not, so you pick them each time you use it.</p>
         <Field label="Template name"><input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} maxLength={120} autoFocus /></Field>
         <div className="flex justify-end gap-3"><Button variant="secondary" onClick={onClose}>Cancel</Button>{mayCreate && <Button onClick={save} disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save template'}</Button>}</div>
         {!mayCreate && <p className="text-sm text-gray-600 dark:text-slate-300">Your role cannot save templates.</p>}

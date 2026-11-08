@@ -131,7 +131,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
   const leads = new Hono()
     .post('/', (c) => deps.enquiryHandler(c))
     .route('/', createLeadsRoutes({
-      db, tables: { lead, leadSource, contact, quote, job, invoice }, authenticate, requirePermission: permissions.requirePermission, canSee,
+      db, tables: { lead, leadSource, contact, quote, job, invoice, user }, authenticate, requirePermission: permissions.requirePermission, canSee,
       // The inbox is the lead_inbox feature's, on the server as in the menu; the enquiry form above is everyone's.
       requireFeature: deps.features.requireEnabledFeature('lead_inbox'),
       emitToCompany: deps.realtime.emitToCompany, EVENTS: deps.realtime.EVENTS,

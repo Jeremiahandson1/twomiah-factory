@@ -29,7 +29,7 @@ import { countNewLeads } from '../reporting/newLeads'
  * `quote`, `job` and `invoice` are optional: with them the inbox can count the lead contacts nobody has acted on beside its own
  * enquiries (the dashboard's New leads number), and say so. Without them the inbox counts its own enquiries only, as before.
  */
-export interface LeadsTables { lead: any; leadSource: any; contact: any; quote?: any; job?: any; invoice?: any }
+export interface LeadsTables { lead: any; leadSource: any; contact: any; quote?: any; job?: any; invoice?: any; /** Who an enquiry can be assigned to (PUT /:id/assign). */ user?: any }
 export interface LeadsOptions {
   /** Platform ids this vertical offers on the Lead Sources page. Create refuses anything else. Default: the trades set. */
   platforms?: string[]
@@ -238,6 +238,31 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   app.use('*', authenticate)
   if (deps.requireFeature) app.use('*', deps.requireFeature)
 
+  /**
+   * WHOSE ENQUIRIES THIS SEAT READS: every one with leads:read-all (admin and manager, through leads:*), else the ones assigned to it —
+   * the contractor's Sales rep (contractor live test 11/07: the rep was refused the Lead Inbox outright). Only on the inbox's own
+   * permissions (ownPermission) and a lead table that records who works it (lead.assigned_to_id). Null for all.
+   */
+  const ownLeads = async (c: any): Promise<any | null> => {
+    if (!own || !deps.canSee || !t.lead.assignedToId) return null
+    const u = c.get('user')
+    let all = false
+    try { all = !!(await deps.canSee(u?.role, 'leads:read-all', u?.userId)) } catch { all = false }
+    return all ? null : eq(t.lead.assignedToId, String(u?.userId || ''))
+  }
+  // Every door on one enquiry (/:id and /:id/…) answers "not found" for one that is not this seat's own.
+  const NOT_AN_ID = new Set(['sources', 'stats', 'manual', 'inbound'])
+  const ownLeadDoor = async (c: any, next: any) => {
+    const id = c.req.param('id')
+    if (id && !NOT_AN_ID.has(id)) {
+      const scope = await ownLeads(c)
+      if (scope && !(await db.select({ id: t.lead.id }).from(t.lead).where(and(eq(t.lead.id, id), scope)).limit(1))[0]) return c.json({ error: 'Lead not found' }, 404)
+    }
+    return next()
+  }
+  app.use('/:id', ownLeadDoor)
+  app.use('/:id/*', ownLeadDoor)
+
   const sourceCreateSchema = z.object({
     platform: z.string().trim().regex(PLATFORM_RE, 'Invalid platform'),
     label: z.string().trim().max(80).optional(),
@@ -363,6 +388,8 @@ export function createLeadsRoutes(deps: LeadsDeps) {
       const p = `%${escapeLike(search)}%`
       conditions.push(or(ilike(t.lead.homeownerName, p), ilike(t.lead.email, p), ilike(t.lead.phone, p), ilike(t.lead.jobType, p), ilike(t.lead.location, p))!)
     }
+    const mine = await ownLeads(c)
+    if (mine) conditions.push(mine)
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
       db.select().from(t.lead).where(where).orderBy(desc(t.lead.receivedAt), asc(t.lead.id)).offset((page - 1) * limit).limit(limit),
@@ -390,7 +417,9 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     const parsed = manualSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the lead’s details.' }, 400)
     if (!parsed.data.email && !parsed.data.phone) return c.json({ error: 'Add a phone number or an email, so someone can reach them.' }, 400)
-    const row = await insertLead(db, t.lead, { companyId: u.companyId, sourceId: null, platform: 'manual', parsed: parsed.data, rawPayload: { addedBy: u.userId } })
+    let row = await insertLead(db, t.lead, { companyId: u.companyId, sourceId: null, platform: 'manual', parsed: parsed.data, rawPayload: { addedBy: u.userId } })
+    // One a sales rep adds is theirs to work (they read only their own); the office's stays nobody's until it is assigned.
+    if (await ownLeads(c)) [row] = await db.update(t.lead).set({ assignedToId: u.userId }).where(eq(t.lead.id, row.id)).returning()
     emitToCompany(u.companyId, EVENTS.LEAD_CREATED, { id: row.id, sourcePlatform: 'manual', homeownerName: row.homeownerName })
     await audit.log({ action: 'create', entity: 'lead', entityId: row.id, metadata: { platform: 'manual' }, req: { user: u } })
     return c.json(row, 201)
@@ -399,8 +428,9 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   app.get('/stats', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const mine = await ownLeads(c)
     const recent = await db.select({ sourcePlatform: t.lead.sourcePlatform, status: t.lead.status, receivedAt: t.lead.receivedAt, contactedAt: t.lead.contactedAt })
-      .from(t.lead).where(and(eq(t.lead.companyId, currentUser.companyId), gte(t.lead.receivedAt, thirtyDaysAgo)))
+      .from(t.lead).where(and(eq(t.lead.companyId, currentUser.companyId), gte(t.lead.receivedAt, thirtyDaysAgo), mine ?? undefined))
     // Spam is not a lead: it is out of the 30-day totals and the per-source rates.
     const leads = spamOn ? recent.filter((l: any) => l.status !== 'spam') : recent
 
@@ -428,11 +458,11 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     // With a Spam status the inbox also labels its filters with how many there are (all time, not 30 days), and says what its
     // "New" figure is made of: the enquiries here plus the contacts added as leads that nobody has quoted, booked or billed.
     const byStatus = await db.select({ status: t.lead.status, c: count() }).from(t.lead)
-      .where(eq(t.lead.companyId, currentUser.companyId)).groupBy(t.lead.status)
+      .where(and(eq(t.lead.companyId, currentUser.companyId), mine ?? undefined)).groupBy(t.lead.status)
     const counts: Record<string, number> = { new: 0, contacted: 0, converted: 0, dismissed: 0, spam: 0 }
     for (const r of byStatus as any[]) counts[r.status] = Number(r.c)
     let waiting: { total: number; inbox: number; contacts: number } | undefined
-    if (t.quote && t.job && t.invoice) {
+    if (t.quote && t.job && t.invoice && !mine) {
       try { waiting = await countNewLeads(db, { lead: t.lead, contact: t.contact, quote: t.quote, job: t.job, invoice: t.invoice }, currentUser.companyId, { inbox: true }) } catch { waiting = undefined }
     }
     return c.json({ stats, totals: { ...totals, spam: counts.spam }, counts, ...(waiting ? { waiting } : {}) })
@@ -551,6 +581,28 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     emitToCompany(currentUser.companyId, EVENTS.LEAD_UPDATED, { id, status: 'converted', contactId: contactRow.id })
     if (!matched) emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, { id: contactRow.id, name: contactRow.name })
     return c.json({ lead: { ...existing, status: 'converted', convertedContactId: contactRow.id }, contact: withoutPortalCredential(contactRow), matched })
+  })
+
+  /**
+   * Who works an enquiry: the office hands it to a person (a sales rep then sees it), or takes it back (null). A seat that reads every lead
+   * (leads:read-all) and works them; the person must be one of this company's logins.
+   */
+  app.put('/:id/assign', mayWork, async (c) => {
+    const currentUser = (c as any).get('user')
+    if (!t.lead.assignedToId || !t.user) return c.json({ error: 'Leads are not assigned here.' }, 404)
+    if (await ownLeads(c)) return c.json({ error: 'Only the office hands out leads.' }, 403)
+    const parsed = z.object({ assignedToId: z.string().min(1).max(64).nullable() }).safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return c.json({ error: 'Pick who works this lead.' }, 400)
+    const existing = await ownLead(c.req.param('id'), currentUser.companyId)
+    if (!existing) return c.json({ error: 'Lead not found' }, 404)
+    if (parsed.data.assignedToId) {
+      const [who] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, parsed.data.assignedToId), eq(t.user.companyId, currentUser.companyId))).limit(1)
+      if (!who) return c.json({ error: 'That person is not on your team.' }, 400)
+    }
+    const [updated] = await db.update(t.lead).set({ assignedToId: parsed.data.assignedToId, updatedAt: new Date() }).where(and(eq(t.lead.id, existing.id), eq(t.lead.companyId, currentUser.companyId))).returning()
+    await audit.log({ action: 'update', entity: 'lead', entityId: existing.id, metadata: { assignedToId: parsed.data.assignedToId }, req: { user: currentUser } })
+    emitToCompany(currentUser.companyId, EVENTS.LEAD_UPDATED, { id: existing.id, status: updated.status })
+    return c.json(updated)
   })
 
   app.delete('/:id', mayRemove, async (c) => {

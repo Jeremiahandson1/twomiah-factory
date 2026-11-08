@@ -85,6 +85,9 @@ import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { ownContactsWhere } from '../crm/ownWork.ts'
+import { createQuoteSellerCommissions } from '../crm/billing/quoteSellerCommissions.ts'
+import { tipsOn } from '../crm/roof/cardSurcharge.ts'
+import { setProjectContract } from '../data/projects.ts'
 import { removeVisitPhotoFiles, visitPhotoFilesOf } from '../crm/salon/visitPhotos.ts'
 import { intakeFilesOf } from '../crm/salon/intakeForms.ts'
 import { createTeamLoginRoutes } from '../crm/crewLogins.ts'
@@ -152,6 +155,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v, store: deps.store }
   // A job is not completed with a required checklist unfinished (crm/field/checklistRoutes.ts); in front of the jobs mount below.
   const completionGate = createCompletionGate(own)
+  // The contractor's seller of the signed quote, earned as each invoice from it is paid (beside the job-based engine).
+  if (v.quoteSellerCommissions) { const seller = createQuoteSellerCommissions(own); s.useCommissionEarner?.({ earn: seller.earnForInvoice, sweep: () => seller.sweep() }) }
   // Home care's own routers on two paths the CRM also serves — its client portal (/api/portal) and its texting screen
   // (/api/sms) — answer first, composed in front of the CRM's router: one mount per path (RULEBOOK §6), the CRM's
   // customer portal (/p/:token/…) and Twilio's webhooks still reached (server/crm/homecare/portals/index.ts).
@@ -179,6 +184,16 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     await syncJobValueFromProposal(db, companyId, quoteId).catch((err: Error) => logger.error('[quotes] job value not updated from the chosen option', { quote: quoteId, error: err?.message }))
     const deposit = await quoteBilling.raiseDeposit(companyId, quoteId)
     try { await quoteBudget.carryOver(companyId, quoteId) } catch (err: any) { logger.error?.('[quotes] budget not set up after approval', { quote: quoteId, error: err?.message }) }
+    // A lead who signs a quote is a customer now: the contact becomes the vertical's customer type, as Convert to Client does (contractor
+    // live test 11/07: Hank stayed "Lead" after approving, paying and being invoiced, and the recurring-invoice list could not find him).
+    try {
+      const [q] = await db.select({ contactId: quote.contactId, projectId: quote.projectId }).from(quote).where(and(eq(quote.id, quoteId), eq(quote.companyId, companyId))).limit(1)
+      if (q?.contactId) await db.update(contact).set({ type: v.contacts?.customerType || 'client', updatedAt: new Date() }).where(and(eq(contact.id, q.contactId), eq(contact.companyId, companyId), eq(contact.type, 'lead')))
+      // A project's value is its contract: the signed quotes on it plus the change orders agreed since (contractor live test 11/07: the
+      // list read "-", the page and Reports $2,500 — the change orders alone — beside a $12,810 payment schedule). Approving a change
+      // order keeps adding to it, as it does (siteRecords/changeOrders.ts, the portal's signing).
+      if (q?.projectId) await setProjectContract(db, companyId, q.projectId)
+    } catch (err: any) { logger.error?.('[quotes] the contact and project were not brought up to date after approval', { quote: quoteId, error: err?.message }) }
     // The modules' own after-approval steps (roofing: its job is Signed — crm/roof/signed.ts).
     await s.afterQuoteApproved?.(companyId, quoteId)
     return deposit
@@ -487,7 +502,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : v.dashboard === 'homecare' ? createHomecareDashboardRoutes(own)
       // The roofer's (templates/crm-roof routes/dashboard.ts).
       : v.dashboard === 'roof' ? createRoofDashboardRoutes(own)
-      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
+      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee, ownContacts: (userId: string) => ownContactsWhere(db, userId) } as any) },
     // Cash in, what is owed and who is waiting, under every trade's own dashboard (crm/dashboard/moneyStrip.ts). Each half
     // asks its own permission and is sent only where the trade has it.
     { path: '/api/dashboard-strip', access: 'user', feature: 'dashboard', router: createMoneyStripRoutes(own) },
@@ -514,7 +529,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     // A salon's stylist commissions are their own feature (salon_commissions, not ready); every other vertical's stay behind commission_tracking.
-    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, ...(v.roof ? { ownWithheld: createCommissionDisclaimer(own).pendingFor } : {}), ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
+    { path: '/api/commissions', access: 'user', feature: v.dashboard === 'salon' ? 'salon_commissions' : 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee, audit, salesRepAutoEarn: !!v.roof, quoteSeller: !!v.quoteSellerCommissions, ...(v.roof ? { ownWithheld: createCommissionDisclaimer(own).pendingFor } : {}), ...(v.dashboard === 'salon' ? { salesKinds: true, payees: createSalonPayees(db), planClash: createSalonPlanClash(db) } : {}) } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission, canSee } as any) },
     { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
@@ -572,7 +587,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // Roofing parity row 18 (card_surcharge, not ready): the percent added to a credit-card payment (data/cardSurcharge.ts rules).
       surchargeFor: async (companyId: string) => (await features.isFeatureEnabled(companyId, 'card_surcharge').catch(() => false)) ? surchargePctFor(db, companyId) : null,
       // Contractor parity row 12 (invoice_tips, not ready): customers may add a tip when they pay an invoice online.
-      tipsFor: (companyId: string) => features.isFeatureEnabled(companyId, 'invoice_tips') } as any) }]),
+      tipsFor: async (companyId: string) => (await features.isFeatureEnabled(companyId, 'invoice_tips')) && tipsOn(db, companyId) } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
@@ -624,6 +639,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       // The contractor's project page in the client portal (contractor parity row 10; client_portal_plus gates it).
       ...(!v.roof ? { projectExtras: createClientPortal(own).extras } : {}),
+      // A vendor's purchase orders and invoices are the vendor portal's (crm/office/vendorPortal.ts), offered from here to a vendor.
+      ...(!v.roof ? { vendorPortal: true } : {}),
       ...live, logger,
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,
@@ -637,7 +654,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       quoteDeposit: { onApproved: (companyId: string, q: any) => afterApproval(companyId, q.id), depositFor: quoteBilling.depositFor },
       // Roofing parity row 16 (portal_pay_options, not ready): part payment on the invoice page and paying toward an approved quote.
       // Contractor parity row 12: tips on online payments, and an invoice's payment plan (its next installment is the amount offered).
-      tipsFor: (companyId: string) => features.isFeatureEnabled(companyId, 'invoice_tips'),
+      tipsFor: async (companyId: string) => (await features.isFeatureEnabled(companyId, 'invoice_tips')) && tipsOn(db, companyId),
       planFor: async (companyId: string, invoiceId: string) => ((await features.isFeatureEnabled(companyId, 'payment_plans').catch(() => false)) ? createPaymentPlans(own).planFor(companyId, invoiceId) : null),
       payOptions: { enabled: (companyId: string) => features.isFeatureEnabled(companyId, 'portal_pay_options'), leftToPay: quoteBilling.leftToPay, raise: quoteBilling.raisePayment },
       // Good / Better / Best on the customer's pages and pick: the same switch the office's quote routes ask (quoteOptions.ts proposalsLive).

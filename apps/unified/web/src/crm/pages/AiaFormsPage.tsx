@@ -38,6 +38,25 @@ export default function AiaFormsPage() {
     lineItems: [{ itemNumber: '1', description: '', scheduledValue: 0, workPreviouslyCompleted: 0, workThisPeriod: 0, materialsStored: 0, totalCompletedAndStored: 0, percentComplete: 0, balanceToFinish: 0, retainage: 0 }],
   });
 
+  // The pay application open to read and print (G702 summary and G703 lines): contractor live test 11/07, "the G702/G703 cannot be opened".
+  const [viewing, setViewing] = useState<any | null>(null);
+  const openForm = async (id: string) => {
+    try { setViewing(await api.get(`/api/aia-forms/${id}`)); } catch (e) { toast.error(errorText(e, 'Could not open the pay application')); }
+  };
+  /**
+   * Picking the project fills the contract from it: the original contract sum and the change orders agreed since (G702 lines 1 and 2).
+   * Contractor live test 11/07: "Contract sum is not filled from the project (typed by hand)". Either can still be typed over.
+   */
+  const pickProject = async (projectId: string) => {
+    setForm((f) => ({ ...f, projectId }));
+    if (!projectId) return;
+    try {
+      const p: any = await api.get(`/api/projects/${projectId}`);
+      const fin = p?.financials;
+      if (fin) setForm((f) => (f.projectId !== projectId ? f : { ...f, contractSum: f.contractSum || String(fin.originalValue ?? ''), netChangeByChangeOrders: String(fin.approvedChangeOrders ?? f.netChangeByChangeOrders) }));
+    } catch { /* the sum stays to be typed */ }
+  };
+
   useEffect(() => { load(); }, []);
   const load = async () => {
     try {
@@ -111,7 +130,8 @@ export default function AiaFormsPage() {
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(f.periodTo)}</td>
                   <td className="px-4 py-3 font-mono text-sm">{money(Number(f.currentPaymentDue))}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{codeLabel(f.status)}</span></td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 space-x-3 whitespace-nowrap">
+                    <button onClick={() => openForm(f.id)} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Open</button>
                     {mayUpdate && f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Sign</button>}
                     {mayUpdate && f.status === 'signed' && <button onClick={() => advance(f.id, 'submit')} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Submit</button>}
                     {mayUpdate && f.status === 'submitted' && <button onClick={() => advance(f.id, 'mark-paid')} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Mark paid</button>}
@@ -122,13 +142,15 @@ export default function AiaFormsPage() {
         </table>
       </div>
 
+      {viewing && <PayAppView form={viewing} onClose={() => setViewing(null)} />}
+
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-auto">
           <div className="bg-white rounded-xl w-full max-w-4xl p-6 my-8 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New AIA Pay Application</h2>
             <form onSubmit={create} className="space-y-3">
               <div className="grid grid-cols-3 gap-3">
-                <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="border rounded-lg px-3 py-2"><option value="">Project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <select required value={form.projectId} onChange={(e) => pickProject(e.target.value)} className="border rounded-lg px-3 py-2"><option value="">Project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
                 <select value={form.formType} onChange={(e) => setForm({ ...form, formType: e.target.value })} className="border rounded-lg px-3 py-2"><option value="G702">G702 (App for Payment)</option><option value="G703">G703 (Continuation)</option></select>
                 <input type="number" placeholder="App #" value={form.applicationNumber} onChange={(e) => setForm({ ...form, applicationNumber: e.target.value })} className="border rounded-lg px-3 py-2" />
               </div>
@@ -168,4 +190,52 @@ export default function AiaFormsPage() {
       )}
     </div>
   );
+}
+
+/**
+ * One pay application to read and print: the G702 summary (the AIA line numbers) and the G703 continuation sheet. Print uses the
+ * browser's own print of this page, the dialog's frame left out.
+ */
+function PayAppView({ form, onClose }: { form: any; onClose: () => void }) {
+  const n = (v: unknown) => Number(v || 0)
+  const lines: any[] = Array.isArray(form.lineItems) ? form.lineItems : []
+  const rows: Array<[string, string, number]> = [
+    ['1', 'Original contract sum', n(form.contractSum)],
+    ['2', 'Net change by change orders', n(form.netChangeByChangeOrders)],
+    ['3', 'Contract sum to date (1 + 2)', n(form.contractSumToDate)],
+    ['4', 'Total completed and stored to date', n(form.totalCompletedAndStored)],
+    ['5', `Retainage (${n(form.retainagePercent)}%)`, n(form.retainageAmount)],
+    ['6', 'Total earned less retainage (4 − 5)', n(form.totalEarnedLessRetainage)],
+    ['7', 'Less previous certificates for payment', n(form.lessPreviousCertificates)],
+    ['8', 'Current payment due (6 − 7)', n(form.currentPaymentDue)],
+    ['9', 'Balance to finish, including retainage (3 − 6)', n(form.balanceToFinish)],
+  ]
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 z-50 overflow-auto print:static print:bg-white print:p-0" role="dialog" aria-modal="true" aria-label="Pay application">
+      <div className="bg-white rounded-xl w-full max-w-4xl p-6 my-8 dark:bg-slate-900 print:shadow-none print:my-0" data-testid="pay-app-view">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">Application and Certificate for Payment (AIA G702) — #{form.applicationNumber}</h2>
+            <p className="text-sm text-gray-600 dark:text-slate-400">{form.project?.name || ''}{form.periodTo ? ` · Period to ${formatDate(form.periodTo)}` : ''} · {codeLabel(form.status)}{form.signedBy ? ` · Signed by ${form.signedBy}` : ''}</p>
+          </div>
+          <div className="flex gap-2 print:hidden">
+            <button type="button" onClick={() => window.print()} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-sm">Print</button>
+            <button type="button" onClick={onClose} className="px-3 py-1.5 border rounded-lg text-sm">Close</button>
+          </div>
+        </div>
+        <table className="w-full text-sm mt-4"><tbody>
+          {rows.map(([k, label, v]) => <tr key={k} className="border-b dark:border-slate-700"><td className="py-1.5 w-8 text-gray-500">{k}.</td><td className="py-1.5">{label}</td><td className="py-1.5 text-right font-mono">{money(v)}</td></tr>)}
+        </tbody></table>
+        <h3 className="font-semibold mt-6 mb-2">Continuation sheet (AIA G703)</h3>
+        {lines.length === 0 ? <p className="text-sm text-gray-500">No line items.</p> : (
+          <div className="overflow-x-auto"><table className="w-full text-xs">
+            <thead><tr className="text-left border-b dark:border-slate-700"><th className="p-1">#</th><th className="p-1">Description of work</th><th className="p-1 text-right">Scheduled value</th><th className="p-1 text-right">Previous</th><th className="p-1 text-right">This period</th><th className="p-1 text-right">Stored</th><th className="p-1 text-right">Completed &amp; stored</th><th className="p-1 text-right">%</th><th className="p-1 text-right">Balance to finish</th></tr></thead>
+            <tbody>{lines.map((l, i) => (
+              <tr key={i} className="border-b dark:border-slate-800"><td className="p-1">{l.itemNumber}</td><td className="p-1">{l.description}</td><td className="p-1 text-right font-mono">{money(n(l.scheduledValue))}</td><td className="p-1 text-right font-mono">{money(n(l.workPreviouslyCompleted))}</td><td className="p-1 text-right font-mono">{money(n(l.workThisPeriod))}</td><td className="p-1 text-right font-mono">{money(n(l.materialsStored))}</td><td className="p-1 text-right font-mono">{money(n(l.totalCompletedAndStored))}</td><td className="p-1 text-right">{n(l.percentComplete).toFixed(0)}%</td><td className="p-1 text-right font-mono">{money(n(l.balanceToFinish))}</td></tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </div>
+    </div>
+  )
 }

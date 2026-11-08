@@ -42,6 +42,8 @@ beforeAll(async () => {
   await t.db.update(t.schema.company).set({ integrations: { stripeAccountId: 'acct_builder' } } as any).where(eq(t.schema.company.id, companyId))
   await setFeatures(['payment_method_choice', 'invoice_tips', 'payment_plans'])
   owner = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
+  // Tips are the business's own switch on the Card payments page, which the feature offers (contractor live test 11/07: "No tip switch").
+  expect((await t.call('/api/card-payments/tips', { method: 'PUT', json: { on: true }, headers: { Authorization: `Bearer ${owner}` } })).status).toBe(200)
   homeId = ((await t.db.insert(t.schema.contact).values({ companyId, name: 'Lee Marsh', email: 'lee@home.example', type: 'client' } as any).returning()) as any[])[0].id
 }, 120_000)
 afterAll(() => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v } })

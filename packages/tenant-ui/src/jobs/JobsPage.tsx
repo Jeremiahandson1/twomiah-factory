@@ -248,14 +248,18 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     if (contactId && contacts.length === 0) return // wait for the picker so the address can be applied
     if (wantsNew && projectFilter && (!projectsLoaded || !contactsLoaded)) return // wait for both, to bring the project's customer
     let cancelled = false
-    const next = new URLSearchParams(searchParams); next.delete('edit'); next.delete('contactId'); next.delete('new')
+    const next = new URLSearchParams(searchParams); next.delete('edit'); next.delete('contactId'); next.delete('new'); next.delete('from')
     if (editId && mayUpdate) {
-      api.get(`/api/jobs/${editId}`).then((row: JobRow) => { if (!cancelled && row) { openEdit(row); setSearchParams(next, { replace: true }) } }).catch(() => {})
+      // Opened from the job's own page (?from=detail): saving or closing goes back to that page, not this list (contractor live test 11/07).
+      const back = searchParams.get('from') === 'detail' ? `/crm/jobs/${editId}` : null
+      api.get(`/api/jobs/${editId}`).then((row: JobRow) => { if (!cancelled && row) { setReturnTo(back); openEdit(row); setSearchParams(next, { replace: true }) } }).catch(() => {})
     } else if (contactId && mayCreate) { openCreate(contactId, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     else if (wantsNew && mayCreate) { openCreate(undefined, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     return () => { cancelled = true }
   }, [searchParams, contacts.length, projectFilter, projectsLoaded, contactsLoaded, mayCreate, mayUpdate]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [returnTo, setReturnTo] = useState<string | null>(null)
+  const closeModal = () => { setModalOpen(false); if (returnTo) { const to = returnTo; setReturnTo(null); navigate(to) } }
   const save = async (bookAnyway = false) => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
     // a new job, or an edit that would empty a customer the job has — a job saved without one is edited freely
@@ -281,6 +285,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       }
       else { await api.post('/api/jobs', payload); toast.success(`${cfg.labels.singular} created`) }
       setModalOpen(false); load()
+      if (returnTo) { const to = returnTo; setReturnTo(null); navigate(to) }
     } catch (err) {
       if (isTravelWarning(err)) setTravelAsk(errMsg(err, 'There is not enough time to get there.'))
       else toast.error(errMsg(err, 'Failed to save'))
@@ -363,7 +368,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
 
       {/* The dialog echoes the button that opened it, and keeps echoing it when a vertical renames the button:
           "Add Job" opened something headed "New Job". (T14 L3) */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${cfg.labels.singular}` : cfg.labels.add} size="lg">
+      <Modal isOpen={modalOpen} onClose={closeModal} title={editing ? `Edit ${cfg.labels.singular}` : cfg.labels.add} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2"><Field label="Title *"><input value={form.title} onChange={set('title')} className={inputCls} /></Field></div>
           <Field label="Status"><select value={form.status} onChange={set('status')} className={`${inputCls} capitalize`}>{statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}{!statuses.includes(form.status) && form.status && <option value={form.status}>{label(form.status)}</option>}</select></Field>
@@ -512,7 +517,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <div className="md:col-span-2"><Field label="Notes"><textarea value={form.notes} onChange={set('notes')} rows={3} className={inputCls} /></Field></div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button onClick={() => save()} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
         </div>
       </Modal>

@@ -715,6 +715,13 @@
       "when": 1794035159060,
       "tag": "0101_booking_rwg_token",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1794105486505,
+      "tag": "0102_lead_assigned_to",
+      "breakpoints": true
     }
   ]
 }

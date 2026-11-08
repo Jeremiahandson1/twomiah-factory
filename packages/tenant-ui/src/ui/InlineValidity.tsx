@@ -18,7 +18,10 @@ const isControl = (t: EventTarget | null): t is Control =>
 /** What the field is called on screen: its label, else its aria-label, else its placeholder. */
 function nameOf(el: Control): string {
   const fromLabel = el.labels && el.labels[0] ? el.labels[0].textContent || '' : ''
-  const own = fromLabel || el.getAttribute('aria-label') || ('placeholder' in el ? (el as HTMLInputElement).placeholder : '') || ''
+  // …or the label written just above it in the same box, not tied to it by htmlFor — the common shape here (contractor live test 11/07:
+  // the equipment form's Customer said only "Choose one").
+  const sibling = !fromLabel && el.parentElement ? Array.from(el.parentElement.children).find((n) => n.tagName === 'LABEL')?.textContent || '' : ''
+  const own = fromLabel || el.getAttribute('aria-label') || sibling || ('placeholder' in el ? (el as HTMLInputElement).placeholder : '') || ''
   return own.replace(/\*/g, '').replace(/[:.…]+\s*$/, '').replace(/\s+/g, ' ').trim()
 }
 

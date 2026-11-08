@@ -1,7 +1,7 @@
 // Portal chrome: company header, role-based tab nav (from the template's portal config ∩ what the backend mounts), footer.
 import React from 'react'
 import { useOutlet } from 'react-router-dom'
-import { PawPrint, Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Hammer, FileSignature, FileCheck2, FolderOpen, HelpCircle, CreditCard, Wrench, CalendarCheck, LifeBuoy, Wallet, Camera, Images } from 'lucide-react'
+import { PawPrint, Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Hammer, FileSignature, FileCheck2, FolderOpen, HelpCircle, CreditCard, Wrench, CalendarCheck, LifeBuoy, Wallet, Camera, Images, ShoppingCart } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { PortalTab } from './common'
 import type { PortalSection } from './types'
@@ -22,7 +22,7 @@ export function useVisibleSections(): PortalSection[] {
 }
 
 export function PortalLayout() {
-  const { token, company, contact, contactType, loading, error, config } = usePortal()
+  const { token, company, contact, contactType, loading, error, config, role, sections } = usePortal()
   const outlet = useOutlet()
   const visible = useVisibleSections()
   useTheme()
@@ -83,6 +83,8 @@ export function PortalLayout() {
           <div className="flex gap-1 overflow-x-auto">
             <PortalTab to={base} end icon={Home} label="Dashboard" />
             {visible.map((s) => <PortalTab key={s} to={`${base}/${SECTION_PATH[s]}`} icon={SECTION_ICONS[s]} label={config.labels[s]} />)}
+            {/* A vendor's purchase orders and invoices are the vendor portal's own pages, on the same private link (contractor live test 11/07). */}
+            {role === 'collaborator' && sections?.vendorPortal && <PortalTab to={`/vendor/${token}`} icon={ShoppingCart} label="Purchase orders & invoices" />}
           </div>
         </div>
       </nav>

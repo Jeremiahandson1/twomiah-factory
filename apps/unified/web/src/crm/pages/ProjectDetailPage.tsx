@@ -502,6 +502,15 @@ export default function ProjectDetailPage() {
                 */}
               {project.financials && (
                 <>
+                  {/* The contract the project was sold for, before changes — or why there is none yet (contractor live test 11/07: the card was empty). */}
+                  {project.financials.originalValue !== 0 ? (
+                    <div className="flex items-center justify-between" data-testid="project-original-value">
+                      <span className="text-gray-500 dark:text-slate-400">Original contract</span>
+                      <span className="font-medium tabular-nums">{money(project.financials.originalValue)}</span>
+                    </div>
+                  ) : !project.financials.revisedContractValue && (
+                    <p className="text-sm text-gray-500 dark:text-slate-400" data-testid="project-no-value">No contract value yet. It is set when a quote on this project is signed, or type an estimated value on the project.</p>
+                  )}
                   {project.financials.approvedChangeOrders !== 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-gray-500 dark:text-slate-400">

@@ -4,9 +4,9 @@
 // or a roster crew on the Team page). This file only binds it to the unified tables, for the doors that live here —
 // roofing's jobs and crews, a day's route, the route optimiser and the contacts a field seat reaches. The shared jobs and
 // tech routes get the same tables (modules/crm.ts) and call onJob directly.
-import { and, inArray, isNotNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm'
 import { onJob } from '@twomiah/tenant-backend'
-import { contact, crewLogin, job, jobAssignee } from '../db/schema/index.ts'
+import { contact, crewLogin, job, jobAssignee, lead, quote } from '../db/schema/index.ts'
 
 /** The tables the one rule reads, as the shared routes are given them. */
 export const ON_JOB_TABLES = { job, jobAssignee, crewLogin }
@@ -16,7 +16,16 @@ export function ownJobsWhere(db: any, userId: string) {
   return onJob(db, ON_JOB_TABLES, String(userId))
 }
 
-/** A condition on `contact`: the customers on this login's own jobs. */
+/**
+ * A condition on `contact`: the customers on this login's own jobs — and, for a seat that sells (the contractor's Sales rep), the customers
+ * of the quotes it wrote or is the salesperson on and of the enquiries assigned to it (contractor live test 11/07: a rep's Contacts said
+ * "No contacts yet" for the customer they were quoting).
+ */
 export function ownContactsWhere(db: any, userId: string) {
-  return inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(ownJobsWhere(db, userId), isNotNull(job.contactId))))
+  const me = String(userId)
+  return or(
+    inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(ownJobsWhere(db, me), isNotNull(job.contactId)))),
+    inArray(contact.id, db.select({ id: quote.contactId }).from(quote).where(and(or(eq(quote.createdById, me), eq(quote.salespersonId, me)), isNotNull(quote.contactId)))),
+    inArray(contact.id, db.select({ id: lead.convertedContactId }).from(lead).where(and(eq(lead.assignedToId, me), isNotNull(lead.convertedContactId)))),
+  )!
 }

@@ -273,6 +273,7 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
           { label: 'Download', icon: Download, onClick: download },
           { label: 'Rename', icon: Pencil, onClick: openRename, show: () => mayUpdate },
           ...(cfg.versions ? [{ label: 'Versions', icon: History, onClick: (d: DocumentRow) => setHistory(d) }] : []),
+          ...(config?.sendToSign ? [{ label: 'Send to client to sign', icon: PenTool, show: (d: DocumentRow) => mayUpdate && !!d.project?.id && !!d.mimeType?.includes('pdf'), onClick: async (d: DocumentRow) => { try { toast.success(await config.sendToSign!(d)) } catch (e) { toast.error((e as Error)?.message || 'Could not send it to sign') } } }] : []),
           ...(cfg.markup ? [{ label: 'Markup', icon: PenTool, onClick: (d: DocumentRow) => setMarkup(d), show: (d: DocumentRow) => mayCreate && !!d.mimeType?.startsWith('image/') }] : []),
           { label: 'Delete', icon: Trash2, className: 'text-red-600 dark:text-red-300', onClick: d => setToDelete(d), show: () => mayDelete },
         ]} />

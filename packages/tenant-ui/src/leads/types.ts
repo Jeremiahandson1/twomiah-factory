@@ -60,6 +60,11 @@ export interface LeadsConfig {
    */
   siteVisit?: boolean
   /**
+   * The server records who works an enquiry (lead.assigned_to_id; PUT /api/leads/:id/assign): the office (leads:read-all) picks the person
+   * on each enquiry; a seat that reads only its own (a Sales rep) is told it is theirs. Absent: not shown.
+   */
+  assign?: boolean
+  /**
    * What the business can start for a person the moment their enquiry becomes a contact — "Start a job", "Start a quote" —
    * each opening that screen with the new contact already chosen. The caller lists only what the trade has AND the seat may
    * create, so nothing is offered that would be refused. Absent: Convert to Contact alone, as every template has.
@@ -139,6 +144,7 @@ export interface LeadRow {
   lostAt?: string | null
   /** Site visit (config.siteVisit): when it is booked for. */
   siteVisitAt?: string | null
+  assignedToId?: string | null
 }
 export interface LeadSourceRow {
   id: string

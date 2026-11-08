@@ -63,7 +63,9 @@ export function createCrewDashboardRoutes(d: CrmDeps) {
       out.hours = { today: sum(entries.filter((e: any) => new Date(e.date) >= dayStart && new Date(e.date) < dayEnd)), week: sum(entries) }
     }
 
-    if (features.includes('tasks') && await mayWith(me.role, 'tasks:read', me.userId)) {
+    // The Tasks page's own switch (/api/tasks is mounted on projects or patient_records, modules/crm.ts): there is no 'tasks' feature, so
+    // the line never showed (contractor live test 11/07: "No 'my tasks' box on the dashboard").
+    if ((features.includes('projects') || features.includes('patient_records')) && await mayWith(me.role, 'tasks:read', me.userId)) {
       const rows = await db.select({ id: task.id, title: task.title, dueDate: task.dueDate }).from(task)
         .where(and(eq(task.companyId, companyId), eq(task.assignedToId, me.userId), ne(task.status, 'completed'))).orderBy(asc(task.dueDate), asc(task.id))
       out.tasks = { open: rows.length, next: rows.slice(0, 3).map((t: any) => ({ id: t.id, title: t.title, dueDate: t.dueDate })) }

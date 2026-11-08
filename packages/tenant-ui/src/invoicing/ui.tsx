@@ -729,6 +729,7 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
             <option value="material">Material</option>
             <option value="part">Part</option>
             <option value="service">Service</option>
+            <option value="subcontractor">Subcontractor</option>
             <option value="other">Other</option>
           </select>
         </td>
@@ -791,9 +792,11 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
         and this frame scrolls sideways when it will not fit: desktop unchanged, and a phone gets a table
         it can push around rather than boxes it cannot type in. (Field Service T30, phone width)
       */}
-      <table className={`w-full text-sm ${showMarkup ? 'min-w-[56rem]' : showCost ? 'min-w-[46rem]' : 'min-w-[34rem]'}`}>
+      {/* The description keeps room to be read and typed in: with the cost and markup columns it was squeezed to a few letters (contractor
+          live test 11/07). The table scrolls sideways instead. */}
+      <table className={`w-full text-sm ${showMarkup ? 'min-w-[66rem]' : showCost ? 'min-w-[54rem]' : 'min-w-[38rem]'}`}>
         <thead className="bg-gray-50 dark:bg-slate-800/60 text-gray-600 dark:text-slate-300"><tr>
-          <th className="px-3 py-2 text-left text-xs font-medium">Description</th>
+          <th className="px-3 py-2 text-left text-xs font-medium min-w-[16rem]">Description</th>
           {showCost && <th className="px-3 py-2 text-left text-xs font-medium w-28">Kind</th>}
           <th className="px-3 py-2 text-left text-xs font-medium w-24">Qty</th>
           {showCost && <th className="px-3 py-2 text-left text-xs font-medium w-32">Our cost</th>}

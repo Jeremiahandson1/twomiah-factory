@@ -63,6 +63,19 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const mayBookVisit = config?.ownPermission === true && config?.siteVisit === true && mayWorkLeads && maySchedule
   const mayCancelVisit = config?.ownPermission === true && config?.siteVisit === true && mayWorkLeads && mayReschedule
   const mayMarkLost = config?.ownPermission === true && config?.lost === true && mayWorkLeads
+  // Who works an enquiry: the office (every lead, leads:read-all) hands it to a person (contractor live test 11/07).
+  const mayReadAllLeads = useMayWrite('leads:read-all')
+  const mayAssign = config?.ownPermission === true && config?.assign === true && mayWorkLeads && mayReadAllLeads
+  const [team, setTeam] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => {
+    if (!mayAssign) return
+    api.get('/api/company/users').then((r: any) => setTeam(((Array.isArray(r) ? r : r?.data || []) as any[]).filter((u) => u.isActive !== false).map((u) => ({ id: String(u.id), name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email })))).catch(() => setTeam([]))
+  }, [api, mayAssign])
+  const assign = async (id: string, assignedToId: string) => {
+    setBusy(id)
+    try { await api.put(`/api/leads/${id}/assign`, { assignedToId: assignedToId || null }); toast?.success?.(assignedToId ? 'Lead assigned' : 'Lead taken back to the office'); fetchLeads() }
+    catch (e) { toast?.error?.(errMsg(e, 'The lead could not be assigned')) } finally { setBusy(null) }
+  }
   const offered: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   // The website form and call tracking post here on every vertical, so the inbox can always name them —
   // see BUILT_IN_LEAD_PLATFORMS. A vertical's own entry for the same id wins. A phone call arrives only through call
@@ -76,7 +89,8 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   const [stats, setStats] = useState<LeadStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  // ?status=lost opens the inbox on that filter (the lost-reasons report's link).
+  const [statusFilter, setStatusFilter] = useState(() => { try { return new URLSearchParams(window.location.search).get('status') || '' } catch { return '' } })
   const [sourceFilter, setSourceFilter] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -345,6 +359,18 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                         {lead.jobType && <div><strong>{jobTypeLabel}:</strong> {codeLabel(lead.jobType)}</div>}
                         {lead.budget && <div><strong>Budget:</strong> {lead.budget}</div>}
                         {config?.siteVisit && lead.siteVisitAt && <div data-testid="lead-site-visit"><strong>Site visit:</strong> {whenDateTime(lead.siteVisitAt, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>}
+                        {mayAssign && (
+                          <div data-testid="lead-assign" onClick={(e) => e.stopPropagation()} style={{ marginTop: 4 }}>
+                            <label><strong>Worked by:</strong>{' '}
+                              <select value={lead.assignedToId || ''} disabled={busy === lead.id} onChange={(e) => assign(lead.id, e.target.value)} aria-label="Who works this lead"
+                                style={{ padding: '2px 6px', borderRadius: 4, border: `1px solid ${c.border}`, background: c.activeBtn, color: c.text, fontSize: 12 }}>
+                                <option value="">The office (nobody yet)</option>
+                                {team.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              </select>
+                            </label>
+                          </div>
+                        )}
+                        {config?.assign && !mayAssign && lead.assignedToId && <div><strong>Worked by:</strong> you</div>}
                         {config?.lost && lead.status === 'lost' && <div data-testid="lead-lost-reason"><strong>Lost because:</strong> {reasonLabel(lead.lostReason)}{lead.lostNote ? ` — ${lead.lostNote}` : ''}</div>}
                         {lead.description && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{lead.description}</div>}
                       </div>

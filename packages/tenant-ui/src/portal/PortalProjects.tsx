@@ -76,7 +76,7 @@ export function PortalProjectDetail() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <PLink to={`/portal/${token}/projects`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Projects</PLink>
-        {sections.projectFiles && <PLink to={`/portal/${token}/projects/${projectId}/files`} className={btnSecondary}>Project Files</PLink>}
+        {sections.projectFiles && (project as any).filesShared !== false && <PLink to={`/portal/${token}/projects/${projectId}/files`} className={btnSecondary}>Project Files</PLink>}
       </div>
       <div className={`${card} overflow-hidden`}>
         <div className="p-6 border-b dark:border-slate-700"><div className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{project.name}</h1><p className="text-gray-500 dark:text-slate-400">{project.number}</p></div><span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[project.status] || STATUS_STYLES.planning}`}>{project.status?.replace('_', ' ')}</span></div></div>
