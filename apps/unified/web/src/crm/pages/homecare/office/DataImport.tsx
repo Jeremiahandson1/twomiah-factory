@@ -316,7 +316,8 @@ export default function DataImport() {
           {wizard && (
             <div className="flex flex-wrap items-center gap-2 mb-4 text-sm">
               <input className={inp} placeholder="Name this mapping to reuse it" value={mappingName} onChange={(e) => setMappingName(e.target.value)} />
-              <button type="button" className="hc-btn hc-btn-secondary hc-btn-sm" disabled={!mappingName.trim()} onClick={saveMapping}>Save mapping</button>
+              <button type="button" className="hc-btn hc-btn-secondary hc-btn-sm" disabled={!mappingName.trim()} title={mappingName.trim() ? undefined : "Type a name first"} onClick={saveMapping}>Save mapping</button>
+              {!mappingName.trim() && <span className="text-xs text-gray-600 dark:text-slate-400">Name it first to save it.</span>}
               {saved.map((m) => (
                 <span key={m.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 border-gray-300 dark:border-slate-600">
                   <button type="button" className="underline" onClick={() => applySaved(m as any)}>{m.name}</button>

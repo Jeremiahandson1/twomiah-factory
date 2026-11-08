@@ -146,6 +146,11 @@ const AlertsManagement = () => {
         <h2>🚨 Alerts &amp; Notifications</h2>
         {mayCreate && <button type="button" className="hc-btn hc-btn-primary" onClick={() => setShowCreateModal(true)}>+ Create Alert</button>}
       </div>
+      {/* Home care live test 11/08: 0 alerts here while an incident and a no-show alert were open — they have pages of their own. */}
+      <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', margin: '0 0 1rem' }}>
+        Alerts the office raises and follows up. A missed visit is on <a href="/crm/no-show-alerts" className="underline">No-show alerts</a>, an incident
+        on <a href="/crm/incidents" className="underline">Incidents</a>, and everything sent to you on <a href="/crm/notifications" className="underline">Notifications</a>.
+      </p>
 
       {/* Summary */}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: '1rem' }}>

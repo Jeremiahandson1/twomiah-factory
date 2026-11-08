@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { BellRing, Loader2, Plus, X } from 'lucide-react'
 import { api } from '../../api'
 import { useToast, usePermissions, money } from '../../shared'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 interface Rules {
   enabled: boolean
@@ -79,9 +80,9 @@ export default function InvoiceRemindersPage() {
         <Link to="/crm/settings" className="text-sm text-gray-600 hover:underline dark:text-slate-300">Settings</Link>
         <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white"><BellRing className="h-6 w-6 text-orange-600 dark:text-orange-300" aria-hidden="true" /> Invoice Reminders</h1>
         <p className="mt-1 text-gray-600 dark:text-slate-300">
-          Email customers about invoices that are due soon or overdue, automatically. Reminders go out from {hourWords(rules.sendFromHour)} on
+          Email {vocabulary().customer.many} about invoices that are due soon or overdue, automatically. Reminders go out from {hourWords(rules.sendFromHour)} on
           your business&rsquo;s clock (the time zone in Settings › Company), each one once. Every email has the invoice&rsquo;s own link to view and pay it.
-          A customer who unsubscribed from your emails is never sent one.
+          A {vocabulary().customer.one} who unsubscribed from your emails is never sent one.
         </p>
       </div>
 
@@ -131,7 +132,7 @@ export default function InvoiceRemindersPage() {
               <input type="checkbox" checked={form.lateFee.enabled} disabled={!mayEdit} onChange={(e) => setFee({ enabled: e.target.checked })} className="h-4 w-4" />
               Add a late fee to overdue invoices
             </label>
-            <p className={hint}>Off by default. Added once per invoice, as its own &ldquo;Late fee&rdquo; line the customer sees, and written in the audit log. Like every line, it is included in the invoice&rsquo;s sales tax if the invoice has a tax rate.</p>
+            <p className={hint}>Off by default. Added once per invoice, as its own &ldquo;Late fee&rdquo; line the {vocabulary().customer.one} sees, and written in the audit log. Like every line, it is included in the invoice&rsquo;s sales tax if the invoice has a tax rate.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="fee-type" className={label}>Fee</label>

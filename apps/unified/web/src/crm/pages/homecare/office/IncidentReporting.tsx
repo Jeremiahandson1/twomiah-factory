@@ -9,7 +9,7 @@
 //     (the server's checks on POST / and DELETE /:id); the template showed both to every office seat it let in.
 import { useState, useEffect, useCallback, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useConfirm, usePermissions } from '../../../../shared';
+import { useConfirm, usePermissions, useToast } from '../../../../shared';
 import { api, rows, errorMessage } from '../lib/http';
 import { formatDate } from '../lib/date';
 import {
@@ -81,6 +81,7 @@ const Field = ({ label, children }: { label: string; children: ReactNode }) => (
 export default function IncidentReporting() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const toast = useToast();
   // Hidden only once the seat's permissions are known (PermissionsContext: gate on `!known || can(…)`).
   const { can, known } = usePermissions();
   const mayCreate = !known || can('care-compliance:create');
@@ -129,6 +130,8 @@ export default function IncidentReporting() {
     try {
       const created: { id?: string } | null = await incidentsApi('', { method: 'POST', body: JSON.stringify(formData) });
       setMessage({ text: 'Incident reported successfully!' });
+      // The page moves to the case file, so the message above is never seen there (home care live test 11/08).
+      toast.success('Incident reported — its case file is open');
       setFormData(blankIncidentForm());
       setShowForm(false);
       // Straight into the case file so the investigation can start.
@@ -136,6 +139,7 @@ export default function IncidentReporting() {
       else loadData();
     } catch (error) {
       setMessage({ text: 'Error: ' + errorMessage(error), error: true });
+      toast.error('Not reported: ' + errorMessage(error));
     } finally {
       setSaving(false);
     }

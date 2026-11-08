@@ -33,6 +33,7 @@ import CaregiverBackgroundChecks from './CaregiverBackgroundChecks'
 import PaymentMethodPanel from './PaymentMethodPanel'
 import './portals.css'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { phoneText } from '../lib/phone'
 
 export interface FamilyMember {
   id: string
@@ -732,7 +733,7 @@ function OverviewView({ client, userName, permissions, setActiveTab }: { client:
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '0.88rem' }}>
             <div><span style={{ color: 'var(--hc-ink-soft)' }}>Name:</span> {first} {last}</div>
             {dob && <div><span style={{ color: 'var(--hc-ink-soft)' }}>DOB:</span> {fmtDay(dob)}</div>}
-            {client.phone && <div><span style={{ color: 'var(--hc-ink-soft)' }}>Phone:</span> {client.phone}</div>}
+            {client.phone && <div><span style={{ color: 'var(--hc-ink-soft)' }}>Phone:</span> {phoneText(client.phone)}</div>}
             {client.address && (
               <div style={{ gridColumn: '1 / -1' }}>
                 <span style={{ color: 'var(--hc-ink-soft)' }}>Address:</span> {client.address}

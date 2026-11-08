@@ -374,6 +374,8 @@ export default function CarePlans() {
       {showForm && (
         <div className={`${panel} mb-6`}>
           <h3 className="mt-0">{editingPlanId ? 'Edit Care Plan' : 'Create New Care Plan'}</h3>
+          {/* Home care live test 11/08: nothing here said where the visit's tasks go. */}
+          <p className="text-sm text-gray-600 dark:text-slate-400">The tasks done at each visit (bathing, meals, medicines) are set on the client: <a href="/crm/clients" className="underline">Clients</a> › the client&apos;s Tasks.</p>
           <form onSubmit={handleSavePlan}>
             <div className="grid gap-4 md:grid-cols-2">
               <div>

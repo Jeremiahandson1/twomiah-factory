@@ -27,7 +27,7 @@ import { useState, useEffect, type CSSProperties } from 'react'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { CHIP, EDGE, INK, SOLID, type Tone } from './ui'
 import { useMay } from '../lib/useMay'
-import { useAuth } from '../../../../shared'
+import { useAuth, useToast } from '../../../../shared'
 
 interface Person { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null; weeklyAuthorizedUnits?: number | null }
 interface Restriction { id: string; caregiverId: string; notes: string | null }
@@ -75,7 +75,10 @@ const CompanyOptimizer = () => {
   const [showNewCap, setShowNewCap] = useState(false)
   const [newCapName, setNewCapName] = useState('')
 
+  const toast = useToast()
   const showMsg = (text: string, type: MsgType = 'success') => {
+    // Also a toast: the message line sits at the top, out of sight of a Save lower down (home care live test 11/08).
+    if (type === 'error') toast.error(text); else toast.success(text)
     setMessage({ text, type })
     setTimeout(() => setMessage({ text: '', type: '' }), 5000)
   }

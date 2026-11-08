@@ -165,6 +165,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     if (feedUrlOk(ctx.settings.inventoryFeedUrl)) items.push({ label: 'Inventory', href: '/inventory' })
     if (visualizer) items.push({ label: 'Visualizer', href: '/visualize' })
     if (shop) items.push({ label: 'Shop', href: '/shop' })
+    // A home care agency's careers page (it always takes applications; open postings show on it). Home care live test 11/08:
+    // /careers was reachable only by typing it.
+    if (vertical.id === 'homecare') items.push({ label: 'Careers', href: '/careers' })
     return items
   }
   const visionOrigin = () => { try { const u = new URL(String(vertical.visionUrl?.() || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } }

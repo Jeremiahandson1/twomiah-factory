@@ -1553,7 +1553,7 @@ const CaregiverDashboard = () => {
     <div className="flex flex-wrap justify-end gap-1.5">
       <button onClick={() => { setUnavailModal(s); setUnavailForm({ reason: '', note: '' }) }}
         className={`${ACTION_BTN} border-red-200 text-red-700 dark:border-red-800 dark:text-red-300`}
-        title="Client refused care, wasn't home, or cancelled — the visit won't be billed">🚫 Client not available</button>
+        title="Client refused care, wasn't home, or cancelled — the visit won't be billed">🚫 Report: client not available</button>
       {swapPendingFor(s) ? (
         <span className={CHIP_PENDING} title="Waiting on your coworker and the office">⏳ Swap sent</span>
       ) : (

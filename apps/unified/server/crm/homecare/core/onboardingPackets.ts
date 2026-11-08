@@ -135,7 +135,7 @@ export function createOnboardingPackets(d: CrmDeps, deps: { profile: AgencyProfi
       worcsReferenceNumber: worcs.referenceNumber || null,
       worcsStatus: 'submitted',
       notes: worcs.mock
-        ? 'Mock submission — WORCS credentials not configured in this environment.'
+        ? 'Not sent to the state: WORCS is not set up for this agency yet. Run the check on the WORCS site and record the result here.'
         : 'Submitted automatically after caregiver signed BGC consent.',
     }).returning({ id: backgroundChecks.id })
     await logPacketEvent(companyId, p.id, 'bgc_requested', { ...meta, metadata: { reference_number: worcs.referenceNumber, mock: !!worcs.mock } })

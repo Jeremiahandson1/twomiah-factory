@@ -186,7 +186,9 @@ const MessageBoard = () => {
           <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: 'var(--hc-ink)' }}>
             💬 Messages {totalUnread > 0 && <span style={{ background: UNREAD_RED, color: '#fff', borderRadius: '99px', fontSize: '0.7rem', padding: '2px 8px', marginLeft: '0.4rem', verticalAlign: 'middle' }}>{totalUnread}</span>}
           </h2>
-          <p style={{ margin: '0.1rem 0 0', fontSize: '0.82rem', color: 'var(--hc-muted)' }}>Company message board</p>
+          <p style={{ margin: '0.1rem 0 0', fontSize: '0.82rem', color: 'var(--hc-muted)' }}>
+            Company message board: you and your caregivers. A family&apos;s messages are under <a href="/crm/family-portal" className="underline">Family Portal</a>.
+          </p>
         </div>
         <button onClick={() => setView('compose')}
           style={{ padding: '0.6rem 1.25rem', background: BRAND_FILL, color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>

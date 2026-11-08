@@ -4,6 +4,7 @@ import { Check } from 'lucide-react'
 import { PageError, useAuth } from '../../shared'
 import { api } from '../../api'
 import { verticalScreens } from '../../crm/vertical'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 // What the factory's composer left off this site because the owner hadn't
 // supplied it — it states only facts the owner gave (no invented prices,
@@ -18,7 +19,8 @@ const HOW: Record<string, { text: string; to: string }> = {
   description: { text: 'Open any page and rewrite the copy in your own words.', to: '/crm/website/pages' },
   photos: { text: 'Upload them in Photos, add a Gallery section to a page and press Publish, with Show on site on. A page you show joins the menu.', to: '/crm/website/photos' },
   ownerPhoto: { text: 'Upload it in Photos, then set it as the portrait in the About page\'s story section.', to: '/crm/website/photos' },
-  testimonials: { text: 'Open the Home page and add a Testimonials section with the review and the customer\'s name.', to: '/crm/website/pages/home' },
+  // A getter: the vocabulary is registered after this module loads.
+  testimonials: { get text() { return `Open the Home page and add a Testimonials section with the review and the ${vocabulary().customer.one}'s name.` }, to: '/crm/website/pages/home' },
   yearFounded: { text: 'Add it to your About story, or as a figure in a Stats section.', to: '/crm/website/pages/about' },
   credentials: { text: 'Add a Stats section or a line in your About story listing them.', to: '/crm/website/pages/about' },
   hours: { text: 'Set your opening hours in Settings — your contact page shows them.', to: '/crm/settings' },

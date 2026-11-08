@@ -623,9 +623,10 @@ const SchedulingHub = () => {
         }) as SavedReply
         showSaved('Schedule created!', body)
       }
-      setFormData((prev) => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: agencyToday(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
+      // The kind of shift stays as it was (home care live test 11/08: setting up several weekly shifts, the form jumped back to
+      // One-Time after each); the client, times and days clear for the next one.
+      setFormData((prev) => ({ ...prev, clientId: '', dayOfWeek: '', date: agencyToday(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }))
       setSelectedDays([])
-      setRepeatChoice('')
       loadCaregiverSchedules(selectedCaregiverId)
       if (scheduleView === 'week') loadWeekView()
       if (scheduleView === 'month') loadCalendarData()

@@ -262,7 +262,7 @@ export default function ExpenseManagement() {
         <div className="hc-stat-card">
           <h3>Total Expenses</h3>
           <div className="value" style={{ color: 'var(--hc-red-ink)' }}>{formatCurrency(totals.total)}</div>
-          <div className="hc-stat-subtext">{filteredExpenses.length} transactions</div>
+          <div className="hc-stat-subtext">{filteredExpenses.length} {filteredExpenses.length === 1 ? 'expense' : 'expenses'}</div>
         </div>
         <div className="hc-stat-card">
           <h3>Tax Deductible</h3>

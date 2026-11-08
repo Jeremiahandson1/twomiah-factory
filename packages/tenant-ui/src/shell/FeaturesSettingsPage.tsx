@@ -6,6 +6,17 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { errMsg } from '../invoicing/ui'
 import type { FeaturesSettingsPageProps } from './types'
+import { vocabulary } from '../labels/vocabulary'
+
+/**
+ * A feature's description in the business's own words: the catalog is shared, and an agency read "customers" where it has clients
+ * (home care live test 11/08). Whole words only; capital kept.
+ */
+export function inOwnWords(text: string): string {
+  const w = vocabulary().customer
+  const swap = (word: string, to: string) => (m: string) => (m[0] === m[0].toUpperCase() ? to[0].toUpperCase() + to.slice(1) : to)
+  return text.replace(/[Cc]ustomers/g, swap('customers', w.many)).replace(/[Cc]ustomer/g, swap('customer', w.one))
+}
 
 type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean; addOn?: boolean }
 
@@ -102,7 +113,7 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
                     <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <div className="font-medium text-gray-900 text-sm dark:text-slate-100">{f.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">{f.description}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">{inOwnWords(f.description)}</div>
                         {on && NEEDS_CONNECTION[f.id]?.flag(integrations) && (
                           <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{NEEDS_CONNECTION[f.id].note}</div>
                         )}

@@ -2,7 +2,7 @@
 // them against clients / caregivers, and print a submission. (server/crm/homecare/clients/forms.ts: templates and
 // submissions are camelCase — requiresSignature, autoAttachTo, isBuiltIn, submissionCount, templateName, entityName …)
 import { useState, useEffect, type CSSProperties } from 'react'
-import { useConfirm } from '../../../../shared'
+import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
 import { formatAgencyDate } from '../lib/agencyClock'
 import { allRows, type Client, type Caregiver } from './shared'
@@ -269,7 +269,9 @@ export default function FormBuilder() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const [filterCat, setFilterCat] = useState('')
 
-  const flash = (m: string, ok = true) => { setMsg({ text: m, ok }); setTimeout(() => setMsg(null), 3500) }
+  const toast = useToast()
+  // Also a toast: the line above the list is out of sight once a form is filled (home care live test 11/08).
+  const flash = (m: string, ok = true) => { if (ok) toast.success(m); else toast.error(m); setMsg({ text: m, ok }); setTimeout(() => setMsg(null), 3500) }
 
   const load = async () => {
     setLoading(true)

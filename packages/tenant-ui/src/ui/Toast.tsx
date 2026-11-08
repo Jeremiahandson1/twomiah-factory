@@ -76,14 +76,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      {/* Above the z-50 dialogs: a toast reporting a dialog's error is useless underneath it.
+      {/* Above every dialog (the shared ones at 2100, home care's at 2000): a toast reporting a dialog's error is useless underneath it.
           ON THE SCREEN, WHATEVER IT SAYS (roofing live test 2026-10-22: "Toast messages are cut off at the right edge").
           The stack was pinned to the right with only a max width, and the message was a flex item at its default
           min-width (its longest word), so a long unbroken token — "character(s);", an address, an id — pushed the box
           past the edge, and at 390px a 384px-wide stack 16px from the right started off the left. Now the stack is held
           16px inside BOTH edges on a phone (right-aligned, at most 24rem, on a wider screen) and the message wraps
           anywhere it must. */}
-      <div className="fixed bottom-4 left-4 right-4 sm:left-auto z-[100] flex flex-col items-stretch sm:items-end gap-2 sm:max-w-sm" role="status" aria-live="polite">
+      <div className="fixed bottom-4 left-4 right-4 sm:left-auto z-[2200] flex flex-col items-stretch sm:items-end gap-2 sm:max-w-sm" role="status" aria-live="polite">
         {toasts.map((t) => {
           const Icon = icons[t.type]
           return (

@@ -784,7 +784,7 @@ const ReportsAnalytics = () => {
                   ))}
                 </tbody>
               </table>
-            ) : <p>No revenue data</p>}
+            ) : <p>No sent invoices in this period. Billed revenue counts an invoice once it is sent or released; drafts are not counted yet.</p>}
           </div>
           <div className="hc-card">
             <h3>Expenses by Category</h3>

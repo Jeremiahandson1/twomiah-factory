@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../Field'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 interface Quote { quote: string; author?: string; role?: string; photo?: string }
 
@@ -26,7 +27,7 @@ export function TestimonialsQuotesForm({ data, onChange }: Props) {
 
       <div>
         <Label>Testimonials</Label>
-        <p className="text-xs text-muted mb-3">1–3 works best. Quote real customers — every fake testimonial readers spot kills trust permanently.</p>
+        <p className="text-xs text-muted mb-3">1–3 works best. Quote real {vocabulary().customer.many} — every fake testimonial readers spot kills trust permanently.</p>
         <div className="space-y-3">
           {items.map((q, i) => (
             <div key={i} className="border border-line rounded-lg p-3 bg-paper">

@@ -890,6 +890,7 @@ const BillingDashboard = () => {
       await api.post('/api/billing/referral-source-rates', rateFormData)
       setRateFormData({ referralSourceId: '', careTypeId: '', rateAmount: '', rateType: 'hourly' })
       setShowRateForm(false)
+      toast.success('Rate added')
       loadData()
       loadMissingRates()
     } catch (error) {
@@ -2243,7 +2244,7 @@ const BillingDashboard = () => {
               : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'}`}>
               {selectedInvoice.sentAt
                 ? `✓ Sent — visible in the family portal since ${formatAgencyDate(selectedInvoice.sentAt)}`
-                : '🔒 DRAFT — the family cannot see this invoice until you send it, create a pay link, or release it to the portal.'}
+                : may.update ? '🔒 DRAFT — the family cannot see this invoice until you send it, create a pay link, or release it to the portal.' : '🔒 DRAFT — the family cannot see this invoice until someone who manages billing sends or releases it.'}
             </div>
 
             {/* Action Buttons (screen only) */}

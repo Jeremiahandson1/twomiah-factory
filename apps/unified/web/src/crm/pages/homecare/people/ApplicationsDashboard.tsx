@@ -12,6 +12,7 @@ import { api, errorMessage, rows } from '../lib/http'
 import { formatDate } from '../lib/date'
 import ApplicationDetail from './ApplicationDetail'
 import { useMay } from '../lib/useMay'
+import { phoneText } from '../lib/phone'
 
 export interface ApplicationRow {
   id: string
@@ -201,7 +202,7 @@ export default function ApplicationsDashboard() {
 
               <div className="app-body">
                 <p><strong>Email:</strong> {app.email}</p>
-                <p><strong>Phone:</strong> {app.phone}</p>
+                <p><strong>Phone:</strong> {phoneText(app.phone)}</p>
 
                 {Number(app.yearsExperience) > 0 && <p><strong>Experience:</strong> {app.yearsExperience} years</p>}
 

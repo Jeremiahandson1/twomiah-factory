@@ -6,6 +6,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import type { ReferralSource } from './shared'
 import { useMay } from '../lib/useMay'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { phoneText } from '../lib/phone'
 
 interface SourceForm {
   name: string
@@ -211,7 +212,7 @@ const ReferralSources = () => {
               </div>
 
               {source.contactName && <p><strong>Contact:</strong> {source.contactName}</p>}
-              {source.phone && <p><strong>Phone:</strong> <a href={`tel:${source.phone}`}>{source.phone}</a></p>}
+              {source.phone && <p><strong>Phone:</strong> <a href={`tel:${source.phone}`}>{phoneText(source.phone)}</a></p>}
               {source.email && <p><strong>Email:</strong> <a href={`mailto:${source.email}`}>{source.email}</a></p>}
               {(source.address || source.city) && (
                 <p><strong>Location:</strong> {source.address && `${source.address}, `}{source.city}, {source.state} {source.zip}</p>
