@@ -260,7 +260,9 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     const money = await maySeeMoney(c)
     return c.json({
       recentJobs,
-      recentQuotes: money ? recentQuotes : [],
+      // Quotes behind the Quotes page's own line (quotes:read), as the quote tiles are — a Sales rep sees its own (contractor re-check 2,
+      // 11/08: "No recent quotes" beside three of its own); they were behind invoices:read.
+      recentQuotes: (await maySee(c, QUOTE_MONEY_PERMISSION)) ? recentQuotes : [],
       recentInvoices: !money ? [] : recentInvoices.map((inv: any) => {
         const balance = ISSUED.includes(inv.status) ? 0 : invoiceBalance(inv)
         const status = open.includes(inv.status) && inv.dueDate && markerDayIsOver(inv.dueDate, tz) ? 'overdue' : inv.status
