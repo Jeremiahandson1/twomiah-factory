@@ -39,6 +39,11 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const mayDelete = useMayWrite('quotes:delete')
   const mayInvoice = useMayWrite('invoices:create')
   const mayJob = useMayWrite('jobs:create')
+  // A seat that sells may start the project its quote is for, here (contractor re-check 11/08: "the quote form lists only existing projects
+  // and cannot make one", so a sales rep could not quote a new job).
+  const mayMakeProject = useMayWrite('projects:create')
+  const [newProject, setNewProject] = useState<string | null>(null)
+  const [makingProject, setMakingProject] = useState(false)
   // Create similar / start from a template (quote_templates, not ready): both fill the form below and save through the ordinary create.
   const templatesOn = useQuoteFeature('quote_templates')
   const [saveAs, setSaveAs] = useState<{ id: string; name: string } | null>(null)
@@ -66,6 +71,20 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
   // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
   const statuses = ['draft', 'sent', 'viewed', 'approved', 'rejected', ...(cfg.quoteDecline ? ['declined'] : []), 'expired']
+  /** Make the project named in the form's "+ New project" box, for the chosen customer, and put the quote on it. */
+  const makeProject = async () => {
+    const name = (newProject || '').trim()
+    if (!name) return
+    setMakingProject(true)
+    try {
+      const made: any = await api.post('/api/projects', { name, status: 'planning', ...(form.contactId ? { contactId: form.contactId } : {}) })
+      const row = (made?.data ?? made) as Row
+      setProjects((ps) => [row, ...ps.filter((p) => p.id !== row.id)])
+      setForm((f) => ({ ...f, projectId: row.id }))
+      setNewProject(null)
+      toast.success(`Project ${row.number || name} made — the quote is on it`)
+    } catch (e) { toast.error(errMsg(e, 'The project could not be made')) } finally { setMakingProject(false) }
+  }
   const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()], depositType: '', depositValue: 0, salespersonId: 'me' })
 
   const [data, setData] = useState<Row[]>([])
@@ -329,11 +348,21 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             {cfg.quoteJobs && <Field label="Job"><select value={form.jobId} onChange={e => setForm((f) => ({ ...f, jobId: e.target.value }))} className={inputCls} disabled={!form.contactId}><option value="">{form.contactId ? 'No job' : 'Pick the customer first'}</option>{customerJobs.map(j => <option key={j.id} value={j.id}>{j.number}{j.address ? ` — ${j.address}` : ''}</option>)}</select></Field>}
             {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => {
               // A project brings its customer when none is chosen yet (the server holds the same rule: contacts/customer.ts).
+              if (e.target.value === '__new') { setNewProject(form.name || ''); return }
+              setNewProject(null)
               const pr = projects.find((p) => p.id === e.target.value)
               const take = !form.contactId && pr?.contactId && contacts.some((c) => c.id === pr.contactId) ? String(pr.contactId) : ''
               setForm((f) => ({ ...f, projectId: e.target.value, ...(take ? { contactId: take, jobId: '', siteId: '', equipmentId: '' } : {}) }))
               if (take) loadCustomerExtras(take)
-            }} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+            }} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}{mayMakeProject && <option value="__new">+ New project…</option>}</select>
+              {newProject !== null && (
+                <div className="mt-2 flex gap-2" data-testid="quote-new-project">
+                  <input aria-label="New project name" value={newProject} onChange={(e) => setNewProject(e.target.value)} className={inputCls} placeholder="e.g. Smith bathroom remodel" />
+                  <Button type="button" disabled={makingProject || !newProject.trim()} onClick={makeProject}>{makingProject ? 'Making…' : 'Make it'}</Button>
+                  <Button type="button" variant="secondary" onClick={() => setNewProject(null)}>Cancel</Button>
+                </div>
+              )}
+            </Field>}
             {cfg.quoteSites && sites.length > 0 && <Field label={cfg.siteLabels?.singular || 'Location'}><select value={form.siteId} onChange={e => setForm((f) => ({ ...f, siteId: e.target.value }))} className={inputCls}><option value="">No specific {(cfg.siteLabels?.singular || 'Location').toLowerCase()}</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
             {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}
           </div>

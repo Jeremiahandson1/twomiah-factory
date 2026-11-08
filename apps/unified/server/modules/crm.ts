@@ -84,7 +84,7 @@ import { createJobConfirm } from '../crm/field/jobConfirm.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
-import { ownContactsWhere } from '../crm/ownWork.ts'
+import { ownContactsWhere, ownProjectsWhere } from '../crm/ownWork.ts'
 import { createQuoteSellerCommissions } from '../crm/billing/quoteSellerCommissions.ts'
 import { tipsOn } from '../crm/roof/cardSurcharge.ts'
 import { setProjectContract } from '../data/projects.ts'
@@ -502,7 +502,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : v.dashboard === 'homecare' ? createHomecareDashboardRoutes(own)
       // The roofer's (templates/crm-roof routes/dashboard.ts).
       : v.dashboard === 'roof' ? createRoofDashboardRoutes(own)
-      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee, ownContacts: (userId: string) => ownContactsWhere(db, userId) } as any) },
+      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead, jobAssignee, crewLogin }, authenticate, featuresFor: features.enabledFeaturesFor, canSee, ownContacts: (userId: string) => ownContactsWhere(db, userId), ownProjects: (userId: string) => ownProjectsWhere(db, userId) } as any) },
     // Cash in, what is owed and who is waiting, under every trade's own dashboard (crm/dashboard/moneyStrip.ts). Each half
     // asks its own permission and is sent only where the trade has it.
     { path: '/api/dashboard-strip', access: 'user', feature: 'dashboard', router: createMoneyStripRoutes(own) },

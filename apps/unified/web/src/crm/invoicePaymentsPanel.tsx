@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import { useAuth, usePermissions, useToast } from '../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { dateOnly } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { evenPlan, type Inst } from './evenPlan'
 import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
@@ -51,7 +52,7 @@ export function InvoicePaymentsPanel({ invoiceId, total, status, paymentMethods 
           <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Payment plan</p>
           {!draft && plan.length > 0 && (
             <ul className="mt-1 space-y-1 text-sm" data-testid="plan-rows">
-              {plan.map((p) => <li key={p.id} className="flex justify-between"><span>{p.dueDate}</span><span>{money(p.amount)} · {p.state}</span></li>)}
+              {plan.map((p) => <li key={p.id} className="flex justify-between"><span>{dateOnly(p.dueDate)}</span><span>{money(p.amount)} · {p.state}</span></li>)}
             </ul>
           )}
           {!draft && plan.length === 0 && <p className="text-xs text-gray-500 dark:text-slate-400">None. The customer pays the whole balance by the due date.</p>}

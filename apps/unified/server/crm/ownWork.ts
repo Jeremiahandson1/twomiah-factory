@@ -6,7 +6,7 @@
 // tech routes get the same tables (modules/crm.ts) and call onJob directly.
 import { and, eq, inArray, isNotNull, or } from 'drizzle-orm'
 import { onJob } from '@twomiah/tenant-backend'
-import { contact, crewLogin, job, jobAssignee, lead, quote } from '../db/schema/index.ts'
+import { contact, crewLogin, job, jobAssignee, lead, project, quote } from '../db/schema/index.ts'
 
 /** The tables the one rule reads, as the shared routes are given them. */
 export const ON_JOB_TABLES = { job, jobAssignee, crewLogin }
@@ -27,5 +27,20 @@ export function ownContactsWhere(db: any, userId: string) {
     inArray(contact.id, db.select({ id: job.contactId }).from(job).where(and(ownJobsWhere(db, me), isNotNull(job.contactId)))),
     inArray(contact.id, db.select({ id: quote.contactId }).from(quote).where(and(or(eq(quote.createdById, me), eq(quote.salespersonId, me)), isNotNull(quote.contactId)))),
     inArray(contact.id, db.select({ id: lead.convertedContactId }).from(lead).where(and(eq(lead.assignedToId, me), isNotNull(lead.convertedContactId)))),
+    // …and the ones it added itself (re-check 11/08: a contact the rep made never showed in its Contacts or the quote's Client list).
+    eq(contact.createdById, me),
+  )!
+}
+
+/**
+ * A condition on `project`: the projects a seat without projects:read-all reads (the contractor's Sales rep — re-check 11/08: "The rep
+ * still sees both projects"): the ones it made, the ones its own quotes are on, and the ones its own jobs are on.
+ */
+export function ownProjectsWhere(db: any, userId: string) {
+  const me = String(userId)
+  return or(
+    eq(project.createdById, me),
+    inArray(project.id, db.select({ id: quote.projectId }).from(quote).where(and(or(eq(quote.createdById, me), eq(quote.salespersonId, me)), isNotNull(quote.projectId)))),
+    inArray(project.id, db.select({ id: job.projectId }).from(job).where(and(ownJobsWhere(db, me), isNotNull(job.projectId)))),
   )!
 }

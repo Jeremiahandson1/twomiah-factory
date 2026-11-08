@@ -158,3 +158,23 @@ export async function costByCode(db: any, companyId: string, jobIds: string[], p
     ...bills.map((r: any) => ({ costCode: r.costCode as string | null, ledger: 'bills' as const, cost: r.cost as string })),
   ]
 }
+
+/**
+ * What was filed on each project with no job — time, expenses and vendor bills that are spend, at costByCode's arithmetic — so a
+ * project's cost to date is its jobs' cost plus this (contractor re-check 11/08: Job Costing showed $250 spent on PRJ-0003 while
+ * Reports › Work in progress said "Cost so far $0.00").
+ */
+export async function projectOnlyCost(db: any, companyId: string, projectIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (!projectIds.length) return out
+  const add = (rows: any[]) => { for (const r of rows) if (r.projectId) out.set(r.projectId, Math.round(((out.get(r.projectId) || 0) + Number(r.cost || 0)) * 100) / 100) }
+  const rate = sql`COALESCE(${timeEntry.hourlyRate}, ${user.hourlyRate}, NULLIF(${teamMember.hourlyRate}, 0))`
+  add(await db.select({ projectId: timeEntry.projectId, cost: sql<string>`COALESCE(SUM(${timeEntry.hours} * COALESCE(${rate}, 0)), 0)` })
+    .from(timeEntry).leftJoin(user, eq(timeEntry.userId, user.id)).leftJoin(teamMember, rosterJoin(companyId))
+    .where(and(eq(timeEntry.companyId, companyId), inArray(timeEntry.projectId, projectIds), isNull(timeEntry.jobId))).groupBy(timeEntry.projectId))
+  add(await db.select({ projectId: expense.projectId, cost: sql<string>`COALESCE(SUM(${expense.amount}), 0)` })
+    .from(expense).where(and(eq(expense.companyId, companyId), inArray(expense.projectId, projectIds), isNull(expense.jobId))).groupBy(expense.projectId))
+  add(await db.select({ projectId: vendorBill.projectId, cost: sql<string>`COALESCE(SUM(${vendorBill.amount}), 0)` })
+    .from(vendorBill).where(and(eq(vendorBill.companyId, companyId), inArray(vendorBill.projectId, projectIds), isNull(vendorBill.jobId), inArray(vendorBill.status, BILL_IS_SPEND))).groupBy(vendorBill.projectId))
+  return out
+}

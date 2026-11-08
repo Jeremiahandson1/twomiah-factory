@@ -15,7 +15,8 @@
 //                    such, when no quote has been approved yet); with shared_allowances, also approved selections' charges
 //                    and credits that raised no change order (row 7)
 //   billed         = invoices raised on the project or on its jobs, drafts and voids left out, each counted once
-//   cost to date   = what its jobs have cost so far (labour, materials, expenses, vendor bills — the Job Costing figures)
+//   cost to date   = what its jobs have cost so far (labour, materials, expenses, vendor bills — the Job Costing figures), plus
+//                    what was filed on the project with no job
 //   % complete     = cost to date ÷ the budget's cost where the approved quotes gave one (cost-to-cost); else the project's own
 //                    progress figure. The answer says which.
 //   earned         = contract value × % complete;  over / under billing = billed − earned (positive: billed ahead of the work)
@@ -30,6 +31,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createJobCostingService } from './jobCostingService.ts'
+import { projectOnlyCost } from '../../data/jobCosting.ts'
 
 const DAY = 86_400_000
 /** Not issued: a draft, void or fully-returned invoice is not owed (reporting.ts ISSUED). */
@@ -105,6 +107,8 @@ export function createWipRoutes(d: CrmDeps) {
     // Cost to date for the schedule of work in progress: the work, not what the job's people earned on it (commissions are not cost of completion).
     const costs = await jobCosting.costsByJob(companyId, jobIds, { beforeCommissions: true })
     const projectOfJob = new Map<string, string>(onProjects.map((j) => [j.id, j.projectId]))
+    // …and what was filed on the project with no job (time, expenses, vendor bills), as Job Costing's project budget counts it.
+    const projectOnly = await projectOnlyCost(db, companyId, projectIds)
 
     // Billed: each invoice once, to the project it is on — or its job's project — or the loose job it bills.
     const invs = (projectIds.length || loose.length) ? await db.select({ id: invoice.id, total: invoice.total, projectId: invoice.projectId, jobId: invoice.jobId, status: invoice.status }).from(invoice)
@@ -132,7 +136,7 @@ export function createWipRoutes(d: CrmDeps) {
 
     const rows: any[] = []
     for (const p of projects) {
-      const cost = round2([...onProjects].filter((j) => j.projectId === p.id).reduce((s, j) => s + (costs.get(j.id)?.totalCost || 0), 0))
+      const cost = round2([...onProjects].filter((j) => j.projectId === p.id).reduce((s, j) => s + (costs.get(j.id)?.totalCost || 0), projectOnly.get(p.id) || 0))
       const approvedQuotes = quoted.get(p.id) || 0
       const approvedChanges = changed.get(p.id) || 0
       const selectionChanges = selected.get(p.id) || 0

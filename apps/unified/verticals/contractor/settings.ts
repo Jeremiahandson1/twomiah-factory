@@ -16,8 +16,8 @@ const contractor: VerticalSettings = {
   // without the price list's prices. An existing Staff (field) login keeps Staff.
   roleLabels: { sales_rep: 'Sales rep', crew: 'Crew' },
   roleMapping: { sales_rep: 'field', crew: 'field' },
-  roleExtra: { sales_rep: ['leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update'] },
-  roleWithheld: { crew: ['prices:read'], sales_rep: ['leads:read-all', 'quotes:read-all'] },
+  roleExtra: { sales_rep: ['leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'projects:create', 'projects:update'] },
+  roleWithheld: { crew: ['prices:read'], sales_rep: ['leads:read-all', 'quotes:read-all', 'projects:read-all'] },
   // Exterior Visualizer: the screens open company.visionUrl when the feature is on.
   visionUrl: () => process.env.VISION_URL || null,
   // A new job is for a customer (packages/tenant-backend jobs.ts options.requireCustomer).
@@ -169,7 +169,7 @@ const contractor: VerticalSettings = {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: sees the projects, jobs, quotes and reports; changes nothing' },
         { value: 'crew', label: 'Crew', description: 'the jobs they are on, daily logs, punch lists, photos and their own time; no prices and no company money' },
-        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads, quotes and site visits, the jobs they are on and their own commissions; not settings, the team or billing' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads, quotes, projects and site visits, the jobs they are on and their own commissions; not settings, the team or billing' },
         { value: 'field', label: 'Staff', description: 'the jobs they are on and day-to-day work; not settings, the team or billing' },
         { value: 'manager', label: 'Manager', description: 'runs the projects, jobs, crews, quotes and purchase orders; not billing or company settings' },
         { value: 'admin', label: 'Admin', description: 'full access, including billing, company settings and logins' },

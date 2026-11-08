@@ -255,7 +255,7 @@ export function createProjectTemplateRoutes(d: CrmDeps) {
     let linksMade = 0
 
     const result = await db.transaction(async (tx: any) => {
-      const made = await insertProject(tx, me.companyId, parsed.data)
+      const made = await insertProject(tx, me.companyId, parsed.data, me.userId)
       if (wantTasks) {
         const ids = new Map<string, string>()
         // A parent is written before the tasks under it, so the saved order (phases first as they were) is enough; a

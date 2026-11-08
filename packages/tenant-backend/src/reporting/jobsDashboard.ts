@@ -33,6 +33,8 @@ export interface JobsDashboardDeps {
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
   /** The contacts a seat without contacts:read-all reads (as the contacts routes are given it). Not wired: every contact. */
   ownContacts?: (userId: string) => any
+  /** The projects a seat without projects:read-all reads (as the project routes narrow it). Not wired: every project. */
+  ownProjects?: (userId: string) => any
   options?: { openStatuses?: string[] }
 }
 
@@ -93,6 +95,14 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     try { all = !!(await deps.canSee(u?.role, 'contacts:read-all', u?.userId)) } catch { all = false }
     return all ? null : deps.ownContacts(String(u?.userId || ''))
   }
+  /** The projects this seat reads, so "Active projects" counts the Projects page's rows (contractor re-check 11/08). */
+  const projectScope = async (c: any): Promise<any | null> => {
+    if (!deps.ownProjects || !deps.canSee) return null
+    const u = c.get('user') as any
+    let all = false
+    try { all = !!(await deps.canSee(u?.role, 'projects:read-all', u?.userId)) } catch { all = false }
+    return all ? null : deps.ownProjects(String(u?.userId || ''))
+  }
   app.use('*', deps.authenticate)
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn() } catch { return fallback } }
 
@@ -125,7 +135,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
     const [contactRows, projectsByStatus, jobsByStatus, todayRows, completedTodayRows, quotes, invoices] = await Promise.all([
       safe(async () => db.select({ value: count() }).from(t.contact).where(and(eq(t.contact.companyId, companyId), (await contactScope(c)) ?? undefined)), [{ value: 0 }]),
-      safe(() => db.select({ status: t.project.status, c: count() }).from(t.project).where(eq(t.project.companyId, companyId)).groupBy(t.project.status), [] as any[]),
+      safe(async () => db.select({ status: t.project.status, c: count() }).from(t.project).where(and(eq(t.project.companyId, companyId), (await projectScope(c)) ?? undefined)).groupBy(t.project.status), [] as any[]),
       safe(() => db.select({ status: t.job.status, c: count() }).from(t.job).where(and(eq(t.job.companyId, companyId), jobScope ?? undefined)).groupBy(t.job.status), [] as any[]),
       // Today's board: work scheduled for today that is still live.
       // scheduled_date holds a calendar-day marker for a job made here and a real instant for one made
@@ -157,7 +167,17 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     let leads: NewLeads | null = null
     if (deps.featuresFor && (await maySee(c, LEADS_PERMISSION))) {
       const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
-      leads = await safe(() => countNewLeads(db, t, companyId, { inbox: features.includes('lead_inbox') }), null)
+      // A seat that works only its own enquiries (no leads:read-all — the contractor's Sales rep) counts its own new ones, as its Lead
+      // Inbox lists them; not the whole company's.
+      const u = (c as any).get('user')
+      let allLeads = true
+      if (deps.canSee && t.lead?.assignedToId) { try { allLeads = !!(await deps.canSee(u?.role, 'leads:read-all', u?.userId)) } catch { allLeads = false } }
+      if (allLeads) leads = await safe(() => countNewLeads(db, t, companyId, { inbox: features.includes('lead_inbox') }), null)
+      else leads = await safe(async () => {
+        const [r] = await db.select({ value: count() }).from(t.lead).where(and(eq(t.lead.companyId, companyId), eq(t.lead.status, 'new'), eq(t.lead.assignedToId, String(u?.userId || ''))))
+        const inbox = Number(r?.value ?? 0)
+        return { total: inbox, inbox, contacts: 0 }
+      }, null)
     }
 
     const byStatus = (rows: any[]) => Object.fromEntries(rows.map(r => [r.status, Number(r.c)]))
