@@ -69,7 +69,7 @@ export function EmailDomainPage(): React.ReactElement {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Email Domain</h1>
-      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Authenticate your domain with SendGrid so outbound email from your CRM sends as <code className="bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-1 rounded">support@{status.domain || 'yourdomain.com'}</code> with proper SPF/DKIM.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Connect your domain so the email your CRM sends, like invoices, reminders and receipts, comes from <code className="bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-1 rounded">support@{status.domain || 'yourdomain.com'}</code> and lands in the inbox, not spam.</p>
 
       {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
 

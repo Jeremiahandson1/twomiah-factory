@@ -17,7 +17,7 @@
 import { giveBackToCount, refreshMenu, servingNow, takeFromCount, windowWords } from './menuDay.ts'
 import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import { canRedeem, rewardDiscountCents, type BasketLine, type Reward } from '@twomiah/tenant-backend'
-import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barTap, barTerminalCharge, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema/index.ts'
+import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barOrder, barMenuItem, barMenuSection, barTap, barTerminalCharge, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema/index.ts'
 import { nextCheckNumber, rewardUseTakenBack, rewardUsedOnce } from '../../data/bar.ts'
 import type { BarKitchen } from './barKitchen.ts'
 import { sizesOf } from './barMenuSizes.ts'
@@ -412,6 +412,10 @@ async function closeIfPaid(tx: Tx, companyId: string, checkId: string, actor: Ac
     const card = await issueCard(tx, companyId, { cents: line.unitPriceCents, soldVia: 'register', soldByName: actor.name, checkId, code: line.note || null })
     await tx.update(barCheckItem).set({ giftCardId: card.id, note: card.code }).where(eq(barCheckItem.id, line.id))
   }
+  // A kiosk order paid at the counter is now paid: off the Orders screen's "Pay at counter", on to Picked up, as a
+  // kiosk order paid on the reader is (barOrders.paidInTx). It stayed "Take payment" after the money was taken (bar re-check 11/09).
+  await tx.update(barOrder).set({ status: 'received', paidAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(barOrder.companyId, companyId), eq(barOrder.checkId, checkId), eq(barOrder.status, 'at_counter')))
   // A regular's points, once per check.
   if (earn && view.contactId) await earnForPaidCheck(tx, companyId, { id: view.id, number: view.number, contactId: view.contactId, items: view.items }, actor.name)
   return fired
@@ -656,6 +660,9 @@ async function voidCheck(actor: Actor, checkId: string, reason: string, byName: 
     const why = clean(reason, 80)
     if (!why && view.items.length) throw new CheckError('Give a reason.')
     await tx.update(barCheck).set({ status: 'void', voidReason: why || 'empty', closedAt: new Date(), closedById: actor.id, closedByName: byName, updatedAt: new Date() }).where(eq(barCheck.id, checkId))
+    // Its kiosk order, still waiting to be paid at the counter, will not be: off the Orders screen.
+    await tx.update(barOrder).set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(barOrder.companyId, companyId), eq(barOrder.checkId, checkId), eq(barOrder.status, 'at_counter')))
   })
   await checkEnded(companyId, checkId)
   notifyRegister(companyId)
