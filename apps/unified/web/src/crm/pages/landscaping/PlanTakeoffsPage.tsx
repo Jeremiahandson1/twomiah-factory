@@ -257,6 +257,8 @@ export default function PlanTakeoffsPage() {
                     </select>
                     {!(it.kind === 'area' && it.serviceType) && <input className="input w-28" type="number" min={0} step="any" aria-label={`Price per ${UNIT[it.kind]}`} placeholder={`$ per ${UNIT[it.kind]}`} disabled={!mayEdit} value={it.unitPrice ?? ''} onChange={(e) => setItem(it.id, { unitPrice: e.target.value === '' ? null : Number(e.target.value) })} />}
                     <span className="font-medium w-28 text-right">{q == null ? 'set the scale' : `${q.toLocaleString()} ${UNIT[it.kind]}`}</span>
+                    {/* What the line comes to on the quote — or that it has no price yet (landscaping live test 11/08: lengths and counts reached the quote at $0.00). */}
+                    {!(it.kind === 'area' && it.serviceType) && q != null && <span className={`w-36 text-right ${it.unitPrice == null ? 'text-amber-700 dark:text-amber-300' : ''}`}>{it.unitPrice == null ? 'No price yet — $0 on the quote' : `= $${(Math.round(q * it.unitPrice * 100) / 100).toFixed(2)}`}</span>}
                     {mayEdit && <button aria-label={`Delete ${it.label || KIND_LABEL[it.kind]}`} className="text-red-600 dark:text-red-400" onClick={() => setItems((all) => all.filter((x) => x.id !== it.id))}><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 )

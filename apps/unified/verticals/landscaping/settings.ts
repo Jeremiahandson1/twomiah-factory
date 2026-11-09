@@ -59,7 +59,9 @@ const landscaping: VerticalSettings = {
     // No defaultType: the engine's 'service'. The template's database default was field service's 'repair', and the
     // owner objected that "a landscaping job is labelled REPAIR" (T58); the template only hid the label on the
     // dispatch card and kept storing it. It billed no job on its own (no POST /api/jobs/:id/invoice).
-    jobs: { photos: true, textArrival: true, requireCustomer: true, repeatWeekdays: true },
+    // A one-off job (a spring cleanup) is billed from its page (Jobber's "Create invoice"; landscaping live test 11/08: no way to
+    // invoice a finished visit but the route's monthly run). The monthly run skips a visit already billed this way (data/routeBilling.ts).
+    jobs: { photos: true, textArrival: true, requireCustomer: true, repeatWeekdays: true, billing: { prefix: 'INV', pad: 5, termsDays: 30 } },
     quotes: { textOnSend: true },
     // No drawings to mark up: plan markup is construction's (field service's fix, T28 L10 — the landscaping copy still
     // passed the table).

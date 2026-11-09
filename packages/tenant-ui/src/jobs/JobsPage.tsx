@@ -80,7 +80,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  // ?status= opens the list on one status (the dashboard's Today's board counters link here).
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '')
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   // A visit just moved by an edit: "Notify client?" (NotifyMovedDialog).

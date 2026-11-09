@@ -43,7 +43,7 @@ function DocumentPage({ below }: { below?: (link: { token: string; kind: 'quote'
       </header>
       {preview && (
         <div role="status" className="bg-amber-50 border-b border-amber-200 text-amber-900 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-100">
-          <p className="max-w-4xl mx-auto px-4 py-2 text-sm"><strong>Preview — not sent yet.</strong> This is the page your customer will see once it is sent, so a draft shows as “Sent” here. Nothing here can be signed, ticked or declined, and nothing has been sent.</p>
+          <p className="max-w-4xl mx-auto px-4 py-2 text-sm"><strong>Preview.</strong> This is the page your customer sees (a draft shows as “Sent” here). Nothing can be signed, ticked or declined from this preview, and opening it sends nothing.</p>
         </div>
       )}
       <main className="max-w-4xl w-full mx-auto px-4 py-8 flex-1">

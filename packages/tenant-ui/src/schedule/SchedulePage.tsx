@@ -317,7 +317,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       className={`${compact ? 'px-1.5 py-0.5' : 'p-2'} rounded text-xs text-gray-900 dark:text-slate-100 ${dragDrop ? 'cursor-move' : 'cursor-pointer'} hover:shadow-sm ${jobCls(job.status)}`}
     >
       <div className="flex items-start gap-1">
-        <p className="font-medium truncate flex-1 min-w-0">{compact && job.scheduledTime ? `${job.scheduledTime} ` : ''}{job.title}</p>
+        {/* Two lines on a full card, the whole title on hover (landscaping live test 11/08: "Mowing - Hank..." cut off). */}
+        <p className={`font-medium flex-1 min-w-0 ${compact ? 'truncate' : 'line-clamp-2 break-words'}`} title={job.title}>{compact && job.scheduledTime ? `${job.scheduledTime} ` : ''}{job.title}</p>
         {dragDrop && !moving && (
           <button type="button" aria-label={`Move ${job.title}`} title="Move — then tap a day or an hour" data-move-job={job.id}
             onClick={(e) => { e.stopPropagation(); setMoving(job); setDragFrom(lane ?? null) }}
@@ -365,7 +366,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
    opacity multiplies against whatever surface it lands on, which is exactly how a correct-looking
    palette renders wrong. WCAG exempts a DISABLED control; a cancelled booking is content. */
       'bg-gray-50 border-l-2 border-gray-300 text-gray-500 line-through dark:bg-slate-800 dark:text-slate-400' : 'bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100'}`}>
-      <p className="font-medium truncate">{e.title}</p>
+      <p className="font-medium truncate" title={e.title}>{e.title}</p>
       {!compact && <p className="text-gray-500 truncate dark:text-slate-400">{e.allDay ? 'All day' : timeOf(e.start)}{e.type ? ' · ' + e.type.replace(/_/g, ' ') : ''}</p>}
     </div>
   )

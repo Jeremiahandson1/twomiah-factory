@@ -69,7 +69,7 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
       const r: any = await api.post(`/api/recurring-routes/rain-day/runs/${run.id}/undo`, {})
       const out = r?.data ?? r
       toast.success(`${out.back} ${out.back === 1 ? 'visit' : 'visits'} put back${out.stayed?.length ? `; ${out.stayed.length} stayed (changed since)` : ''}${out.textsCancelled ? `; ${out.textsCancelled} ${out.textsCancelled === 1 ? 'text' : 'texts'} cancelled` : ''}`)
-      loadRuns(); onDone()
+      setPlan(null); loadRuns(); onDone()
     } catch (e) { toast.error(errorText(e, 'Could not undo it')) }
   }
 
@@ -88,7 +88,8 @@ export default function RainDayPanel({ onDone }: { onDone: () => void }) {
     try {
       const r = await api.post('/api/recurring-routes/rain-day', body(dryRun)) as any
       const out = (r?.data ?? r) as Plan
-      setPlan(out)
+      // A real push leaves no preview behind: the list it showed has moved (landscaping live test 11/08: it stayed until a refresh).
+      setPlan(dryRun ? out : null)
       if (!dryRun) {
         // A big push runs in the background and emails when it is done (Yardbook); the runs list shows it running.
         if (out.background) toast.success(`Moving ${out.wouldMove} jobs in the background — you'll get an email when it's done`)

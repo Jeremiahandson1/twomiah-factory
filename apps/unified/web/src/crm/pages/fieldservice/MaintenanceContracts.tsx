@@ -394,6 +394,7 @@ function ContractFormModal({ contract, onSave, onClose }: {
   const [form, setForm] = useState<{
     contactId: string;
     planId: string;
+    name: string;
     startDate: string;
     billingFrequency: string;
     amount: string;
@@ -402,6 +403,7 @@ function ContractFormModal({ contract, onSave, onClose }: {
   }>({
     contactId: contract?.contactId || '',
     planId: contract?.planId || '',
+    name: contract?.name || '',
     startDate: contract?.startDate?.split('T')[0] || todayKey(),
     billingFrequency: contract?.billingFrequency || 'monthly',
     amount: contract?.amount != null ? String(contract.amount) : '', // the agreement's billed amount (API field `amount`)
@@ -453,7 +455,9 @@ function ContractFormModal({ contract, onSave, onClose }: {
       // A blank amount is never a value the server takes ('' is refused with a 400). Left out, an edit keeps the
       // stored amount (or takes a newly picked plan's), and a new contract takes its plan's price — or the server
       // says, in its own words, that it needs one.
-      const { amount, firstVisitDate, ...rest } = form;
+      const { amount, firstVisitDate, name, ...rest } = form;
+      // A name of its own ("Weekly mowing — Hank"), else the plan's; empty leaves the server's (landscaping live test 11/08: no name field).
+      if (name.trim()) (rest as any).name = name.trim();
       const payload = amountHidden || amount.trim() === '' ? rest : { ...rest, amount };
       if (contract) {
         await api.put(`/api/agreements/${contract.id}`, payload);
@@ -499,6 +503,11 @@ function ContractFormModal({ contract, onSave, onClose }: {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="contract-name" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Contract name</label>
+              <input id="contract-name" type="text" maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={plans.find((p) => p.id === form.planId)?.name || 'e.g. Weekly mowing'} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100" />
             </div>
 
             {/* Plan Selection */}
