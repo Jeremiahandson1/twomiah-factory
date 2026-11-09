@@ -18,6 +18,8 @@
 
 /** 'status_change' → 'Status change', 'kiosk_age_denied' → 'Kiosk age denied'. */
 export const humanise = (v: string) => v.replace(/_/g, ' ').replace(/^./, (ch) => ch.toUpperCase())
+/** A field name as words: 'guestCountFinal' → 'Guest count final' (restaurant re-check 3 read "GuestCountFinal: 26 → 27"). */
+const fieldWords = (k: string) => humanise(k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase())
 /**
  * A record type as the reader says it: the food side's tables carry the bar product's prefix (bar_menu_item, bar_status),
  * which read "Bar menu item" in a restaurant's log (live test 2026-11-09). The prefix is the code's, not the business's.
@@ -101,7 +103,7 @@ export const whatChanged = (log: any): string => {
       const from = v && typeof v === 'object' ? v.old : undefined
       const to = v && typeof v === 'object' ? v.new : v
       const show = (x: unknown) => (x === null || x === undefined || x === '' ? '—' : String(x).slice(0, 40))
-      return from === undefined ? `${humanise(k)}: ${show(to)}` : `${humanise(k)}: ${show(from)} → ${show(to)}`
+      return from === undefined ? `${fieldWords(k)}: ${show(to)}` : `${fieldWords(k)}: ${show(from)} → ${show(to)}`
     })
     if (parts.length) return parts.join(', ') + (Object.keys(changes).length > 3 ? ' …' : '')
   }
@@ -154,7 +156,7 @@ export const whatChanged = (log: any): string => {
        */
       if (k === 'status' && /^[1-5]\d\d$/.test(String(v).trim())) continue
       if (k === 'method' && /^(GET|POST|PUT|PATCH|DELETE)$/i.test(String(v).trim())) continue
-      return `${humanise(k)}: ${String(v).slice(0, 60)}`
+      return `${fieldWords(k)}: ${String(v).slice(0, 60)}`
     }
   }
   return '—'

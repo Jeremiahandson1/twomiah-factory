@@ -173,8 +173,8 @@ function RulesView({ may }: { may: boolean }) {
       </div>
       <div className={`${CARD} space-y-3`}>
         <p className={LABEL}>What each position counts as</p>
-        <p className={`text-sm ${MUTED}`}>These are the positions you give shifts on the Schedule. Pick the role each one counts as for tips. A position set to &ldquo;No role&rdquo; takes no tip-out, gives none and has no share of the pool: that person keeps what they made.</p>
-        {positionList.length === 0 && <p className={`text-sm ${MUTED}`}>No positions on the Schedule yet.</p>}
+        <p className={`text-sm ${MUTED}`}>These are the positions you give shifts on the Schedule, the positions on Team cards and your staff seats (like Cook). Pick the role each one counts as for tips — someone who clocks in without a shift counts as their Team position or seat. A position set to &ldquo;No role&rdquo; takes no tip-out, gives none and has no share of the pool: that person keeps what they made.</p>
+        {positionList.length === 0 && <p className={`text-sm ${MUTED}`}>No positions on the Schedule or Team cards yet.</p>}
         {positionList.map((pos, i) => (
           <div key={pos} className="flex flex-wrap items-end gap-2">
             <div className="min-w-[8rem]"><p className={LABEL}>Position</p><p className="py-2 text-sm text-gray-900 dark:text-slate-100">{pos}</p></div>
