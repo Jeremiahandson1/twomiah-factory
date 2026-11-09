@@ -14,6 +14,7 @@ const BASE = ['contacts', 'invoices', 'dashboard', 'event_bookings', 'event_spac
 let k: Awaited<ReturnType<typeof bootFood>>
 let today = ''
 let cookToken = ''
+let cookId = ''
 const auditRows = async () => (k.t.db as any).select().from(k.S.auditLog).where(eq(k.S.auditLog.companyId, k.companyId))
 const asCook = async (method: string, path: string, body?: unknown) => {
   const res = await k.t.call(path, { method, headers: { Authorization: `Bearer ${cookToken}`, host: 'bar.test' }, ...(body === undefined ? {} : { json: body }) })
@@ -24,7 +25,8 @@ const asCook = async (method: string, path: string, body?: unknown) => {
 beforeAll(async () => {
   k = await bootFood({ vertical: 'restaurant', features: BASE })
   today = await venueToday(k.t.db, k.companyId)
-  await (k.t.db as any).insert(k.S.user).values({ email: 'cook@bar.test', passwordHash: await Bun.password.hash('Seat-pass-1', 'bcrypt'), firstName: 'Cora', lastName: 'Cook', role: 'cook', companyId: k.companyId })
+  const [cook] = await (k.t.db as any).insert(k.S.user).values({ email: 'cook@bar.test', passwordHash: await Bun.password.hash('Seat-pass-1', 'bcrypt'), firstName: 'Cora', lastName: 'Cook', role: 'cook', companyId: k.companyId }).returning()
+  cookId = cook.id
   cookToken = (await (await k.t.call('/api/auth/login', { method: 'POST', json: { email: 'cook@bar.test', password: 'Seat-pass-1' } })).json()).accessToken
 }, 60_000)
 afterAll(() => k?.restore())
@@ -109,5 +111,44 @@ describe('Tonight: a note on its own', () => {
     const [st] = await (k.t.db as any).select().from(k.S.barStatus).where(eq(k.S.barStatus.companyId, k.companyId))
     // The lapsed "closed" went with its date, so it cannot come back for good.
     expect(st.kitchenOpen).toBeNull(); expect(st.overrideUntil).toBeNull()
+  })
+})
+
+describe('the second report: tip-out without a shift, pickups by position, the Summary CSV', () => {
+  test('a cook who clocks in with no shift that night is paid as the kitchen', async () => {
+    await k.features([...BASE, 'bar_tip_pooling', 'bar_shift_swaps'])
+    expect((await k.O('PUT', '/api/tips/rules', { roles: [{ name: 'Servers', positions: [], mode: 'keeps', poolPct: 0 }, { name: 'Kitchen', positions: [], mode: 'pools', poolPct: 100 }], tipOuts: [{ from: 'Servers', to: 'Kitchen', pct: 10, basis: 'tips' }], defaultRole: '', positionRoles: { Floor: 'Servers', Grill: 'Kitchen' } })).status).toBe(200)
+    const day = dayBefore(today, 2)
+    const ins = (t: any, v: any) => (k.t.db as any).insert(t).values(v)
+    // The cook worked the Grill last week; tonight they clocked in without a shift. The server is on the Floor.
+    await ins(k.S.barScheduleShift, { companyId: k.companyId, userId: cookId, day: dayBefore(today, 9), start: '16:00', end: '22:00', position: 'Grill' })
+    await ins(k.S.barScheduleShift, { companyId: k.companyId, userId: k.ids.bartender, day, start: '16:00', end: '22:00', position: 'Floor' })
+    for (const id of [cookId, k.ids.bartender]) {
+      const inn = new Date(`${day}T22:00:00Z`), out = new Date(`${day}T23:30:00Z`)
+      await ins(k.S.timeEntry, { companyId: k.companyId, userId: id, date: inn, hours: '1.50', clockIn: inn, clockOut: out })
+    }
+    await ins(k.S.barDeclaredTip, { companyId: k.companyId, userId: k.ids.bartender, businessDay: day, amountCents: 400, originalCents: 400 })
+    const night = (await k.O('GET', `/api/tips/night?day=${day}`)).json
+    const by = Object.fromEntries(night.payouts.map((p: any) => [p.userId, p]))
+    expect(by[cookId].role).toBe('Kitchen')
+    expect(by[k.ids.bartender]).toMatchObject({ role: 'Servers', tipOutPaidCents: 40 })
+  })
+
+  test("a Floor give-away is not offered to someone who only works the Grill", async () => {
+    const day = dayBefore(today, -5)
+    const a = (await k.M('POST', '/api/schedule/shifts', { userId: k.ids.bartender, day, start: '10:00', end: '14:00', position: 'Floor' })).json
+    await k.M('POST', '/api/schedule/publish', { day })
+    expect((await k.B('POST', '/api/schedule/swaps', { kind: 'give', shiftId: a.shift?.id || a.id })).status).toBeLessThan(300)
+    expect((await asCook('GET', '/api/schedule/swaps/mine')).json.onOffer.length).toBe(0)
+    // Someone who works the Floor (or has never been scheduled) is offered it.
+    await (k.t.db as any).insert(k.S.barScheduleShift).values({ companyId: k.companyId, userId: k.ids.manager, day: dayBefore(today, 20), start: '10:00', end: '14:00', position: 'Floor' })
+    expect((await k.M('GET', '/api/schedule/swaps/mine')).json.onOffer.length).toBe(1)
+  })
+
+  test('a download the screen made is recorded', async () => {
+    expect((await k.O('POST', '/api/audit/export', { what: 'Report summary', period: 'This month' })).status).toBe(200)
+    expect((await k.O('POST', '/api/audit/export', {})).status).toBe(400)
+    const row = (await auditRows()).find((r: any) => r.action === 'export' && r.entityName === 'Report summary')
+    expect(row?.metadata?.description).toBe('Downloaded as CSV — This month')
   })
 })

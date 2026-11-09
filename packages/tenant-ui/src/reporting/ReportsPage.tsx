@@ -58,13 +58,16 @@ function useDownloaded(): [string, (name: string) => void] {
 }
 const Downloaded = ({ name }: { name: string }) => (name ? <span role="status" className="text-xs text-green-800 dark:text-green-300">Downloaded {name}</span> : null)
 
+/** Says a browser-made download happened, for the Audit Log (POST /api/audit/export). Set by ReportsPage; never blocks the file. */
+let noteExport: (what: string, period: string) => void = () => {}
+
 function CardHead({ title, period, table }: { title: string; period: string; table?: () => CsvTable | Promise<CsvTable> }) {
   const [busy, setBusy] = useState(false)
   const [downloaded, setDownloaded] = useDownloaded()
   const go = async () => {
     if (!table) return
     setBusy(true)
-    try { const t = await table(); setDownloaded(downloadCsv(csvName(title, period), t.head, t.rows)) } finally { setBusy(false) }
+    try { const t = await table(); setDownloaded(downloadCsv(csvName(title, period), t.head, t.rows)); noteExport(title, period) } finally { setBusy(false) }
   }
   return (
     <div className="flex items-start justify-between gap-3 mb-4">
@@ -102,6 +105,7 @@ function ReportsLoading() {
 }
 
 export function ReportsPage({ api, config }: ReportsPageProps) {
+  noteExport = (what, period) => { Promise.resolve(api.post('/api/audit/export', { what, period })).catch(() => {}) }
   const cfg = resolveReportingConfig(config)
   const { hasFeature, can } = useAuth()
   // Reports a builder buys on (DepthReports.tsx): each only where the business has its feature and the seat reads reports.
@@ -171,6 +175,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
       ...(showProjects ? [['Projects', p.total ?? 0], ['Active projects', p.active ?? 0], ['Completed projects', p.completed ?? 0], ['Project value', amount(p.totalValue)]] : []),
     ]
     setSummaryDownloaded(downloadCsv(csvName('Report summary', rangeLabel), ['Measure', rangeLabel], rows))
+    noteExport('Report summary', rangeLabel)
   }
 
   return (

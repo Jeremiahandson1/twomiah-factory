@@ -393,9 +393,15 @@ export function createBarStaffRequests(db: BarDb, schedule: BarSchedule, sendRaw
       forMe: all.filter((x) => x.toUserId === actor.id && x.fromUserId !== actor.id && x.status === 'offered' && keep(x)),
       // Only what they could be given: a shift on their day off or over one they already work is not offered to them (restaurant
       // live test 2026-11-09: the cook was offered the server's shift at the very hours of their own, then the approval refused it).
+      // …and only a position they work: a cook is not offered a Floor shift (7shifts offers a pickup to those with that role).
+      // "Works" is any position they have been scheduled for; someone never scheduled yet sees every position.
       onOffer: await (async () => {
         const out: typeof all = []
+        const worked = new Set((await db.selectDistinct({ p: barScheduleShift.position }).from(barScheduleShift)
+          .where(and(eq(barScheduleShift.companyId, actor.companyId), eq(barScheduleShift.userId, actor.id as string)))).map((r) => String(r.p || '').toLowerCase()).filter(Boolean))
         for (const x of all.filter((y) => y.kind === 'give' && y.status === 'open' && y.fromUserId !== actor.id && keep(y))) {
+          const pos = String(x.shift?.position || '').toLowerCase()
+          if (pos && worked.size && !worked.has(pos)) continue
           if ((await conflictsFor(db, actor.companyId, actor.id as string, x.shift as any, [], tz)).length === 0) out.push(x)
         }
         return out
