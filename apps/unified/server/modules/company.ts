@@ -191,6 +191,17 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       const u = c.get('user')
       return one(c, await auditFilterOptions(db, u.companyId))
     })
+    // A file the screen made from figures it had already loaded (Reports' Summary CSV): the server never sees that
+    // download, so the screen says it happened, and it sits in the log beside the server-made exports. Any signed-in
+    // person may say so for themselves; the row only records what they downloaded. Restaurant re-check 2026-11-09.
+    .post('/export', async (c) => {
+      const b = await c.req.json().catch(() => ({})) as { what?: unknown; period?: unknown }
+      const what = String(b.what ?? '').trim().slice(0, 120)
+      if (!what) return fail(c, 400, 'What was downloaded?')
+      const period = String(b.period ?? '').trim().slice(0, 80)
+      await audit.log({ req: c, action: audit.ACTIONS.EXPORT, entity: 'report', entityName: what, metadata: { description: period ? `Downloaded as CSV — ${period}` : 'Downloaded as CSV' } })
+      return one(c, { ok: true })
+    })
 
   // The Factory sets which features this tenant has (it replaces the list; the Factory reconciles first). A not-ready
   // feature in it is dropped: no path switches one on (withoutNotReady); so is one this industry is not offered

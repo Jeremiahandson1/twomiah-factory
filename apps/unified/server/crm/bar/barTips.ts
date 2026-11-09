@@ -3,7 +3,8 @@
 //   · The rules live on the company's settings (settings.tips): roles, who pools, tip-outs, shares of the pool.
 //   · A night's figures are read, not typed: tips and sales are those of the checks each person CLOSED that night (the
 //     same attribution the per-person checkout already uses), hours are their time-clock punches that night, and a
-//     person's role is their scheduled position that day (else the default role).
+//     person's role is their scheduled position that day — else their usual one (the last position they were scheduled
+//     for, their roster card's position, their seat: a Cook), else the default role.
 //   · Closing the night (the close-out) records who gets what; closing it again replaces that night's rows.
 //   · Tips on checks nobody closed (kiosk and website orders) are not shared; the night says how much that was.
 //   · DECLARED CASH TIPS (restaurant-bar parity #16, 'bar_declared_tips'): a person declares the cash tips they were handed outside the
@@ -13,7 +14,7 @@
 //   · TIPS FROM ANOTHER REGISTER (parity #17, 'bar_tip_import'): tips imported from Toast or Square (barTipSources.ts) for the people they
 //     are matched to join the same pool; tips from staff nobody matched yet are listed, not shared.
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte } from 'drizzle-orm'
-import { barCheck, barCheckPayment, barDeclaredTip, barScheduleShift, barTipImport, barTipPayout, barTipStaffMap, company, timeEntry, user } from '../../db/schema/index.ts'
+import { barCheck, barCheckPayment, barDeclaredTip, barScheduleShift, barTipImport, barTipPayout, barTipStaffMap, company, teamMember, timeEntry, user } from '../../db/schema/index.ts'
 import type { BarDb } from './db.ts'
 import { addDays } from './barHours.ts'
 import { businessDayOf, businessDayWindow, type BarLive } from './barLive.ts'
@@ -110,10 +111,33 @@ export function createBarTips(db: BarDb, live: BarLive) {
     }
     const ids = [...new Set([...tips.keys(), ...hours.keys(), ...stillClockedIn, ...[...declared].filter(([, c]) => c > 0).map(([u]) => u), ...imported.keys()])]
     if (!ids.length) return { people: [], unassignedTipsCents: unassigned, unmatchedImportedCents: unmatched, stillClockedIn: [] }
-    const names = await db.select({ id: user.id, first: user.firstName, last: user.lastName, email: user.email }).from(user).where(and(eq(user.companyId, companyId), inArray(user.id, ids)))
+    const names = await db.select({ id: user.id, first: user.firstName, last: user.lastName, email: user.email, seat: user.role }).from(user).where(and(eq(user.companyId, companyId), inArray(user.id, ids)))
     const nameOf = new Map(names.map((u) => [u.id, [u.first, u.last].filter(Boolean).join(' ').trim() || u.email]))
     const fallback = rules.defaultRole || rules.roles[0]?.name || ''
-    const roleFor = (id: string) => roleForPositions(rules, shifts.filter((s) => s.userId === id && s.position).map((s) => s.position as string), fallback)
+    // Someone who clocked in with no shift that night: their usual position, as Toast's and 7shifts' primary job — the last
+    // position they were scheduled for, else their roster card's, else their seat (a Cook). Restaurant re-check 2026-11-09:
+    // an unscheduled cook was paid as "Servers" and got no tip-out.
+    const unscheduled = ids.filter((id) => !shifts.some((s) => s.userId === id && s.position))
+    const usual = new Map<string, string[]>()
+    if (unscheduled.length) {
+      const past = await db.select({ userId: barScheduleShift.userId, position: barScheduleShift.position }).from(barScheduleShift)
+        .where(and(eq(barScheduleShift.companyId, companyId), inArray(barScheduleShift.userId, unscheduled), isNotNull(barScheduleShift.position), lte(barScheduleShift.day, day)))
+        .orderBy(desc(barScheduleShift.day)).limit(500)
+      const cards = await db.select({ email: teamMember.email, role: teamMember.role }).from(teamMember).where(eq(teamMember.companyId, companyId))
+      const cardRole = new Map(cards.filter((m) => m.email && m.role).map((m) => [String(m.email).toLowerCase(), String(m.role)]))
+      for (const id of unscheduled) {
+        const u = names.find((n) => n.id === id)
+        const last = past.find((p) => p.userId === id)?.position
+        const seat = u?.seat ? u.seat.charAt(0).toUpperCase() + u.seat.slice(1) : ''
+        usual.set(id, [last, cardRole.get(String(u?.email || '').toLowerCase()), seat].filter((x): x is string => !!x))
+      }
+    }
+    const roleFor = (id: string) => {
+      const today = shifts.filter((s) => s.userId === id && s.position).map((s) => s.position as string)
+      if (today.length) return roleForPositions(rules, today, fallback)
+      for (const p of usual.get(id) || []) { const r = roleForPositions(rules, [p], ''); if (r) return r }
+      return fallback
+    }
     const people = ids.filter((id) => nameOf.has(id)).map((id): TipPerson => ({
       userId: id, name: nameOf.get(id)!, role: roleFor(id),
       hours: Math.round((hours.get(id) || 0) * 100) / 100, tipsCents: (tips.get(id)?.tip || 0) + (declared.get(id) || 0) + (imported.get(id) || 0), salesCents: tips.get(id)?.sales || 0,
