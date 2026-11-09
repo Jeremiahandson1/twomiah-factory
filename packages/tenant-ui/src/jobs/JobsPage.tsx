@@ -15,12 +15,12 @@ import { isTravelWarning, BOOK_ANYWAY_TITLE } from '../schedule/crew'
 import { NotifyMovedDialog } from './NotifyMovedDialog'
 
 interface JobForm {
-  title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
+  title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string; estimatedValue: string
   address: string; city: string; state: string; zip: string; projectId: string; contactId: string; assignedToId: string; equipmentId: string; siteId: string; notes: string; locationId: string; jobType: string
 }
 type Pick = { id: string; contactId?: string | null; name?: string; firstName?: string; lastName?: string; email?: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; manufacturer?: string | null; model?: string | null; serialNumber?: string | null }
 
-const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '', jobType: '' })
+const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', estimatedValue: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '', jobType: '' })
 const label = (s: string) => s.replace(/_/g, ' ')
 
 /**
@@ -101,6 +101,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [serverStatuses, setServerStatuses] = useState<string[] | null>(null)
   const statuses = config?.statuses && config.statuses.length ? cfg.statuses : (serverStatuses || cfg.statuses)
   const [form, setForm] = useState<JobForm>(emptyForm(cfg.statuses[0], 'normal'))
+  const mayPrice = useMayWrite('quotes:update')
+  const showPrice = !!cfg.billing && mayPrice
   const [saving, setSaving] = useState(false)
   /**
    * The other people on the job, beside "Assigned To" — its lead (2026-10-24: several people per job, as Jobber and
@@ -233,7 +235,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     setForm({
       ...emptyForm(cfg.statuses[0], 'normal'),
       title: item.title || '', description: item.description || '', status: item.status || cfg.statuses[0], priority: item.priority || 'normal',
-      scheduledDate: item.scheduledDate ? String(item.scheduledDate).slice(0, 10) : '', scheduledTime: item.scheduledTime || '', estimatedHours: item.estimatedHours != null ? String(item.estimatedHours) : '',
+      scheduledDate: item.scheduledDate ? String(item.scheduledDate).slice(0, 10) : '', scheduledTime: item.scheduledTime || '', estimatedHours: item.estimatedHours != null ? String(item.estimatedHours) : '', estimatedValue: (item as any).estimatedValue != null && Number((item as any).estimatedValue) > 0 ? String((item as any).estimatedValue) : '',
       address: item.address || '', city: item.city || '', state: item.state || '', zip: item.zip || '', jobType: (item as any).jobType || '',
       // A job can be assigned to a login user OR a roster-only crew member; the picker holds whichever id it is, and
       // the API routes it back to the right column. Seeding only from assignedToId showed "Unassigned" for crew —
@@ -282,6 +284,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     setSaving(true)
     try {
       const payload: any = { ...form, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined }
+      // What the job is worth goes only from a seat that prices work, and only when typed (the server refuses a change without quotes:update).
+      if (showPrice && form.estimatedValue.trim() !== '') payload.estimatedValue = Number(form.estimatedValue)
+      else delete payload.estimatedValue
       if (cfg.assignee && team.length > 0) payload.otherAssigneeIds = otherIds.filter((id) => id !== form.assignedToId)
       if (bookAnyway) payload.bookAnyway = true
       if (!cfg.equipment) delete payload.equipmentId
@@ -448,6 +453,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <Field label="Scheduled Date"><input type="date" value={form.scheduledDate} onChange={set('scheduledDate')} disabled={lockSlot} className={inputCls} /></Field>
           <Field label="Scheduled Time"><input type="time" value={form.scheduledTime} onChange={set('scheduledTime')} disabled={lockSlot} className={inputCls} /></Field>
           <Field label="Estimated Hours"><input type="number" min="0" step="0.25" value={form.estimatedHours} onChange={set('estimatedHours')} className={inputCls} /></Field>
+          {/* What the job bills when it is invoiced on its own (landscaping re-check 11/08: Invoice said "set what the work is worth", and
+              the form had no box for it). Only where a job can be invoiced, and only for a seat that prices work. */}
+          {showPrice && <Field label="Price ($)"><input type="number" min="0" step="0.01" value={form.estimatedValue} onChange={set('estimatedValue')} placeholder="What the job bills" className={inputCls} /></Field>}
           {/* Find a time: open slots inside people's shifts, around their booked jobs and the drive — picked into the day, time and person above. */}
           {cfg.findTime && cfg.assignee && !lockSlot && (
             <div className="md:col-span-2">
@@ -502,7 +510,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
                     const at = nthOfDay(form.scheduledDate)
                     if (!at) return null
                     const fits = at.weekday === repeat.nthWeekday && (repeat.nthPositions.includes(at.n) || (at.last && repeat.nthPositions.includes(-1)))
-                    return fits ? null : <p role="status" className="w-full text-xs text-amber-800 dark:text-amber-300">{form.scheduledDate} is the {at.last && at.n >= 4 ? 'last' : ORDINAL[at.n]} {DAY_WORDS[at.weekday]} of its month, not one of the days picked, so no visit is made on it: the first visit is the first day picked after it.</p>
+                    return fits ? null : <p role="status" className="w-full text-xs text-amber-800 dark:text-amber-300">{new Date(`${form.scheduledDate}T00:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', month: 'numeric', day: 'numeric', year: 'numeric' })} is the {at.last && at.n >= 4 ? 'last' : ORDINAL[at.n]} {DAY_WORDS[at.weekday]} of its month, not one of the days picked, so no visit is made on it: the first visit is the first day picked after it.</p>
                   })()}
                 </div>
               )}

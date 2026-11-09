@@ -116,7 +116,7 @@ export default function PhotoMarkupEditor({ original, shapes: initial, onClose, 
         <button type="button" className={btn} disabled={shapes.length === 0} onClick={() => setShapes([])}><Trash2 className="w-4 h-4" aria-hidden="true" /> Clear all</button>
       </div>
       <p className="text-xs text-gray-500 mb-2 dark:text-slate-400">
-        {tool === 'text' ? 'Click where the words should start.' : tool === 'arrow' ? 'Drag from the tail of the arrow to its point.' : 'Drag across the area to circle.'} {shapes.length} of {MAX_SHAPES} marks.
+        {tool === 'text' ? 'Click where the words should start.' : tool === 'arrow' ? 'Drag from the tail of the arrow to its point.' : 'Drag across the area to circle.'} {shapes.length + (pending && words.trim() ? 1 : 0)} of {MAX_SHAPES} marks.
       </p>
       <div className="relative mx-auto select-none touch-none" style={{ maxWidth: '100%' }}>
         <img src={original.url || ''} alt={original.caption || 'Photo to draw on'} draggable={false} className="block w-full h-auto rounded-md"
@@ -139,7 +139,7 @@ export default function PhotoMarkupEditor({ original, shapes: initial, onClose, 
         <div className="flex gap-2">
           <button type="button" className={btn} onClick={onClose}>Cancel</button>
           {mayMark && (
-            <button type="button" disabled={busy} onClick={save} className="px-4 py-1.5 text-sm font-medium rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">{busy ? 'Saving…' : shapes.length === 0 ? 'Remove marks' : 'Save marked copy'}</button>
+            <button type="button" disabled={busy} onClick={save} className="px-4 py-1.5 text-sm font-medium rounded-lg bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">{busy ? 'Saving…' : shapes.length === 0 && !(pending && words.trim()) ? 'Remove marks' : 'Save marked copy'}</button>
           )}
         </div>
       </div>
