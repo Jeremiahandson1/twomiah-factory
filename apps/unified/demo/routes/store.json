@@ -39,6 +39,7 @@
   "/api/inbound-messages?limit=100",
   "/api/integrations/status",
   "/api/leads/stats",
+  "/api/leads/workers",
   "/api/leads?limit=25&page=1",
   "/api/marketing/automations",
   "/api/marketing/campaigns",

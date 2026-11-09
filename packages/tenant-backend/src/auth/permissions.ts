@@ -368,7 +368,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // CREW_SCOPE_WITHHELD, 2026-10-24).
     // projects:read-all: every project, not only its own — a seat without it (the contractor's Sales rep) reads the projects it made or
     // sells or works on (unified crm/ownWork.ts ownProjectsWhere; re-check 11/08).
-    'jobs:read-all', 'contacts:read-all', 'bookings:read-all', 'projects:read-all',
+    // quotes:read-all: likewise every quote for a field seat a company grants quotes:read, as before the Sales rep's narrowing
+    // (invoicing/quotes.ts ownQuotes) — the rep, on this rung, has it withheld (contractor roleWithheld).
+    'jobs:read-all', 'contacts:read-all', 'bookings:read-all', 'projects:read-all', 'quotes:read-all',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
     'tasks:read', 'tasks:create', 'tasks:update',
     // Sees a balance and a card. Spending and correcting are widened per-vertical, because who works

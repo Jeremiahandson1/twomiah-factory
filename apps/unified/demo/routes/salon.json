@@ -47,6 +47,7 @@
   "/api/invoices?limit=25&page=1",
   "/api/leads/sources",
   "/api/leads/stats",
+  "/api/leads/workers",
   "/api/leads?limit=25&page=1",
   "/api/loyalty/config",
   "/api/loyalty/contacts/:id",

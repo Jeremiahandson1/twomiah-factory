@@ -34,6 +34,22 @@ const STORE_SHAPES = (heldBy: string): Divergence => ({
   heldBy,
 })
 
+/**
+ * The final balance follows the total (restaurant re-check 2, 2026-11-09, a32aa07ea; Tripleseat's and Perfect Venue's "final balance"):
+ * when a menu line, the guarantee or the quote moves an event's invoice total, the last unpaid instalment takes up the difference, so
+ * lowering the total is no longer refused for a schedule that billed the whole invoice. crm-restaurant's T41 refuses it.
+ */
+const FINAL_BALANCE_FOLLOWS: Divergence = {
+  assertions: [
+    /^T41: deleting a menu line that would drop the invoice under the schedule is REFUSED/, /^T41: …and the message names both figures/,
+    /^T41: …the line is still on the menu — the transaction rolled back/, /^T41: …the invoice is still 11700/, /^T41: …and the schedule is untouched/,
+    /^T41: editing a line down to \$1 is refused for the same reason/, /^T41: …and the price did not change/, /^T41: raising a line is still allowed/,
+    /^T41: …and the invoice follows it up to 12600/, /^T41: …and NOW the menu line deletes, because the schedule fits what is left/,
+  ],
+  why: "crm-restaurant's T41 refuses a menu change that drops the invoice under the payment schedule. The unified app's last unpaid instalment absorbs the change instead (server/crm/restaurant/eventLedger.ts syncEventInvoice, restaurant re-check 2 2026-11-09), so the delete succeeds with the final balance shrunk to fit; the steps after it then act on a line that is gone. The schedule never bills past the invoice either way (the section's last two assertions still pass).",
+  heldBy: 'apps/unified/tests/restaurant-recheck-1109.test.ts (re-check 2: a lower guarantee shrinks the final balance instead of being refused; a higher one grows it)',
+}
+
 export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   // The store (tests/store, run by harness/store.ts). Every file but square-orders seeds the template's single-business
   // shape — `users` with one `name`, the shop's name on store_settings, loyalty members by email — which the unified
@@ -275,6 +291,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     't59-website-enquiry-inbox-off.test.ts': WEBHOOK_REPLACED,
   },
   bar: {
+    't39-event-deposits.test.ts': FINAL_BALANCE_FOLLOWS,
     'bar-website-forms.test.ts': {
       why: "Drives POST /api/webhooks/leads, where the bar's separate website forwarded its party and Regulars forms. The website is the same app now: the forms post to the site's own enquiry (POST /api/leads) and crm/bar/enquiry.ts answers them (CrmSettings.websiteForms 'bar'), with the visitor's own address as consent evidence.",
       heldBy: 'apps/unified/tests/bar-website-forms.test.ts (the same behaviour through the site form: dated party → party book, same phone same guest, undated → inbox, Regulars tag + birthday + consent: 8 pass)',
@@ -423,6 +440,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     't59-new-leads-inbox-off.test.ts': WEBHOOK_REPLACED,
   },
   restaurant: {
+    't39-event-deposits.test.ts': FINAL_BALANCE_FOLLOWS,
     't62-event-money.test.ts': {
       assertions: [/^…with NO quotedTotal or depositRequired key, and moneyWithheld/],
       why: "GET /api/events is a list reply ({ data, pagination }, RULEBOOK §3) and carries no moneyWithheld beside it; the coordinator's rows still carry no quotedTotal or depositRequired (the same assertion's other half, and the no-figures check after it, pass). No screen read the flag on the list.",

@@ -153,8 +153,8 @@ const landscaping: VerticalSettings = {
     settings: {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: sees the jobs, the schedule and the reports; changes nothing' },
-        { value: 'crew', label: 'Crew member', description: 'their own visits today: the field view, photos, checklists, materials and their own time; no prices and no company money' },
-        { value: 'crew_lead', label: 'Crew lead', description: 'runs their crew’s visits: the field view, the crew’s timers, materials, checklists and “couldn’t do it”; no prices and no company money' },
+        { value: 'crew', label: 'Crew member', description: 'their own visits today: the field view, photos, materials and their own time; no prices and no company money' },
+        { value: 'crew_lead', label: 'Crew lead', description: 'runs their crew’s visits: the field view, the crew’s timers, materials and “couldn’t do it”; no prices and no company money' },
         { value: 'field', label: 'Staff', description: 'day-to-day work on the jobs they are on; not settings, the team or billing' },
         { value: 'manager', label: 'Manager', description: 'runs the jobs, routes, crews and quotes; not billing or company settings' },
         { value: 'admin', label: 'Admin', description: 'full access, including billing, company settings and logins' },

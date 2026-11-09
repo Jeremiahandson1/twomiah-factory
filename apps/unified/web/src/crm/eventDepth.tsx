@@ -8,7 +8,7 @@ import { Loader2, Lock, FileSignature, Send, Ban, Copy, CreditCard, Bell, Calend
 import { api } from '../api'
 import { useAuth, useToast, useConfirm, usePrompt, errorText } from '../shared'
 import { money, moneyCents } from '@twomiah/tenant-ui/src/money'
-import { companyTodayKey, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { companyTodayKey, momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const client = api as any
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5 text-sm text-gray-900 dark:text-slate-100'
@@ -294,7 +294,7 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
   const last = (i: Instalment) => {
     const auto = i.remindedOverdueAt ? 'Overdue reminder sent' : i.remindedDueAt ? 'Due-day reminder sent' : i.remindedBeforeAt ? 'Reminder sent' : ''
     const autoAt = i.remindedOverdueAt || i.remindedDueAt || i.remindedBeforeAt
-    if (i.remindedManualAt && (!autoAt || i.remindedManualAt > autoAt)) return `Reminder sent by hand ${new Date(i.remindedManualAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    if (i.remindedManualAt && (!autoAt || i.remindedManualAt > autoAt)) return `Reminder sent by hand ${momentDate(i.remindedManualAt, { month: 'short', day: 'numeric' })}`
     return auto || 'No reminder yet'
   }
   return (
