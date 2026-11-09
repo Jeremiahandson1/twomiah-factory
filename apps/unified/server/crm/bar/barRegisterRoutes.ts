@@ -299,6 +299,7 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
       if (declaring) {
         // A clock-in under a minute ends with no hours (time.ts), but the cash in the person's hand is still theirs to declare.
         if (r.action === 'out' || r.action === 'discarded') {
+          // recordedCents is the night's running total (the clock page says what was just typed beside it).
           try { declaredTip = { recordedCents: (await bar.tips.declareMine(actor.companyId, r.userId, { amountCents: b.declaredTipCents, mode: 'add' }, 'tablet')).amountCents } }
           catch (e: any) { declaredTip = { skipped: e?.message || 'The cash tips were not recorded.' } }   // the clock-out stands
         } else declaredTip = { skipped: 'Cash tips are taken when you clock out.' }
@@ -318,11 +319,12 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   // ── My till PIN ──
   registerRoutes.put('/pin', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
-    return act(c, async () => { await setOwnPin(actor, b.pin); return { hasPin: true } })
+    // Named for whose PIN it is, never the PIN (the floor wrote "Pin · Updated — pin"; re-check 2 2026-11-09).
+    return act(c, async () => { await setOwnPin(actor, b.pin); audit.log({ req: c, action: 'update', entity: 'till_pin', entityName: actor.name, metadata: { description: 'Set their own till PIN' } }); return { hasPin: true } })
   })
   registerRoutes.delete('/pin', ...kitchenRing, async (c) => {
     const actor = await actorOf(c)
-    return act(c, async () => { await clearOwnPin(actor); return { hasPin: false } })
+    return act(c, async () => { await clearOwnPin(actor); audit.log({ req: c, action: 'delete', entity: 'till_pin', entityName: actor.name, metadata: { description: 'Removed their own till PIN' } }); return { hasPin: false } })
   })
 
   // ─── The grill ───────────────────────────────────────────────────────────────
@@ -333,7 +335,8 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
     // A website order paid by a guest who never came back to the site: Stripe is asked here too (at most every 20 s).
     if (await isFeatureEnabled(actor.companyId, ['online_ordering'])) await bar.orders.sweep(actor.companyId).catch(() => {})
     c.header('Cache-Control', 'no-store')
-    return one(c, await kitchenState(actor.companyId))
+    // `register`: whether this person has the register, for the grill screen's Register button (a Cook does not).
+    return one(c, { ...(await kitchenState(actor.companyId)), register: await mayRegister(c) })
   })
   kitchenRoutes.post('/bump', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)

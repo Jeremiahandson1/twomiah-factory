@@ -42,7 +42,11 @@ export default function ClockPage() {
     setBusy(true); setErr(''); setMsg('');
     try {
       const r = await api.post('/api/register/clock', { pin, ...(cents !== undefined ? { declaredTipCents: cents } : {}) });
-      const said = r.declaredTip?.recordedCents !== undefined ? ` ${money(r.declaredTip.recordedCents)} in cash tips declared.` : r.declaredTip?.skipped ? ` ${r.declaredTip.skipped}` : '';
+      const d = r.declaredTip;
+      const said = d?.recordedCents !== undefined
+        // What was just typed, and the night's total when there was more before (re-check 2: "$6.00 declared" for $2).
+        ? (cents !== undefined && cents !== d.recordedCents ? ` ${money(cents)} in cash tips declared (${money(d.recordedCents)} today).` : ` ${money(d.recordedCents)} in cash tips declared.`)
+        : d?.skipped ? ` ${d.skipped}` : '';
       setMsg((r.action === 'in' ? `${r.name}: clocked in.` : r.action === 'out' ? `${r.name}: clocked out after ${r.hours} hours.` : r.message) + said);
       setOn(r.on); setTz(r.timezone); setPin(''); setTips('');
     } catch (e) { setErr(errorText(e, 'That did not go through.')); setPin(''); } finally { setBusy(false); }

@@ -152,3 +152,22 @@ describe('the second report: tip-out without a shift, pickups by position, the S
     expect(row?.metadata?.description).toBe('Downloaded as CSV — This month')
   })
 })
+
+describe('re-check 2: the last payment is the balance', () => {
+  test('a lower guarantee shrinks the final balance instead of being refused; a higher one grows it', async () => {
+    const clientId = (await k.O('POST', '/api/contacts', { name: 'Pat Payer', email: 'pat@guest.test', type: 'client' })).json.id
+    const pkg = (await k.O('POST', '/api/menu-packages', { name: 'Supper Package', pricePerPerson: 65, minGuests: 10 })).json
+    const ev = (await k.O('POST', '/api/events', { name: 'Anniversary', contactId: clientId, eventDate: dayBefore(today, -30), guestCount: 30, status: 'confirmed' })).json
+    await k.O('POST', `/api/events/${ev.id}/menu`, { packageId: pkg.id })
+    await k.O('POST', `/api/events/${ev.id}/payments`, { label: 'Deposit', amount: 500, dueDate: dayBefore(today, -5) })
+    await k.O('POST', `/api/events/${ev.id}/payments`, { label: 'Final balance', amount: 1450, dueDate: dayBefore(today, -30) })
+    const amounts = async () => Object.fromEntries((await (k.t.db as any).select().from(k.S.eventPayment).where(eq(k.S.eventPayment.eventId, ev.id))).map((p: any) => [p.label, Number(p.amount)]))
+    const r = await k.O('PUT', `/api/events/${ev.id}`, { guestCountFinal: 27 })
+    expect(r.status).toBe(200)
+    expect(await amounts()).toEqual({ Deposit: 500, 'Final balance': 1255 })
+    const [inv] = await (k.t.db as any).select().from(k.S.invoice).where(eq(k.S.invoice.eventId, ev.id))
+    expect(Number(inv.total)).toBe(1755)
+    expect((await k.O('PUT', `/api/events/${ev.id}`, { guestCountFinal: 28 })).status).toBe(200)
+    expect(await amounts()).toEqual({ Deposit: 500, 'Final balance': 1320 })
+  })
+})

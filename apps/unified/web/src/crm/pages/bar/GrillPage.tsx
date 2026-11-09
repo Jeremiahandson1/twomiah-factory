@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, Undo2, Check } from 'lucide-react'
 import { api } from '../../../api'
+import { verticalScreens } from '../../vertical'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, CARD, LABEL, MUTED, useLive } from './registerUi';
 
@@ -37,6 +38,9 @@ function mmss(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** A walk-up or tab ticket: the bar's, or a restaurant's counter (screens.grill.counterWord). */
+const counterWord = (verticalScreens() as { grill?: { counterWord?: string } }).grill?.counterWord || 'Bar'
+
 export default function GrillPage() {
   const [state, setState] = useState<State | null>(null);
   const [skew, setSkew] = useState(0);         // server clock − this device's clock
@@ -66,7 +70,7 @@ export default function GrillPage() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Grill</h1>
-        <Link to="/crm/register" className={`${BTN} ${OFF} inline-flex items-center`}>Register</Link>
+        {(state as { register?: boolean }).register !== false && <Link to="/crm/register" className={`${BTN} ${OFF} inline-flex items-center`}>Register</Link>}
       </div>
       <FormError message={err} />
 
@@ -95,7 +99,7 @@ export default function GrillPage() {
               <header className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{t.label}</p>
-                  <p className={`text-xs ${MUTED}`}>{t.source === 'web' ? 'Online pickup' : t.source === 'kiosk' ? 'KIOSK' : t.source === 'table' ? 'Table' : 'Bar'}{t.recalled ? ' · recalled' : ''}</p>
+                  <p className={`text-xs ${MUTED}`}>{t.source === 'web' ? 'Online pickup' : t.source === 'kiosk' ? 'KIOSK' : t.source === 'table' ? 'Table' : counterWord}{t.recalled ? ' · recalled' : ''}</p>
                 </div>
                 <span className={`text-sm font-semibold px-2 py-1 rounded-lg ${AGE_BADGE[age]}`}>{AGE[age].word} {mmss(waited)}</span>
               </header>
