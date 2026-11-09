@@ -360,7 +360,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       {(searchParams.get('tile') === 'today' || searchParams.get('tile') === 'completed_today') && (
         <p className="mb-2 text-sm text-gray-700 dark:text-slate-300">
           {searchParams.get('tile') === 'today' ? 'Showing today’s work only.' : 'Showing what was finished today only.'}{' '}
-          <button type="button" className="font-medium text-orange-700 underline dark:text-orange-300" onClick={() => { const p = new URLSearchParams(searchParams); p.delete('tile'); setSearchParams(p) }}>Show all</button>
+          <button type="button" className="font-medium text-orange-700 underline dark:text-orange-200" onClick={() => { const p = new URLSearchParams(searchParams); p.delete('tile'); setSearchParams(p) }}>Show all</button>
         </p>
       )}
       <div className="mb-4 flex gap-4">
