@@ -167,6 +167,25 @@ export async function syncEventInvoice(tx: any, companyId: string, eventId: stri
     if (m.ev.contactId && m.ev.contactId !== inv.contactId) updates.contactId = m.ev.contactId
   }
   const after = { ...inv, ...updates }
+  // THE LAST PAYMENT IS THE BALANCE. When the total moves (the guarantee, a menu line, the quote), the last instalment not
+  // yet paid takes up the difference — Tripleseat's and Perfect Venue's "final balance" — so a schedule that billed the
+  // whole invoice still does, and a lower count is not refused for a schedule nobody can edit (restaurant re-check 2
+  // 2026-11-09: "That change would leave $1,950.00 of scheduled payments against an invoice total of $1,755.00").
+  // Only when the schedule billed exactly the old total, or now bills more than the new one; never below what is paid on it.
+  if (updates.total !== undefined && m.schedule.length) {
+    const oldTotal = round2(Number(inv.total)), newTotal = round2(Number(updates.total))
+    const scheduled = round2(m.schedule.reduce((s: number, p: any) => s + Number(p.amount || 0), 0))
+    const states = installmentStates(after, m.schedule)
+    const last = states[states.length - 1]
+    const shift = Math.abs(scheduled - oldTotal) < 0.005 ? round2(newTotal - oldTotal) : scheduled > newTotal + 0.005 ? round2(newTotal - scheduled) : 0
+    if (last && Math.abs(shift) >= 0.005 && last.state !== 'paid') {
+      const next = round2(last.amount + shift)
+      if (next > 0.005 && next >= last.paidAmount - 0.005) {
+        await tx.update(eventPayment).set({ amount: next.toFixed(2) }).where(eq(eventPayment.id, last.id))
+        m.schedule = m.schedule.map((p: any) => (p.id === last.id ? { ...p, amount: next.toFixed(2) } : p))
+      }
+    }
+  }
   const due = invoiceDueDate(m.ev, installmentStates(after, m.schedule))
   if (!inv.dueDate || new Date(inv.dueDate).getTime() !== due.getTime()) updates.dueDate = due
   if (Object.keys(updates).length) {

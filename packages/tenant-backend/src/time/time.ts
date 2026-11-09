@@ -88,6 +88,18 @@ const placeOf = (p: TapPlace | undefined) => (p && typeof p.lat === 'number' && 
 /** How the clock was reached; stored as a plain word and shown by label. */
 export type ClockSource = 'phone' | 'web' | 'kiosk' | 'job' | 'geofence'
 
+/**
+ * Whose hours an Audit Log row is about, by name: the rows read "Time entry · —" (restaurant re-check 2, 2026-11-09).
+ * Never throws — a row without a name is still a row.
+ */
+async function nameOfPerson(db: any, t: any, userId: string | null | undefined): Promise<string | undefined> {
+  if (!userId) return undefined
+  try {
+    const [u] = await db.select({ f: t.user.firstName, l: t.user.lastName, e: t.user.email }).from(t.user).where(eq(t.user.id, userId)).limit(1)
+    return u ? [u.f, u.l].filter(Boolean).join(' ').trim() || u.e || undefined : undefined
+  } catch { return undefined }
+}
+
 export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>) {
   const { db, tables: t, audit } = deps
   const activeEntry = async (userId: string, companyId: string) => {
@@ -130,7 +142,7 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     const elapsedMinutes = (end.getTime() - new Date(open.clockIn).getTime()) / 60000
     if (elapsedMinutes < MIN_CLOCK_MINUTES) {
       await db.delete(t.timeEntry).where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, person.companyId)))
-      audit?.log({ action: 'delete', entity: 'time_entry', entityId: open.id, metadata: { discarded: 'under a minute', userId: open.userId }, req: { user: person } })
+      audit?.log({ action: 'delete', entity: 'time_entry', entityId: open.id, entityName: await nameOfPerson(db, t, open.userId), metadata: { description: 'Clock-in under a minute — no time kept', discarded: 'under a minute', userId: open.userId }, req: { user: person } })
       return { ok: true, discarded: true, message: 'That clock-in lasted less than a minute, so no time was recorded. Clock in again when you start work.' }
     }
     // Breaks already taken on the clock, plus one still running when the person clocks out (it ends with the shift), plus
@@ -602,7 +614,7 @@ export function createTimeRoutes(deps: TimeDeps) {
       billable: data.billable ?? true,
       ...(data.costCode ? { costCode: data.costCode } : {}),
     }).returning()
-    audit?.log({ action: 'create', entity: 'time_entry', entityId: row.id, metadata: { hours: row.hours, userId: targetUserId }, req: { user: currentUser } })
+    audit?.log({ action: 'create', entity: 'time_entry', entityId: row.id, entityName: await nameOfPerson(db, t, targetUserId), metadata: { description: `${Number(row.hours).toFixed(2)} h logged by hand`, hours: row.hours, userId: targetUserId }, req: { user: currentUser } })
     return c.json(row, 201)
   })
 
@@ -652,7 +664,7 @@ export function createTimeRoutes(deps: TimeDeps) {
 
     const [row] = await db.update(t.timeEntry).set(updates).where(and(eq(t.timeEntry.id, id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
     if (approvalCleared) {
-      audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, metadata: { approved: false, reason: 'the hours or the date changed after approval' }, req: { user: currentUser } })
+      audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, entityName: await nameOfPerson(db, t, existing.userId), metadata: { description: 'Approval taken off: the hours or the date changed', approved: false, reason: 'the hours or the date changed after approval' }, req: { user: currentUser } })
       return c.json({ ...row, warnings: ['This entry was approved. The hours, the date or the rate changed, so the approval has been removed and it needs approving again.'] })
     }
     return c.json(row)
@@ -666,7 +678,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     if (!canTouch(currentUser, existing)) return c.json({ error: 'You can only delete your own time entries' }, 403)
     if (existing.approved && !isManager(currentUser)) return c.json({ error: 'Approved entries can only be removed by a manager' }, 403)
     await db.delete(t.timeEntry).where(and(eq(t.timeEntry.id, id), eq(t.timeEntry.companyId, currentUser.companyId)))
-    audit?.log({ action: 'delete', entity: 'time_entry', entityId: id, metadata: { hours: existing.hours, userId: existing.userId }, req: { user: currentUser } })
+    audit?.log({ action: 'delete', entity: 'time_entry', entityId: id, entityName: await nameOfPerson(db, t, existing.userId), metadata: { description: `${Number(existing.hours).toFixed(2)} h deleted`, hours: existing.hours, userId: existing.userId }, req: { user: currentUser } })
     return c.body(null, 204)
   })
 
@@ -679,7 +691,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     const refusal = selfApprovalRefusal(currentUser, existing)
     if (refusal) return c.json({ error: refusal, code: 'self_approval' }, 403)
     const [row] = await db.update(t.timeEntry).set({ approved: true, approvedAt: new Date(), updatedAt: new Date() }).where(and(eq(t.timeEntry.id, id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
-    audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, metadata: { approved: true }, req: { user: currentUser } })
+    audit?.log({ action: 'status_change', entity: 'time_entry', entityId: id, entityName: await nameOfPerson(db, t, existing.userId), metadata: { description: `${Number(existing.hours).toFixed(2)} h approved`, approved: true }, req: { user: currentUser } })
     return c.json(row)
   })
 

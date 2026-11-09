@@ -198,6 +198,8 @@ const restaurant: VerticalSettings = {
     },
     // A cook's menu is the kitchen's: Tonight, the grill screen, the menu (86 and counts) and their schedule. Staff seats don't
     // see the two settings pages they cannot change (restaurant live test 2026-11-09: they opened read-only).
+    // A walk-up ticket on the grill is the counter's, not a bar's (GrillPage.tsx; re-check 2 2026-11-09).
+    grill: { counterWord: 'Counter' },
     navOnlyFor: { cook: ['/crm/dashboard', '/crm/tonight', '/crm/grill', '/crm/menu', '/crm/shifts', '/crm/help'] },
     navHiddenFor: { server: ['/crm/register-settings', '/crm/bar-settings'], field: ['/crm/register-settings', '/crm/bar-settings'] },
     // Jobber import and Angi / Thumbtack / Local Services lead sources are field-service concepts (OnboardingWizard.tsx,

@@ -324,7 +324,9 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     const [existing] = await db.select({ id: barStatus.id }).from(barStatus).where(eq(barStatus.companyId, companyId)).limit(1)
     if (existing) await db.update(barStatus).set(patch).where(eq(barStatus.id, existing.id))
     else await db.insert(barStatus).values({ companyId, ...patch } as any)
-    audit.log({ req: c, action: 'update', entity: 'bar_status', entityName: 'Tonight', changes: patch })
+    // What was changed, not the bookkeeping (re-check 2: the row read "UpdatedAt: 2026-11-09T13:44…, UpdatedById: …").
+    const { updatedAt: _at, updatedById: _by, updatedByName: _name, ...changed } = patch
+    audit.log({ req: c, action: 'update', entity: 'bar_status', entityName: 'Tonight', changes: changed })
     return one(c, { live: await buildLiveState(companyId) })
   })
 
