@@ -78,7 +78,7 @@ export function EmailDomainPage(): React.ReactElement {
       {!loading && status.status === 'unconfigured' && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4">
           <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">No domain connected yet</div>
-          <div className="text-sm text-yellow-800 dark:text-yellow-200">Your CRM is running on a temporary URL. Contact support to connect your domain, or re-deploy the tenant with a domain set.</div>
+          <div className="text-sm text-yellow-800 dark:text-yellow-200">Your CRM is running on a temporary URL. Connect your own domain from the Domain page, or email support@twomiah.com and we will connect it for you.</div>
         </div>
       )}
 

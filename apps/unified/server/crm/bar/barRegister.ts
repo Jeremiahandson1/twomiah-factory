@@ -338,7 +338,7 @@ async function voidItem(actor: Actor, itemId: string, reason: string, byName: st
     }
     const why = clean(reason, 80)
     if (!why) throw new CheckError('Give a reason for the void.')
-    await tx.update(barCheckItem).set({ state: 'void', voidReason: why, voidedByName: byName }).where(eq(barCheckItem.id, itemId))
+    await tx.update(barCheckItem).set({ state: 'void', voidReason: why, voidedByName: byName, voidedAt: new Date() }).where(eq(barCheckItem.id, itemId))
     if (it.menuItemId && it.kind === 'item') await giveBackToCount(tx, companyId, it.menuItemId, it.qty)
     const view = await getCheck(companyId, it.checkId, tx)
     // Voiding below what's already paid would owe the guest money: refuse (the transaction rolls the void back).

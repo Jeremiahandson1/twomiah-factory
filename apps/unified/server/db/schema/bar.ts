@@ -62,6 +62,9 @@ export const barCheckItem = pgTable('bar_check_item', {
   giftCardId: text('gift_card_id'),               // kind giftcard: the card this line issued (set when the check is paid)
   voidReason: text('void_reason'),
   voidedByName: text('voided_by_name'),
+  // When the line was voided: the night's voids are the ones made that night, open check or not (Toast's void report;
+  // bar live test 2026-11-09: a void on a check still open at close was left off). Null on lines voided before 0106.
+  voidedAt: timestamp('voided_at'),
   addedById: text('added_by_id').references(() => user.id, { onDelete: 'set null' }),
   addedByName: text('added_by_name'),
   addedAt: timestamp('added_at').defaultNow().notNull(),

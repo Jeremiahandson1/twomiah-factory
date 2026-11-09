@@ -308,6 +308,8 @@ function CountsTab() {
 function OrdersTab() {
   const [orders, setOrders] = useState<any[] | null>(null);
   const [err, setErr] = useState('');
+  // What just went, said back (bar live test 2026-11-09: emailing an order only turned its badge to Sent).
+  const [said, setSaid] = useState('');
   const [busy, setBusy] = useState('');
   const [receiving, setReceiving] = useState<any>(null);
   // Who an open order goes to: drafted from what is low, it takes each item's vendor, and an item with none drafts "No vendor"
@@ -317,11 +319,12 @@ function OrdersTab() {
   const setVendor = (o: any, vendorId: string) => act(o.id + ':vendor', () => api.put(`/api/stock/orders/${o.id}`, { vendorId: vendorId || null, note: o.note ?? null, lines: o.lines.map((l: any) => ({ stockItemId: l.stockItemId, packs: l.packs, packCostCents: l.packCostCents })) }));
   const load = useCallback(async () => { try { setOrders((await api.get('/api/stock/orders')).orders); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the orders.')); } }, []);
   useEffect(() => { load(); }, [load]);
-  const act = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); setErr(''); try { await fn(); await load(); } catch (e) { setErr(errorText(e, 'That did not go.')); } finally { setBusy(''); } };
+  const act = async (key: string, fn: () => Promise<unknown>, done = '') => { setBusy(key); setErr(''); setSaid(''); try { await fn(); await load(); setSaid(done); } catch (e) { setErr(errorText(e, 'That did not go.')); } finally { setBusy(''); } };
   if (!orders) return <div className="flex justify-center py-10">{err ? <FormError message={err} /> : <Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-slate-400" />}</div>;
   return (
     <>
       <FormError message={err} onDismiss={() => setErr('')} />
+      {said && <p role="status" className="text-sm text-green-800 dark:text-green-300">{said}</p>}
       <button className={`${BTN} ${ON}`} disabled={!!busy} onClick={() => act('draft', () => api.post('/api/stock/orders/draft-low', {}))}>Order what is below par</button>
       <div className={CARD}>
         {orders.length === 0 && <p className={`text-sm ${MUTED}`}>No orders yet.</p>}
@@ -344,7 +347,7 @@ function OrdersTab() {
               )}
               {(o.status === 'draft' || o.status === 'sent') && (
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {o.status === 'draft' && o.vendor?.email && <button className={`${BTN} ${OFF} min-h-[40px]`} disabled={!!busy} onClick={() => act(o.id, () => api.post(`/api/stock/orders/${o.id}/send`, { email: true }))}>Email it to {o.vendor.name}</button>}
+                  {o.status === 'draft' && o.vendor?.email && <button className={`${BTN} ${OFF} min-h-[40px]`} disabled={!!busy} onClick={() => act(o.id, () => api.post(`/api/stock/orders/${o.id}/send`, { email: true }), `Order #${o.number} emailed to ${o.vendor.name} at ${o.vendor.email}.`)}>Email it to {o.vendor.name}</button>}
                   {o.status === 'draft' && <button className={`${BTN} ${OFF} min-h-[40px]`} disabled={!!busy} onClick={() => act(o.id, () => api.post(`/api/stock/orders/${o.id}/send`, {}))}>Mark sent</button>}
                   <button className={`${BTN} ${ON} min-h-[40px]`} disabled={!!busy} onClick={() => setReceiving(o)}>It came in</button>
                   <button className={`${BTN} ${DANGER} min-h-[40px]`} disabled={!!busy} onClick={() => act(o.id, () => api.post(`/api/stock/orders/${o.id}/cancel`, {}))}>Cancel</button>

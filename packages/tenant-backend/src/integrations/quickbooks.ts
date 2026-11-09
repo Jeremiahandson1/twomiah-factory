@@ -101,7 +101,7 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   async function getValidToken(companyId: string): Promise<{ token: string; realmId: string }> {
     const [connection] = await db.select().from(t.qbIntegration).where(eq(t.qbIntegration.companyId, companyId)).limit(1)
     // Connected = a token is held. Auto-sync (syncEnabled) is a separate choice and never blocks a sync pressed by hand.
-    if (!connection || !connection.accessToken) throw new Error('QuickBooks not connected')
+    if (!connection || !connection.accessToken) throw new Error('QuickBooks is not connected. Connect it in Settings › Integrations.')
     const buffer = 5 * 60 * 1000
     if (connection.tokenExpiresAt && new Date() >= new Date(new Date(connection.tokenExpiresAt).getTime() - buffer)) {
       const tokens = await refreshAccessToken(connection.refreshToken!)
@@ -126,7 +126,7 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   }
   async function setAutoSync(companyId: string, enabled: boolean) {
     const [connection] = await db.select().from(t.qbIntegration).where(eq(t.qbIntegration.companyId, companyId)).limit(1)
-    if (!connection || !connection.accessToken) throw new Error('QuickBooks not connected')
+    if (!connection || !connection.accessToken) throw new Error('QuickBooks is not connected. Connect it in Settings › Integrations.')
     await db.update(t.qbIntegration).set({ syncEnabled: enabled, updatedAt: new Date() }).where(eq(t.qbIntegration.companyId, companyId))
     return { syncEnabled: enabled }
   }
@@ -333,7 +333,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
   })
   app.post('/auto-sync', touchesTheBooks, async (c) => {
     const body = await c.req.json().catch(() => ({}))
-    try { return c.json(await qb.setAutoSync(user(c).companyId, body.enabled !== false)) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks not connected' }, 400) }
+    try { return c.json(await qb.setAutoSync(user(c).companyId, body.enabled !== false)) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks is not connected. Connect it in Settings › Integrations.' }, 400) }
   })
   app.get('/company-info', async (c) => {
     try { return c.json(await qb.getCompanyInfo(user(c).companyId)) } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }

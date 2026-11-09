@@ -21,7 +21,8 @@
 .order-muted{opacity:.8}
 .order-delivery{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
 .order-layout{display:grid;gap:24px}
-@media (min-width:900px){.order-layout{grid-template-columns:minmax(0,1fr) 340px;align-items:start}}
+@media (min-width:900px){.order-layout{grid-template-columns:minmax(0,1fr) 340px;align-items:start}.order-layout--menu{grid-template-columns:minmax(0,1fr)}}
+.order-layout--menu .order-item[disabled]{opacity:1;cursor:default}
 .order-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
 .order-tab{border:1px solid currentColor;border-radius:999px;padding:8px 14px;background:transparent;color:inherit;font:inherit;cursor:pointer;white-space:nowrap}
 .order-tab[aria-selected="true"]{font-weight:700;outline:2px solid currentColor}

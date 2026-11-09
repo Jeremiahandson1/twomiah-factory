@@ -147,6 +147,8 @@ const offeredIntegrations = (): Integration[] => {
 export const wizardOpens = (): string[] => offeredIntegrations().map((i) => i.open?.to).filter((to): to is string => !!to)
 
 const CATEGORY_LABELS: Record<string, string> = {
+  // A bar's or a restaurant's own (screens.onboarding.extra): its opening hours.
+  hours: 'Your Hours',
   dns: 'Domain Setup',
   lead_sources: 'Lead Sources',
   accounting: 'Accounting & Import',
@@ -157,7 +159,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   catalog: 'Products',
 };
 
-const CATEGORY_ORDER = ['dns', 'lead_sources', 'accounting', 'payments', 'catalog', 'communication', 'compliance'];
+const CATEGORY_ORDER = ['hours', 'dns', 'lead_sources', 'accounting', 'payments', 'catalog', 'communication', 'compliance'];
 
 /* ─── Setup service options ────────────────────────────────────────────────── */
 const SETUP_OPTIONS = [

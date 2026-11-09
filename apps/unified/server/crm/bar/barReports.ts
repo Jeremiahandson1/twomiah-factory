@@ -22,7 +22,9 @@ import type { BarDb } from './db.ts'
 type SendRaw = (m: { to: string; subject: string; html: string }) => Promise<{ success?: boolean } | null | undefined>
 
 export interface DayCheck { id: string; number: number; kind: string; label: string; status: string; subtotalCents: number | null; taxCents: number | null; totalCents: number | null; tipCents: number | null; closedAt: Date | null; closedByName: string | null; voidReason: string | null }
-export interface DayItem { checkId: string; name: string; size: string | null; qty: number; unitPriceCents: number; state: string; voidReason: string | null; voidedByName: string | null; kind?: string | null }
+export interface DayItem { checkId: string; name: string; size: string | null; qty: number; unitPriceCents: number; state: string; voidReason: string | null; voidedByName: string | null; kind?: string | null; voidedAt?: Date | null }
+/** A line voided during the night, on whatever check (open, paid or void) — the night's void list (Toast's void report). */
+export type LineVoid = DayItem & { checkNumber: number }
 export interface DayPayment { checkId: string; tender: string; amountCents: number; tipCents: number; takenByName: string | null; voidedAt: Date | null; voidReason: string | null; voidedByName?: string | null; takenAt: Date; refundedCents?: number }
 
 export interface DaySummary {
@@ -49,12 +51,12 @@ export interface DaySummary {
   refunds: { count: number; cents: number }
 }
 
-const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (reader)', card_terminal: 'Card (Stripe reader)', card_online: 'Card (website)', card: 'Card', giftcard: 'Gift card' }
+const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (own machine)', card_terminal: 'Card (Stripe reader)', card_online: 'Card (website)', card: 'Card', giftcard: 'Gift card' }
 const CHANNEL: Record<string, string> = { tab: 'Bar', walkup: 'Bar', table: 'Tables', online: 'Website', kiosk: 'Kiosk' }
 
 function hourLabel(h: number): string { return h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM` }
 
-export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], items: DayItem[], payments: DayPayment[], drawerPayments?: DayPayment[]): DaySummary {
+export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], items: DayItem[], payments: DayPayment[], drawerPayments?: DayPayment[], lineVoids?: LineVoid[]): DaySummary {
   const paid = dayChecks.filter(c => c.status === 'paid')
   const paidIds = new Set(paid.map(c => c.id))
   const number = new Map(dayChecks.map(c => [c.id, c.number]))
@@ -112,7 +114,11 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
   const nightOrder = (h: number) => (h - startHour + 24) % 24
 
   const voids: DaySummary['voids'] = []
-  for (const i of items) if (i.state === 'void') voids.push({ kind: 'item', what: `${i.qty} × ${i.name}${i.size ? ' (' + i.size.toLowerCase() + ')' : ''}`, amountCents: i.qty * i.unitPriceCents, reason: i.voidReason || '', by: i.voidedByName, checkNumber: number.get(i.checkId) || 0 })
+  const lineVoid = (i: DayItem, checkNumber: number) => voids.push({ kind: 'item', what: `${i.qty} × ${i.name}${i.size ? ' (' + i.size.toLowerCase() + ')' : ''}`, amountCents: i.qty * i.unitPriceCents, reason: i.voidReason || '', by: i.voidedByName, checkNumber })
+  // Lines voided tonight (lineVoids), whatever became of their check; a line voided before its time was kept (no
+  // voidedAt) still counts with its check's night. Without lineVoids (one person's checkout), every void on the checks read.
+  for (const i of items) if (i.state === 'void' && (!lineVoids || !i.voidedAt)) lineVoid(i, number.get(i.checkId) || 0)
+  for (const i of lineVoids || []) lineVoid(i, i.checkNumber)
   for (const p of payments) if (p.voidedAt) voids.push({ kind: 'payment', what: `${TENDER_LABEL[p.tender] || p.tender} payment`, amountCents: p.amountCents + p.tipCents, reason: p.voidReason || '', by: p.voidedByName ?? null, checkNumber: number.get(p.checkId) || 0 })
   for (const c of dayChecks) if (c.status === 'void') voids.push({ kind: 'check', what: `Check ${c.label}`, amountCents: 0, reason: c.voidReason || '', by: c.closedByName, checkNumber: c.number })
 
@@ -205,15 +211,24 @@ async function loadRange(companyId: string, from: string, to: string): Promise<R
     ids.length ? db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), inArray(barCheckPayment.checkId, ids))) : Promise.resolve([]),
   ])
   const nightOf = new Map(checks.map(c => [c.id, businessDayOf(c.closedAt as Date, tz)]))
+  const voided = await lineVoidsBetween(companyId, start, end)
   const summaries = days.map(day => {
     const dc = checks.filter(c => nightOf.get(c.id) === day)
     const inDay = new Set(dc.map(c => c.id))
-    return summarizeDay(day, tz, dc as DayCheck[], (items as DayItem[]).filter(i => inDay.has(i.checkId)), (payments as DayPayment[]).filter(p => inDay.has(p.checkId)))
+    return summarizeDay(day, tz, dc as DayCheck[], (items as DayItem[]).filter(i => inDay.has(i.checkId)), (payments as DayPayment[]).filter(p => inDay.has(p.checkId)), undefined, voided.filter(v => businessDayOf(v.voidedAt as Date, tz) === day))
   })
   return { ...combineDays(from, to, summaries), timezone: tz }
 }
 
 // ─── Loading ──────────────────────────────────────────────────────────────
+/** Lines voided from `from` to `to`, with their check's number. */
+async function lineVoidsBetween(companyId: string, from: Date, to: Date): Promise<LineVoid[]> {
+  const rows = await db.select({ item: barCheckItem, checkNumber: barCheck.number }).from(barCheckItem)
+    .innerJoin(barCheck, eq(barCheck.id, barCheckItem.checkId))
+    .where(and(eq(barCheckItem.companyId, companyId), eq(barCheckItem.state, 'void'), gte(barCheckItem.voidedAt, from), lt(barCheckItem.voidedAt, to)))
+  return rows.map(r => ({ ...(r.item as DayItem), checkNumber: r.checkNumber }))
+}
+
 async function barTimezone(companyId: string): Promise<string> {
   return (await hoursFor(companyId)).timezone!
 }
@@ -228,15 +243,16 @@ async function loadDay(companyId: string, day: string, onlyUserId?: string): Pro
   const { from, to } = businessDayWindow(day, tz)
   const dayChecks = await db.select().from(barCheck).where(and(eq(barCheck.companyId, companyId), or(eq(barCheck.status, 'paid'), eq(barCheck.status, 'void')), gte(barCheck.closedAt, from), lt(barCheck.closedAt, to), onlyUserId ? eq(barCheck.closedById, onlyUserId) : undefined))
   const ids = dayChecks.map(c => c.id)
-  const [items, payments, drawer, open, mineOpen] = await Promise.all([
+  const [items, payments, drawer, open, mineOpen, voided] = await Promise.all([
     ids.length ? db.select().from(barCheckItem).where(and(eq(barCheckItem.companyId, companyId), inArray(barCheckItem.checkId, ids))) : Promise.resolve([]),
     ids.length ? db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), inArray(barCheckPayment.checkId, ids))) : Promise.resolve([]),
     db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), eq(barCheckPayment.tender, 'cash'), gte(barCheckPayment.takenAt, from), lt(barCheckPayment.takenAt, to), onlyUserId ? eq(barCheckPayment.takenById, onlyUserId) : undefined)),
     listOpen(companyId),
     onlyUserId ? db.select({ id: barCheck.id }).from(barCheck).where(and(eq(barCheck.companyId, companyId), eq(barCheck.status, 'open'), eq(barCheck.openedById, onlyUserId))) : Promise.resolve(null),
+    onlyUserId ? Promise.resolve(undefined) : lineVoidsBetween(companyId, from, to),
   ])
   const openShown = mineOpen ? open.filter(o => mineOpen.some(m => m.id === o.id)) : open
-  return { summary: summarizeDay(day, tz, dayChecks as DayCheck[], items as DayItem[], payments as DayPayment[], drawer as DayPayment[]), open: openShown, tz }
+  return { summary: summarizeDay(day, tz, dayChecks as DayCheck[], items as DayItem[], payments as DayPayment[], drawer as DayPayment[], voided), open: openShown, tz }
 }
 
 // ─── Closing the night ─────────────────────────────────────────────────────

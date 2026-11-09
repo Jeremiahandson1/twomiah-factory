@@ -19,7 +19,7 @@ interface Size { id: string; name: string; priceCents: number | null }
 interface Mod { id: string; name: string; priceCents: number }
 interface Item { id: string; name: string; is86ed: boolean; stockCount?: number | null; description?: string | null; imageUrl?: string | null; sizes: Size[]; modifiers?: Mod[] }
 interface Section { id: string; name: string; kind: string; items: Item[] }
-interface KState { menu: Section[]; kiosk: { idleSeconds: number; askTable: boolean; payAtCounter: boolean }; reader: boolean; readerSimulated?: boolean; payAtCounter: boolean; taxRateBps: number; businessName: string }
+interface KState { menu: Section[]; kiosk: { idleSeconds: number; askTable: boolean; payAtCounter: boolean; fireBeforePaid?: boolean }; reader: boolean; readerSimulated?: boolean; payAtCounter: boolean; taxRateBps: number; businessName: string }
 interface Line { key: string; item: Item; size: Size; mods: Mod[]; qty: number }
 interface Order { id: string; status: string; number: number | null; name: string | null; totalCents: number }
 
@@ -72,6 +72,11 @@ export default function KioskPage() {
     }, 1000)
     return () => { clearInterval(t); window.removeEventListener('pointerdown', touch); window.removeEventListener('keydown', touch) }
   }, [st, phase, reset, load])
+
+  // Each screen gets its full time from when it appears: the thank-you screen, reached by a tap that the idle clock had
+  // not seen, went straight back to Touch to order (bar live test 2026-11-09).
+  const shownAt = useRef(Date.now())
+  useEffect(() => { last.current = Date.now(); shownAt.current = Date.now() }, [phase])
 
   const sub = useMemo(() => cart.reduce((n, l) => n + l.qty * lineEach(l), 0), [cart])
   const tax = st ? taxOn(sub, st.taxRateBps) : 0
@@ -153,10 +158,10 @@ export default function KioskPage() {
   if (phase === 'done' && order) {
     const paid = order.status === 'received'
     return (
-      <button type="button" className="min-h-screen w-full flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950 p-6 text-center" onClick={() => { load(); reset() }}>
+      <button type="button" className="min-h-screen w-full flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950 p-6 text-center" onClick={() => { if (Date.now() - shownAt.current < 2000) return; load(); reset() }}>
         <span className="text-3xl font-bold text-gray-900 dark:text-slate-100">Thanks{order.name ? `, ${order.name}` : ''}!</span>
         {order.number !== null && <span className="text-5xl font-bold text-orange-700 dark:text-orange-300">#{order.number}</span>}
-        <span className="text-xl text-gray-800 dark:text-slate-200">{paid ? 'Your order is in. We will call your name.' : `Please pay ${money(order.totalCents)} at the counter. Your food starts when you pay.`}</span>
+        <span className="text-xl text-gray-800 dark:text-slate-200">{paid ? 'Your order is in. We will call your name.' : `Please pay ${money(order.totalCents)} at the counter. ${st.kiosk.fireBeforePaid ? 'Your food is already started.' : 'Your food starts when you pay.'}`}</span>
         <span className={`text-sm ${MUTED}`}>Touch to start a new order</span>
       </button>
     )

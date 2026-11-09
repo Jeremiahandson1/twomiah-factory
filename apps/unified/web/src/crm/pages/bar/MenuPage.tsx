@@ -95,7 +95,8 @@ export default function MenuPage() {
         ...(byTime ? { availableFrom: sectionForm.availableFrom || null, availableTo: sectionForm.availableTo || null, availableDays: sectionForm.availableFrom ? sectionForm.availableDays || [] : [], availableWindows: (sectionForm.availableWindows || []).filter((w) => w.from && w.to) } : {}) };
       if (sectionForm.id) await api.put(`/api/bar/menu/sections/${sectionForm.id}`, body);
       else await api.post('/api/bar/menu/sections', body);
-      setSectionForm(null); await load();
+      // The list is read before the form closes: closing first showed the empty menu for a moment (bar live test 2026-11-09).
+      await load(); setSectionForm(null);
     } catch (e) { setFormErr(errorText(e, 'The section did not save.')) } finally { setSaving(false) }
   };
 
@@ -126,7 +127,7 @@ export default function MenuPage() {
           setFormErr(errorText(e, 'The item saved, but the photo did not upload.')); return;
         }
       }
-      setItemForm(null); setPhoto(null); await load();
+      await load(); setItemForm(null); setPhoto(null);
     } catch (e) { setFormErr(errorText(e, 'The item did not save.')) } finally { setSaving(false) }
   };
 

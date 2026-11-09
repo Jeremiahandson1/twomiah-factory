@@ -157,7 +157,8 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   // trades' — is the original wording, word for word.
   const both = showDepartment && showRate
   const bannerHolds = both ? 'roles, departments and rates' : showRate ? 'roles and rates' : showDepartment ? 'roles and departments' : 'roles'
-  const cardHolds = both ? 'is where a trade, department and pay rate live' : `holds their ${[roleLabel.toLowerCase(), showDepartment && 'department', showRate && 'pay rate'].filter(Boolean).join(' and ')}`
+  // A trade's word only where the vertical calls the role that (bar live test 2026-11-09: "trade" on a bar's roster card).
+  const cardHolds = both && !config?.roleLabel ? 'is where a trade, department and pay rate live' : `holds their ${[roleLabel.toLowerCase(), showDepartment && 'department', showRate && 'pay rate'].filter(Boolean).join(' and ')}`
 
   return (
     <div data-testid="team-page-shared">

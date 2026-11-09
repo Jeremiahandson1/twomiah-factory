@@ -1,5 +1,5 @@
 // Moved from templates/crm-bar/frontend/src/pages/bar/CountPage.tsx.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Check } from 'lucide-react'
 import { api } from '../../../api'
 import { useAuth } from '../../../shared'
@@ -67,6 +67,13 @@ export default function CountPage() {
   // "Count finished" (bar live test, 2026-10-25).
   const [done, setDone] = useState<number | null>(null);
 
+  // What the server last saved for each item, so finishing can save what was changed and not yet saved (bar live test
+  // 2026-11-09: a bottle's slider moved to 20% and "Finish the count" dropped it, on a page that says "Saved as you go").
+  const savedFills = useRef<Record<string, number[]>>({});
+  const savedEntry = useRef<Record<string, { packs: string; units: string }>>({});
+  const blank = { packs: '', units: '' };
+  const unsaved = (id: string) => JSON.stringify(entry[id] || blank) !== JSON.stringify(savedEntry.current[id] || blank) || JSON.stringify(fills[id] || []) !== JSON.stringify(savedFills.current[id] || []);
+
   const load = useCallback(async () => {
     try {
       const r = await api.get('/api/stock/count');
@@ -74,24 +81,28 @@ export default function CountPage() {
       const s: Record<string, number | null> = {};
       const f: Record<string, number[]> = {};
       for (const l of r.count?.lines || []) { s[l.stockItemId] = l.qty; if (l.fills?.length) f[l.stockItemId] = l.fills; }
-      setSaved(s); setFills(f); setErr('');
+      setSaved(s); setFills(f); savedFills.current = f; savedEntry.current = {}; setErr('');
     } catch (e) { setErr(errorText(e, 'Could not load the count.')); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const save = async (it: Item) => {
+  /** The quantity saved (null: cleared), or false when it did not save. */
+  const save = async (it: Item): Promise<number | null | false> => {
     const e = entry[it.id] || { packs: '', units: '' };
     const open = byFill ? fills[it.id] || [] : [];
     setBusy(it.id); setErr('');
     try {
       const r = await api.post('/api/stock/count/item', { stockItemId: it.id, packs: e.packs, units: e.units, ...(byFill ? { fills: open } : {}), clear: !e.packs.trim() && !e.units.trim() && open.length === 0 });
       setSaved((s) => ({ ...s, [it.id]: r.qty })); setDone(null);
-    } catch (ex) { setErr(errorText(ex, 'That did not save.')); } finally { setBusy(''); }
+      savedEntry.current = { ...savedEntry.current, [it.id]: e }; savedFills.current = { ...savedFills.current, [it.id]: open };
+      return r.qty ?? null;
+    } catch (ex) { setErr(`${it.name}: ${errorText(ex, 'That did not save.')}`); return false; } finally { setBusy(''); }
   };
 
   const grouped = useMemo(() => (data ? data.categories.map((c) => ({ ...c, items: data.stock.filter((s) => s.category === c.id) })).filter((g) => g.items.length) : []), [data]);
   if (!data) return <div className="flex justify-center py-16">{err ? <FormError message={err} /> : <Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-slate-400" />}</div>;
   const countedN = Object.values(saved).filter((v) => v !== null && v !== undefined).length;
+  const pending = data.stock.filter((it) => unsaved(it.id));
 
   return (
     <div className="space-y-3 max-w-2xl">
@@ -153,9 +164,17 @@ export default function CountPage() {
       ))}
       {data.stock.length > 0 && (
         <div className="flex justify-end">
-          <button className={`${BTN} ${ON}`} disabled={!countedN || busy === 'finish'} onClick={async () => {
+          <button className={`${BTN} ${ON}`} disabled={(!countedN && !pending.length) || busy === 'finish'} onClick={async () => {
+            // Anything changed and not yet saved is saved first; one that will not save stops the finish, with its name.
+            const counted = new Set(Object.keys(saved).filter((k) => saved[k] !== null && saved[k] !== undefined));
+            for (const it of pending) {
+              const q = await save(it);
+              if (q === false) return;
+              if (q === null) counted.delete(it.id); else counted.add(it.id);
+            }
+            if (!counted.size) { setErr('Nothing counted yet.'); return; }
             setBusy('finish'); setErr('');
-            try { const n = countedN; await api.post('/api/stock/count/finish', {}); setEntry({}); setFills({}); await load(); setDone(n); } catch (e) { setErr(errorText(e, 'Could not finish the count.')); } finally { setBusy(''); }
+            try { await api.post('/api/stock/count/finish', {}); setEntry({}); setFills({}); await load(); setDone(counted.size); } catch (e) { setErr(errorText(e, 'Could not finish the count.')); } finally { setBusy(''); }
           }}>Finish the count</button>
         </div>
       )}

@@ -47,7 +47,7 @@ export function MyCashTips() {
       <p className={`text-sm ${MUTED}`}>Cash a guest handed you that was not rung on the register. Cash tips you rang on the register are already counted{mine ? ` (${money(mine.onRegister)} tonight)` : ''}, so leave them out.</p>
       {mine && <p className="mt-2 text-sm text-gray-900 dark:text-slate-100">Declared so far tonight: <span className="font-mono font-semibold">{mine.declared === null ? 'nothing yet' : money(mine.declared)}</span></p>}
       <div className="mt-2 flex flex-wrap items-end gap-2">
-        <div><label className={LABEL} htmlFor="my-cash-tips">Total for tonight ($)</label><input id="my-cash-tips" inputMode="decimal" className={`${INPUT} max-w-[10rem]`} value={typed} onChange={(e) => setTyped(e.target.value)} /></div>
+        <div className="flex flex-col gap-1"><label className={`${LABEL} block`} htmlFor="my-cash-tips">Total for tonight ($)</label><input id="my-cash-tips" inputMode="decimal" className={`${INPUT} max-w-[10rem]`} value={typed} onChange={(e) => setTyped(e.target.value)} /></div>
         <button className={`${BTN} ${ON}`} disabled={busy || !typed.trim()} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
       </div>
       <FormError message={err} className="mt-2" />

@@ -144,7 +144,8 @@ const STATUS: Record<string, string> = { open: 'Waiting for someone to take it',
 interface SwapSettings { approveSwaps: boolean; approvePickups: boolean; expireHoursBefore: number }
 
 /** Give a shift away, swap it, answer a swap, take a shift on offer — for me. `published` is the schedule staff see. */
-export function MySwaps({ published, meId }: { published: any[]; meId: string | null }) {
+export function MySwaps({ published: loaded, meId }: { published: any[] | null; meId: string | null }) {
+  const published = loaded || [];
   const { hasFeature } = useAuth();
   const mayAsk = useMayWrite('bar:read');   // POST /api/schedule/swaps and its answers ask bar:read
   const [data, setData] = useState<{ mine: Req[]; forMe: Req[]; onOffer: Req[]; settings?: SwapSettings } | null>(null);
@@ -184,7 +185,7 @@ export function MySwaps({ published, meId }: { published: any[]; meId: string | 
             <p className={`text-xs mt-1 ${MUTED}`}>{data.settings?.approvePickups === false ? 'It is yours as soon as you take it.' : 'A manager approves before it is yours.'}</p></section>
         )}
         <section aria-label="My shifts"><p className="text-sm font-semibold text-gray-900 dark:text-slate-100">My coming shifts</p>
-          {mineShifts.length === 0 ? <p className={`text-sm ${MUTED}`}>Nothing coming up on the published schedule.</p> : (
+          {loaded === null ? <p className={`text-sm ${MUTED}`}>Loading your shifts…</p> : mineShifts.length === 0 ? <p className={`text-sm ${MUTED}`}>Nothing coming up on the published schedule.</p> : (
             <ul className="space-y-2 mt-1">{mineShifts.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900 dark:text-slate-100">
                 <span>{span(s)}</span>
@@ -241,7 +242,13 @@ export function ManagerRequests() {
   if ((!swapsOn && !availOn) || !mayDecide) return null;
   const decide = async (fn: () => Promise<any>) => { setErr(''); setNote(''); try { const r = await fn(); if (r?.warnings?.length) setNote(r.warnings.join(' ')); await load(); } catch (e) { setErr(errorText(e, 'That did not go through.')); } };
   const waiting = people.filter((p) => p.pending);
-  const describe = (ws: Window[] | null) => (!ws ? '' : ws.length === 0 ? 'any time' : ws.map((w) => `${DOW[w.dow]} ${clock12(w.start)}–${clock12(w.end)}`).join(', '));
+  // Every day named, in order — a day with no window is "can't work", and the summary left it out instead of saying so
+  // (bar live test 2026-11-09: Sunday, chosen "Cannot work", was missing). A full day reads "any time".
+  const describe = (ws: Window[] | null) => (!ws ? '' : ws.length === 0 ? 'any time' : DOW.map((d, dow) => {
+    const mine = ws.filter((w) => w.dow === dow);
+    if (!mine.length) return `${d} can't work`;
+    return `${d} ${mine.map((w) => (w.start === '00:00' && w.end === '23:59' ? 'any time' : `${clock12(w.start)}–${clock12(w.end)}`)).join(' & ')}`;
+  }).join(', '));
   return (
     <div className="space-y-3">
       <FormError message={err} />
