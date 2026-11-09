@@ -205,3 +205,23 @@ describe('re-check 3: the cook with no shift, named schedule rows', () => {
     expect(rows.some((r: any) => r.entity === 'shift' || r.entity === 'swap')).toBe(false)
   })
 })
+
+describe('re-check 4: the last two Audit Log wordings', () => {
+  test('a set of named values says which moved, never [object Object]', async () => {
+    const { whatChanged } = await import('../../../packages/tenant-ui/src/audit/auditFields.ts')
+    const row = { changes: { positionRoles: { old: { Floor: 'Servers', Cook: '' }, new: { Floor: 'Servers', Cook: 'Kitchen' } } } }
+    expect(whatChanged(row)).toBe('Position roles: Cook — → Kitchen')
+    expect(whatChanged({ changes: { roles: { old: ['Servers'], new: ['Servers', 'Kitchen'] } } })).toBe('Roles: Servers → Servers, Kitchen')
+  })
+
+  test('a changed shift says what it was', async () => {
+    const day = dayBefore(today, -8)
+    const s = (await k.M('POST', '/api/schedule/shifts', { userId: k.ids.bartender, day, start: '11:00', end: '15:00', position: 'Floor' })).json
+    const id = s.shift?.id || s.id
+    expect((await k.M('PATCH', `/api/schedule/shifts/${id}`, { end: '16:00' })).status).toBe(200)
+    await k.settle()
+    const row = (await auditRows()).find((r: any) => r.entity === 'bar_schedule_shift' && r.action === 'update' && r.entityId === id)
+    expect(row.entityName).toBe(`Bartender Seat · ${day} 11:00–16:00 · Floor`)
+    expect(row.metadata.description).toBe(`Shift changed — was Bartender Seat · ${day} 11:00–15:00 · Floor`)
+  })
+})

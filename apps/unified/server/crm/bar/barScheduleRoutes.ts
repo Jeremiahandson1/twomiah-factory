@@ -110,8 +110,11 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
   app.patch('/shifts/:id', ...manage, async (c) => {
     const a = await actorOf(c); const b = await body(c)
     return run(c, async () => {
+      // What it was, beside what it is now (re-check 4: "Shift changed" did not say from what).
+      const was = await shiftName(a.companyId, c.req.param('id'))
       const shift = await updateScheduled(a, c.req.param('id'), b)
-      await said(c, 'update', 'bar_schedule_shift', shift.id, await shiftName(a.companyId, shift.id), 'Shift changed')
+      const now = await shiftName(a.companyId, shift.id)
+      await said(c, 'update', 'bar_schedule_shift', shift.id, now, was !== now ? `Shift changed — was ${was}` : 'Shift changed')
       return { shift, warning: (await availabilityOn(a.companyId)) ? await sr.availabilityWarning(a.companyId, shift) : null }
     })
   })

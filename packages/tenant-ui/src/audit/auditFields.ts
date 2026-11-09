@@ -102,7 +102,20 @@ export const whatChanged = (log: any): string => {
     const parts = Object.entries(changes).slice(0, 3).map(([k, v]: [string, any]) => {
       const from = v && typeof v === 'object' ? v.old : undefined
       const to = v && typeof v === 'object' ? v.new : v
-      const show = (x: unknown) => (x === null || x === undefined || x === '' ? '—' : String(x).slice(0, 40))
+      // A list or a set of named values reads as its contents, never "[object Object]" (restaurant re-check 4: the tip
+      // rules' "Position roles: [object Object] → [object Object]").
+      const plain = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x)
+      const show = (x: unknown): string => {
+        if (x === null || x === undefined || x === '') return '—'
+        if (Array.isArray(x)) return x.length ? x.map((y) => (plain(y) || Array.isArray(y) ? '…' : String(y))).join(', ').slice(0, 40) : '—'
+        if (plain(x)) return Object.entries(x).map(([a, b]) => `${a}: ${plain(b) || Array.isArray(b) ? '…' : String(b ?? '—')}`).join(', ').slice(0, 40) || '—'
+        return String(x).slice(0, 40)
+      }
+      // Two sets of named values: only the names whose value moved — "Position roles: Cook No role → Kitchen".
+      if (plain(from) && plain(to)) {
+        const moved = [...new Set([...Object.keys(from), ...Object.keys(to)])].filter((n) => JSON.stringify(from[n] ?? null) !== JSON.stringify(to[n] ?? null))
+        if (moved.length) return `${fieldWords(k)}: ${moved.slice(0, 3).map((n) => `${n} ${show(from[n])} → ${show(to[n])}`).join('; ')}${moved.length > 3 ? ' …' : ''}`
+      }
       return from === undefined ? `${fieldWords(k)}: ${show(to)}` : `${fieldWords(k)}: ${show(from)} → ${show(to)}`
     })
     if (parts.length) return parts.join(', ') + (Object.keys(changes).length > 3 ? ' …' : '')
