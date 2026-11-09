@@ -40,7 +40,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   const showJobs = auth.hasFeature(config?.jobsFeature || 'jobs')
   const showProjects = auth.hasFeature(config?.projectsFeature || 'projects')
   const manager = isManagerRole(auth.user?.role)
-  const empty = () => ({ date: today(), mode: 'hours' as 'hours' | 'span', hours: '', startTime: '09:00', endTime: '17:00', breakMinutes: '0', description: '', billable: true, projectId: '', jobId: '', costCode: '' })
+  const empty = () => ({ date: today(), mode: 'hours' as 'hours' | 'span', hours: '', startTime: '09:00', endTime: '17:00', breakMinutes: '0', description: '', billable: true, projectId: '', jobId: '', costCode: '', userId: '' })
   const [data, setData] = useState<Entry[]>([])
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [jobs, setJobs] = useState<Array<{ id: string; title: string; number?: string }>>([])
@@ -69,6 +69,13 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   useEffect(() => { setFormError('') }, [form])
   const [saving, setSaving] = useState(false)
   const [toDelete, setToDelete] = useState<Entry | null>(null)
+  // A manager logs time for someone else — a shift they forgot to clock (Toast's and 7shifts' "add a time entry" for a
+  // staff member). POST /api/time takes userId from a manager (time.ts). Restaurant re-check 2026-11-09.
+  const [people, setPeople] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => {
+    if (!manager || !mayLog) return
+    api.get('/api/team/assignable').then((r: any) => setPeople((r?.data || (Array.isArray(r) ? r : [])).filter((u: any) => u.kind !== 'member').map((u: any) => ({ id: u.id, name: u.name || u.email })))).catch(() => setPeople([]))
+  }, [api, manager, mayLog])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -141,7 +148,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
     setSaving(true)
     try {
       if (editing) { await api.put(`/api/time/${editing.id}`, payload); toast.success('Time entry updated') }
-      else { await api.post('/api/time', payload); toast.success('Time logged') }
+      else { await api.post('/api/time', { ...payload, ...(form.userId ? { userId: form.userId } : {}) }); toast.success('Time logged') }
       setModalOpen(false); load()
     } catch (e) { setFormError(errMsg(e, 'Failed to save time entry')) }
     finally { setSaving(false) }
@@ -321,6 +328,9 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Time Entry' : 'Log Time'} size="md">
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
+          {!editing && manager && people.length > 1 && (
+            <Field label="Person"><select value={form.userId} onChange={set('userId')} className={inputCls}><option value="">Me</option>{people.filter((p) => p.id !== auth.user?.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          )}
           <div className="grid grid-cols-2 gap-4">
             {/* Hours are worked before they are logged, so the picker stops at today — a mistyped year used to be
                 accepted and then vanish from every dated report instead of reading wrong. (T29 L1) */}

@@ -5,7 +5,7 @@ import { Loader2, Delete } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { useAuth } from '../../../shared'
-import { BTN, ON, OFF, CARD, LABEL, MUTED, INPUT, centsFrom, money } from './registerUi';
+import { BTN, ON, OFF, CARD, LABEL, MUTED, INPUT, centsFrom, money, TillPinDialog } from './registerUi';
 
 /**
  * THE CLOCK — on the bar tablet, whoever is signed in. Each person types their OWN till PIN and they are clocked in
@@ -23,11 +23,15 @@ export default function ClockPage() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const { hasFeature } = useAuth();
+  const [register, setRegister] = useState(true);   // the server says whether this person has the register (a Cook does not)
+  // Someone without the register (a restaurant's Cook) sets their own PIN here; nobody else can do it for them.
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pinDialog, setPinDialog] = useState(false);
   const declares = hasFeature('bar_declared_tips');
   const [tips, setTips] = useState('');
 
   const load = useCallback(async () => {
-    try { const r = await api.get('/api/register/clock'); setOn(r.on); setTz(r.timezone); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the clock.')); }
+    try { const r = await api.get('/api/register/clock'); setOn(r.on); setTz(r.timezone); setHasPin(typeof r.hasPin === 'boolean' ? r.hasPin : null); setRegister(r.register !== false); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the clock.')); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -49,8 +53,15 @@ export default function ClockPage() {
     <div className="space-y-3 max-w-md mx-auto">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Clock in or out</h1>
-        <Link to="/crm/register" className={`${BTN} ${OFF} inline-flex items-center`}>Register</Link>
+        <div className="flex flex-wrap gap-2">
+          {hasPin !== null && <button type="button" className={`${BTN} ${OFF}`} onClick={() => setPinDialog(true)}>{hasPin ? 'Change my till PIN' : 'Set my till PIN'}</button>}
+          {register && <Link to="/crm/register" className={`${BTN} ${OFF} inline-flex items-center`}>Register</Link>}
+        </div>
       </div>
+      {pinDialog && hasPin !== null && (
+        <TillPinDialog hasPin={hasPin} onClose={() => setPinDialog(false)} onSaved={() => { setPinDialog(false); load(); }}
+          save={(p) => api.put('/api/register/pin', { pin: p })} clear={() => api.delete('/api/register/pin')} />
+      )}
       <div className={CARD}>
         <label className={LABEL} htmlFor="clock-pin">Your till PIN</label>
         <input id="clock-pin" className="w-full min-h-[56px] mt-1 px-3 rounded-xl border border-gray-300 bg-white text-gray-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-3xl tracking-[0.5em] text-center" type="password" inputMode="numeric" autoComplete="off"

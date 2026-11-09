@@ -259,7 +259,7 @@ async function punchByPin(actor: Actor, rawPin: unknown) {
   if (!who) { tries.push(now); attempts.set(actor.id, tries); throw new RotaError("That PIN didn't match anyone.") }
   const person = { userId: who.id, companyId: actor.companyId }
   const open = await clock.activeEntry(who.id, actor.companyId)
-  const r = open ? await clock.clockOut(person) : await clock.clockIn(person, { description: 'Bar tablet' })
+  const r = open ? await clock.clockOut(person) : await clock.clockIn(person, { description: 'Time clock (PIN)' })
   if (!r.ok) throw new RotaError(r.error, r.status)
   if (r.discarded) return { userId: who.id, name: nameOf(who), action: 'discarded' as const, message: r.message }
   return { userId: who.id, name: nameOf(who), action: open ? 'out' as const : 'in' as const, hours: open ? Number(r.entry.hours) : 0 }

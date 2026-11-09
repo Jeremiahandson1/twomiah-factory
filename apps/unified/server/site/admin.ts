@@ -341,7 +341,10 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
 
   /** The looks the site can wear; `isDefault` is the vertical's, which an empty site.design means. */
   app.get('/designs', may('site:read'), (c) => {
-    const rows = SITE_DESIGNS.map((id) => ({ id, label: SITE_DESIGN_LABELS[id], isDefault: id === deps.vertical.site.design }))
+    // `trade`: a design drawn for one kind of business (roofing, home care, the bar's…), offered under its own heading so a
+    // restaurant's list does not read as if those were meant for it (restaurant re-check 2026-11-09). Still choosable.
+    const general = new Set<string>(['classic', 'showcase'])
+    const rows = SITE_DESIGNS.map((id) => ({ id, label: SITE_DESIGN_LABELS[id], isDefault: id === deps.vertical.site.design, trade: !general.has(id) && SITE_DESIGN_SPECS[id].choosable !== true }))
     return listAll(c, rows)
   })
 

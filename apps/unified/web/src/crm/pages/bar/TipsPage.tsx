@@ -58,7 +58,8 @@ export default function TipsPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Tips</h1>
         <Link to="/crm/closeout" className={`${BTN} ${OFF} inline-flex items-center`}>Close-out</Link>
       </div>
-      <div className="flex gap-2" role="tablist">
+      {/* Wraps at phone width (restaurant re-check 2026-11-09: "Rules" was cut off at 390 px). */}
+      <div className="flex flex-wrap gap-2" role="tablist">
         {([['night', 'A night'], ['report', 'Report'], ...(hasFeature('bar_declared_tips') ? [['cash', 'Cash tips']] : []), ...(hasFeature('bar_tip_import') && may ? [['sources', 'Other register']] : []), ['rules', 'Rules']] as unknown as Array<readonly [typeof tab, string]>).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`${BTN} ${tab === k ? ON : OFF}`} onClick={() => setTab(k)}>{l}</button>)}
       </div>
       {tab === 'night' && <NightView />}

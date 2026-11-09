@@ -28,8 +28,8 @@
 //   PUT    /register/floor  { tables }  set the room (bar:update — the same as the menu and the hours)
 //   GET    /grill/state  ·  POST /grill/bump { id }  ·  POST /grill/recall { id }
 //
-// Permissions (packages/tenant-backend/src/auth/permissions.ts): bar:register works the register and the grill
-// (bartenders and up); bar:manage voids sent food, payments and checks and closes the night — a bartender can
+// Permissions (packages/tenant-backend/src/auth/permissions.ts): bar:register works the register; bar:console the
+// grill, the time clock and a person's own till PIN (bartenders and up, and a restaurant's Cook); bar:manage voids sent food, payments and checks and closes the night — a bartender can
 // still do those with a manager's till PIN typed on the spot (barManagers.ts).
 //
 // Moved from templates/crm-bar/backend/src/routes/barRegister.ts. Every path, permission and feature as it was.
@@ -90,6 +90,15 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   // ─── The register ────────────────────────────────────────────────────────────
   const registerRoutes = new Hono<AppEnv>()
   const ring = [requireEnabledFeature(FEATURE), requirePermission('bar:register')] as const
+  // The kitchen's own share of the tablet: the grill screen, the time clock and a person's own till PIN. bar:console
+  // (86 an item, the night's note) — every seat with the register has it, and so does a restaurant's Cook, who is
+  // kept off the register itself (no payments, voids or close-out: restaurant re-check 11/09 opened it by address).
+  // Whether this person works the register too (the clock page's Register button; a Cook does not).
+  const mayRegister = async (c: Ctx) => {
+    const u = c.get('user') as any
+    return d.permissions.hasPermission(u?.role, 'bar:register', await d.permissions.getExtraPermissions(u?.userId))
+  }
+  const kitchenRing = [requireEnabledFeature(FEATURE), requirePermission('bar:console')] as const
 
   registerRoutes.get('/state', ...ring, async (c) => {
     const actor = await actorOf(c)
@@ -274,12 +283,12 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   })
 
   // ── The time clock on the bar tablet: each person types their own PIN; the CRM's own clock records it ──
-  registerRoutes.get('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
+  registerRoutes.get('/clock', ...kitchenRing, requireEnabledFeature('time_tracking'), async (c) => {
     const actor = await actorOf(c)
     c.header('Cache-Control', 'no-store')
-    return one(c, { on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
+    return one(c, { on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId), hasPin: await hasOwnPin(actor), register: await mayRegister(c) })
   })
-  registerRoutes.post('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
+  registerRoutes.post('/clock', ...kitchenRing, requireEnabledFeature('time_tracking'), async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     try {
       // Cash tips declared at clock-out (restaurant-bar parity #16): checked before anything is punched, recorded only on a clock-out.
@@ -288,12 +297,16 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
       const r = await punchByPin(actor, b.pin)
       let declaredTip: { recordedCents: number } | { skipped: string } | undefined
       if (declaring) {
-        if (r.action === 'out') {
+        // A clock-in under a minute ends with no hours (time.ts), but the cash in the person's hand is still theirs to declare.
+        if (r.action === 'out' || r.action === 'discarded') {
           try { declaredTip = { recordedCents: (await bar.tips.declareMine(actor.companyId, r.userId, { amountCents: b.declaredTipCents, mode: 'add' }, 'tablet')).amountCents } }
           catch (e: any) { declaredTip = { skipped: e?.message || 'The cash tips were not recorded.' } }   // the clock-out stands
         } else declaredTip = { skipped: 'Cash tips are taken when you clock out.' }
       }
       const { userId: _who, ...shown } = r
+      // Named for who was clocked (the request floor wrote "Admin User | Created — clock"; restaurant re-check 2026-11-09).
+      const said = r.action === 'in' ? 'Clocked in with their till PIN' : r.action === 'out' ? `Clocked out after ${r.hours} h with their till PIN` : 'Clocked in and out within a minute — no time kept'
+      audit.log({ req: c, action: r.action === 'in' ? 'create' : 'update', entity: 'time_entry', entityName: r.name, metadata: { description: said } })
       return one(c, { ok: true, ...shown, ...(declaredTip ? { declaredTip } : {}), on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
     } catch (e: any) {
       if (e instanceof RotaError) return fail(c, e.status as any, e.message)
@@ -303,11 +316,11 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   })
 
   // ── My till PIN ──
-  registerRoutes.put('/pin', ...ring, async (c) => {
+  registerRoutes.put('/pin', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     return act(c, async () => { await setOwnPin(actor, b.pin); return { hasPin: true } })
   })
-  registerRoutes.delete('/pin', ...ring, async (c) => {
+  registerRoutes.delete('/pin', ...kitchenRing, async (c) => {
     const actor = await actorOf(c)
     return act(c, async () => { await clearOwnPin(actor); return { hasPin: false } })
   })
@@ -315,19 +328,19 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   // ─── The grill ───────────────────────────────────────────────────────────────
   const kitchenRoutes = new Hono<AppEnv>()
 
-  kitchenRoutes.get('/state', ...ring, async (c) => {
+  kitchenRoutes.get('/state', ...kitchenRing, async (c) => {
     const actor = await actorOf(c)
     // A website order paid by a guest who never came back to the site: Stripe is asked here too (at most every 20 s).
     if (await isFeatureEnabled(actor.companyId, ['online_ordering'])) await bar.orders.sweep(actor.companyId).catch(() => {})
     c.header('Cache-Control', 'no-store')
     return one(c, await kitchenState(actor.companyId))
   })
-  kitchenRoutes.post('/bump', ...ring, async (c) => {
+  kitchenRoutes.post('/bump', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     if (!b.id) return fail(c, 400, 'Which ticket?')
     return (await bumpTicket(actor.companyId, String(b.id), actor.name)) ? one(c, { ok: true }) : fail(c, 409, 'Already bumped.')
   })
-  kitchenRoutes.post('/recall', ...ring, async (c) => {
+  kitchenRoutes.post('/recall', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     if (!b.id) return fail(c, 400, 'Which ticket?')
     return (await recallTicket(actor.companyId, String(b.id))) ? one(c, { ok: true }) : fail(c, 409, 'That ticket is already up.')

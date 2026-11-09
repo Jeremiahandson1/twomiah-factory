@@ -103,7 +103,7 @@ export const nav: NavItem[] = [
   { to: '/crm/tonight', icon: Flame, label: 'Tonight', section: 'The Bar', features: ['bar_tonight'], permission: 'bar:read' },
   { to: '/crm/register', icon: CreditCard, label: 'Register', features: ['bar_register'], permission: 'bar:register' },
   // The kitchen's screen in the menu, so a cook goes straight to it (restaurant live test 2026-11-09).
-  { to: '/crm/grill', icon: ChefHat, label: 'Grill', features: ['bar_register'], permission: 'bar:register' },
+  { to: '/crm/grill', icon: ChefHat, label: 'Grill', features: ['bar_register'], permission: 'bar:console' },
   // The kiosk opens full screen (outside the menu's shell); GET /api/food/kiosk/state asks bar:register.
   { to: '/crm/kiosk', icon: Tablet, label: 'Kiosk', features: ['order_kiosk'], permission: 'bar:register' },
   // Website pickups and kiosk orders (GET /api/food/orders asks bar:register).
@@ -133,9 +133,10 @@ export const routeGates: Record<string, string[]> = {
 
 /** …and the permission their API asks (bar:register), so a viewer is not shown a page whose every request is refused. */
 export const routePermissions: Record<string, string> = {
-  '/crm/grill': 'bar:register',
+  // The grill and the clock ask bar:console (barRegisterRoutes.ts kitchenRing): a restaurant's Cook has them, not the register.
+  '/crm/grill': 'bar:console',
   '/crm/floor': 'bar:register',
   '/crm/count': 'bar:register',
-  '/crm/clock': 'bar:register',
+  '/crm/clock': 'bar:console',
   '/crm/closeout': 'bar:register',
 }

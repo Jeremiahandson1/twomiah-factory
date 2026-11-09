@@ -54,6 +54,9 @@ const restaurant: VerticalSettings = {
   // menu is the kitchen's (screens.navOnlyFor below). An existing Staff login keeps Staff.
   roleLabels: { field: 'Staff', server: 'Server', cook: 'Cook' },
   roleMapping: { server: 'field', cook: 'field' },
+  // The Cook is kept off the register itself — no tabs, payments, voids or close-out (Toast's kitchen jobs have no POS
+  // access). The grill, the clock and their own till PIN ask bar:console, which the Cook keeps (barRegisterRoutes.ts).
+  roleWithheld: { cook: ['bar:register'] },
   crm: {
     team: { roles: ['admin', 'manager', 'server', 'cook', 'field', 'viewer'] },
     // The events dashboard in place of the jobs one, and the events module's hooks into contacts, invoices and Stripe.
