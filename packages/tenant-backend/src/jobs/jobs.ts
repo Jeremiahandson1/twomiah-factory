@@ -1210,7 +1210,10 @@ export function createJobRoutes(deps: JobDeps) {
      */
     const differs = (k: string, v: unknown) => v !== undefined && String(v ?? '') !== String((existing as any)[k] ?? '')
     const placeChanged = ['address', 'city', 'state', 'zip'].some((k) => differs(k, data[k]))
-    const movesSlot = crewChanged || placeChanged || differs('scheduledTime', data.scheduledTime) || differs('estimatedHours', data.estimatedHours)
+    // Hours compared as numbers: the form sends back "1" for the "1.00" it was given, which is no change (landscaping re-check 11/08:
+    // setting only a finished job's price asked "Check before you book").
+    const hoursChanged = data.estimatedHours !== undefined && Number(data.estimatedHours ?? 0) !== Number((existing as any).estimatedHours ?? 0)
+    const movesSlot = crewChanged || placeChanged || differs('scheduledTime', data.scheduledTime) || hoursChanged
       || (data.scheduledDate !== undefined && String(data.scheduledDate).slice(0, 10) !== (existing.scheduledDate ? new Date(existing.scheduledDate).toISOString().slice(0, 10) : ''))
     // The visit's day or time moved: the customer's confirmation was for the old one, and the screen asks "Notify client?".
     const whenChanged = differs('scheduledTime', data.scheduledTime)
@@ -1224,7 +1227,9 @@ export function createJobRoutes(deps: JobDeps) {
       await jobLock(tx, currentUser.companyId)
       clash = await assigneeConflict(currentUser.companyId, everyone, effDate, effTime, id, tx, effHours)
       if (clash) return null
-      if (movesSlot) {
+      // Finished or cancelled work is not being booked: no travel warning on it (re-opening it is a new booking and is checked).
+      const stillClosed = ['completed', 'cancelled'].includes(String(existing.status)) && (data.status === undefined || ['completed', 'cancelled'].includes(String(data.status)))
+      if (movesSlot && !stillClosed) {
         travel = await travelWarning(currentUser.companyId, everyone, effDate, effTime, effHours, here, id, tx)
         if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, effDate, effTime, effHours, tx)
         if (travel && !bookAnyway) return null

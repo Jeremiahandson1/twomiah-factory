@@ -281,7 +281,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
         index={fullscreen ? Math.max(0, photos.findIndex((p) => p.id === fullscreen.id)) : null}
         onIndex={(i) => setFullscreen(photos[i] ?? null)}
         onClose={() => setFullscreen(null)}
-        actions={(p) => (mayUpdate && p.id ? <button type="button" onClick={() => deletePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button> : null)}
+        // The app's own photo tools sit beside Delete (the office draws on a photo as the crew can; landscaping final re-check 11/08).
+        actions={(p) => (mayUpdate && p.id ? <>{config?.photoActions?.({ id: p.id as string, url: p.src as string, caption: p.caption as string }, loadPhotos)}<button type="button" onClick={() => deletePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button></> : null)}
       />
 
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${job.title}"?`} confirmText="Delete" />

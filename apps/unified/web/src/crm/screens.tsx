@@ -131,6 +131,8 @@ export function JobDetail() {
     ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
+    // Drawing on a photo works on the job's own photos (job_photo), not the photo library's.
+    photoActions: v().jobs.photos ? (photo: { id: string; url?: string; caption?: string }, reload: () => void) => <DrawOnPhoto photo={photo} reload={reload} /> : undefined,
     aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><CrewWorkPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }

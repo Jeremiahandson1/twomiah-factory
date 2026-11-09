@@ -76,6 +76,8 @@ export interface JobsConfig {
   findTime?: boolean
   /** An app's own panel at the top of the job's side column (the unified app's billing against the job's quote). */
   aside?: (job: Record<string, any>) => import('react').ReactNode
+  /** Beside Delete in the full-size photo viewer (an app's "Draw on this photo"); `reload` reloads the job's photos. */
+  photoActions?: (photo: { id: string; url?: string; caption?: string }, reload: () => void) => import('react').ReactNode
 }
 
 /**
