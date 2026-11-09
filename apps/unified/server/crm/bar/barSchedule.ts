@@ -17,7 +17,7 @@ import { barCheck, barCheckItem, barScheduleShift, barScheduleWeek, barTimeOff, 
 import { pendingTimeOffCondition } from './tileConditions.ts'
 import { addDays, localToUtc } from './barHours.ts'
 import { businessDayOf, type BarLive } from './barLive.ts'
-import { TIME, closeOn, coverageGaps, hoursOf, openOn, overlaps, weekPlan, workweekStart } from './barSchedulePlan.ts'
+import { TIME, closeOn, coverageGaps, hoursOf, openOn, overlaps, staffedHours, weekPlan, workweekStart } from './barSchedulePlan.ts'
 import type { Actor } from './barManagers.ts'
 import type { BarDb } from './db.ts'
 
@@ -70,7 +70,7 @@ async function forecast(companyId: string, days: string[], tz: string): Promise<
 /** Everything the manager's week grid needs. */
 async function loadWeek(companyId: string, day?: string | null, now = new Date()) {
   const { start, days, tz } = await weekFor(companyId, day)
-  const hours = await hoursFor(companyId)
+  const hours = staffedHours(await hoursFor(companyId))
   const [shifts, users, week, timeOff, worked] = await Promise.all([
     db.select().from(barScheduleShift).where(and(eq(barScheduleShift.companyId, companyId), inArray(barScheduleShift.day, days))).orderBy(asc(barScheduleShift.day), asc(barScheduleShift.start)),
     people(companyId),
@@ -119,10 +119,10 @@ async function loadWeek(companyId: string, day?: string | null, now = new Date()
 }
 
 async function checkTimes(companyId: string, day: string, startIn: unknown, endIn: unknown) {
-  const hours = await hoursFor(companyId)
+  const hours = staffedHours(await hoursFor(companyId))
   let start = String(startIn || '').trim().toLowerCase(), end = String(endIn || '').trim().toLowerCase()
-  if (start === 'open') { const o = openOn(hours, day); if (!o) throw new RotaError('The bar is closed that day.'); start = o }
-  if (end === 'close') { const c = closeOn(hours, day); if (!c) throw new RotaError('The bar is closed that day; give an end time.'); end = c }
+  if (start === 'open') { const o = openOn(hours, day); if (!o) throw new RotaError('You are closed that day by your hours.'); start = o }
+  if (end === 'close') { const c = closeOn(hours, day); if (!c) throw new RotaError('You are closed that day by your hours; give an end time.'); end = c }
   if (!TIME.test(start) || !TIME.test(end)) throw new RotaError('Times look like 16:00.')
   if (start === end) throw new RotaError('A shift has to be longer than that.')
   return { start: start.padStart(5, '0'), end: end.padStart(5, '0') }

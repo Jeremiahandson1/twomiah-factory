@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { Plus, Loader2, X, DoorOpen, Edit2, Trash2, Users, Wallet } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite, useConfirm } from '../../../shared'
+import { useMayWrite, useConfirm, useAuth } from '../../../shared'
 import { SpaceMinimums } from '../../eventDepth'
 import FormError, { errorText } from '../../ui/FormError'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
@@ -38,6 +38,9 @@ export default function SpacesPage() {
   // New, Edit and Retire. (T43 viewer round, T68)
   const mayCreate = useMayWrite('contacts:create');
   const mayUpdate = useMayWrite('contacts:update');
+  // With minimums by day on, the room's own minimum is the one for any day no rule covers (restaurant live test 2026-11-09:
+  // the card showed $800 while Saturday's $1,200 was the one applied).
+  const byDay = useAuth().hasFeature('event_minimums');
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -125,7 +128,7 @@ export default function SpacesPage() {
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
                   <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
-                  <span className="text-gray-500 dark:text-slate-400">minimum spend</span>
+                  <span className="text-gray-500 dark:text-slate-400">{byDay ? 'minimum spend on days no rule below covers' : 'minimum spend'}</span>
                 </p>
                 )}
                 {Number(s.hireFee) > 0 ? <p className={Number(s.minimumSpend) > 0 ? 'text-xs text-gray-500 dark:text-slate-400 pl-6' : 'flex items-center gap-2 text-gray-700 dark:text-slate-200'}>{Number(s.minimumSpend) > 0 ? <>plus {money(s.hireFee)} hire fee</> : <><Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" /><span className="font-semibold">{money(s.hireFee)}</span><span className="text-gray-500 dark:text-slate-400">hire fee</span></>}</p> : null}

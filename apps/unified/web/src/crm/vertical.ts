@@ -75,7 +75,13 @@ export interface VerticalScreens {
    * stored at signup in the Factory's words, so the vertical's own replace them here, for every tenant already signed
    * up), and the Portfolio card's line. Absent: the stored words, the shared line.
    */
-  website?: { gaps?: Record<string, { label: string; unlocks?: string }> }
+  website?: {
+    gaps?: Record<string, { label: string; unlocks?: string }>
+    /** Website › Settings offers town pages (/service-areas). false: a business guests come to (a restaurant, a bar). */
+    serviceAreas?: boolean
+    /** Website › Settings offers the dealer's inventory feed (/inventory). Only a dealership (rv) says true. */
+    inventoryFeed?: boolean
+  }
   /**
    * The browser's Google Maps key (address search, satellite tiles), served at run time by the server
    * (GOOGLE_MAPS_BROWSER_KEY, restricted to the tenant's web addresses). Empty: no key — the screens fall back.

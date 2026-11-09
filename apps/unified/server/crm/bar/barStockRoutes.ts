@@ -80,6 +80,8 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
     return run(c, async () => {
       const count = await currentCount(actor.companyId, actor.name)
       const qty = await countItem(actor.companyId, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear, fills: b.fills, weightsGrams: b.weightsGrams }, actor.name)
+      // Named rows (the request floor wrote "Created — item"; restaurant live test 2026-11-09).
+      audit.log({ req: c, action: 'update', entity: 'bar_stock_count', entityId: count!.id, entityName: 'Stock count', changes: { item: String(b.stockItemId), counted: qty } })
       return { ok: true, qty, countId: count!.id }
     })
   })
@@ -99,8 +101,8 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
     const companyId = companyOf(c)
     return run(c, async () => ({ stock: await stockList(companyId, { includeInactive: c.req.query('all') === '1' }), vendors: await vendorList(companyId), categories: CATEGORIES, units: UNITS, presets: PACK_PRESETS }))
   })
-  app.post('/items', ...manage, async (c) => { const companyId = companyOf(c); const b = await body(c); return run(c, async () => ({ item: await saveStockItem(companyId, null, b) })) })
-  app.patch('/items/:id', ...manage, async (c) => { const companyId = companyOf(c); const b = await body(c); return run(c, async () => ({ item: await saveStockItem(companyId, c.req.param('id'), b) })) })
+  app.post('/items', ...manage, async (c) => { const companyId = companyOf(c); const b = await body(c); return run(c, async () => { const item: any = await saveStockItem(companyId, null, b); audit.log({ req: c, action: 'create', entity: 'bar_stock_item', entityId: item?.id, entityName: item?.name || 'Stock item' }); return { item } }) })
+  app.patch('/items/:id', ...manage, async (c) => { const companyId = companyOf(c); const b = await body(c); return run(c, async () => { const item: any = await saveStockItem(companyId, c.req.param('id'), b); audit.log({ req: c, action: 'update', entity: 'bar_stock_item', entityId: item?.id, entityName: item?.name || 'Stock item' }); return { item } }) })
   app.get('/vendors', ...manage, async (c) => { const companyId = companyOf(c); return run(c, async () => ({ vendors: await vendorList(companyId) })) })
   app.post('/vendors', ...manage, async (c) => { const companyId = companyOf(c); const b = await body(c); return run(c, async () => ({ vendor: await saveVendor(companyId, null, b) })) })
   app.patch('/vendors/:id', ...manage, async (c) => { const companyId = companyOf(c); const b = await body(c); return run(c, async () => ({ vendor: await saveVendor(companyId, c.req.param('id'), b) })) })

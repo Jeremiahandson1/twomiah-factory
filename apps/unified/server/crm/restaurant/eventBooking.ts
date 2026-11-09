@@ -5,7 +5,7 @@
 // takes the database (or the transaction) it runs on. The lock is in server/data/restaurantEvents.ts.
 import { and, eq, gte, inArray, notInArray, ne, isNotNull, count, countDistinct } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { event, eventSpace, eventMenuItem, user, company } from '../../db/schema/index.ts'
+import { event, eventSpace, eventMenuItem, user, company, contact } from '../../db/schema/index.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { calendarDayWords } from '../../core/dayWords.ts'
@@ -238,7 +238,18 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
     companyId,
   }).returning()
   await syncHireLine(tx, companyId, row)
+  if (row.bookedAt) await promoteBookedClient(tx, companyId, row.contactId)
   return row
+}
+
+/**
+ * A booked event's client is a client, not a lead: confirmed by hand, by a deposit or by the last signature (restaurant
+ * live test 2026-11-09: a booked, signed and invoiced client still read "Lead" in Contacts). Only a lead moves; a vendor
+ * or someone already a client is left as they are.
+ */
+export async function promoteBookedClient(tx: any, companyId: string, contactId: string | null | undefined) {
+  if (!contactId) return
+  await tx.update(contact).set({ type: 'client', updatedAt: new Date() }).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId), eq(contact.type, 'lead')))
 }
 
 /**
@@ -256,6 +267,7 @@ export async function bookOnDeposit(tx: any, companyId: string, eventId: string 
     if (clash) return `"${ev.name}" is still an inquiry and its room is already held on ${eventDayWords(ev.eventDate)} by "${clash.name}" — move the date or the room before taking money.`
   }
   await tx.update(event).set({ status: 'confirmed', bookedAt: ev.bookedAt || new Date(), updatedAt: new Date() }).where(eq(event.id, ev.id))
+  await promoteBookedClient(tx, companyId, ev.contactId)
   return null
 }
 /** The invoice-payment hook form: the locked invoice row (raw SQL, snake_case) or a drizzle row. */

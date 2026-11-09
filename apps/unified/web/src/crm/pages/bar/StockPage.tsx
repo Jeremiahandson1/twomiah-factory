@@ -310,6 +310,11 @@ function OrdersTab() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
   const [receiving, setReceiving] = useState<any>(null);
+  // Who an open order goes to: drafted from what is low, it takes each item's vendor, and an item with none drafts "No vendor"
+  // (restaurant live test 2026-11-09: there was nowhere to name the supplier on the order itself).
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  useEffect(() => { api.get('/api/stock/vendors').then((r: any) => setVendors(r.vendors || [])).catch(() => {}); }, []);
+  const setVendor = (o: any, vendorId: string) => act(o.id + ':vendor', () => api.put(`/api/stock/orders/${o.id}`, { vendorId: vendorId || null, note: o.note ?? null, lines: o.lines.map((l: any) => ({ stockItemId: l.stockItemId, packs: l.packs, packCostCents: l.packCostCents })) }));
   const load = useCallback(async () => { try { setOrders((await api.get('/api/stock/orders')).orders); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the orders.')); } }, []);
   useEffect(() => { load(); }, [load]);
   const act = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); setErr(''); try { await fn(); await load(); } catch (e) { setErr(errorText(e, 'That did not go.')); } finally { setBusy(''); } };
@@ -328,6 +333,15 @@ function OrdersTab() {
                 <span className="font-mono">{money(o.totalCents)}</span>
               </div>
               <p className={`text-xs ${MUTED}`}>{o.lines.map((l: any) => `${l.packs} ${l.packName} ${l.name}`).join(' · ')}</p>
+              {(o.status === 'draft' || o.status === 'sent') && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className={`text-xs ${MUTED}`} htmlFor={`po-v-${o.id}`}>Supplier</label>
+                  <select id={`po-v-${o.id}`} className={`${INPUT} max-w-xs py-1`} value={o.vendorId || ''} disabled={!!busy} onChange={(e) => setVendor(o, e.target.value)}>
+                    <option value="">{vendors.length ? 'No vendor' : 'No vendor — add one on Stock with "+ Vendor"'}</option>
+                    {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </div>
+              )}
               {(o.status === 'draft' || o.status === 'sent') && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {o.status === 'draft' && o.vendor?.email && <button className={`${BTN} ${OFF} min-h-[40px]`} disabled={!!busy} onClick={() => act(o.id, () => api.post(`/api/stock/orders/${o.id}/send`, { email: true }))}>Email it to {o.vendor.name}</button>}

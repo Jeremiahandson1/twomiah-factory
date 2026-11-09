@@ -65,6 +65,13 @@ export interface CompanyDeps {
   /** Called (not awaited) after a successful feature save with the saved list — e.g. the Ads connector registers the tenant when paid_ads turns on. */
   onFeaturesChanged?: (features: string[]) => void
   /**
+   * Called (awaited, never failing the save) after the business's name changed, with the old and new names: the app
+   * rewrites the old name where it was written into the business's own content — the website's pages, built from the
+   * sign-up name (restaurant live test 2026-11-09: the hero and "Talk to …" kept the sign-up name after the setup
+   * wizard's rename).
+   */
+  onRenamed?: (companyId: string, oldName: string, newName: string) => Promise<void>
+  /**
    * Email a new teammate a link to choose their own password — the template's teamInvite email, its link built on
    * the reset-password page from `resetToken`. Not wired → adding a user still needs a password set by the admin,
    * which is all there was until 10/14 (E2E run 1: "no invite email is sent").
@@ -455,6 +462,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }
     const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
+    if (deps.onRenamed && before?.name && row.name && before.name !== row.name) {
+      try { await deps.onRenamed(row.id, before.name, row.name) } catch (e: any) { console.warn('[Company] onRenamed failed:', e?.message || e) }
+    }
     /**
      * WHO CHANGED THE SHOP'S SETTINGS. (T41)
      *

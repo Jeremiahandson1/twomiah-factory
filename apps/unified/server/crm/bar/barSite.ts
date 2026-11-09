@@ -303,8 +303,8 @@ export function createBarSite(deps: { db: BarDb; live: BarLive }): SiteFacts {
  * The menu alone, for a food business that is not a bar (SiteSettings.facts 'menu': a restaurant, a food truck). The
  * same public answer the bar's site reads (createBarPublic menu: active sections and items, sizes, prices,
  * descriptions, photos), behind the same gate (bar_menu on, the account not paused), with what is 86'd left off — a
- * guest reading the menu is not told what ran out tonight. None of the bar's night: no taps, no Tonight board, no
- * hours or events. Whether online ordering is on does not matter; the /order page is its own.
+ * guest reading the menu is not told what ran out tonight. Of the bar's night only Tonight's kitchen status, how busy,
+ * the note and the special (a strip under the home hero, with bar_tonight on): no taps, no board, no events. Whether online ordering is on does not matter; the /order page is its own.
  */
 export function createMenuSite(deps: { db: BarDb; live: BarLive }): SiteFacts {
   const pub = createBarPublic(deps.db, deps.live)
@@ -318,7 +318,12 @@ export function createMenuSite(deps: { db: BarDb; live: BarLive }): SiteFacts {
     const menu = menuFrom(raw)
       .map((s) => ({ ...s, items: s.items.filter((i: any) => !i.is86ed) }))
       .filter((s) => s.items.length)
-    return { site: { menu, live: null, loadedAt: Date.now() }, live: null, settings: { ...addressParts(settings.address) } }
+    // Tonight (bar_tonight on): open now, how busy, the note and the special, drawn as a strip under the home page's hero
+    // (sections/tonight/strip.ejs; render.ts tonightStrip). Restaurant live test 2026-11-09: none of it reached the site.
+    const t = pub.gate(co && co.id === companyId ? co : null, 'bar_tonight')
+    const liveRaw = isRefusal(t) ? null : await pub.liveState(t.id).catch(() => null)
+    const live = (liveRaw && typeof liveRaw === 'object' && (liveRaw as any).kitchen ? liveRaw : null) as LiveState | null
+    return { site: { menu, live, tonightStrip: !!live, loadedAt: Date.now() }, live, settings: { ...addressParts(settings.address) } }
   }
 
   return {

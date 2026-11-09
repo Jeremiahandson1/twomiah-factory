@@ -10,7 +10,7 @@ import {
 } from '@twomiah/tenant-backend'
 import { z } from 'zod'
 import { asc, eq } from 'drizzle-orm'
-import { company, user, emailAlias, lead, leadSource, contact, quote, job, invoice } from '../db/schema/index.ts'
+import { company, user, emailAlias, lead, leadSource, contact, quote, job, invoice, page, website } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import type { Audit } from '../core/audit.ts'
 import type { EmailService } from '../core/email.ts'
@@ -26,6 +26,36 @@ import { createLicenseRoutes, createHandoverExportRoute } from './license.ts'
 import { homecareCompanyFields, describeAgency, workWeekStartField } from '../crm/homecare/office/companyFields.ts'
 import { createCompanyLogoRoute } from './companyLogo.ts'
 import type { PhotoStore } from '../site/admin.ts'
+
+/**
+ * The business's old name, wherever its website was written with it — every page's sections and titles, and the site's
+ * tagline and search titles — becomes the new one. Whole strings only, so a name inside another word is left alone.
+ */
+export async function renameInSite(db: any, companyId: string, oldName: string, newName: string): Promise<number> {
+  const from = oldName.trim()
+  if (from.length < 2 || from === newName.trim()) return 0
+  const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'gu')
+  const swap = (s: unknown): any => {
+    if (typeof s === 'string') return s.replace(re, (_m, pre) => pre + newName)
+    if (Array.isArray(s)) return s.map(swap)
+    if (s && typeof s === 'object') return Object.fromEntries(Object.entries(s).map(([k, v]) => [k, swap(v)]))
+    return s
+  }
+  let changed = 0
+  const pages = await db.select({ id: page.id, title: page.title, sections: page.sections, metaTitle: page.metaTitle, metaDescription: page.metaDescription }).from(page).where(eq(page.companyId, companyId))
+  for (const p of pages) {
+    const next = { title: swap(p.title), sections: swap(p.sections), metaTitle: swap(p.metaTitle), metaDescription: swap(p.metaDescription) }
+    if (JSON.stringify(next) === JSON.stringify({ title: p.title, sections: p.sections, metaTitle: p.metaTitle, metaDescription: p.metaDescription })) continue
+    await db.update(page).set(next).where(eq(page.id, p.id)); changed++
+  }
+  const [w] = await db.select({ id: website.id, tagline: website.tagline, seoTitle: website.seoTitle, seoDescription: website.seoDescription }).from(website).where(eq(website.companyId, companyId)).limit(1)
+  if (w) {
+    const next = { tagline: swap(w.tagline), seoTitle: swap(w.seoTitle), seoDescription: swap(w.seoDescription) }
+    if (JSON.stringify(next) !== JSON.stringify({ tagline: w.tagline, seoTitle: w.seoTitle, seoDescription: w.seoDescription })) { await db.update(website).set(next).where(eq(website.id, w.id)); changed++ }
+  }
+  return changed
+}
 
 export interface CompanyModuleDeps {
   db: any
@@ -104,6 +134,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     onTeamChanged: () => { void resyncAliasesAfterTeamChange(aliasDeps as any).catch(() => {}) },
     // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
     onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
+    // Renamed: the website's pages and its tagline and titles were written with the old name (renameInSite).
+    onRenamed: (companyId: string, oldName: string, newName: string) => renameInSite(db, companyId, oldName, newName),
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
     // Every business's time zone (company.timezone, Settings › Company — live test 10/22: the contractor's was only under
     // Booking settings) and the zone its days are counted on; home care's own columns besides (mileage rate, legal name,

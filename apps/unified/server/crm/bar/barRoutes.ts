@@ -354,6 +354,12 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     if (!str(body.name, 120)) return bad(c, 'A section needs a name')
     const v = sectionInput(body); if (!v.ok) return bad(c, v.error)
     const win = await windowInput(companyId, body); if (win.error) return bad(c, win.error); Object.assign(v.value, win.value)
+    // A new section goes at the end of the menu, not into the alphabet above the ones already there (restaurant live test
+    // 2026-11-09: "Dinner Only" and "Lunch Only" landed above "Mains").
+    if ((v.value as any).sortOrder === undefined) {
+      const [last] = await db.select({ n: barMenuSection.sortOrder }).from(barMenuSection).where(eq(barMenuSection.companyId, companyId)).orderBy(desc(barMenuSection.sortOrder)).limit(1)
+      ;(v.value as any).sortOrder = last ? Math.min(10000, (last.n || 0) + 1) : 0
+    }
     const [row] = await db.insert(barMenuSection).values({ companyId, slug: await uniqueSlug(barMenuSection, companyId, str(body.slug, 80) || body.name), ...v.value } as any).returning()
     audit.log({ req: c, action: 'create', entity: 'bar_menu_section', entityId: row.id, entityName: row.name })
     return one(c, row, 201)
@@ -673,7 +679,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     else await db.insert(barSettings).values({ companyId, ...patch } as any)
     // The audit row says what changed, never the password.
     const changes = { ...patch }; if ('speakeasyPasswordHash' in changes) changes.speakeasyPasswordHash = changes.speakeasyPasswordHash ? '(set)' : '(cleared)'
-    audit.log({ req: c, action: 'update', entity: 'bar_settings', entityName: 'Hours & speakeasy', changes })
+    audit.log({ req: c, action: 'update', entity: 'bar_settings', entityName: 'Hours & settings', changes })
     return one(c, await settingsReply(companyId))
   })
 

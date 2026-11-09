@@ -150,6 +150,8 @@ export function MySwaps({ published, meId }: { published: any[]; meId: string | 
   const [data, setData] = useState<{ mine: Req[]; forMe: Req[]; onOffer: Req[]; settings?: SwapSettings } | null>(null);
   const [swapFor, setSwapFor] = useState<any | null>(null);
   const [err, setErr] = useState('');
+  // What just happened, said back (restaurant live test 2026-11-09: "I'll take it" showed nothing to the person who pressed it).
+  const [said, setSaid] = useState('');
   const load = useCallback(async () => { try { setData(await api.get('/api/schedule/swaps/mine')); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load your requests.')); } }, []);
   useEffect(() => { if (hasFeature('bar_shift_swaps')) load(); }, [load, hasFeature]);
   if (!hasFeature('bar_shift_swaps') || !mayAsk) return null;
@@ -162,6 +164,7 @@ export function MySwaps({ published, meId }: { published: any[]; meId: string | 
     <div className={CARD}>
       <p className={`${LABEL} mb-2`}>Shift swaps</p>
       <FormError message={err} />
+      {said && <p role="status" className="text-sm text-green-800 dark:text-green-300 mb-2">{said}</p>}
       {data && (<div className="space-y-4">
         {data.forMe.length > 0 && (
           <section aria-label="Swaps offered to me"><p className="text-sm font-semibold text-gray-900 dark:text-slate-100">Offered to you</p>
@@ -176,7 +179,7 @@ export function MySwaps({ published, meId }: { published: any[]; meId: string | 
             <ul className="space-y-2 mt-1">{data.onOffer.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900 dark:text-slate-100">
                 <span>{r.fromName}: {span(r.shift)}{r.note ? ` · ${r.note}` : ''}</span>
-                <button className={`${BTN} ${ON} min-h-[40px]`} onClick={() => act(() => api.post(`/api/schedule/swaps/${r.id}/claim`, {}), 'Someone may have just taken it.')}>I&rsquo;ll take it</button>
+                <button className={`${BTN} ${ON} min-h-[40px]`} onClick={() => act(async () => { await api.post(`/api/schedule/swaps/${r.id}/claim`, {}); setSaid(data.settings?.approvePickups === false ? `It is yours: ${span(r.shift)}.` : `Asked for ${span(r.shift)}. A manager approves before it is yours.`) }, 'Someone may have just taken it.')}>I&rsquo;ll take it</button>
               </li>))}</ul>
             <p className={`text-xs mt-1 ${MUTED}`}>{data.settings?.approvePickups === false ? 'It is yours as soon as you take it.' : 'A manager approves before it is yours.'}</p></section>
         )}

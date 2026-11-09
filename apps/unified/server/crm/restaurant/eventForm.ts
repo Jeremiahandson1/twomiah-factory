@@ -222,7 +222,9 @@ export function formPage(p: FormPage): string {
 <div class="row"><div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel"></div><div><label for="d">Event date</label><input id="d" name="eventDate" type="date" required min="${e(p.today)}"></div></div>
 <div class="row"><div><label for="g">Headcount</label><input id="g" name="headcount" type="number" required min="1" max="2000" inputmode="numeric"></div><div><label for="vt">Event type</label><select id="vt" name="venueType"><option>Wedding</option><option>Birthday</option><option>Corporate</option><option>Community</option><option>Other</option></select></div></div>`
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Ask about an event at ${e(p.venue)}</title><style>${CSS}</style></head>
-<body><main><h1>Ask about an event at ${e(p.venue)}</h1>
+<body><header id="site-head" style="border-bottom:1px solid #ddd;padding:12px 16px"><a href="/" target="_top" style="color:inherit;font-weight:600;text-decoration:none">${e(p.venue)}</a> <a href="/" target="_top" style="color:inherit;font-size:.9rem;margin-left:.5rem">← Back to the website</a></header>
+<script>if (window.top !== window.self) document.getElementById('site-head').remove()</script>
+<main><h1>Ask about an event at ${e(p.venue)}</h1>
 <form id="ef" method="post" action="/api/leads" data-date-field="${dateField}" data-size-field="${sizeField}">
 <input type="hidden" name="campaign" value="${e(p.campaign.token)}"><input type="hidden" name="source" value="${e('Event form — ' + p.campaign.name)}"><input type="hidden" name="t" id="t" value="${Date.now()}">
 <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>

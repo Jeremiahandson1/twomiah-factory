@@ -17,10 +17,10 @@
 // feature (not ready).
 import { Hono } from 'hono'
 import crypto from 'node:crypto'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { recordInvoicePayment, round2, invoiceBalance, companyTimeZone } from '@twomiah/tenant-backend'
-import { event, eventPayment, eventAutopay, invoice, payment, contact, company } from '../../db/schema/index.ts'
+import { event, eventPayment, eventAutopay, invoice, payment, contact, company, auditLog } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -122,12 +122,21 @@ export function createEventPaymentRoutes(d: CrmDeps) {
     const ledger = await loadEventLedger(db, u.companyId, ev.id)
     const rows = await db.select().from(eventPayment).where(eq(eventPayment.eventId, ev.id))
     const mayLink = hasPermission(u.role, 'invoices:update', await getExtraPermissions(u.userId))
+    // "Remind now" is kept on the audit log (it has no column of its own): the latest one per instalment.
+    const ids = (ledger?.payments || []).map((p: any) => p.id)
+    const manual = new Map<string, Date>()
+    if (ids.length) {
+      const sent = await db.select({ id: auditLog.entityId, at: auditLog.createdAt }).from(auditLog)
+        .where(and(eq(auditLog.companyId, u.companyId), eq(auditLog.entity, 'event_payment'), eq(auditLog.action, 'remind'), inArray(auditLog.entityId, ids))).orderBy(desc(auditLog.createdAt))
+      for (const s of sent) if (s.id && !manual.has(s.id)) manual.set(s.id, s.at)
+    }
     const instalments = []
     for (const p of ledger?.payments || []) {
       const r = rows.find((x: any) => x.id === p.id)
       instalments.push({
         id: p.id, label: p.label, amount: p.amount, dueDate: p.dueDate, state: p.state, paidAmount: p.paidAmount,
         remindedBeforeAt: r?.reminderBeforeAt || null, remindedDueAt: r?.reminderDueAt || null, remindedOverdueAt: r?.reminderOverdueAt || null,
+        remindedManualAt: manual.get(p.id) || null,
         autopayStatus: r?.autopayStatus || null, autopayError: r?.autopayError || null,
         ...(mayLink && p.state !== 'paid' && p.state !== 'void' ? { payPath: `/event-pay/${await payTokenFor(db, p.id)}` } : {}),
       })
@@ -153,6 +162,8 @@ export function createEventPaymentRoutes(d: CrmDeps) {
     if (!p) return fail(c, 404, 'Payment not found')
     const sent = await sendReminder(d, p, 'manual')
     if (!sent.ok) return fail(c, 409, sent.error)
+    // Kept so the row says it went (restaurant live test 2026-11-09: it still read "No reminder yet").
+    await audit.log({ action: 'remind', entity: 'event_payment', entityId: p.id, entityName: `Reminder sent — ${p.label || 'payment'}`, req: { user: u } })
     return one(c, { success: true })
   })
   return app

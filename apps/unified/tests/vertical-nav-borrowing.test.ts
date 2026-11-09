@@ -24,7 +24,7 @@ const BORROWS: Record<string, string[]> = {
   // each behind its own feature switch; taps only with draft_taps (10/25).
   // Stock and Schedule are offered to it opt-in, in the kitchen's words (restaurant-bar-depth #8), and Tips with them (#9, hidden).
   // The pay period's export (restaurant-bar parity #8, bar_payroll_export, offered to crm-bar AND crm-restaurant): the bar's page.
-  restaurant: ['bar:/crm/bar-settings', 'bar:/crm/kiosk', 'bar:/crm/menu', 'bar:/crm/orders', 'bar:/crm/pay-period', 'bar:/crm/register', 'bar:/crm/register-settings', 'bar:/crm/shifts', 'bar:/crm/stock', 'bar:/crm/taps', 'bar:/crm/tips', 'bar:/crm/tonight', 'bar:/crm/whats-on'],
+  restaurant: ['bar:/crm/bar-settings', 'bar:/crm/grill', 'bar:/crm/kiosk', 'bar:/crm/menu', 'bar:/crm/orders', 'bar:/crm/pay-period', 'bar:/crm/register', 'bar:/crm/register-settings', 'bar:/crm/shifts', 'bar:/crm/stock', 'bar:/crm/taps', 'bar:/crm/tips', 'bar:/crm/tonight', 'bar:/crm/whats-on'],
 }
 
 /** The menu items written as a literal `export const nav` array, with their owner and features. */

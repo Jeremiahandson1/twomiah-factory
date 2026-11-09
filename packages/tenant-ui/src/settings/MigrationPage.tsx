@@ -94,7 +94,7 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
             ))}
           </div>
           <div className="pt-4 border-t dark:border-slate-700">
-            <button onClick={() => { selectProvider(GENERIC); setMode('csv') }} data-testid="migration-generic-csv" className="w-full p-5 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-gray-300 dark:border-slate-600 text-left hover:border-orange-400 transition-colors">
+            <button onClick={() => { selectProvider(config?.genericTypes?.length ? { ...GENERIC, csvEntityTypes: config.genericTypes } : GENERIC); setMode('csv') }} data-testid="migration-generic-csv" className="w-full p-5 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-gray-300 dark:border-slate-600 text-left hover:border-orange-400 transition-colors">
               <div className="flex items-center gap-4"><FileSpreadsheet className="w-8 h-8 text-gray-400" /><div><p className="font-semibold text-gray-900 dark:text-white">Other Platform / Generic CSV</p><p className="text-sm text-gray-500 dark:text-gray-400">Upload a CSV file from any source — we'll auto-detect the columns</p></div></div>
             </button>
           </div>

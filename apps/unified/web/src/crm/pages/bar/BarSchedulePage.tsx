@@ -45,8 +45,12 @@ function WeekBuilder() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
   const [edit, setEdit] = useState<any>(null);
+  // Every request still waiting, whatever week is on screen (restaurant live test 2026-11-09: one for next week showed only
+  // when that week was opened).
+  const [pendingOff, setPendingOff] = useState<any[]>([]);
   const load = useCallback(async () => {
     try { setW(await api.get(`/api/schedule/week${day ? `?day=${day}` : ''}`)); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the week.')); }
+    try { setPendingOff((await api.get('/api/schedule/time-off?tile=pending')).requests || []); } catch { /* the week's own list still shows */ }
   }, [day]);
   useEffect(() => { load(); }, [load]);
   const act = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); setErr(''); try { await fn(); await load(); } catch (e) { setErr(errorText(e, 'That did not save.')); } finally { setBusy(''); } };
@@ -114,11 +118,11 @@ function WeekBuilder() {
         <button className={`${BTN} ${OFF}`} disabled={!!busy} onClick={() => act('copy', () => api.post('/api/schedule/copy', { fromDay: shift(w.weekStart, -7), toDay: w.weekStart }))}>Copy last week</button>
         <button className={`${BTN} ${ON}`} disabled={!!busy} onClick={() => act('publish', () => api.post('/api/schedule/publish', { day: w.weekStart }))}>Publish this week</button>
       </div>
-      {w.timeOff.filter((t: any) => t.status === 'pending').length > 0 && (
+      {pendingOff.length > 0 && (
         <div className={CARD}>
           <p className={`${LABEL} mb-2`}>Time off asked for</p>
           <ul className="space-y-2">
-            {w.timeOff.filter((t: any) => t.status === 'pending').map((t: any) => (
+            {pendingOff.map((t: any) => (
               <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 text-gray-900 dark:text-slate-100">
                 <span>{t.name} · {dayLabel(t.day)}{t.note ? ` · ${t.note}` : ''}</span>
                 <span className="flex gap-2">

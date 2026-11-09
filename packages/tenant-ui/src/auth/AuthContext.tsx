@@ -5,6 +5,11 @@ import type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from 
 import { permissionAllows } from './types'
 import { setCompanyTimeZone } from '../time/companyClock'
 
+// Whether this browser was signed in here (a session it could lose). Storage may be unavailable: then nobody was.
+const SIGNED_IN_KEY = 'twomiah:signed-in'
+const wasSignedIn = (): boolean => { try { return localStorage.getItem(SIGNED_IN_KEY) === '1' } catch { return false } }
+const markSignedIn = (on: boolean) => { try { if (on) localStorage.setItem(SIGNED_IN_KEY, '1'); else localStorage.removeItem(SIGNED_IN_KEY) } catch { /* no storage */ } }
+
 /**
  * Exported so PermissionsContext can read it WITHOUT useAuth's throw. (T41)
  *
@@ -72,11 +77,13 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   useEffect(() => { checkAuth() }, [checkAuth])
 
   // A signed-in person has no ended session to report: the next sign-out is an ordinary one.
-  useEffect(() => { if (user) setSessionEnded(false) }, [user])
+  useEffect(() => { if (user) { setSessionEnded(false); markSignedIn(true) } }, [user])
 
   // The api client dispatches auth:expired when a refresh fails; drop the session without a hard reload.
   useEffect(() => {
-    const handleExpired = () => { setUser(null); setCompany(null); setPermissions(null); setSessionEnded(true) }
+    // "Your session ended" only where this browser had one: a first visit with a cookie session asks the server, is refused,
+    // and must read as an ordinary sign-in (restaurant live test 2026-11-09: the message showed before anyone had signed in).
+    const handleExpired = () => { setUser(null); setCompany(null); setPermissions(null); setSessionEnded(wasSignedIn()); markSignedIn(false) }
     window.addEventListener('auth:expired', handleExpired)
     return () => window.removeEventListener('auth:expired', handleExpired)
   }, [])
@@ -121,7 +128,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   }
 
   const logout = async () => {
-    try { await api.logout() } finally { setUser(null); setCompany(null); setPermissions(null) }
+    try { await api.logout() } finally { setUser(null); setCompany(null); setPermissions(null); markSignedIn(false) }
   }
 
   const updateCompany = (updates: Partial<AuthCompany>) => {

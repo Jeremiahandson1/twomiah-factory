@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
+import { verticalScreens } from '../../crm/vertical'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
 import { FeelPicker, type FontChoice, type SiteStyle } from '../components/FeelPicker'
 import { PalettePicker, type Palette, type PaletteInfo } from '../components/PalettePicker'
@@ -54,6 +55,7 @@ export function SiteSettingsPage() {
   const mayEdit = useMayWrite('site:settings')
   const mayOpenCompany = useMayWrite('company:update')
   const wide = useIsWide()
+  const SITE_FIELDS = verticalScreens().website || {}
   const [designs, setDesigns] = useState<Design[]>([])
   const [paletteInfo, setPaletteInfo] = useState<(PaletteInfo & { fonts: FontChoice[] }) | null>(null)
   const [loading, setLoading] = useState(true)
@@ -176,8 +178,9 @@ export function SiteSettingsPage() {
           <div className="space-y-4">
             <TextField label="Tagline" value={settings.tagline || ''} onChange={(e) => update({ tagline: e.target.value || null })} />
             <TextField label="Contact button" value={settings.contactCtaLabel || ''} placeholder="Get in touch" onChange={(e) => update({ contactCtaLabel: e.target.value })} />
-            <TextAreaField label="Service areas" hint="One town per line. Each gets its own page at /service-areas." rows={4} value={(settings.serviceAreas || []).join('\n')} onChange={(e) => update({ serviceAreas: e.target.value.split('\n') })} />
-            <TextField label="Inventory feed (dealers, optional)" hint="An https:// link to your units as JSON. They then show at /inventory." value={settings.inventoryFeedUrl || ''} onChange={(e) => update({ inventoryFeedUrl: e.target.value || null })} />
+            {/* Each where the trade has it (crm/vertical.ts website): town pages for those who travel to the work, the feed for a dealer — or already set. */}
+            {(SITE_FIELDS.serviceAreas !== false || (settings.serviceAreas || []).some(Boolean)) && <TextAreaField label="Service areas" hint="One town per line. Each gets its own page at /service-areas." rows={4} value={(settings.serviceAreas || []).join('\n')} onChange={(e) => update({ serviceAreas: e.target.value.split('\n') })} />}
+            {(SITE_FIELDS.inventoryFeed === true || !!settings.inventoryFeedUrl) && <TextField label="Inventory feed (dealers, optional)" hint="An https:// link to your units as JSON. They then show at /inventory." value={settings.inventoryFeedUrl || ''} onChange={(e) => update({ inventoryFeedUrl: e.target.value || null })} />}
           </div>
         </section>
 

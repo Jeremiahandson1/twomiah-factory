@@ -6,7 +6,7 @@ import {
   UtensilsCrossed, Clock, Wallet, AlertTriangle, AlertCircle, ExternalLink, Trash2, Check,
 } from 'lucide-react';
 import { api } from '../../../api'
-import { GuaranteeNote, HoldExpiryNote, MinimumNote, ProposalsPanel, PaymentAutomationPanel, SourcePicker, useGuaranteeOverride, errCode } from '../../eventDepth'
+import { GuaranteeNote, HoldExpiryNote, MinimumNote, ProposalsPanel, PaymentAutomationPanel, SourcePicker, useGuaranteeOverride, errCode, WaitlistOffer } from '../../eventDepth'
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, prettyType, localDay } from './EventsPage';
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
 import { PAYMENT_METHODS, useMayWrite, useConfirm, useAuth, errorText } from '../../../shared'
@@ -121,6 +121,8 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState<boolean>(true);
   // A refusal from a page-level action, shown at the top of the page rather than in a pop-up. (T58)
   const [pageErr, setPageErr] = useState<string>('');
+  // The refusal was "another event holds that room": the guest can go on that date's waitlist instead.
+  const [pageHeld, setPageHeld] = useState(false);
   const [tab, setTab] = useState<Tab>('menu');
   const [showEdit, setShowEdit] = useState<boolean>(false);
   const [showMenu, setShowMenu] = useState<boolean>(false);
@@ -159,11 +161,12 @@ export default function EventDetailPage() {
       if (!keep) { load(); return; }
       body.keepDeposit = true;
     }
-    setPageErr('');
+    setPageErr(''); setPageHeld(false);
     try {
       await api.put(`/api/events/${id}`, body);
       load();
     } catch (e2) {
+      setPageHeld(errCode(e2) === 'space_held');
       // A 409 here is the double-book guard (another event holds the room) or money still to settle.
       // Both name something the coordinator has to decide about, so it stays on the page.
       setPageErr((e2 as Error).message || 'Failed to change status');
@@ -250,8 +253,11 @@ export default function EventDetailPage() {
       {pageErr ? (
         <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="flex-1">{pageErr}</span>
-          <button onClick={() => setPageErr('')} className="shrink-0 hover:opacity-70" aria-label="Dismiss">
+          <span className="flex-1">{pageErr}
+            {pageHeld && detail.event && <WaitlistOffer spaceId={detail.event.spaceId} eventDate={detail.event.eventDate} startTime={detail.event.startTime} endTime={detail.event.endTime}
+              contactId={detail.event.contactId} name={detail.client?.name || detail.event.name || ''} guestCount={detail.event.guestCount} />}
+          </span>
+          <button onClick={() => { setPageErr(''); setPageHeld(false); }} className="shrink-0 hover:opacity-70" aria-label="Dismiss">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -655,13 +661,13 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
  *
  * role="alert" so a screen reader announces it, and so a rendered-page check can find it.
  */
-function FormButtons({ saving, onClose, label = 'Save', error = '' }: { saving: boolean; onClose: () => void; label?: string; error?: string }) {
+function FormButtons({ saving, onClose, label = 'Save', error = '', extra }: { saving: boolean; onClose: () => void; label?: string; error?: string; extra?: ReactNode }) {
   return (
     <>
       {error ? (
         <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
+          <span>{error}{extra}</span>
         </div>
       ) : null}
       <div className="flex gap-3 pt-2">
@@ -679,6 +685,7 @@ function FormButtons({ saving, onClose, label = 'Save', error = '' }: { saving: 
 function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: EventFull; clientLabel?: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [held, setHeld] = useState(false);
   // Held outside `form`, which is all strings keyed by input name — the same shape the New Enquiry
   // modal uses for its picker, so the two forms read the same way.
   const [contactId, setContactId] = useState<string>(ev.contactId || '');
@@ -752,6 +759,7 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
       }
       onSave();
     } catch (e2) {
+      setHeld(errCode(e2) === 'space_held');
       setErr((e2 as Error).message || 'Failed to save event');
     } finally {
       setSaving(false);
@@ -843,7 +851,8 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
           <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
-        <FormButtons saving={saving} onClose={onClose} error={err} />
+        <FormButtons saving={saving} onClose={onClose} error={err} extra={held ? <WaitlistOffer spaceId={form.spaceId} eventDate={form.eventDate} startTime={form.startTime} endTime={form.endTime}
+          contactId={contactId} name={clientLabel || form.name} guestCount={form.guestCount === '' ? null : Number(form.guestCount)} /> : null} />
       </form>
     </ModalShell>
   );

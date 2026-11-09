@@ -197,7 +197,7 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   })
   registerRoutes.patch('/item/:id', ...ring, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
-    return act(c, async () => ({ check: await updateItem(actor, c.req.param('id'), b) }))
+    return act(c, async () => { const check: any = await updateItem(actor, c.req.param('id'), b); audit.log({ req: c, action: 'update', entity: 'bar_check_item', entityId: c.req.param('id'), entityName: `Check #${check?.number ?? ''}`.trim(), changes: b }); return { check } })
   })
   registerRoutes.post('/item/:id/void', ...ring, async (c) => {
     const actor = await actorOf(c); const b = await body(c); const id = c.req.param('id')

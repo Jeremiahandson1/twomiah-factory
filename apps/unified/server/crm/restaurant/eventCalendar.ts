@@ -202,8 +202,11 @@ export function createEventWaitlistRoutes(d: CrmDeps) {
     const [sp] = typeof b.spaceId === 'string' ? await db.select().from(eventSpace).where(and(eq(eventSpace.id, b.spaceId), eq(eventSpace.companyId, u.companyId))).limit(1) : []
     if (!sp) return fail(c, 404, 'Space not found')
     if (b.contactId) {
-      const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, b.contactId), eq(contact.companyId, u.companyId))).limit(1)
+      const [ct] = await db.select({ id: contact.id, email: contact.email, phone: contact.phone }).from(contact).where(and(eq(contact.id, b.contactId), eq(contact.companyId, u.companyId))).limit(1)
       if (!ct) return fail(c, 404, 'Client not found')
+      // Put on from an enquiry (the "already held" refusal): the client's own email and phone, so the offer reaches them.
+      if (!b.email && ct.email) b.email = ct.email
+      if (!b.phone && ct.phone) b.phone = ct.phone
     }
     const held = await findClash(db, u.companyId, sp.id, b.eventDate, undefined, { startTime: b.startTime, endTime: b.endTime })
     if (!held) return fail(c, 409, `${sp.name} is open on ${eventDayWords(b.eventDate)}${b.startTime ? ' at those hours' : ''} — book it instead of waiting.`, 'space_open')

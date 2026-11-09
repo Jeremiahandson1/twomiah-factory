@@ -282,7 +282,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Field Operations
   // Not home care: a caregiver's clock-in and clock-out is EVV (Compliance › EVV), the agency's own and always on — this
   // switch opened the trades' Time page, which an agency's menu does not have, so it switched nothing (live test 2026-10-22).
-  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar'] },
+  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar', 'crm-restaurant'] /* a restaurant clocks in on the counter tablet by PIN like a bar: its Staff Schedule, tips by hours and payroll file read these hours (restaurant live test 2026-11-09) */ },
   // Where's the crew and the job-site geofences (/crm/geofences) and the phone app's location sharing. Not home care: its
   // caregivers' location is EVV's, at clock-in and clock-out, and the phone app offers tracking to the trades only.
   { id: 'gps_tracking', name: 'GPS Tracking', description: 'Crew locations and automatic clock-in and out at job-site fences, from the Twomiah phone app', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },

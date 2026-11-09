@@ -17,7 +17,7 @@ export function createMigrationRoutes(d: CrmDeps) {
 
   // The providers a business can move from. A list: { data, pagination } (the template answered a bare array).
   app.get('/providers', (c) => {
-    const providers = migration.getAvailableProviders()
+    const providers = migration.getAvailableProviders(d.settings?.migration?.providers)
     return listAll(c, providers)
   })
 

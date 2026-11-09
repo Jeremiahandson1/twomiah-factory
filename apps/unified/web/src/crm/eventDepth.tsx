@@ -20,6 +20,29 @@ const muted = 'text-gray-600 dark:text-slate-400'
 
 /** The server's machine word on a refused write (ApiError.data.code), if it sent one. */
 export const errCode = (e: unknown): string => String((e as any)?.data?.code || '')
+
+/**
+ * "That space is already held on …": the guest can wait for it (Tripleseat's waitlist on a taken date). Shown on the refusal
+ * itself — the event page's banner and the Edit form — with the room calendar on; the waiting guest is emailed when the hold
+ * is let go (eventCalendar.ts offerWaitlist). Restaurant live test 2026-11-09: there was no way to join it from an enquiry.
+ */
+export function WaitlistOffer({ spaceId, eventDate, startTime, endTime, contactId, name, guestCount, onDone }: {
+  spaceId?: string | null; eventDate?: string | null; startTime?: string | null; endTime?: string | null; contactId?: string | null; name: string; guestCount?: number | null; onDone?: () => void
+}) {
+  const { hasFeature, can } = useAuth()
+  const toast = useToast()
+  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle')
+  if (!spaceId || !eventDate || !hasFeature('event_calendar') || !can('contacts:create')) return null
+  if (state === 'done') return <p className="mt-2 text-sm">On the waitlist for that date. If the hold is let go, they are emailed first.</p>
+  const add = async () => {
+    setState('busy')
+    try {
+      await client.post('/api/event-waitlist', { spaceId, eventDate, startTime: startTime || undefined, endTime: endTime || undefined, contactId: contactId || undefined, name: name.trim() || 'Guest', guestCount: guestCount || undefined })
+      setState('done'); toast.success('Added to the waitlist'); onDone?.()
+    } catch (e) { setState('idle'); toast.error(errorText(e, 'Could not add them to the waitlist')) }
+  }
+  return <button type="button" className={`${btn} mt-2 bg-white dark:bg-slate-900`} disabled={state === 'busy'} onClick={add}>Put them on the waitlist for that date</button>
+}
 const abs = (path: string) => `${window.location.origin}${path}`
 const copy = async (toast: ReturnType<typeof useToast>, text: string) => { try { await navigator.clipboard.writeText(text); toast.success('Link copied') } catch { toast.error('Could not copy — select the link and copy it') } }
 
@@ -252,7 +275,7 @@ function ProposalBuilder({ eventId, onClose, onMade }: { eventId: string; onClos
 }
 
 // ── On the event: reminders, pay links and the card on file ─────────────────────────────────────────────────────────
-interface Instalment { id: string; label: string; amount: number; dueDate: string | null; state: string; paidAmount: number; remindedBeforeAt: string | null; remindedDueAt: string | null; remindedOverdueAt: string | null; autopayStatus: string | null; autopayError: string | null; payPath?: string }
+interface Instalment { id: string; label: string; amount: number; dueDate: string | null; state: string; paidAmount: number; remindedBeforeAt: string | null; remindedDueAt: string | null; remindedOverdueAt: string | null; remindedManualAt?: string | null; autopayStatus: string | null; autopayError: string | null; payPath?: string }
 export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
   const { hasFeature, can } = useAuth()
   const toast = useToast()
@@ -268,7 +291,12 @@ export function PaymentAutomationPanel({ eventId }: { eventId: string }) {
     if (!(await ask('The saved card is removed here and at the card processor. Payments after this need the client to pay.', { title: 'Stop charging the card on file?', confirmText: 'Stop' }))) return
     try { await client.post(`/api/event-payments/${eventId}/autopay/stop`); await load() } catch (e) { toast.error(errorText(e, 'Could not stop it')) }
   }
-  const last = (i: Instalment) => i.remindedOverdueAt ? 'Overdue reminder sent' : i.remindedDueAt ? 'Due-day reminder sent' : i.remindedBeforeAt ? 'Reminder sent' : 'No reminder yet'
+  const last = (i: Instalment) => {
+    const auto = i.remindedOverdueAt ? 'Overdue reminder sent' : i.remindedDueAt ? 'Due-day reminder sent' : i.remindedBeforeAt ? 'Reminder sent' : ''
+    const autoAt = i.remindedOverdueAt || i.remindedDueAt || i.remindedBeforeAt
+    if (i.remindedManualAt && (!autoAt || i.remindedManualAt > autoAt)) return `Reminder sent by hand ${new Date(i.remindedManualAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    return auto || 'No reminder yet'
+  }
   return (
     <section className={card} data-testid="payment-automation-panel">
       <h3 className="font-semibold flex items-center gap-2 mb-3"><Bell className="w-4 h-4" />Reminders, pay links and card on file</h3>
@@ -479,11 +507,20 @@ export function EventCalendarPage() {
   const [data, setData] = useState<{ spaces: CalSpace[]; events: CalEvent[]; waitlist: Wait[] } | null>(null)
   const [feeds, setFeeds] = useState<Array<{ spaceId: string; name: string; path: string }> | null>(null)
   const [waitList, setWaitList] = useState<Wait[]>([])
+  // Every hold with a last day, soonest first: what the team is reminded about (restaurant live test 2026-11-09: the reminder
+  // was only a setting, with nowhere to see which holds were about to lapse).
+  const [holds, setHolds] = useState<Array<{ id: string; name: string; eventDate: string; holdUntil: string; spaceName?: string | null }>>([])
   const days = useMemo(() => mode === 'day' ? [start] : Array.from({ length: mode === 'week' ? 7 : 35 }, (_, i) => addDays(mode === 'week' ? start : mondayOf(start.slice(0, 8) + '01'), i)), [mode, start])
   const first = days[0], last = days[days.length - 1]
   const load = useCallback(async () => {
     try { setData(await client.get('/api/event-calendar', { from: first, to: last })) } catch (e) { toast.error(errorText(e, 'Could not load the calendar')) }
     try { setWaitList(((await client.get('/api/event-waitlist', { status: 'waiting' })) as { data: Wait[] }).data) } catch { /* shown without the list */ }
+    if (hasFeature('event_hold_expiry')) {
+      try {
+        const rows = ((await client.get('/api/events', { status: 'tentative' })) as { data: any[] }).data || []
+        setHolds(rows.filter((e) => e.holdUntil).sort((a, b) => String(a.holdUntil).localeCompare(String(b.holdUntil))))
+      } catch { /* shown without the list */ }
+    }
   }, [first, last, toast])
   useEffect(() => { load() }, [load])
   const mayFeeds = can('contacts:update')
@@ -598,7 +635,7 @@ export function EventCalendarPage() {
                       <td key={d} className="border p-1 align-top" {...target({ eventDate: d, spaceId: s.id })}>
                         {here.map(chip)}
                         {waiting.length > 0 && <p className="text-[11px] text-purple-800 dark:text-purple-300">{waiting.length} waiting</p>}
-                        {here.length > 0 && s.id && can('contacts:create') && <button type="button" className="text-[11px] underline text-gray-600 dark:text-slate-400" onClick={() => setWait({ spaceId: s.id, eventDate: d, name: '', email: '', startTime: '', endTime: '' })}>+ waitlist</button>}
+                        {here.length > 0 && s.id && can('contacts:create') && <button type="button" className="text-xs underline text-gray-700 dark:text-slate-300" onClick={() => setWait({ spaceId: s.id, eventDate: d, name: '', email: '', startTime: '', endTime: '' })}>+ Waitlist</button>}
                       </td>
                     )
                   })}
@@ -609,9 +646,17 @@ export function EventCalendarPage() {
           </table>
         </div>
       )}
+      {hasFeature('event_hold_expiry') && (
+        <section className={card} data-testid="holds-ending">
+          <h2 className="font-semibold mb-2">Holds that lapse</h2>
+          {holds.length === 0 ? <p className={muted}>No hold has a last day. A tentative event set to lapse shows here, soonest first; the team is emailed before it does.</p> : (
+            <ul className="space-y-1">{holds.map((h) => <li key={h.id}><Link to={`/crm/events/${h.id}`} className="underline font-medium">{h.name}</Link> <span className={muted}>· {dayWords(h.eventDate)}{h.spaceName ? ` · ${h.spaceName}` : ''} · kept through {dayWords(String(h.holdUntil).slice(0, 10))}</span></li>)}</ul>
+          )}
+        </section>
+      )}
       <section className={card}>
         <h2 className="font-semibold mb-2">Waitlist</h2>
-        {waitList.length === 0 ? <p className={muted}>Nobody is waiting for a held date. When a hold is let go, the first guest waiting for it is told.</p> : (
+        {waitList.length === 0 ? <p className={muted}>Nobody is waiting for a held date. Add someone with “+ Waitlist” on a held day above, or from an enquiry whose room is taken. When a hold is let go, the first guest waiting for it is told.</p> : (
           <ul className="space-y-1">{waitList.map((w) => <li key={w.id} className="flex items-center justify-between gap-2"><span><strong>{w.name}</strong> · {w.eventDate}{w.startTime ? ` ${w.startTime}–${w.endTime || ''}` : ''} · {data?.spaces.find((s) => s.id === w.spaceId)?.name}</span>{can('contacts:update') && <button type="button" className={btn} onClick={async () => { await client.delete('/api/event-waitlist', w.id); load() }} aria-label="Remove from waitlist"><Trash2 className="w-4 h-4" /></button>}</li>)}</ul>
         )}
       </section>

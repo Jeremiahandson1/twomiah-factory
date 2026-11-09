@@ -598,7 +598,8 @@ describe('the wiring the browser runs (session-fetch, first-sign-in-token, accou
 
   test('sign-in says why the person is there again after a session ends', () => {
     const tui = path.join(UNIFIED, '..', '..', 'packages', 'tenant-ui', 'src', 'auth')
-    expect(read(tui, 'AuthContext.tsx')).toMatch(/const handleExpired = \(\) => \{[^}]*setSessionEnded\(true\) \}/)
+    // …once this browser had been signed in here (restaurant live test 2026-11-09: a first visit read "Your session ended").
+    expect(read(tui, 'AuthContext.tsx')).toMatch(/const handleExpired = \(\) => \{[^}]*setSessionEnded\(wasSignedIn\(\)\)/)
     expect(read(tui, 'ProtectedRoute.tsx')).toMatch(/<Redirect to=\{sessionEnded \? '\/login\?expired=1' : '\/login'\}/)
     const login = read(tui, 'LoginPage.tsx')
     expect(login).toMatch(/new URLSearchParams\(search\)\.get\('expired'\) === '1'/)

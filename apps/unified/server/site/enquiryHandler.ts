@@ -33,7 +33,7 @@ const GTM_ID = /^GTM-[A-Z0-9]{4,12}$/
  * a conversion exactly as a scripted form does (docs/TRACKING_STANDARD.md rule 5). This page carried no container at
  * all before, so the catering, party and Regulars forms counted nowhere.
  */
-function replyPage(ok: boolean, text: string, referer?: string, gtm?: string | null, saved = ok): string {
+function replyPage(ok: boolean, text: string, referer?: string, gtm?: string | null, saved = ok, companyName?: string | null): string {
   let back = '/'
   try { if (referer) back = new URL(referer).pathname || '/' } catch {}
   const tm = gtm && GTM_ID.test(gtm) ? gtm : null
@@ -44,8 +44,10 @@ function replyPage(ok: boolean, text: string, referer?: string, gtm?: string | n
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + head +
     '<meta name="robots" content="noindex"><title>' + (ok ? 'Thank you' : 'Please try again') + '</title>' +
     '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}' +
-    'main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
-    '<body>' + noscript + '<main><h1>' + (ok ? 'Thank you.' : 'That didn’t go through.') + '</h1>' + (saved ? '<p id="form-success" role="status">' : '<p>') + escHtml(text) + '</p>' +
+    'main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}' +
+    'header{position:fixed;top:0;left:0;right:0;padding:14px 16px;border-bottom:1px solid #e5e5e0;background:#fff;text-align:left}header a{text-decoration:none;font-size:1.1rem}</style></head>' +
+    // The business's name at the top, back to its home page (restaurant live test 2026-11-09: a bare page with no way back but the link).
+    '<body>' + noscript + (companyName ? '<header><a href="/">' + escHtml(companyName) + '</a></header>' : '') + '<main><h1>' + (ok ? 'Thank you.' : 'That didn’t go through.') + '</h1>' + (saved ? '<p id="form-success" role="status">' : '<p>') + escHtml(text) + '</p>' +
     '<p><a href="' + escHtml(back) + '">' + (ok ? 'Back to the site' : 'Go back and try again') + '</a></p></main></body></html>'
 }
 
@@ -59,7 +61,12 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
     const wantsPage = !isJson && (c.req.header('accept') || '').includes('text/html')
     // `saved` false: the quiet "thanks" a bot gets — never shown as a lead, so it never counts as a conversion.
     const reply = async (ok: boolean, text: string, status: 200 | 400 | 429 | 500 = ok ? 200 : 400, saved = ok) =>
-      wantsPage ? c.html(replyPage(ok, text, c.req.header('referer'), await tagManager(), saved), status) : ok ? done(c, text) : fail(c, status as 400 | 429 | 500, text)
+      wantsPage ? c.html(replyPage(ok, text, c.req.header('referer'), await tagManager(), saved, await businessName()), status) : ok ? done(c, text) : fail(c, status as 400 | 429 | 500, text)
+    /** The business's name, for the reply page's header. */
+    async function businessName(): Promise<string | null> {
+      const [co] = await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1).catch(() => [] as any[])
+      return co?.name || null
+    }
     /** The site's Tag Manager container, for the reply page. */
     async function tagManager(): Promise<string | null> {
       const [w] = await db.select({ gtm: website.googleTagManagerId }).from(website).limit(1).catch(() => [] as any[])
