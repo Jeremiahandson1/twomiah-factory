@@ -9,7 +9,7 @@
 //     invoices, each as it is paid in full;
 //   · once per invoice, plan and person (commission_auto_once); a full refund is taken back by the shared engine, which takes back every
 //     automatic commission on the invoice.
-import { and, asc, desc, eq, gte, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, notExists } from 'drizzle-orm'
 import { commissionFor, planPaysPerson, QUOTE_SELLER } from '@twomiah/tenant-backend'
 import { commission, commissionPlan, invoice, quote, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -73,7 +73,7 @@ export function createQuoteSellerCommissions(d: CrmDeps) {
       const floor = new Date(Date.now() - 30 * 86400_000)
       const paid = await db.select({ id: invoice.id }).from(invoice).where(and(
         eq(invoice.companyId, companyId), eq(invoice.status, 'paid'), gte(invoice.paidAt, floor),
-        sql`NOT EXISTS (SELECT 1 FROM commission c WHERE c.invoice_id = ${invoice.id} AND c.source = 'auto' AND c.plan_id IN (${sql.join(planIds.map((p) => sql`${p}`), sql`, `)}))`,
+        notExists(db.select({ id: commission.id }).from(commission).where(and(eq(commission.invoiceId, invoice.id), eq(commission.source, 'auto'), inArray(commission.planId, planIds)))),
       )).orderBy(desc(invoice.paidAt)).limit(batch)
       for (const r of paid as any[]) {
         try { const e = await earnForInvoice(r.id); total.invoices++; total.earned += e.earned } catch (err: any) { logger.warn('[commissions] quote seller earn failed', { invoiceId: r.id, error: err?.message || String(err) }) }

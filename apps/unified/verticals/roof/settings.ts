@@ -105,7 +105,7 @@ const roof: VerticalSettings = {
     settings: {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: sees the jobs, the pipeline and the reports; changes nothing' },
-        { value: 'crew', label: 'Crew', description: 'their crew’s jobs and work orders, photos, checklists and their own time; no prices and no company money' },
+        { value: 'crew', label: 'Crew', description: 'their crew’s jobs and work orders, photos and their own time; no prices and no company money' },
         { value: 'sales_rep', label: 'Sales rep', description: 'their own leads and jobs, inspections, quotes and canvassing, and their own commissions; not settings, the team or billing' },
         { value: 'field', label: 'Field', description: 'the jobs they are on, day-to-day work and canvassing; not settings, the team or billing' },
         { value: 'manager', label: 'Manager', description: 'runs the jobs, the pipeline, crews and quotes; not billing or company settings' },

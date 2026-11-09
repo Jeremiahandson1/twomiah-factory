@@ -31,8 +31,9 @@ describe('the features', () => {
 
 describe('the defaults, by themselves', () => {
   test('anything that is not a percent from 0 to 1000 reads as none set; a good one is kept to a tenth', () => {
-    expect(markupDefaultsOf({})).toEqual({ labor: null, material: null, part: null, service: null, other: null })
-    expect(markupDefaultsOf({ markupDefaults: { labor: 25, material: '18.26', part: -5, service: 'x', other: 5000 } })).toEqual({ labor: 25, material: 18.3, part: null, service: null, other: null })
+    // Subcontractor is a kind of line since the contractor live test 11/07 (e4ba6e1bc, markupDefaults.ts LINE_KINDS).
+    expect(markupDefaultsOf({})).toEqual({ labor: null, material: null, part: null, service: null, subcontractor: null, other: null })
+    expect(markupDefaultsOf({ markupDefaults: { labor: 25, material: '18.26', part: -5, service: 'x', other: 5000 } })).toEqual({ labor: 25, material: 18.3, part: null, service: null, subcontractor: null, other: null })
     expect(markupDefaultsOf('{"markupDefaults":{"labor":10}}').labor).toBe(10)
   })
 })
@@ -69,7 +70,7 @@ describe('through the server', () => {
 
   describe('markup defaults', () => {
     test('read with margin:read, changed by the owner or an admin, refused to the rest', async () => {
-      expect(await json(await owner('/api/markup-defaults'))).toEqual({ labor: null, material: null, part: null, service: null, other: null })
+      expect(await json(await owner('/api/markup-defaults'))).toEqual({ labor: null, material: null, part: null, service: null, subcontractor: null, other: null })
       expect((await manager('/api/markup-defaults')).status).toBe(200)          // a manager holds margin:read
       expect((await viewer('/api/markup-defaults')).status).toBe(403)           // the cost-side figure is not for a read-only seat
       expect((await field('/api/markup-defaults')).status).toBe(403)
@@ -78,8 +79,8 @@ describe('through the server', () => {
       expect((await viewer('/api/markup-defaults', { method: 'PUT', json: body })).status).toBe(403)
       const saved = await owner('/api/markup-defaults', { method: 'PUT', json: body })
       expect(saved.status).toBe(200)
-      expect(await json(saved)).toEqual({ labor: 30, material: 20, part: null, service: 15.6, other: null })
-      expect(await json(await manager('/api/markup-defaults'))).toEqual({ labor: 30, material: 20, part: null, service: 15.6, other: null })
+      expect(await json(saved)).toEqual({ labor: 30, material: 20, part: null, service: 15.6, subcontractor: null, other: null })
+      expect(await json(await manager('/api/markup-defaults'))).toEqual({ labor: 30, material: 20, part: null, service: 15.6, subcontractor: null, other: null })
     })
 
     test('a bad number is refused in words and nothing is saved', async () => {

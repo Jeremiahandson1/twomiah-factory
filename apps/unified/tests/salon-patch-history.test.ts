@@ -155,7 +155,11 @@ describe('salon: patch-test history', () => {
     const need = await client('Needs Nell')
     const fine = await client('Fine Fran')
     await as('owner', `/api/clients/${fine.id}/patch-tests`, 'POST', { testedAt: daysAgo(3), status: 'passed' })
-    const book = (c: { email: string }, ip: number) => t.call(`/api/book/services/colour`, { method: 'POST', headers: { 'x-forwarded-for': `10.9.${ip}.${ip}` }, json: { date: addDays(today(), 12), time: `${10 + (ip % 6)}:00`, name: 'Online Client', email: c.email, phone: '608-555-0160' } })
+    // A weekday: a salon that has not said its hours books weekdays 9–5 (booking/engine.ts), so 12 days out on a Saturday or Sunday
+    // is closed (the run of 2026-11-09 landed on Saturday the 21st).
+    let day = addDays(today(), 12)
+    while ([0, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay())) day = addDays(day, 1)
+    const book = (c: { email: string }, ip: number) => t.call(`/api/book/services/colour`, { method: 'POST', headers: { 'x-forwarded-for': `10.9.${ip}.${ip}` }, json: { date: day, time: `${10 + (ip % 6)}:00`, name: 'Online Client', email: c.email, phone: '608-555-0160' } })
     // the rule is on, so the unqualified client is turned away online; switch it off to book, as a salon that only wants to REMIND does
     expect((await as('owner', '/api/appointments/patch-test-rule', 'PUT', { patchTestRule: false })).status).toBe(200)
     expect((await book(need, 1)).status).toBe(201)

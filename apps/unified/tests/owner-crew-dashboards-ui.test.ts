@@ -13,7 +13,7 @@ const React = await import('react')
 const { act } = React as any
 const { createRoot } = await import('react-dom/client')
 const { MemoryRouter } = await import('react-router-dom')
-const P = '../../../packages/tenant-ui/src/'
+const P = '../../../packages/tenant-ui/src/'
 /** The admin app's own screens, by a path held in a variable so the server's type check does not walk into the web app (it has its own tsconfig). */
 const WEB = '../web/src/'
 const { AuthContext } = await import(P + 'auth/AuthContext.tsx') as any
@@ -94,10 +94,11 @@ describe('the crew member\'s panel', () => {
     expect(a.calls).toEqual(['/api/crew-dashboard'])
     const today = q('[data-testid="crew-today-jobs"] [data-job]')
     expect(today.map((j) => j.getAttribute('data-job'))).toEqual(['j1'])
-    for (const needle of ['JOB-1 · Frame garage', '07:30', 'Ann Able', '12 Elm St, Eau Claire']) expect(today[0].textContent).toContain(needle)
+    // The day and time in words since e4ba6e1bc (contractor live test 11/07: "2026-11-10 08:00").
+    for (const needle of ['JOB-1 · Frame garage', '7:30 AM', 'Ann Able', '12 Elm St, Eau Claire']) expect(today[0].textContent).toContain(needle)
     expect(today[0].querySelector('a').getAttribute('href')).toBe('/crm/jobs/j1')
     const next = q('[data-testid="crew-next-jobs"]')[0]
-    expect(next.textContent).toContain('JOB-3 · Hang drywall'); expect(next.textContent).toContain('2026-11-03'); expect(next.textContent).toContain('and 2 more this week.')
+    expect(next.textContent).toContain('JOB-3 · Hang drywall'); expect(next.textContent).toContain('Tue, Nov 3'); expect(next.textContent).toContain('and 2 more this week.')
     expect(q('[data-testid="crew-hours"]')[0].textContent).toContain('2 today, 11.5 this week')
     expect(q('[data-testid="crew-tasks"]')[0].textContent).toContain('2 open tasks: Order trim, Call inspector')
     expect(q('a').some((x) => x.getAttribute('href') === '/crm/tech')).toBe(true)

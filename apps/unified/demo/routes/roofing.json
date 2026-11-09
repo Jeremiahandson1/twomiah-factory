@@ -51,6 +51,7 @@
   "/api/jobs?limit=500&page=1",
   "/api/leads/sources",
   "/api/leads/stats",
+  "/api/leads/workers",
   "/api/leads?limit=25&page=1",
   "/api/map-center",
   "/api/materials/:id",

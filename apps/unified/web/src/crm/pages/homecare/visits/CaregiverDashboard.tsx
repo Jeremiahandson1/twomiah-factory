@@ -37,6 +37,7 @@ import { Link } from 'react-router-dom'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useAuth, usePrompt, useToast } from '../../../../shared'
 import { usePolling } from '../lib/usePolling'
+import { money } from '@twomiah/tenant-ui/src/money'
 import { toYMD } from '../lib/biweekly'
 import { isRepeatOn } from '../lib/repeats'
 import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
@@ -1077,7 +1078,7 @@ const CaregiverDashboard = () => {
               <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{myHoursThisWeek.toFixed(2)}h</div>
               {payRate !== null ? (
                 <div style={{ fontSize: '0.85rem' }} data-testid="my-pay-estimate">
-                  ${payRate.toFixed(2)}/h · about ${(myHoursThisWeek * payRate).toFixed(2)} for these hours, before tax and overtime
+                  {money(payRate)}/h · about {money(myHoursThisWeek * payRate)} for these hours, before tax and overtime
                 </div>
               ) : (
                 <div style={{ fontSize: '0.85rem' }} data-testid="my-pay-estimate">
@@ -1402,7 +1403,7 @@ const CaregiverDashboard = () => {
                   <div style={{ fontWeight: 600 }}>{shift.clientFirstName} {shift.clientLastName}</div>
                   <div style={{ fontSize: '0.9rem', color: 'var(--hc-muted)' }}>📅 {formatDay(shift.date)}</div>
                   <div style={{ fontSize: '0.9rem', color: 'var(--hc-muted)' }}>🕐 {formatTime(shift.startTime)} - {formatTime(shift.endTime)}</div>
-                  {Number(shift.bonusAmount) > 0 && <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">💵 ${Number(shift.bonusAmount).toFixed(2)} pickup bonus</div>}
+                  {Number(shift.bonusAmount) > 0 && <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">💵 {money(shift.bonusAmount)} pickup bonus</div>}
                 </div>
                 {claimedShifts[shift.id] ? (
                   <span role="status"

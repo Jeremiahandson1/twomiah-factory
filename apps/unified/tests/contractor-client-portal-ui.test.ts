@@ -84,7 +84,9 @@ describe('the office’s panel', () => {
       expect(s.calls.find((c) => c.url === '/api/client-portal/p1/sign-requests' && c.m === 'POST')?.body).toEqual({ documentId: 'd1', title: 'Layout' })
       // the payment schedule: a planner who may bill releases one
       expect(document.querySelector('[data-testid="payment-schedule-office"]')!.textContent).toContain('Contract $20,000.00')
-      await click(button('Release & invoice'))
+      // Release raises and sends the invoice, so it asks first since e4ba6e1bc (contractor live test 11/07): the planner says yes.
+      const ask = win.confirm; win.confirm = () => true
+      try { await click(button('Release & invoice')) } finally { win.confirm = ask }
       expect(s.calls.find((c) => c.url === '/api/client-portal/payments/pay1/release')).toBeTruthy()
       await setInput(document.querySelector('input[aria-label="Answer on Demolition"]'), 'Yes')
       await click(button('Answer'))

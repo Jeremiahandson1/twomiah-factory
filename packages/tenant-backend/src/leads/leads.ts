@@ -250,11 +250,16 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     try { all = !!(await deps.canSee(u?.role, 'leads:read-all', u?.userId)) } catch { all = false }
     return all ? null : eq(t.lead.assignedToId, String(u?.userId || ''))
   }
-  // Every door on one enquiry (/:id and /:id/…) answers "not found" for one that is not this seat's own.
+  // Every door on one enquiry (/:id and /:id/…) answers "not found" for one that is not this seat's own. A seat that reads no enquiries
+  // at all (no leads:read — staff, a field seat) is not narrowed here: the route's own permission refuses it, 403 as before the narrowing.
+  const readsLeads = async (c: any) => {
+    const u = c.get('user')
+    try { return !!(await deps.canSee!(u?.role, 'leads:read', u?.userId)) } catch { return true } // a failed check narrows
+  }
   const NOT_AN_ID = new Set(['sources', 'stats', 'manual', 'inbound', 'workers'])
   const ownLeadDoor = async (c: any, next: any) => {
     const id = c.req.param('id')
-    if (id && !NOT_AN_ID.has(id)) {
+    if (id && !NOT_AN_ID.has(id) && own && deps.canSee && (await readsLeads(c))) {
       const scope = await ownLeads(c)
       if (scope && !(await db.select({ id: t.lead.id }).from(t.lead).where(and(eq(t.lead.id, id), scope)).limit(1))[0]) return c.json({ error: 'Lead not found' }, 404)
     }

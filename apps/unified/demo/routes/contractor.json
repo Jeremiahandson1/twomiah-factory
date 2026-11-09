@@ -94,6 +94,7 @@
   "/api/jobs?limit=25&page=1&projectId=:id",
   "/api/leads/sources",
   "/api/leads/stats",
+  "/api/leads/workers",
   "/api/leads?limit=25&page=1",
   "/api/lien-waivers",
   "/api/locations",
