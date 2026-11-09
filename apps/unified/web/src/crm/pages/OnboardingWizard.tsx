@@ -441,7 +441,8 @@ function StepVerifyInfo({ profile, onChange, companyName }: { profile: any; onCh
           <Sparkles className="w-8 h-8 text-orange-500 dark:text-orange-200" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Welcome, {companyName || 'there'}!
+          {/* The name as it stands in the form: renamed here, the heading follows (landscaping live test 11/08: it kept the old one). */}
+          Welcome, {profile.name?.trim() || companyName || 'there'}!
         </h1>
         <p className="text-gray-600 dark:text-slate-400">
           We've pre-filled your info from setup. Double-check everything looks right, then we'll get you connected.

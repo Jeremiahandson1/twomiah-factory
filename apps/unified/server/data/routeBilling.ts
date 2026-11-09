@@ -106,11 +106,11 @@ export async function previewBatch(db: any, companyId: string, opts: BatchOption
   const { billed, stale } = await billedVisits(db, companyId, rows.map((r) => r.jobId))
   const routeIds = [...new Set(rows.map((r) => r.routeId).filter(Boolean))] as string[]
   const routes: any[] = routeIds.length ? await db.select().from(recurringRoute).where(and(eq(recurringRoute.companyId, companyId), inArray(recurringRoute.id, routeIds))) : []
-  const modeOf = new Map<string, { name: string; mode: BillingMode }>()
-  for (const r of routes) modeOf.set(r.id, { name: r.name, mode: (await billingFor(db, companyId, r)).mode })
+  const modeOf = new Map<string, { name: string; mode: BillingMode; chosen: boolean; covered: string[] }>()
+  for (const r of routes) { const b = await billingFor(db, companyId, r); modeOf.set(r.id, { name: r.name, mode: b.mode, chosen: b.chosen, covered: b.covered.map((x) => x.name) }) }
 
   const skipped = { alreadyBilled: 0, noRoute: 0, notMonthly: 0, noCustomer: 0, noPrice: 0 }
-  const leftOut = new Map<string, { routeId: string; name: string; mode: BillingMode; visits: number }>()
+  const leftOut = new Map<string, { routeId: string; name: string; mode: BillingMode; visits: number; why: string }>()
   const byCustomer = new Map<string, any[]>()
   for (const r of rows) {
     const amount = round2(Number(r.estimatedValue || 0))
@@ -119,7 +119,11 @@ export async function previewBatch(db: any, companyId: string, opts: BatchOption
     if (!route) { skipped.noRoute++; continue }
     if (route.mode !== 'monthly') {
       skipped.notMonthly++
-      const e = leftOut.get(r.routeId) ?? { routeId: r.routeId, name: route.name, mode: route.mode, visits: 0 }
+      // Why, in words the owner can act on (landscaping live test 11/08: "Automatic (billed elsewhere)" read as a dead end).
+      const why = route.mode === 'per_visit' ? 'each visit is billed on its own when the crew finishes it'
+        : !route.chosen && route.covered.length ? `set to Automatic, and ${route.covered.join(', ')} already ${route.covered.length === 1 ? 'has' : 'have'} an agreement or recurring invoice, so it is not billed twice — set the route's billing to Monthly to bill it here`
+        : `set to "billed elsewhere" — set the route's billing to Monthly to bill it here`
+      const e = leftOut.get(r.routeId) ?? { routeId: r.routeId, name: route.name, mode: route.mode, visits: 0, why }
       e.visits++; leftOut.set(r.routeId, e)
       continue
     }

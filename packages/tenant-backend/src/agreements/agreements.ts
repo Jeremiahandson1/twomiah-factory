@@ -66,6 +66,8 @@ export function renewalNoticeDays(termMonths: number): number {
  *  one that lapsed longer ago (the worker was down, or it predates auto-renewal) expires for the office to renew, so
  *  a customer is never renewed — and billed — months late without anyone deciding. */
 export const RENEWAL_GRACE_DAYS = 7
+/** How long before its end a contract can be renewed by hand (the next term starts at the end; renewAgreement). */
+export const RENEW_WINDOW_DAYS = 60
 
 /** The agreement's own term in whole months (start → end), 12 when it can't be worked out. */
 export function agreementTermMonths(startDate: unknown, endDate: unknown): number {
@@ -646,6 +648,18 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function renewAgreement(agreementId: string, companyId: string, byUserId?: string | null) {
     const agreement = await getAgreement(agreementId, companyId)
     if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
+    // The next term starts where this one ends, on the same row — so renewing long before the end would replace the term the
+    // customer is in (landscaping live test 11/08: renewed the day it was made, its start and first bill moved a year out).
+    // A renewal is made in the term's last RENEW_WINDOW_DAYS, or once it has ended.
+    if (agreement.endDate) {
+      const end = new Date(agreement.endDate)
+      const opens = new Date(end.getTime() - RENEW_WINDOW_DAYS * 86_400_000)
+      if (opens.getTime() > Date.now()) {
+        const tz = await companyTimeZone(db, companyId)
+        const day = (d: Date) => d.toLocaleDateString('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric' })
+        throw Object.assign(new Error(`This contract runs until ${day(end)}. It can be renewed from ${day(opens)}, ${RENEW_WINDOW_DAYS} days before it ends.`), { status: 409 })
+      }
+    }
     const startDate = agreement.endDate ? new Date(agreement.endDate) : new Date()
     const endDate = new Date(startDate); endDate.setFullYear(endDate.getFullYear() + 1)
     const [renewed] = await db.update(serviceAgreement)

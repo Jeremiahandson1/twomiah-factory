@@ -52,6 +52,8 @@ interface RouteDetail {
   id: string; name: string; dayName: string; dayOfWeek?: number; startTime?: string; stops?: Stop[]; billing?: RouteBilling
   /** Rows 20 and 21 (route_board_tools): the season, and the visits whose crew is booked elsewhere at that time. */
   seasonStart?: string | null; seasonEnd?: string | null
+  /** The crew lead the route's visits go to (PUT assignedToId moves its open visits too). */
+  assignedToId?: string | null
   clashes?: Array<{ visitId: string; number: string; day: string; time: string; other: string; otherTitle: string; otherTime: string }>
 }
 
@@ -135,6 +137,15 @@ export default function RecurringRoutesPage() {
     finally { setLoading(false) }
   }
   useEffect(() => { loadBoard() }, [])
+  // Who runs the route (landscaping live test 11/08: "crew leaves 07:00" with no crew on it). The assignable people, as the jobs form lists them.
+  const mayAssign = useMayWrite('jobs:dispatch')
+  const [crewPeople, setCrewPeople] = useState<Array<{ id: string; name?: string; firstName?: string; lastName?: string; email?: string }>>([])
+  useEffect(() => { api.get('/api/team/assignable').then((r: any) => setCrewPeople(Array.isArray(r?.data) ? r.data : Array.isArray(r) ? r : [])).catch(() => setCrewPeople([])) }, [])
+  const setCrew = async (assignedToId: string) => {
+    if (!detail) return
+    try { await api.put(`/api/recurring-routes/${detail.id}`, { assignedToId: assignedToId || null }); toast.success(assignedToId ? 'Crew saved — the route’s open visits go to them' : 'Crew taken off the route'); await openRoute(detail.id) }
+    catch (error) { toast.error(serverMessage(error, 'Could not save the crew')) }
+  }
 
   const openRoute = async (id: string) => {
     try {
@@ -322,6 +333,14 @@ export default function RecurringRoutesPage() {
             <div>
               <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-500 dark:text-slate-400">· {detail.dayName}{detail.startTime ? ` · crew leaves ${detail.startTime}` : ''}</span></h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">{detail.stops?.length || 0} stops</p>
+              {crewPeople.length > 0 && (
+                <label className="mt-1 flex items-center gap-2 text-sm">Crew lead
+                  <select className="input py-1" aria-label="Crew lead" disabled={!mayAssign} value={detail.assignedToId || ''} onChange={(e) => setCrew(e.target.value)}>
+                    <option value="">No one yet</option>
+                    {crewPeople.map((p) => <option key={p.id} value={p.id}>{p.name || [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unnamed'}</option>)}
+                  </select>
+                </label>
+              )}
             </div>
             {mayDeleteRoute && <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm dark:text-red-400"><Trash2 className="w-4 h-4" /> Delete route</button>}
           </div>

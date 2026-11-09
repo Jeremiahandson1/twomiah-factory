@@ -46,7 +46,8 @@ export function JobChecklistsPanel({ job }: { job: Record<string, any> }) {
       <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-slate-100"><ClipboardCheck className="h-5 w-5" aria-hidden />Checklists</h2>
       {job.status !== 'completed' && must.length > 0 && (
         <div role="alert" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-          This job can’t be completed until {must.map((o) => `“${o.name}” ${o.why.startsWith('needs') ? o.why : `is ${o.why}`}`).join(', ')}.
+          {/* The server's own sentence (crm/field/checklistRoutes.ts owedSentence); "until … is not filled in yet" read backwards (live test 11/08). */}
+          This job can’t be completed yet: {must.map((o) => `the checklist “${o.name}” ${o.why.startsWith('needs') ? o.why : `is ${o.why}`}`).join('; ')}.
         </div>
       )}
       <ul className="grid gap-2 text-sm text-gray-900 dark:text-slate-100">

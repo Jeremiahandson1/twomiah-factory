@@ -62,7 +62,7 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    */
   crewLogin?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
-export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null; /** "On my way": the minutes the crew said they are away (5–120), for the customer's text. */ etaMinutes?: number | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
+export type JobHook = (ctx: { job: any; companyId: string; userId: string; tappedAt?: Date | null; /** "On my way": the minutes the crew said they are away (5–120), for the customer's text. */ etaMinutes?: number | null; /** "Complete": what the crew wrote was done (the field view's note), for the customer's visit-done message. */ note?: string | null }) => Promise<Record<string, any> | void> | Record<string, any> | void
 /** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
 export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook; onCreate?: JobHook; onPause?: JobHook; onResume?: JobHook }
 /**

@@ -11,6 +11,7 @@ import { PageError, errorText } from '../ui/PageError'
 import { useMayWrite } from '../auth/PermissionsContext';
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { whenDate, companyTodayKey } from '../time/companyClock'
+import { useOptionalToast } from '../ui/Toast'
 
 // api is injected once at the page root; child components read it via useWarranties().
 /**
@@ -554,6 +555,7 @@ interface NewClaimModalProps {
 }
 
 function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
+  const toast = useOptionalToast()
   // Shown inside the modal, beside the form that failed, instead of a pop-up over it. (T58i)
   const [error, setError] = useState<string | null>(null);
   const { api, words } = useWarranties();
@@ -572,6 +574,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
     setSaving(true);
     try {
       await api.post('/api/warranties/claims', form);
+      toast?.success('Claim filed');
       onSave();
     } catch (error: unknown) {
       setError(errorText(error, 'That claim could not be filed.'));
@@ -695,6 +698,7 @@ interface NewWarrantyModalProps {
 
 /** A warranty written by hand for one customer (POST /api/warranties): what it covers, when it starts and for how long. */
 function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
+  const toast = useOptionalToast()
   const { api, words } = useWarranties();
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
@@ -732,6 +736,7 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
         durationMonths: Number(form.durationMonths),
         coverageDetails: form.coverageDetails || undefined,
       });
+      toast?.success('Warranty added');
       onSave();
     } catch (err: unknown) {
       setError(errorText(err, 'That warranty could not be saved.'));

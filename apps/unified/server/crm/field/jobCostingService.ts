@@ -10,6 +10,7 @@ import {
 import { notFound } from '../../http/errors.ts'
 import * as q from '../../data/jobCosting.ts'
 import { visitMaterialCostByJob } from '../../data/crewDay.ts'
+import { routeVisitInvoice, snowStormStop, snowEvent } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createRoofJobCosts, type RoofJobCost } from '../roof/jobCosts.ts'
 import { createWorksheetApproval } from '../roof/worksheetApproval.ts'
@@ -250,7 +251,51 @@ export function createJobCostingService(d: CrmDeps) {
         distinct.invoiceCount++
       }
     }
+    await visitBilledRevenue(companyId, byJob, distinct)
     return { byJob, distinct }
+  }
+
+  /**
+   * One invoice for many visits: a route's month (route_visit_invoice, each visit's amount) and a storm's visits (snow stop → its
+   * logged visit's billed amount). Each visit is credited with its own amount, before tax, and its share of what was collected
+   * (landscaping live test 11/08: a route invoice paid in full left the visit at "$0.00 invoiced"). A visit already billed by an
+   * invoice naming it is left as it is.
+   */
+  async function visitBilledRevenue(companyId: string, byJob: Map<string, JobRevenue>, distinct: RevenueAttribution['distinct']) {
+    const open = [...byJob.entries()].filter(([, r]) => r.invoiceIds.length === 0).map(([id]) => id)
+    if (!open.length) return
+    const shares: Array<{ jobId: string; amount: number; invoiceId: string }> = []
+    for (const ids of chunks(open)) {
+      shares.push(...(await db.select({ jobId: routeVisitInvoice.jobId, amount: routeVisitInvoice.amount, invoiceId: routeVisitInvoice.invoiceId }).from(routeVisitInvoice)
+        .where(and(eq(routeVisitInvoice.companyId, companyId), inArray(routeVisitInvoice.jobId, ids)))).map((r: any) => ({ jobId: r.jobId, amount: num(r.amount), invoiceId: r.invoiceId })))
+      shares.push(...(await db.select({ jobId: snowStormStop.jobId, amount: snowEvent.billableAmount, invoiceId: snowEvent.invoiceId }).from(snowStormStop)
+        .innerJoin(snowEvent, eq(snowStormStop.eventId, snowEvent.id))
+        .where(and(eq(snowStormStop.companyId, companyId), inArray(snowStormStop.jobId, ids)))).filter((r: any) => r.invoiceId).map((r: any) => ({ jobId: r.jobId, amount: num(r.amount), invoiceId: r.invoiceId })))
+    }
+    if (!shares.length) return
+    const invIds = uniq(shares.map((x) => x.invoiceId))
+    const invs = new Map<string, any>()
+    for (const ids of chunks(invIds)) {
+      for (const r of await db.select({ id: invoice.id, number: invoice.number, status: invoice.status, total: invoice.total, taxAmount: invoice.taxAmount, amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded, projectId: invoice.projectId, quoteId: invoice.quoteId })
+        .from(invoice).where(and(eq(invoice.companyId, companyId), inArray(invoice.id, ids), notInArray(invoice.status, NOT_REVENUE)))) invs.set(r.id, r)
+    }
+    const counted = new Set<string>()
+    for (const sh of shares) {
+      const r = invs.get(sh.invoiceId); const acc = byJob.get(sh.jobId)
+      if (!r || !acc || acc.invoiceIds.includes(r.id)) continue
+      const inv: InvoiceLite = { id: r.id, number: r.number, status: r.status, total: num(r.total), taxAmount: num(r.taxAmount), amountPaid: num(r.amountPaid), amountRefunded: num(r.amountRefunded), projectId: r.projectId, quoteId: r.quoteId }
+      const before = revenueOf(inv)
+      const part = before > 0 ? Math.min(1, sh.amount / before) : 0
+      acc.directRevenue = round2(acc.directRevenue + sh.amount)
+      acc.revenue = round2(acc.directRevenue + acc.sharedRevenue)
+      acc.salesTax = round2(acc.salesTax + inv.taxAmount * part)
+      acc.collected = round2(acc.collected + (inv.amountPaid - inv.amountRefunded) * part)
+      acc.invoiceIds.push(inv.id); acc.invoices.push(inv)
+      distinct.revenue = round2(distinct.revenue + sh.amount)
+      distinct.salesTax = round2(distinct.salesTax + inv.taxAmount * part)
+      distinct.collected = round2(distinct.collected + (inv.amountPaid - inv.amountRefunded) * part)
+      if (!counted.has(inv.id)) { counted.add(inv.id); distinct.invoiceCount++ }
+    }
   }
 
   /** What each quote says the work costs, split labour/material (other costed lines with material). */

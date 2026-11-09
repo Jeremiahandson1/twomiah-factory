@@ -400,7 +400,8 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
         </div>
       </aside>
 
-      <div className={rail ? 'lg:ml-16' : 'lg:ml-64'}>
+      {/* --shell-left: the menu's width, for a bar fixed to the bottom of the page to clear it (crew view, live test 11/08). */}
+      <div className={rail ? 'lg:ml-16' : 'lg:ml-64'} style={{ ['--shell-left' as any]: rail ? '4rem' : '16rem' }}>
         <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b dark:border-slate-800 h-16">
           <div className="h-full px-4 flex items-center justify-between">
             <button type="button" onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label="Open menu" aria-expanded={sidebarOpen}>

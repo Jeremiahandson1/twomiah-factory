@@ -40,6 +40,8 @@ import { usePhotoPicker } from '../site/contexts/PhotoPickerContext'
 import { QuotesAwaitingReply, LeadPipelineStrip } from './pages/LeadPipelineStrip'
 import { OwnerDashboard, CrewDashboard } from './pages/HomePanels'
 import { LostReasonsReport } from './pages/LostReasonsReport'
+import { CrewJobExtras, CrewFinishDay, DrawOnPhoto } from './crewVisitTools'
+import VisitRatingPanel from './pages/landscaping/VisitRatingPanel'
 
 const v = verticalScreens
 /** A builder's appointment kinds (no test drives): the site visit a lead books, and the office's own meetings. */
@@ -128,7 +130,7 @@ export function JobDetail() {
     ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
-    aside: (job: Record<string, any>) => <><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
+    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }
 /**
@@ -231,7 +233,8 @@ export const Locations = () => <LocationsPage api={client} toast={useToast()} />
 export const Commissions = () => <CommissionsPage api={client} toast={useToast()} config={v().commissions} />
 export function Tech() {
   const { hasFeature } = useAuth()
-  return <TechView api={client} toast={useToast()} config={{ ...v().tech, hasFeature }} />
+  // The office's checklists and the crew's own tools on each visit (crewVisitTools.tsx; landscaping live test 11/08).
+  return <TechView api={client} toast={useToast()} config={{ ...v().tech, hasFeature, jobExtras: (job, refresh) => <CrewJobExtras job={job} refresh={refresh} />, listExtras: () => <CrewFinishDay />, photoActions: (photo, reload) => <DrawOnPhoto photo={photo} reload={reload} /> }} />
 }
 export const Fleet = () => <FleetPage api={client} config={v().fleet} toast={useToast()} />
 export function Inventory() {

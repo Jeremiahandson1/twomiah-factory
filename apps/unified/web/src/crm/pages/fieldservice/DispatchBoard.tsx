@@ -638,6 +638,19 @@ function DispatchMap({ jobs, colourOf, laneOf }: { jobs: DispatchJob[]; colourOf
     const map = mapRef.current, layer = layerRef.current;
     if (!map || !layer) return;
     layer.clearLayers();
+    // The box may have changed size since the map was made (the board laid out around it): measure again first, or the new
+    // pins are framed against the old size and fall outside the view (landscaping live test 11/08: they showed only after a reload).
+    map.invalidateSize();
+    // Each crew's stops numbered in time order, and its next stop — the first not yet done — ringed (Jobber's route map).
+    const order = new Map<string, number>(), next = new Set<string>()
+    const byLane = new Map<string, DispatchJob[]>()
+    for (const j of pinned) { const k = laneOf(j); byLane.set(k, [...(byLane.get(k) || []), j]) }
+    for (const list of byLane.values()) {
+      const sorted = [...list].sort((a, b) => String(a.scheduledTime || '').localeCompare(String(b.scheduledTime || '')))
+      sorted.forEach((j, i) => order.set(j.id, i + 1))
+      const n = sorted.find((j) => j.status !== 'completed' && j.status !== 'cancelled')
+      if (n) next.add(n.id)
+    }
     const pts: [number, number][] = [];
     for (const j of pinned) {
       const at: [number, number] = [Number(j.lat), Number(j.lng)];
@@ -646,7 +659,13 @@ function DispatchMap({ jobs, colourOf, laneOf }: { jobs: DispatchJob[]; colourOf
       const title = document.createElement('strong'); title.textContent = j.contact?.name || j.title || JOB_WORD; tip.appendChild(title);
       const line = document.createElement('div'); line.textContent = [j.scheduledTime, laneOf(j)].filter(Boolean).join(' · '); tip.appendChild(line);
       if (j.address) { const a = document.createElement('div'); a.textContent = j.address; tip.appendChild(a); }
-      L.circleMarker(at, { radius: 9, color: '#ffffff', weight: 2, fillColor: colourOf(j), fillOpacity: 0.95 }).bindPopup(tip).addTo(layer);
+      if (next.has(j.id)) { const nx = document.createElement('div'); nx.textContent = 'Next stop'; nx.style.fontWeight = 'bold'; tip.appendChild(nx); }
+      const n = order.get(j.id) ?? 0, isNext = next.has(j.id)
+      const pin = document.createElement('span')
+      pin.textContent = String(n)
+      pin.setAttribute('aria-label', `Stop ${n}${isNext ? ', next' : ''}`)
+      pin.style.cssText = `display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:9999px;background:${colourOf(j)};color:#fff;font:bold 12px Arial,sans-serif;border:${isNext ? '3px solid #facc15' : '2px solid #fff'};box-shadow:0 1px 3px rgba(0,0,0,.4)`
+      L.marker(at, { icon: L.divIcon({ html: pin.outerHTML, className: '', iconSize: [26, 26], iconAnchor: [13, 13] }), title: `${n}. ${j.contact?.name || j.title || ''}` }).bindPopup(tip).addTo(layer);
     }
     if (pts.length === 1) map.setView(pts[0], 13);
     else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [24, 24] });

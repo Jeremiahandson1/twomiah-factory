@@ -118,6 +118,10 @@ export default function VisitMessagesPage() {
   const [preview, setPreview] = useState<Record<string, Preview>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [tab, setTab] = useState<'list' | 'wording'>('list')
+  // The business's alert line (Wording › "Email the office when a rating is under"): a rating under it is flagged here too
+  // (landscaping live test 11/08: a 2 of 5 showed only as small stars).
+  const [alertBelow, setAlertBelow] = useState(3)
+  useEffect(() => { if (on && survey) api.get('/api/visit-reports/settings').then((r: any) => { if (Number(r?.alertBelow)) setAlertBelow(Number(r.alertBelow)) }).catch(() => {}) }, [on, survey])
 
   const load = useCallback(async () => {
     try { const r: any = await api.get('/api/visit-reports?limit=200'); setRows(Array.isArray(r?.data) ? r.data : []) }
@@ -159,6 +163,17 @@ export default function VisitMessagesPage() {
       ) : rows.length === 0 ? (
         <p className="text-gray-500 dark:text-slate-400">No visit messages yet. One is made when a visit is finished.</p>
       ) : (
+        <>
+        {survey && rows.some((r) => r.rating != null && r.rating < alertBelow) && (
+          <div role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100">
+            <p className="font-semibold">Low ratings (under {alertBelow} of 5)</p>
+            <ul className="mt-1 list-disc pl-5">
+              {rows.filter((r) => r.rating != null && r.rating < alertBelow).map((r) => (
+                <li key={r.id}><button type="button" className="underline" onClick={() => setOpen(r.id)}>{r.customer || 'A customer'} · {r.title || 'Visit'}{r.number ? ` #${r.number}` : ''}</button>: {r.rating} of 5{r.ratingComment ? ` — “${r.ratingComment}”` : ''}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="divide-y rounded border dark:divide-slate-700 dark:border-slate-700">
           {rows.map((r) => {
             const st = STATUS[r.status] || { label: 'Unknown', tone: '' }
@@ -172,7 +187,7 @@ export default function VisitMessagesPage() {
                     <span className="text-gray-500 dark:text-slate-400"> · {r.title || 'Visit'}{r.number ? ` #${r.number}` : ''}{r.completedAt ? ` · done ${when(r.completedAt)}` : ''}</span>
                   </span>
                   <span className="flex items-center gap-3 text-sm">
-                    {r.rating != null && <Stars n={r.rating} />}
+                    {r.rating != null && <span className="inline-flex items-center gap-1"><Stars n={r.rating} /><span>{r.rating} of 5</span>{r.rating < alertBelow && <span className="rounded bg-red-100 px-1.5 text-xs font-semibold text-red-800 dark:bg-red-950/60 dark:text-red-200">Low rating</span>}</span>}
                     <span className={st.tone}>{st.label}{r.channel && (r.status === 'sent' || r.status === 'queued') ? ` ${CHANNEL[r.channel] || ''}` : ''}{r.status === 'sent' && r.sentAt ? ` · ${when(r.sentAt)}` : r.status === 'queued' && r.sendAt ? ` · ${when(r.sendAt)}` : ''}</span>
                   </span>
                 </button>
@@ -218,6 +233,7 @@ export default function VisitMessagesPage() {
             )
           })}
         </div>
+        </>
       )}
     </div>
   )

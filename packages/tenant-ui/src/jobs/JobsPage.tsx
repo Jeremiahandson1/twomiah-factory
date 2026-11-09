@@ -80,7 +80,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  // ?status= opens the list on one status (the dashboard's Today's board counters link here).
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '')
   const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   // A visit just moved by an edit: "Notify client?" (NotifyMovedDialog).
@@ -280,7 +281,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
         // Every visit is made now and is on the calendar; a day the person is already booked is listed back.
         const r: any = await api.post('/api/jobs', { ...payload, repeat: repeatBody(repeat, cfg.repeatWeekdays) })
         const s = r?.series
-        toast.success(s ? `${s.made} visits scheduled — ${s.summary.toLowerCase()}` : `${cfg.labels.singular} created`)
+        // Only the first letter: the summary's day names stay capitalised ("the 1st Friday", landscaping live test 11/08).
+        toast.success(s ? `${s.made} visits scheduled — ${s.summary.charAt(0).toLowerCase()}${s.summary.slice(1)}` : `${cfg.labels.singular} created`)
         if (s?.skipped?.length) toast.error(`${s.skipped.length} not booked: ${s.skipped.slice(0, 3).map((k: any) => `${dateOnly(k.date)} (${k.reason})`).join('; ')}`)
       }
       else { await api.post('/api/jobs', payload); toast.success(`${cfg.labels.singular} created`) }

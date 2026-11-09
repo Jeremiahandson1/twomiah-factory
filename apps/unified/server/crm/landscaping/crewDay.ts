@@ -131,6 +131,17 @@ export function createCrewDayRoutes(d: CrmDeps) {
   })
 
   // ── Materials used (visit_materials; row 13) ──
+  // The price book's materials to pick from, by name and unit only: a crew seat holds no prices (live test 11/08: the crew read
+  // the Pricebook's prices to pick a material). Active items, materials and parts first.
+  app.get('/materials-catalog', requirePermission('jobs:read'), gate(CREW_DAY_FEATURES.materials), async (c) => {
+    const { pricebookItem } = await import('../../db/schema/index.ts')
+    const { and: all, eq: is, asc: up } = await import('drizzle-orm')
+    const rows: any[] = await db.select({ id: pricebookItem.id, name: pricebookItem.name, unit: pricebookItem.unit, type: pricebookItem.type }).from(pricebookItem)
+      .where(all(is(pricebookItem.companyId, c.get('user').companyId), is(pricebookItem.active, true))).orderBy(up(pricebookItem.name)).limit(500)
+    const rank = (t: string) => (t === 'material' || t === 'part' ? 0 : 1)
+    return listAll(c, rows.sort((a, b) => rank(a.type) - rank(b.type)).map((r) => ({ id: r.id, name: r.name, unit: r.unit })))
+  })
+
   app.get('/visits/:jobId/materials', requirePermission('jobs:read'), gate(CREW_DAY_FEATURES.materials), async (c) => {
     const u = c.get('user')
     const j = await seatJob(c, c.req.param('jobId'))

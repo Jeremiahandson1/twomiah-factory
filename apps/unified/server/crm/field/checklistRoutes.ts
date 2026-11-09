@@ -236,7 +236,8 @@ export function createCompletionGate(d: CrmDeps) {
   const canSee = canSeeWith(d.permissions)
   return async (c: any, next: () => Promise<void>) => {
     const method = c.req.method
-    const isComplete = method === 'POST' && /\/complete\/?$/.test(c.req.path)
+    // The crew's own Complete button (/api/tech/:id/complete-job) is a door to completed too (live test 11/08: it went round the rule).
+    const isComplete = method === 'POST' && /\/complete(-job)?\/?$/.test(c.req.path)
     const isPut = method === 'PUT' && /\/api\/jobs\/[^/]+\/?$/.test(c.req.path)
     const isCreate = method === 'POST' && /\/api\/jobs\/?$/.test(c.req.path)
     if (!isComplete && !isPut && !isCreate) return next()
@@ -252,7 +253,7 @@ export function createCompletionGate(d: CrmDeps) {
         return why ? fail(c, 400, why, 'checklist_outstanding') : next()
       }
     }
-    const id = isComplete ? c.req.path.replace(/\/complete\/?$/, '').split('/').pop() : c.req.path.replace(/\/$/, '').split('/').pop()
+    const id = isComplete ? c.req.path.replace(/\/complete(-job)?\/?$/, '').split('/').pop() : c.req.path.replace(/\/$/, '').split('/').pop()
     const [j] = await d.db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, u.companyId))).limit(1)
     if (!j || j.status === 'completed') return next()
     const owed = (await owedOnJob(d.db, u.companyId, j)).outstanding.filter((o: any) => o.required)

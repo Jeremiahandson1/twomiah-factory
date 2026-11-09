@@ -715,6 +715,12 @@ export interface CommissionEarnerDeps {
    * there is nobody to attribute it to, and a guess (every job on a project) would pay the wrong person.
    */
   invoiceJobLink: 'jobId' | 'quoteId'
+  /**
+   * An invoice that bills several visits at once (a lawn route's month, a storm's visits): each visit and its amount before tax.
+   * Used when the invoice names no job: each visit's person earns on their own visits' amounts (landscaping live test 11/08: a paid
+   * route invoice earned the crew nothing). Unset: such an invoice earns nothing, as before.
+   */
+  visitShares?: (invoice: any) => Promise<Array<{ jobId: string; amount: number }>>
 }
 
 /**
@@ -778,9 +784,40 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
         && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt))
       if (!plans.length) return out
       const job = await jobFor(inv)
-      if (!job) return out
-      const base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
       const everyPlan = await currentPlans(inv.companyId)
+      if (!job) {
+        // Several visits on one bill: each person earns once on the sum of their visits (commission_auto_once is per person).
+        const shares = deps.visitShares ? await deps.visitShares(inv) : []
+        if (!shares.length) return out
+        const visits = await db.select().from(t.job).where(and(inArray(t.job.id, [...new Set(shares.map((s) => s.jobId))]), eq(t.job.companyId, inv.companyId)))
+        const byId = new Map<string, any>(visits.map((v: any) => [v.id, v]))
+        for (const plan of plans) {
+          const per = new Map<string, { base: number; jobId: string; n: number }>()
+          for (const s of shares) {
+            const v = byId.get(s.jobId); if (!v) continue
+            const earnerId = plan.autoEarn === 'job_assignee' ? v.assignedToId : plan.autoEarn === 'job_creator' ? v.createdById : null
+            if (!earnerId || !planPaysPerson(plan, earnerId, everyPlan)) continue
+            const g = per.get(earnerId) ?? { base: 0, jobId: v.id, n: 0 }
+            g.base += s.amount; g.n++; per.set(earnerId, g)
+          }
+          for (const [earnerId, g] of per) {
+            const [person] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, earnerId), eq(t.user.companyId, inv.companyId))).limit(1)
+            if (!person) continue
+            const base = cents(Math.max(0, g.base))
+            const result = commissionFor(plan, base)
+            if ('error' in result) continue
+            const rows = await db.insert(t.commission).values({
+              companyId: inv.companyId, planId: plan.id, userId: person.id, jobId: g.jobId, invoiceId: inv.id,
+              baseAmount: String(base), rateApplied: result.rate !== null ? String(result.rate) : null,
+              commissionAmount: String(result.amount), earnedAt: paidAt, source: 'auto',
+              notes: `Earned automatically when ${inv.number || 'the invoice'} was paid in full (${g.n} visit${g.n === 1 ? '' : 's'})`,
+            } as any).onConflictDoNothing().returning({ id: t.commission.id })
+            out.earned += rows.length
+          }
+        }
+        return out
+      }
+      const base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
       for (const plan of plans) {
         const earnerId = plan.autoEarn === 'job_assignee' ? job.assignedToId : plan.autoEarn === 'job_creator' ? job.createdById : null
         if (!earnerId) continue

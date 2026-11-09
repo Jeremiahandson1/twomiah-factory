@@ -529,8 +529,8 @@ function RateFormModal({ item, categories, onSave, onClose }: {
               <span className="text-sm text-gray-700 dark:text-slate-300">Taxable</span>
             </label>
 
-            {/* Actions */}
-            <div className="flex gap-3 pt-4">
+            {/* Actions — pinned to the bottom of the box: the form is taller than a laptop screen (landscaping live test 11/08). */}
+            <div className="sticky -bottom-6 -mx-6 -mb-6 flex gap-3 border-t bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-800">
               <button
                 type="button"
                 onClick={onClose}
