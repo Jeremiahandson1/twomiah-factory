@@ -22,6 +22,8 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
+import { and, eq } from 'drizzle-orm'
+import { barScheduleShift, barShiftRequest, user } from '../../db/schema/index.ts'
 import { RotaError } from './barSchedule.ts'
 import { TIME_OFF_TILES } from './tileConditions.ts'
 import type { BarServices } from './services.ts'
@@ -41,6 +43,27 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
   const sr = bar.staffRequests
   const { addScheduled, copyWeek, decideTimeOff, deleteScheduled, loadWeek, myTimeOff, publishWeek, publishedWeeks, requestTimeOff, timeOffRequests, updateScheduled } = bar.schedule
   const app = new Hono<AppEnv>()
+
+  // -- Audit Log rows by name --
+  // The request floor wrote "Shift · Created — shift" and "Swap · Created — swap" (restaurant re-check 3, 2026-11-09).
+  // Each write here says whose shift it was and when: "Chrome Server · 2026-11-12 16:00–21:00 · Floor".
+  const personName = async (companyId: string, userId: string | null | undefined) => {
+    if (!userId) return ''
+    const [u] = await d.db.select({ f: user.firstName, l: user.lastName, e: user.email }).from(user).where(and(eq(user.id, userId), eq(user.companyId, companyId))).limit(1)
+    return u ? [u.f, u.l].filter(Boolean).join(' ').trim() || u.e : ''
+  }
+  const shiftName = async (companyId: string, shiftId: string | null | undefined) => {
+    if (!shiftId) return 'Shift'
+    const [s] = await d.db.select().from(barScheduleShift).where(and(eq(barScheduleShift.id, shiftId), eq(barScheduleShift.companyId, companyId))).limit(1)
+    if (!s) return 'Shift'
+    return [await personName(companyId, s.userId), `${s.day} ${s.start}–${s.end}`, s.position].filter(Boolean).join(' · ')
+  }
+  const requestShiftName = async (companyId: string, requestId: string) => {
+    const [r] = await d.db.select({ shiftId: barShiftRequest.shiftId }).from(barShiftRequest).where(and(eq(barShiftRequest.id, requestId), eq(barShiftRequest.companyId, companyId))).limit(1)
+    return shiftName(companyId, r?.shiftId)
+  }
+  const said = (c: Ctx, action: string, entity: string, entityId: string | undefined, entityName: string, description: string) =>
+    audit.log({ req: c, action, entity, entityId, entityName, metadata: { description } })
 
   async function run(c: Ctx, fn: () => Promise<unknown>) {
     try {
@@ -78,16 +101,36 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
   })
   app.post('/shifts', ...manage, async (c) => {
     const a = await actorOf(c); const b = await body(c)
-    return run(c, async () => { const shift = await addScheduled(a, b); return { shift, warning: (await availabilityOn(a.companyId)) ? await sr.availabilityWarning(a.companyId, shift) : null } })
+    return run(c, async () => {
+      const shift = await addScheduled(a, b)
+      await said(c, 'create', 'bar_schedule_shift', shift.id, await shiftName(a.companyId, shift.id), 'Shift added')
+      return { shift, warning: (await availabilityOn(a.companyId)) ? await sr.availabilityWarning(a.companyId, shift) : null }
+    })
   })
   app.patch('/shifts/:id', ...manage, async (c) => {
     const a = await actorOf(c); const b = await body(c)
-    return run(c, async () => { const shift = await updateScheduled(a, c.req.param('id'), b); return { shift, warning: (await availabilityOn(a.companyId)) ? await sr.availabilityWarning(a.companyId, shift) : null } })
+    return run(c, async () => {
+      const shift = await updateScheduled(a, c.req.param('id'), b)
+      await said(c, 'update', 'bar_schedule_shift', shift.id, await shiftName(a.companyId, shift.id), 'Shift changed')
+      return { shift, warning: (await availabilityOn(a.companyId)) ? await sr.availabilityWarning(a.companyId, shift) : null }
+    })
   })
-  app.delete('/shifts/:id', ...manage, async (c) => { const a = await actorOf(c); return run(c, async () => { await deleteScheduled(a, c.req.param('id')); return { ok: true } }) })
+  app.delete('/shifts/:id', ...manage, async (c) => {
+    const a = await actorOf(c)
+    return run(c, async () => {
+      const name = await shiftName(a.companyId, c.req.param('id'))
+      await deleteScheduled(a, c.req.param('id'))
+      await said(c, 'delete', 'bar_schedule_shift', c.req.param('id'), name, 'Shift deleted')
+      return { ok: true }
+    })
+  })
   app.post('/copy', ...manage, async (c) => {
     const a = await actorOf(c); const b = await body(c)
-    return run(c, async () => ({ shifts: await copyWeek(a, String(b.fromDay || ''), String(b.toDay || ''), b.replace === true) }))
+    return run(c, async () => {
+      const shifts = await copyWeek(a, String(b.fromDay || ''), String(b.toDay || ''), b.replace === true)
+      await said(c, 'create', 'bar_schedule_week', undefined, `Week of ${String(b.toDay || '')}`, `Copied from the week of ${String(b.fromDay || '')} (${Array.isArray(shifts) ? shifts.length : 0} shifts)`)
+      return { shifts }
+    })
   })
   app.post('/publish', ...manage, async (c) => {
     const a = await actorOf(c); const b = await body(c)
@@ -106,11 +149,25 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
     const a = await actorOf(c)
     return run(c, async () => ({ requests: await timeOffRequests(a.companyId, c.req.query('tile') === 'pending') }))
   })
-  app.put('/time-off/:id', ...manage, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, async () => ({ request: await decideTimeOff(a, c.req.param('id'), b.status) })) })
+  app.put('/time-off/:id', ...manage, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const request: any = await decideTimeOff(a, c.req.param('id'), b.status)
+      await said(c, 'status_change', 'bar_time_off', c.req.param('id'), `${await personName(a.companyId, request?.userId)} · ${request?.day || ''}`, b.status === 'approved' ? 'Time off approved' : 'Time off denied')
+      return { request }
+    })
+  })
 
   app.get('/published', ...read, async (c) => { const a = await actorOf(c); return run(c, () => publishedWeeks(a.companyId, c.req.query('day') || null)) })
   app.get('/time-off/mine', ...read, async (c) => { const a = await actorOf(c); return run(c, async () => ({ requests: await myTimeOff(a) })) })
-  app.post('/time-off', ...read, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, async () => ({ request: await requestTimeOff(a, b.day, b.note) })) })
+  app.post('/time-off', ...read, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const request: any = await requestTimeOff(a, b.day, b.note)
+      await said(c, 'create', 'bar_time_off', request?.id, `${a.name} · ${request?.day || ''}`, 'Asked for time off')
+      return { request }
+    })
+  })
 
   // ── Availability (bar_availability) ──
   app.get('/availability/mine', ...read, avail, async (c) => { const a = await actorOf(c); return run(c, () => sr.mineAvailability(a)) })
@@ -141,11 +198,27 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
 
   // ── Shift swaps and pick-ups (bar_shift_swaps) ──
   app.get('/swaps/mine', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.mine(a)) })
-  app.post('/swaps', ...read, swaps, async (c) => { const a = await actorOf(c); const b = await body(c); return run(c, async () => ({ request: await sr.createRequest(a, b) })) })
-  app.post('/swaps/:id/claim', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.claim(a, c.req.param('id'))) })
-  app.post('/swaps/:id/accept', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.respond(a, c.req.param('id'), true)) })
-  app.post('/swaps/:id/decline', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, () => sr.respond(a, c.req.param('id'), false)) })
-  app.post('/swaps/:id/cancel', ...read, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ request: await sr.cancel(a, c.req.param('id')) })) })
+  app.post('/swaps', ...read, swaps, async (c) => {
+    const a = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const request: any = await sr.createRequest(a, b)
+      await said(c, 'create', 'bar_shift_request', request?.id, await shiftName(a.companyId, request?.shiftId), request?.kind === 'give' ? `${a.name} gave the shift away` : `${a.name} asked to swap it`)
+      return { request }
+    })
+  })
+  // The person's own step on a swap or pick-up, named for the shift.
+  const step = (fn: (a: any, id: string) => Promise<unknown>, words: string) => async (c: Ctx) => {
+    const a = await actorOf(c); const id = c.req.param('id')
+    return run(c, async () => {
+      const r = await fn(a, id)
+      await said(c, 'update', 'bar_shift_request', id, await requestShiftName(a.companyId, id), `${a.name} ${words}`)
+      return r as object
+    })
+  }
+  app.post('/swaps/:id/claim', ...read, swaps, step((a, id) => sr.claim(a, id), 'offered to take it'))
+  app.post('/swaps/:id/accept', ...read, swaps, step((a, id) => sr.respond(a, id, true), 'said yes to the swap'))
+  app.post('/swaps/:id/decline', ...read, swaps, step((a, id) => sr.respond(a, id, false), 'said no to the swap'))
+  app.post('/swaps/:id/cancel', ...read, swaps, step(async (a, id) => ({ request: await sr.cancel(a, id) }), 'took the request back'))
   // What the manager decided about swaps: approval on or off for swaps and for pick-ups, and how long before a shift a request lapses.
   app.get('/swap-settings', ...manage, swaps, async (c) => { const a = await actorOf(c); return run(c, async () => ({ settings: await sr.swapSettings(a.companyId) })) })
   app.put('/swap-settings', ...manage, swaps, async (c) => {
@@ -161,7 +234,7 @@ export function createBarScheduleRoutes(d: CrmDeps, bar: BarServices) {
     const a = await actorOf(c); const b = await body(c)
     return run(c, async () => {
       const r = await sr.decide(a, c.req.param('id'), b.status)
-      audit.log({ req: c, action: 'update', entity: 'bar_shift_request', entityId: c.req.param('id'), entityName: 'Shift swap', changes: { decision: b.status } })
+      await said(c, 'update', 'bar_shift_request', c.req.param('id'), await requestShiftName(a.companyId, c.req.param('id')), b.status === 'approved' ? 'Swap approved' : `Swap ${String(b.status || 'decided')}`)
       return r
     })
   })

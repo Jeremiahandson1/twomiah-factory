@@ -306,8 +306,11 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
       }
       const { userId: _who, ...shown } = r
       // Named for who was clocked (the request floor wrote "Admin User | Created — clock"; restaurant re-check 2026-11-09).
-      const said = r.action === 'in' ? 'Clocked in with their till PIN' : r.action === 'out' ? `Clocked out after ${r.hours} h with their till PIN` : 'Clocked in and out within a minute — no time kept'
-      audit.log({ req: c, action: r.action === 'in' ? 'create' : 'update', entity: 'time_entry', entityName: r.name, metadata: { description: said } })
+      // A clock-in under a minute is logged once, by the clock itself (time.ts: "Clock-in under a minute — no time kept").
+      if (r.action !== 'discarded') {
+        const said = r.action === 'in' ? 'Clocked in with their till PIN' : `Clocked out after ${r.hours} h with their till PIN`
+        audit.log({ req: c, action: r.action === 'in' ? 'create' : 'update', entity: 'time_entry', entityName: r.name, metadata: { description: said } })
+      }
       return one(c, { ok: true, ...shown, ...(declaredTip ? { declaredTip } : {}), on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
     } catch (e: any) {
       if (e instanceof RotaError) return fail(c, e.status as any, e.message)

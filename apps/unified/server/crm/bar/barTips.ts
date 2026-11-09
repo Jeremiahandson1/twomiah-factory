@@ -20,6 +20,10 @@ import { addDays } from './barHours.ts'
 import { businessDayOf, businessDayWindow, type BarLive } from './barLive.ts'
 import { roleForPositions, rulesRefusal, settleTips, type TipPerson, type TipRules } from './barTipMath.ts'
 
+/** A business's own seat as a word (cook → Cook); the hierarchy's rungs (owner, admin, manager, field, user, viewer) are not jobs. */
+const RUNGS = new Set(['owner', 'admin', 'manager', 'field', 'user', 'viewer'])
+const seatWord = (seat: string | null | undefined) => (seat && !RUNGS.has(seat) ? (seat.charAt(0).toUpperCase() + seat.slice(1)).replace(/_/g, ' ') : '')
+
 export class TipError extends Error { constructor(message: string, public status = 400) { super(message) } }
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
@@ -114,22 +118,23 @@ export function createBarTips(db: BarDb, live: BarLive) {
     const names = await db.select({ id: user.id, first: user.firstName, last: user.lastName, email: user.email, seat: user.role }).from(user).where(and(eq(user.companyId, companyId), inArray(user.id, ids)))
     const nameOf = new Map(names.map((u) => [u.id, [u.first, u.last].filter(Boolean).join(' ').trim() || u.email]))
     const fallback = rules.defaultRole || rules.roles[0]?.name || ''
-    // Someone who clocked in with no shift that night: their usual position, as Toast's and 7shifts' primary job — the last
-    // position they were scheduled for, else their roster card's, else their seat (a Cook). Restaurant re-check 2026-11-09:
-    // an unscheduled cook was paid as "Servers" and got no tip-out.
+    // Someone who clocked in with no shift that night: their usual job, as Toast's and 7shifts' primary job. First what the
+    // owner said in the rules for their Team-card position or their seat (Cook → Kitchen: the Rules tab offers both), then the
+    // position they are most often scheduled for (three months back, two weeks ahead). Restaurant re-checks 2026-11-09: an
+    // unscheduled cook was paid as "Servers" and got no tip-out.
     const unscheduled = ids.filter((id) => !shifts.some((s) => s.userId === id && s.position))
     const usual = new Map<string, string[]>()
     if (unscheduled.length) {
-      const past = await db.select({ userId: barScheduleShift.userId, position: barScheduleShift.position }).from(barScheduleShift)
-        .where(and(eq(barScheduleShift.companyId, companyId), inArray(barScheduleShift.userId, unscheduled), isNotNull(barScheduleShift.position), lte(barScheduleShift.day, day)))
-        .orderBy(desc(barScheduleShift.day)).limit(500)
+      const scheduled = await db.select({ userId: barScheduleShift.userId, position: barScheduleShift.position }).from(barScheduleShift)
+        .where(and(eq(barScheduleShift.companyId, companyId), inArray(barScheduleShift.userId, unscheduled), isNotNull(barScheduleShift.position), gte(barScheduleShift.day, addDays(day, -90)), lte(barScheduleShift.day, addDays(day, 14))))
       const cards = await db.select({ email: teamMember.email, role: teamMember.role }).from(teamMember).where(eq(teamMember.companyId, companyId))
       const cardRole = new Map(cards.filter((m) => m.email && m.role).map((m) => [String(m.email).toLowerCase(), String(m.role)]))
       for (const id of unscheduled) {
         const u = names.find((n) => n.id === id)
-        const last = past.find((p) => p.userId === id)?.position
-        const seat = u?.seat ? u.seat.charAt(0).toUpperCase() + u.seat.slice(1) : ''
-        usual.set(id, [last, cardRole.get(String(u?.email || '').toLowerCase()), seat].filter((x): x is string => !!x))
+        const counts = new Map<string, number>()
+        for (const s of scheduled) if (s.userId === id && s.position) counts.set(s.position, (counts.get(s.position) || 0) + 1)
+        const mostOften = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0]
+        usual.set(id, [cardRole.get(String(u?.email || '').toLowerCase()), seatWord(u?.seat), mostOften].filter((x): x is string => !!x))
       }
     }
     const roleFor = (id: string) => {
@@ -204,9 +209,20 @@ export function createBarTips(db: BarDb, live: BarLive) {
   }
 
   /** The positions the schedule uses, to offer when naming a role. */
+  /**
+   * The positions to name a role for: those given shifts on the Schedule, the positions on Team cards, and the business's own
+   * seats (a restaurant's Server and Cook) — so someone who works without a shift still has a job the owner can map.
+   */
   async function positions(companyId: string): Promise<string[]> {
-    const rows = await db.selectDistinct({ p: barScheduleShift.position }).from(barScheduleShift).where(and(eq(barScheduleShift.companyId, companyId), isNotNull(barScheduleShift.position)))
-    return rows.map((r) => r.p!).filter(Boolean).sort()
+    const [rows, cards, seats] = await Promise.all([
+      db.selectDistinct({ p: barScheduleShift.position }).from(barScheduleShift).where(and(eq(barScheduleShift.companyId, companyId), isNotNull(barScheduleShift.position))),
+      db.selectDistinct({ p: teamMember.role }).from(teamMember).where(and(eq(teamMember.companyId, companyId), isNotNull(teamMember.role))),
+      db.selectDistinct({ p: user.role }).from(user).where(and(eq(user.companyId, companyId), eq(user.isActive, true))),
+    ])
+    const all = [...rows.map((r) => r.p), ...cards.map((r) => r.p), ...seats.map((r) => seatWord(r.p))].map((x) => String(x || '').trim()).filter(Boolean)
+    const seen = new Map<string, string>()
+    for (const x of all) if (!seen.has(x.toLowerCase())) seen.set(x.toLowerCase(), x)
+    return [...seen.values()].sort((a, b) => a.localeCompare(b))
   }
 
   // ─── Declared cash tips ────────────────────────────────────────────────────────────────────────────────────

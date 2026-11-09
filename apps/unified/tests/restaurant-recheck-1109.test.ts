@@ -171,3 +171,37 @@ describe('re-check 2: the last payment is the balance', () => {
     expect(await amounts()).toEqual({ Deposit: 500, 'Final balance': 1320 })
   })
 })
+
+describe('re-check 3: the cook with no shift, named schedule rows', () => {
+  test('the Rules tab offers the seat; mapped Cook → Kitchen, an unscheduled cook is paid as the kitchen', async () => {
+    // The cook's Grill history is gone, as on the test site: only the seat says what they do.
+    await (k.t.db as any).delete(k.S.barScheduleShift).where(eq(k.S.barScheduleShift.userId, cookId))
+    const day = dayBefore(today, 3)
+    const rules = (await k.O('GET', '/api/tips/rules')).json
+    expect(rules.positions).toContain('Cook')
+    expect((await k.O('PUT', '/api/tips/rules', { ...rules.rules, positionRoles: { ...rules.rules.positionRoles, Cook: 'Kitchen' } })).status).toBe(200)
+    const ins = (t: any, v: any) => (k.t.db as any).insert(t).values(v)
+    for (const id of [cookId, k.ids.bartender]) {
+      const inn = new Date(`${day}T22:00:00Z`), out = new Date(`${day}T23:30:00Z`)
+      await ins(k.S.timeEntry, { companyId: k.companyId, userId: id, date: inn, hours: '1.50', clockIn: inn, clockOut: out })
+    }
+    await ins(k.S.barScheduleShift, { companyId: k.companyId, userId: k.ids.bartender, day, start: '16:00', end: '22:00', position: 'Floor' })
+    await ins(k.S.barDeclaredTip, { companyId: k.companyId, userId: k.ids.bartender, businessDay: day, amountCents: 1000, originalCents: 1000 })
+    const night = (await k.O('GET', `/api/tips/night?day=${day}`)).json
+    const by = Object.fromEntries(night.payouts.map((p: any) => [p.userId, p]))
+    expect(by[cookId].role).toBe('Kitchen')
+    expect(by[k.ids.bartender].tipOutPaidCents).toBe(100)
+  })
+
+  test('shift and swap rows name the person and the shift', async () => {
+    const day = dayBefore(today, -6)
+    const s = (await k.M('POST', '/api/schedule/shifts', { userId: k.ids.bartender, day, start: '11:00', end: '15:00', position: 'Floor' })).json
+    await k.M('POST', '/api/schedule/publish', { day })
+    await k.B('POST', '/api/schedule/swaps', { kind: 'give', shiftId: s.shift?.id || s.id })
+    await k.settle()
+    const rows = await auditRows()
+    expect(rows.some((r: any) => r.entity === 'bar_schedule_shift' && r.entityName === `Bartender Seat · ${day} 11:00–15:00 · Floor` && r.metadata?.description === 'Shift added')).toBe(true)
+    expect(rows.some((r: any) => r.entity === 'bar_shift_request' && r.metadata?.description === 'Bartender Seat gave the shift away')).toBe(true)
+    expect(rows.some((r: any) => r.entity === 'shift' || r.entity === 'swap')).toBe(false)
+  })
+})
