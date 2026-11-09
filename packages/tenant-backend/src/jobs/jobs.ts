@@ -1595,7 +1595,7 @@ export function createJobRoutes(deps: JobDeps) {
         if (!lines) {
           const amount = round2(Number(j.estimated_value || 0))
           if (!amount || amount <= 0) {
-            return { status: 400 as const, body: { error: 'This job has no value to bill. Set what the work is worth, then invoice it.' } }
+            return { status: 400 as const, body: { error: 'This job has no price to bill. Set its Price under Edit, then invoice it.' } }
           }
           const settings = rowsOf(await tx.execute(
             sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`,
