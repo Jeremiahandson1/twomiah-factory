@@ -38,6 +38,18 @@ describe('voids are counted on the night they were made', () => {
   })
 })
 
+describe('a card run on another machine', () => {
+  test('is "Card (own machine)" by tender on the night, never "Card (reader)"', async () => {
+    const id = (await k.B('POST', '/api/register/check', { kind: 'walkup' })).json.check.id as string
+    expect((await k.B('POST', `/api/register/check/${id}/items`, { menuItemId: items.soda.id })).status).toBe(200)
+    const owed = (await k.B('GET', `/api/register/check/${id}`)).json.check.totals.balanceCents
+    expect((await k.B('POST', `/api/register/check/${id}/pay`, { tender: 'card_external', amountCents: owed })).status).toBe(200)
+    const t = (await k.M('GET', '/api/register/day')).json.summary.byTender.find((x: any) => x.tender === 'card_external')
+    expect(t.label).toBe('Card (own machine)')
+    expect(t.amountCents).toBe(owed)
+  })
+})
+
 describe('the week grid with no opening hours', () => {
   test('says the hours are not set; once they are, it does not', async () => {
     expect((await k.M('GET', '/api/schedule/week')).json.hoursSet).toBe(false)

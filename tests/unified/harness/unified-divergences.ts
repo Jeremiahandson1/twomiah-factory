@@ -292,6 +292,11 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   },
   bar: {
     't39-event-deposits.test.ts': FINAL_BALANCE_FOLLOWS,
+    'bar-register-arithmetic.test.ts': {
+      assertions: [/^by tender, without the voided payment/],
+      why: "A card recorded on the register after it was run on another machine (card_external) is named \"Card (own machine)\" on the close-out and Reports, not crm-bar's \"Card (reader)\": with no reader connected, \"reader\" read as if this register had charged it (bar live test 2026-11-09). The counts and amounts are the same.",
+      heldBy: 'apps/unified/tests/bar-live-1109.test.ts (a card recorded from another machine is "Card (own machine)" by tender)',
+    },
     'bar-website-forms.test.ts': {
       why: "Drives POST /api/webhooks/leads, where the bar's separate website forwarded its party and Regulars forms. The website is the same app now: the forms post to the site's own enquiry (POST /api/leads) and crm/bar/enquiry.ts answers them (CrmSettings.websiteForms 'bar'), with the visitor's own address as consent evidence.",
       heldBy: 'apps/unified/tests/bar-website-forms.test.ts (the same behaviour through the site form: dated party → party book, same phone same guest, undated → inbox, Regulars tag + birthday + consent: 8 pass)',
