@@ -113,7 +113,7 @@ export const nav: NavItem[] = [
   { to: '/crm/stock', icon: Package, label: 'Stock', features: ['bar_stock'], permission: 'bar:update' },
   { to: '/crm/shifts', icon: CalendarDays, label: 'Schedule', features: ['bar_schedule'], permission: 'bar:read' },
   // A manager's tip rules and everyone's nights; anyone on the register sees their own (GET /api/tips/mine asks bar:register).
-  { to: '/crm/tips', icon: Coins, label: 'Tips', features: ['bar_tip_pooling'], permission: 'bar:register' },
+  { to: '/crm/tips', icon: Coins, label: 'Tips', features: ['bar_tip_pooling'], permission: 'bar:register', labelWithout: ['bar:manage', 'My tips'] },
   { to: '/crm/pay-period', icon: Banknote, label: 'Payroll', features: ['bar_payroll_export'], permission: 'bar:manage' },
   { to: '/crm/menu', icon: Utensils, label: 'Menu', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },

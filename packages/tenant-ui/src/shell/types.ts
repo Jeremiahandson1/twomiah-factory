@@ -43,6 +43,11 @@ export interface NavItem {
    * (contractor live test 11/07: the crew's menu listed Reviews, Agreements, Fleet, Bookings…). The page itself answers as before.
    */
   hiddenForRoles?: string[]
+  /**
+   * The item's name for someone WITHOUT this permission: one page that shows a manager everyone's and a seat only its
+   * own. The bar's Tips is the manager's tip rules and every night, and "My tips" to a bartender (bar re-check 11/09).
+   */
+  labelWithout?: [permission: string, label: string]
   /** Optional stable id (external items have no unique route) */
   id?: string
 }

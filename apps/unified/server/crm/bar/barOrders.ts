@@ -14,7 +14,7 @@
 // ticked "Text me about my order" and has not opted out, else an email.
 import Stripe from 'stripe'
 import { and, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
-import { barOrder } from '../../db/schema/index.ts'
+import { barCheck, barOrder } from '../../db/schema/index.ts'
 import { checkTotals, formatMoney, taxRateBpsFrom } from './barCheckMoney.ts'
 import { company } from '../../db/schema/index.ts'
 import type { BarLive } from './barLive.ts'
@@ -309,6 +309,12 @@ export function createBarOrders(deps: {
 
   /** The Orders screen: tonight's paid website and kiosk orders, newest first. */
   async function listOrders(companyId: string, since: Date) {
+    // Counter orders whose check closed before the register moved its order along (before the bar re-check 11/09).
+    for (const [to, check] of [['received', 'paid'], ['cancelled', 'void']] as const) {
+      const ended = db.select({ id: barCheck.id }).from(barCheck).where(and(eq(barCheck.companyId, companyId), eq(barCheck.status, check)))
+      await db.update(barOrder).set(to === 'received' ? { status: to, updatedAt: new Date() } : { status: to, cancelledAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(barOrder.companyId, companyId), eq(barOrder.status, 'at_counter'), gte(barOrder.createdAt, since), inArray(barOrder.checkId, ended)))
+    }
     const rows = await db.select().from(barOrder).where(and(eq(barOrder.companyId, companyId), inArray(barOrder.status, ['received', 'ready', 'collected', 'at_counter']), gte(barOrder.createdAt, since)))
       .orderBy(desc(barOrder.createdAt)).limit(200)
     return rows.map(orderView)

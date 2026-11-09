@@ -113,7 +113,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
       && !(i.hiddenForRoles && (user?.role || (user as any)?.seat) && (i.hiddenForRoles.includes(user?.role as string) || i.hiddenForRoles.includes((user as any)?.seat)))
       && (!i.permission || can(i.permission))
       && (!i.features || i.features.some((f) => hasFeature(f))),
-    ),
+    ).map((i) => (i.labelWithout && !can(i.labelWithout[0]) ? { ...i, label: i.labelWithout[1] } : i)),
     [config.nav, hasFeature, can, user?.role],
   )
 

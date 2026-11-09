@@ -174,7 +174,7 @@ export function EmailAliasesPage(): React.ReactElement {
           read as a contradiction (E2E run 1, 10/14). Say what is true: they are kept, and receive mail once one is connected. */}
       {status?.state === 'waiting_for_nameservers' && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4 mb-6 text-yellow-900 dark:text-yellow-200">
-          <div className="font-semibold mb-1">Waiting for {status.domain} to point at Cloudflare</div>
+          <div className="font-semibold mb-1">Waiting for {status.domain} to be connected</div>
           <div className="text-sm">
             These addresses are set up by themselves as soon as the domain's nameservers are changed
             {status.nameservers?.length ? <> to <strong>{status.nameservers.join(' and ')}</strong></> : null}
@@ -184,7 +184,7 @@ export function EmailAliasesPage(): React.ReactElement {
       )}
       {status?.state === 'action_needed' && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-md p-4 mb-6 text-sm text-amber-900 dark:text-amber-200">
-          <strong>Almost there.</strong> Cloudflare forwards an address only after the inbox it forwards to confirms. Open the confirmation email it sent (subject mentions Cloudflare Email Routing) and click <strong>Verify email address</strong>.
+          <strong>Almost there.</strong> An address forwards only after the inbox it forwards to confirms it. That inbox got one email asking you to confirm. Click <strong>Verify email address</strong> in it.
         </div>
       )}
       {status?.state === 'live' && aliases.length > 0 && (
