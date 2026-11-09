@@ -38,6 +38,17 @@ export function hoursOf(p: Planned, tz: string): number {
   return Math.round(((b.getTime() - a.getTime()) / 3600000) * 100) / 100
 }
 
+/**
+ * The hours the staff are scheduled against: the bar's, or, for a venue with no bar hours at all (a restaurant keeps
+ * only its kitchen's — Hours & Settings shows no bar there), the kitchen's. Restaurant live test 2026-11-09: every day
+ * read "Closed", so no gaps, labor % or forecast ever showed.
+ */
+export function staffedHours(config: HoursConfig): HoursConfig {
+  const anyBar = Object.values(config.bar || {}).some(r => Array.isArray(r) && r.length > 0)
+  if (anyBar) return config
+  return { ...config, bar: config.kitchen || {}, holidays: (config.holidays || []).map(h => ('kitchen' in h && !('bar' in h)) ? { ...h, bar: h.kitchen } : h) }
+}
+
 /** The bar's close on a given day (the last range's close), for "4 PM to close". null when closed. */
 export function closeOn(config: HoursConfig, day: string): string | null {
   const r = rangesFor(config, 'bar', day).ranges

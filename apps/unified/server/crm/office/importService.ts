@@ -65,8 +65,8 @@ const CONTACT_COLUMN_MAP = {
   fax: ['fax', 'fax_number'],
 
   // Billing/mailing address
-  address: ['address', 'street', 'street_address', 'address_1', 'address1', 'street_1', 'billing_address', 'mailing_address'],
-  address2: ['address_2', 'address2', 'street_2', 'suite', 'apt', 'unit'],
+  address: ['address', 'street', 'street_address', 'address_1', 'address1', 'street_1', 'billing_address', 'mailing_address', 'street_address_1', 'address_line_1'],
+  address2: ['address_2', 'address2', 'street_2', 'suite', 'apt', 'unit', 'street_address_2', 'address_line_2'],
   city: ['city', 'town', 'billing_city'],
   state: ['state', 'province', 'region', 'state_province', 'billing_state'],
   zip: ['zip', 'zipcode', 'zip_code', 'postal_code', 'postcode', 'billing_zip', 'billing_postal_code'],

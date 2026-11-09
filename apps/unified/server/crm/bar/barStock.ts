@@ -317,7 +317,11 @@ async function countItem(companyId: string, countId: string, stockItemId: string
   const units = input.units === undefined || String(input.units) === '' ? 0 : qtyOf(input.units, 'count')
   const fills = [...cleanFills(input.fills), ...fillsFromWeights(input.weightsGrams, it)]
   if (fills.length > 24) throw new StockError('Count at most 24 open bottles of one thing.')
-  const qty = Math.round((packs * num(it.packSize) + units + fills.reduce((a, b) => a + b, 0)) * 1000) / 1000
+  // A fill is a share of ONE bottle. Counted by the bottle ('each') that is one unit; counted by the ounce, the pound or the
+  // fl oz the bottle is the pack (a "750 ml bottle" of 25.36 fl oz), so half of it is 12.68 fl oz — a 50% bottle had added
+  // 0.5 fl oz (restaurant live test 2026-11-09).
+  const perBottle = it.unit === 'each' ? 1 : num(it.packSize)
+  const qty = Math.round((packs * num(it.packSize) + units + fills.reduce((a, b) => a + b, 0) * perBottle) * 1000) / 1000
   await db.insert(barStockCountLine).values({ countId, stockItemId, qty: String(qty), fills: fills.length ? fills : null, countedByName: byName, companyId })
     .onConflictDoUpdate({ target: [barStockCountLine.countId, barStockCountLine.stockItemId], set: { qty: String(qty), fills: fills.length ? fills : null, countedByName: byName, countedAt: new Date() } })
   return qty

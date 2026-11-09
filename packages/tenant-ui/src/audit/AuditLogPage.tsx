@@ -29,7 +29,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { Shield, Search, User } from 'lucide-react'
-import { field, who, whatChanged, humanise, asInstant } from './auditFields'
+import { field, who, whatChanged, humanise, entityWord, asInstant } from './auditFields'
 
 export interface AuditLogApi {
   get: (path: string, params?: Record<string, string | number | boolean | undefined | null>) => Promise<any>
@@ -248,7 +248,7 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
           </select>
           <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)} aria-label="Filter by record type" className={inputCls}>
             <option value="">All records</option>
-            {options.entities.map((e) => <option key={e.value} value={e.value}>{humanise(e.value)}{e.count ? ` (${e.count})` : ''}</option>)}
+            {options.entities.map((e) => <option key={e.value} value={e.value}>{entityWord(e.value)}{e.count ? ` (${e.count})` : ''}</option>)}
           </select>
           {canReadUsers && (
             <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} aria-label="Filter by person" className={inputCls}>
@@ -296,7 +296,7 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
                   </td>
                   {/* The entity is its own column, because "update" on its own says nothing. */}
                   <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap dark:text-slate-200">
-                    {field(log, 'entityName') || (log.entity ? humanise(log.entity) : '—')}
+                    {field(log, 'entityName') || (log.entity ? entityWord(log.entity) : '—')}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate dark:text-slate-200" title={whatChanged(log)}>
                     {whatChanged(log)}

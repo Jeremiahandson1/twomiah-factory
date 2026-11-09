@@ -73,6 +73,8 @@ export interface ImportConfig {
 export interface MigrationConfig {
   /** Entity labels for the CSV picker, e.g. { jobs: 'Service Calls & Work Orders' }. */
   entityLabels?: Record<string, string>
+  /** What "Other Platform / Generic CSV" can bring in. Absent: contacts, projects, jobs and products. A restaurant has no projects or jobs. */
+  genericTypes?: string[]
 }
 
 /**

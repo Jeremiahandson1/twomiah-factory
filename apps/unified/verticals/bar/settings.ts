@@ -57,6 +57,8 @@ const bar: VerticalSettings = {
   // gives its stylists. Correcting points and changing the programme stay a manager's.
   extraRolePermissions: { field: ['sms:send', 'loyalty:enroll', 'loyalty:redeem'] },
   crm: {
+    // Settings › Migrate Data: a bar leaves a register or an event book, not Jobber (migrationService.ts).
+    migration: { providers: ['toast', 'square', 'clover', 'tripleseat', 'perfect_venue', 'opentable'] },
     // What a bar buys in (packages/tenant-backend expenses.ts validates against it): the shared list was a contractor's —
     // Materials, Equipment, Labor, Travel (bar live test, 2026-10-25).
     expenses: {
@@ -137,7 +139,8 @@ const bar: VerticalSettings = {
         { id: 'invoices', label: 'Invoices', description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
       ],
     },
-    migration: { entityLabels: { jobs: 'Jobs & Work Orders' } },
+    // Guests come across from a bar's own register or event book; a bar has no projects or jobs (restaurant live test 2026-11-09).
+    migration: { entityLabels: { contacts: 'Guests & Customers' }, genericTypes: ['contacts', 'products'] },
     pricebook: { tiersTitle: 'Good-Better-Best options' },
     // A bar reports its nights (the register's sales, above the shared page — reportsAbove) and its
     // parties' pipeline; no jobs, quotes, projects, and no jobs-per-person panel (tips by person are in the sales).
@@ -197,6 +200,8 @@ const bar: VerticalSettings = {
         photos: { label: 'Photos of your bar, your food and your nights — three or more' },
         credentials: { label: 'Awards or press mentions', unlocks: 'A line guests read before they come in' },
       },
+      // Guests come to the bar: no town pages.
+      serviceAreas: false,
     },
     settings: {
       // No trade licence behind a bar (settingsConfig.ts, T41).

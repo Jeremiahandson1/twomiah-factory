@@ -35,7 +35,7 @@ import { sourceRefusal } from './eventSources.ts'
 import { offerWaitlist, holdColumns } from './eventCalendar.ts'
 import { LedgerError, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice } from './eventLedger.ts'
 import {
-  EXIT_STATUSES, HELD, DATE_RE, venueToday, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, validateEventInput, validateTimelineInput,
+  EXIT_STATUSES, HELD, DATE_RE, venueToday, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, syncHireLine, createEvent, promoteBookedClient, validateEventInput, validateTimelineInput,
   coordinatorRefusal, eventWarnings, moneyRefusal, quantityRefusal, auditName,
 } from './eventBooking.ts'
 
@@ -48,6 +48,24 @@ function packageFloor(pkg: any, perPerson: boolean, quantity: any, notes: string
   const rest = (notes || '').replace(FLOOR_NOTE, '')
   if (!(min > 0) || !perPerson || !Number.isFinite(q) || !(q < min)) return { quantity, notes: rest || null }
   return { quantity: min, notes: [`Billed at the ${min}-guest package minimum (${q} entered)`, rest].filter(Boolean).join(' — ') }
+}
+
+/**
+ * The head count changed (estimated, or the guarantee): each per-person line that was billing the old count bills the new
+ * one — a line at the old count, or one held at its package minimum for the old count — and the invoice follows. A line
+ * someone set to another number is theirs and stays. Tripleseat's and Perfect Venue's per-person items work this way;
+ * restaurant live test 2026-11-09: INV-00001 stayed at 30 guests after the guarantee went to 26.
+ */
+async function followHeadCount(tx: any, companyId: string, eventId: string, oldHeads: number, newHeads: number) {
+  if (!(oldHeads > 0) || !(newHeads > 0) || oldHeads === newHeads) return
+  const lines = await tx.select().from(eventMenuItem).where(and(eq(eventMenuItem.eventId, eventId), eq(eventMenuItem.companyId, companyId), eq(eventMenuItem.perPerson, true)))
+  for (const l of lines) {
+    const entered = Number((String(l.notes || '').match(/^Billed at the \d+-guest package minimum \((\d+) entered\)/) || [])[1] || NaN)
+    if (Number(l.quantity) !== oldHeads && entered !== oldHeads) continue
+    const [pkg] = l.packageId ? await tx.select().from(menuPackage).where(eq(menuPackage.id, l.packageId)).limit(1) : [null]
+    const next = packageFloor(pkg, true, newHeads, l.notes || null)
+    await tx.update(eventMenuItem).set({ quantity: next.quantity, notes: next.notes }).where(eq(eventMenuItem.id, l.id))
+  }
 }
 
 // Line total: per-head lines multiply by the head count on the line.
@@ -289,6 +307,8 @@ export function createEventRoutes(d: CrmDeps) {
         if (['confirmed', 'completed'].includes(nextStatus) && !existing.bookedAt) updates.bookedAt = new Date()
         const [row] = await tx.update(event).set(updates).where(eq(event.id, id)).returning()
         if ((existing.spaceId || null) !== (row.spaceId || null)) await syncHireLine(tx, currentUser.companyId, row)
+        if (['confirmed', 'completed'].includes(row.status)) await promoteBookedClient(tx, currentUser.companyId, row.contactId)
+        if (countChanged) await followHeadCount(tx, currentUser.companyId, id, Number(existing.guestCountFinal ?? existing.guestCount ?? 0), Number(row.guestCountFinal ?? row.guestCount ?? 0))
         // Leaving the book closes the invoice (void, or deposit retained — body.keepDeposit); anything else keeps the
         // invoice in step with the event (quote, room, client, due date).
         if (EXIT_STATUSES.includes(row.status) && !EXIT_STATUSES.includes(existing.status)) {

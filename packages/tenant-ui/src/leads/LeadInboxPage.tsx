@@ -219,6 +219,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Inbox size={24} /> Lead Inbox</h1>
           <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>{subtitle}</p>
+          {config?.elsewhere && <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }} data-testid="lead-elsewhere">{config.elsewhere.text} <Link to={config.elsewhere.to} style={{ color: c.link }}>{config.elsewhere.label}</Link></p>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {mayAddLead && <button onClick={() => setAdding(NEW_LEAD)} style={btn()} data-testid="add-lead"><Plus size={14} /> Add lead</button>}

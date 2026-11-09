@@ -64,6 +64,8 @@ const rv: VerticalSettings = {
   },
   // templates/crm-rv/frontend/src/*Config.ts
   screens: {
+    // A dealer's units come from their feed (Website › Settings › Inventory feed, shown at /inventory).
+    website: { inventoryFeed: true },
     // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
     warranties: { namePlaceholder: 'e.g., Service work — 90 days', categoryPlaceholder: 'e.g., service', claimTitlePlaceholder: 'e.g., Slide-out sticking after repair', claimLocationPlaceholder: 'e.g., Curb-side slide' },
     // The dealership's own dashboard at /crm/dashboard (crm/verticals/rv.tsx `dashboard`).

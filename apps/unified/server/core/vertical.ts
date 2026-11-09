@@ -162,6 +162,12 @@ export interface CrmSettings {
    */
   dashboard?: 'events' | 'practice' | 'salon' | 'dealership' | 'homecare' | 'roof'
   /**
+   * Settings › Migrate Data: the systems this kind of business moves from (ids in server/crm/office/migrationService.ts
+   * PLATFORM_PRESETS). A restaurant leaves Toast, Square or Tripleseat, not Jobber (restaurant live test 2026-11-09).
+   * Absent: the home-service list (Jobber, ServiceTitan, Housecall Pro, Buildertrend, FieldEdge, Kickserv).
+   */
+  migration?: { providers?: string[] }
+  /**
    * Private events (server/crm/restaurant) reach into the shared modules: a contact lists their events and can't be
    * deleted while they have any; money recorded on an event's invoice (by hand or by Stripe) confirms an enquiry it is
    * the deposit for and moves the invoice's due date to the next installment; the old event-payment ledger is moved

@@ -93,7 +93,7 @@ async function mountSettings(settings: any, features: Set<string>) {
 
 describe("the Team page in each trade's words", () => {
   const WANT: Record<string, { subtitle: string; department: boolean; rate: boolean }> = {
-    restaurant: { subtitle: 'The people who work in your restaurant.', department: true, rate: false },
+    restaurant: { subtitle: 'The people who work in your restaurant.', department: true, rate: true },
     bar: { subtitle: 'The people who work in your bar.', department: true, rate: true },
     salon: { subtitle: 'The people who work in your salon.', department: false, rate: true },
     vet: { subtitle: 'The people who work in your clinic.', department: false, rate: false },
@@ -126,7 +126,7 @@ describe("the Team page in each trade's words", () => {
 
 describe("Settings › Company says only what each trade has", () => {
   test('the pay week (Work week starts on … overtime) is shown only where there is a pay run', async () => {
-    const payRun = { restaurant: false, bar: true, salon: true, vet: false, homecare: true } as Record<string, boolean>
+    const payRun = { restaurant: true, bar: true, salon: true, vet: false, homecare: true } as Record<string, boolean>
     for (const t of TRADES) {
       const screens = await screensOf(t.id)
       const root = await mountSettings(screens.settings, offered(t.template))

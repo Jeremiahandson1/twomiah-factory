@@ -11,7 +11,7 @@ import { and, asc, eq, gte, inArray, isNotNull, lt } from 'drizzle-orm'
 import { barCheck, barCheckItem, barScheduleShift, company, event } from '../../db/schema/index.ts'
 import { addDays, localToUtc } from './barHours.ts'
 import { businessDayOf, type BarLive } from './barLive.ts'
-import { closeOn, DEFAULT_FORECAST_WEEKS, DEFAULT_TARGET_LABOR_PCT, forecastDay, hoursOf, MAX_FORECAST_WEEKS, MIN_FORECAST_WEEKS, openOn, salesGrid, staffingFor, targetPctRefusal, type PositionHistory, type SaleAt } from './barSchedulePlan.ts'
+import { closeOn, staffedHours, DEFAULT_FORECAST_WEEKS, DEFAULT_TARGET_LABOR_PCT, forecastDay, hoursOf, MAX_FORECAST_WEEKS, MIN_FORECAST_WEEKS, openOn, salesGrid, staffingFor, targetPctRefusal, type PositionHistory, type SaleAt } from './barSchedulePlan.ts'
 import { RotaError, type BarSchedule } from './barSchedule.ts'
 import type { BarDb } from './db.ts'
 
@@ -64,7 +64,7 @@ export function createBarLaborForecast(deps: { db: BarDb; live: BarLive; schedul
   async function week(companyId: string, dayIn?: string | null) {
     const { start, days, tz } = await schedule.weekFor(companyId, dayIn)
     const settings = await getSettings(companyId)
-    const hoursCfg = await live.hoursFor(companyId)
+    const hoursCfg = staffedHours(await live.hoursFor(companyId))
     const asOfDay = businessDayOf(now(), tz)
     // History: every sample date any day of this week can use (the last `weeks` same weekdays that are over), up to the start of today's business day.
     const earliest = [addDays(days[0], -7 * settings.weeks), addDays(asOfDay, -7 * settings.weeks - 7)].sort()[0]

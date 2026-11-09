@@ -249,7 +249,48 @@ export const PLATFORM_PRESETS: Record<string, {
       },
     },
   },
+  // A restaurant's, bar's or venue's systems (restaurant live test 2026-11-09). Each exports its guest or customer list as a
+  // CSV; the import reads the columns by name (importService CONTACT_COLUMN_MAP). Events move through Settings › Import.
+  toast: {
+    name: 'Toast',
+    description: 'Import your guest list from a Toast customer export (Guest Book or Marketing)',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email'], phone: ['phone'] } },
+  },
+  square: {
+    name: 'Square',
+    description: 'Import your customers from a Square Customer Directory export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['surname', 'last name'], email: ['email address'], phone: ['phone number'], company: ['company name'], address: ['street address 1'], city: ['city'], state: ['state'], zip: ['postal code'], notes: ['memo'] } },
+  },
+  clover: {
+    name: 'Clover',
+    description: 'Import your customers from a Clover customer export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email address', 'email'], phone: ['phone number', 'phone'], address: ['address line 1'], city: ['city'], state: ['state'], zip: ['zip', 'postal code'] } },
+  },
+  tripleseat: {
+    name: 'Tripleseat',
+    description: 'Import your event clients from a Tripleseat contacts or leads export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email'], phone: ['phone'], company: ['account', 'company'] } },
+  },
+  perfect_venue: {
+    name: 'Perfect Venue',
+    description: 'Import your event clients from a Perfect Venue clients export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { name: ['name', 'client name'], email: ['email'], phone: ['phone'], company: ['company'] } },
+  },
+  opentable: {
+    name: 'OpenTable',
+    description: 'Import your guests from an OpenTable guest export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email'], phone: ['phone'], notes: ['notes', 'guest notes'] } },
+  },
 }
+
+/** The home-service systems, offered to a business whose vertical names none of its own (CrmSettings.migration.providers). */
+const HOME_SERVICE_PROVIDERS = ['jobber', 'servicetitan', 'housecallpro', 'buildertrend', 'fieldedge', 'kickserv']
 
 // ============================================
 // STATUS MAPPERS
@@ -291,8 +332,9 @@ function mapHCPStatus(status: string): string {
   return 'pending'
 }
 
-export function getAvailableProviders() {
-  return Object.entries(PLATFORM_PRESETS).map(([id, p]) => ({
+export function getAvailableProviders(only?: string[]) {
+  const ids = only?.length ? only : HOME_SERVICE_PROVIDERS
+  return Object.entries(PLATFORM_PRESETS).filter(([id]) => ids.includes(id)).map(([id, p]) => ({
     id,
     name: p.name,
     description: p.description,

@@ -74,7 +74,11 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
   const { currentPath, origin, extraNav = [] } = o
   // "What we do" as the business has it now (site/menu.ts): the owner's cards, else its own services, else not shown.
   // Each card then links to its service page (site/servicePages.ts), where the business has one for it.
-  const sections = linkServiceCards(withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? ''), ctx.servicePages ?? [], ctx.publishedSlugs ?? new Set())
+  const linked = linkServiceCards(withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? ''), ctx.servicePages ?? [], ctx.publishedSlugs ?? new Set())
+  // A restaurant's Tonight (crm/bar/barSite.ts createMenuSite): a strip under the home page's first section, unless the
+  // owner placed a Tonight section themselves.
+  const strip = currentPath === '/' && !!(o.facts?.page?.site as any)?.tonightStrip && !linked.some((s: any) => s?.type === 'tonight')
+  const sections = strip ? [...linked.slice(0, 1), { type: 'tonight', variant: 'strip', data: {} }, ...linked.slice(1)] : linked
   const settings = ctx.settings
   let nav: any[] = Array.isArray(settings.nav) ? settings.nav : []
   for (const item of extraNav) {

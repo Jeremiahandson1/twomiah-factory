@@ -169,7 +169,7 @@ export default function MenuPage() {
             <div className="flex items-start justify-between gap-2 p-4 border-b border-gray-100 dark:border-slate-800">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{s.name} <span className="text-xs font-normal text-gray-500 dark:text-slate-400">{s.kind === 'drink' ? 'Drinks' : 'Food'}{s.isActive ? '' : ' · hidden'}</span></h2>
-                {byTime && (s.availableFrom && s.availableTo || s.availableWindows?.length) && <p className="text-sm text-gray-600 dark:text-slate-300">Served {[...(s.availableFrom && s.availableTo ? [{ from: s.availableFrom, to: s.availableTo, days: s.availableDays || [] }] : []), ...(s.availableWindows || [])].map((w) => `${w.from} to ${w.to}${w.days.length && w.days.length < 7 ? ' ' + w.days.map((d) => DAYS[d]).join(', ') : ''}`).join('; ')}</p>}
+                {byTime && !!(s.availableFrom && s.availableTo || s.availableWindows?.length) && <p className="text-sm text-gray-600 dark:text-slate-300">Served {[...(s.availableFrom && s.availableTo ? [{ from: s.availableFrom, to: s.availableTo, days: s.availableDays || [] }] : []), ...(s.availableWindows || [])].map((w) => `${w.from} to ${w.to}${w.days.length && w.days.length < 7 ? ' ' + w.days.map((d) => DAYS[d]).join(', ') : ''}`).join('; ')}</p>}
                 {s.description && <p className="text-sm text-gray-500 dark:text-slate-400">{s.description}</p>}
               </div>
               {mayEdit && (

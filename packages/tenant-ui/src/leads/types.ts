@@ -28,6 +28,11 @@ export interface LeadPlatform {
 }
 
 export interface LeadsConfig {
+  /**
+   * Where enquiries of this business land instead of here, said under the heading: a restaurant's website event form opens an
+   * event (Events), not a lead (restaurant live test 2026-11-09: "0 enquiries in this inbox"). Absent: nothing said.
+   */
+  elsewhere?: { text: string; to: string; label: string }
   /** Platforms this vertical offers. Default: the trades set (Angi, HomeAdvisor, Thumbtack, Google LSA, Houzz). */
   platforms?: LeadPlatform[]
   /**

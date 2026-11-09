@@ -34,7 +34,7 @@ import { fail, one, listAll } from '../../http/reply.ts'
 import { createTokenGuessGuard } from '../../http/guards.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { loadEventLedger, eventInvoiceLines, ensureEventInvoice, syncEventInvoice, LedgerError } from './eventLedger.ts'
-import { HELD, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords } from './eventBooking.ts'
+import { HELD, SpaceClash, findClash, clashMessage, eventDayWords, eventCodeWords, promoteBookedClient } from './eventBooking.ts'
 import { getEventSettings, featureOn } from './eventSettings.ts'
 import { dayBefore } from './eventGuarantee.ts'
 import { mountInstalmentPaying, leadInstalment, paymentOffer, type InstalmentModel } from './eventPayments.ts'
@@ -595,6 +595,7 @@ export function createProposalLinkRoutes(d: CrmDeps) {
         }
         if (['enquiry', 'tentative'].includes(ev.status)) {
           await tx.update(event).set({ status: 'confirmed', bookedAt: ev.bookedAt || signedAt, updatedAt: signedAt }).where(eq(event.id, ev.id))
+          await promoteBookedClient(tx, ev.companyId, ev.contactId)
         }
         // The instalments scheduled on the event are billed on its invoice from now.
         const scheduled = await tx.select({ id: eventPayment.id }).from(eventPayment).where(eq(eventPayment.eventId, ev.id)).limit(1)

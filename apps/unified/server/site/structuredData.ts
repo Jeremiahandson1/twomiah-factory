@@ -31,7 +31,8 @@ export function schemaTypeFor(vertical: string, trade: string): string | string[
     case 'store': return 'Store'
     case 'bar': return 'BarOrPub'
     case 'rv': return 'AutomotiveBusiness'
-    case 'restaurant': return has(/cater/) ? 'FoodEstablishment' : has(/caf[eé]|coffee/) ? 'CafeOrCoffeeShop' : 'Restaurant'
+    // "Restaurant / Café" (the sign-up trade's own label) is a restaurant: the restaurant word wins over the café one.
+    case 'restaurant': return has(/cater/) ? 'FoodEstablishment' : has(/restaurant|diner|bistro|grill|eatery/) ? 'Restaurant' : has(/caf[eé]|coffee/) ? 'CafeOrCoffeeShop' : 'Restaurant'
     case 'salon':
       return has(/nail/) ? 'NailSalon' : has(/\bspa\b|massage/) ? 'DaySpa' : has(/hair|barber|salon/) ? 'HairSalon' : has(/lash|brow|beauty|esthetic|wax/) ? 'BeautySalon' : 'HealthAndBeautyBusiness'
     case 'fieldservice':

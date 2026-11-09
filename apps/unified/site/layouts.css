@@ -132,3 +132,13 @@
 .timeline-list__year { font-weight: 700; color: var(--accent-ink); }
 .story--feature .story-feature__photo { aspect-ratio: 21 / 9; background-size: cover; background-position: center; border-radius: 12px; margin-bottom: 36px; }
 .story-feature__copy { max-width: 720px; margin: 0 auto; }
+
+/* Tonight, as a strip under a restaurant's hero (sections/tonight/strip.ejs). */
+.tonight-strip { background: var(--paper); color: var(--ink); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 14px 0; }
+.tonight-strip__inner { display: flex; flex-wrap: wrap; gap: 6px 28px; align-items: baseline; }
+.tonight-strip p { margin: 0; }
+.tonight-strip__dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: var(--muted); }
+.tonight-strip__status[data-state="open"] .tonight-strip__dot { background: var(--brand); }
+.tonight-strip__label { font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 4px; }
+.tonight-strip__special a { color: var(--ink); font-weight: 600; }
+.tonight-strip__sub, .tonight-strip__note { color: var(--muted); }

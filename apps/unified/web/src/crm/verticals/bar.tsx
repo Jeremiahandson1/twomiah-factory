@@ -5,7 +5,7 @@
 // by the same features; the bar's settings rename them (screens.nav).
 import type { ReactElement } from 'react'
 import { Navigate, Route, useLocation } from 'react-router-dom'
-import { Banknote, Beer, CalendarDays, Coins, CreditCard, Flame, Gift, Package, Settings, ShoppingBag, Star, Tablet, Utensils } from 'lucide-react'
+import { Banknote, Beer, CalendarDays, ChefHat, Coins, CreditCard, Flame, Gift, Package, Settings, ShoppingBag, Star, Tablet, Utensils } from 'lucide-react'
 import { kioskLocked } from '../pages/bar/kioskLock'
 import { useAuth, type NavItem } from '../../shared'
 import { NoAccessPage } from '@twomiah/tenant-ui/src/shell/noAccess'
@@ -102,6 +102,8 @@ export const routes: ReactElement[] = [
 export const nav: NavItem[] = [
   { to: '/crm/tonight', icon: Flame, label: 'Tonight', section: 'The Bar', features: ['bar_tonight'], permission: 'bar:read' },
   { to: '/crm/register', icon: CreditCard, label: 'Register', features: ['bar_register'], permission: 'bar:register' },
+  // The kitchen's screen in the menu, so a cook goes straight to it (restaurant live test 2026-11-09).
+  { to: '/crm/grill', icon: ChefHat, label: 'Grill', features: ['bar_register'], permission: 'bar:register' },
   // The kiosk opens full screen (outside the menu's shell); GET /api/food/kiosk/state asks bar:register.
   { to: '/crm/kiosk', icon: Tablet, label: 'Kiosk', features: ['order_kiosk'], permission: 'bar:register' },
   // Website pickups and kiosk orders (GET /api/food/orders asks bar:register).

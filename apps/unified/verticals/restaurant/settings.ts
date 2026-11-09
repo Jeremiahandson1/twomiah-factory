@@ -49,11 +49,18 @@ const restaurant: VerticalSettings = {
   mfaIssuer: 'Twomiah Events',
   featureSet: 'crm-restaurant',
   starter: STARTER,
-  // The template's middleware/permissions.ts is the base CRM's, unchanged: no role labels or extra permissions.
+  // A restaurant's own staff seats (Toast and 7shifts: server, cook; restaurant live test 2026-11-09: server and cook were
+  // both one "Staff" seat, so the cook had the server's register and "Take payment"). Both are the Staff rung; the cook's
+  // menu is the kitchen's (screens.navOnlyFor below). An existing Staff login keeps Staff.
+  roleLabels: { field: 'Staff', server: 'Server', cook: 'Cook' },
+  roleMapping: { server: 'field', cook: 'field' },
   crm: {
+    team: { roles: ['admin', 'manager', 'server', 'cook', 'field', 'viewer'] },
     // The events dashboard in place of the jobs one, and the events module's hooks into contacts, invoices and Stripe.
     dashboard: 'events',
     events: true,
+    // Settings › Migrate Data: the registers, event books and reservation systems a restaurant leaves (migrationService.ts).
+    migration: { providers: ['toast', 'square', 'clover', 'tripleseat', 'perfect_venue', 'opentable'] },
     // The catering form's dated enquiries open in the event book (crm/restaurant/eventEnquiry.ts; 'event_web_enquiries').
     websiteForms: 'events',
     // The food side: a restaurant's register rings walk-ups and tables until the owner turns long tabs on, and its tap
@@ -115,14 +122,15 @@ const restaurant: VerticalSettings = {
         { id: 'invoices', label: 'Invoices', description: 'Import invoices and open balances from your previous system or QuickBooks' },
       ],
     },
-    migration: {},
+    // Guests and clients come across from a restaurant's own systems; there are no projects or jobs to bring.
+    migration: { entityLabels: { contacts: 'Guests & Clients' }, genericTypes: ['contacts', 'products'] },
     // An events venue reports on its bookings pipeline instead of jobs; the pipeline shows where event_bookings is on
     // (the template's ReportsDashboard.tsx set it from hasFeature). Team productivity reads time entries, and this CRM
     // has no time tracking. (T16/T17 L9)
     reporting: { jobsLabel: 'Jobs', jobs: false, quotes: false, projects: false, team: false, eventsPipeline: true, dealership: false },
-    // The roster in a restaurant's words. It has no Time Tracking, pay run or job costing (featureRegistry), so nothing reads an
-    // hourly rate here: no Rate column or box, and no "schedule and pay" (store gaps, item 2).
-    team: { roleLabel: 'Role', rolePlaceholder: 'e.g. Event Coordinator', subtitle: 'The people who work in your restaurant.', hourlyRate: false },
+    // The roster in a restaurant's words, with each person's hourly pay: the Staff Schedule's wages and labor %, the tip pool
+    // by hours and the payroll file read it (Time Tracking is offered to a restaurant since 2026-11-09).
+    team: { roleLabel: 'Position', rolePlaceholder: 'e.g. Server, line cook, event coordinator', subtitle: 'The people who work in your restaurant.' },
     portal: {},
     leads: {
       platforms: [
@@ -154,33 +162,41 @@ const restaurant: VerticalSettings = {
         },
       ],
       jobTypeLabel: 'Event Type',
+      // The website's event form and the campaign forms open an event, not a lead (crm.websiteForms 'events').
+      elsewhere: { text: 'Event enquiries from your website and event forms go straight to Events, as an enquiry.', to: '/crm/events', label: 'Open Events' },
     },
     marketing: {},
     messages: {},
     reviews: {},
-    settings: {
-      // The Website admin in a restaurant's words, not a contractor's ("Photos of your real work", "Licenses, insurance and
-    // certifications", "Finished work" — live test 2026-10-25).
+    // The Website admin in a restaurant's words, not a contractor's ("Photos of your real work", "Licenses, insurance and
+    // certifications", "Finished work" — live test 2026-10-25). It sat inside settings, where nothing read it, until 2026-11-09.
+    // No town pages: guests come to the restaurant (restaurant live test 2026-11-09: "Service areas" was offered).
     website: {
       gaps: {
         photos: { label: 'Photos of your food, your room and your events — three or more' },
         credentials: { label: 'Awards, press mentions or your food-safety rating', unlocks: 'A line guests read before they book or come in' },
       },
+      serviceAreas: false,
     },
+    settings: {
       licenseNumber: false,
-      // No pay run behind a restaurant (Time Tracking is not offered to it), so no "Work week starts on … Overtime is hours
-      // over 40"; and its clock names what it keeps: no timesheets, online bookings or AI Receptionist (not offered to it).
-      workWeek: false,
-      timeZoneHint: 'The one clock for your restaurant: your opening hours, events, invoices and reports all keep time on it.',
+      // A restaurant keeps timesheets and a pay week (the counter tablet's clock), so the work week stays.
+      timeZoneHint: 'The one clock for your restaurant: your opening hours, events, invoices, timesheets and reports all keep time on it.',
       // The four rungs, described as what each does in a restaurant (the shared list said "view jobs, log time", live test
       // 2026-10-25). This replaces the shared list, so Viewer is repeated.
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
+        { value: 'server', label: 'Server', description: 'the register, tables, the kiosk and orders, Tonight and their own shifts and clock; reads the events book; not settings, the team or billing' },
+        { value: 'cook', label: 'Cook', description: 'the grill screen, the menu and its 86, Tonight and their own shifts and clock; no register payments, settings, the team or billing' },
         { value: 'field', label: 'Staff', description: 'the register, the grill and Tonight, and reading the events book; not settings, the team or billing' },
         { value: 'manager', label: 'Manager', description: 'events, deposits and invoices, the menu and register settings; not company settings or billing' },
         { value: 'admin', label: 'Admin', description: 'full access, including company settings and team' },
       ],
     },
+    // A cook's menu is the kitchen's: Tonight, the grill screen, the menu (86 and counts) and their schedule. Staff seats don't
+    // see the two settings pages they cannot change (restaurant live test 2026-11-09: they opened read-only).
+    navOnlyFor: { cook: ['/crm/dashboard', '/crm/tonight', '/crm/grill', '/crm/menu', '/crm/shifts', '/crm/help'] },
+    navHiddenFor: { server: ['/crm/register-settings', '/crm/bar-settings'], field: ['/crm/register-settings', '/crm/bar-settings'] },
     // Jobber import and Angi / Thumbtack / Local Services lead sources are field-service concepts (OnboardingWizard.tsx,
     // FIT-01/F14).
     onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },

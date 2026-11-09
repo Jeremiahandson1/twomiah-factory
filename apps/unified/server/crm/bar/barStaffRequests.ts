@@ -383,7 +383,7 @@ export function createBarStaffRequests(db: BarDb, schedule: BarSchedule, sendRaw
 
   /** What a person sees: their own requests, swaps offered to them, and shifts on offer that they could take. */
   async function mine(actor: Actor) {
-    const { today: t } = await today(actor.companyId)
+    const { today: t, tz } = await today(actor.companyId)
     const rows = await db.select().from(barShiftRequest).where(and(eq(barShiftRequest.companyId, actor.companyId), or(eq(barShiftRequest.fromUserId, actor.id as string), eq(barShiftRequest.toUserId, actor.id as string), eq(barShiftRequest.status, 'open')))).orderBy(asc(barShiftRequest.createdAt))
     const all = await view(actor.companyId, rows)
     const keep = (x: (typeof all)[number]) => x.shift && x.shift.day >= t
@@ -391,7 +391,15 @@ export function createBarStaffRequests(db: BarDb, schedule: BarSchedule, sendRaw
       settings: await swapSettings(actor.companyId),
       mine: all.filter((x) => x.fromUserId === actor.id && keep(x)),
       forMe: all.filter((x) => x.toUserId === actor.id && x.fromUserId !== actor.id && x.status === 'offered' && keep(x)),
-      onOffer: all.filter((x) => x.kind === 'give' && x.status === 'open' && x.fromUserId !== actor.id && keep(x)),
+      // Only what they could be given: a shift on their day off or over one they already work is not offered to them (restaurant
+      // live test 2026-11-09: the cook was offered the server's shift at the very hours of their own, then the approval refused it).
+      onOffer: await (async () => {
+        const out: typeof all = []
+        for (const x of all.filter((y) => y.kind === 'give' && y.status === 'open' && y.fromUserId !== actor.id && keep(y))) {
+          if ((await conflictsFor(db, actor.companyId, actor.id as string, x.shift as any, [], tz)).length === 0) out.push(x)
+        }
+        return out
+      })(),
     }
   }
 

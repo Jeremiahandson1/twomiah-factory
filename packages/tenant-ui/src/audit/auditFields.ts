@@ -18,6 +18,11 @@
 
 /** 'status_change' → 'Status change', 'kiosk_age_denied' → 'Kiosk age denied'. */
 export const humanise = (v: string) => v.replace(/_/g, ' ').replace(/^./, (ch) => ch.toUpperCase())
+/**
+ * A record type as the reader says it: the food side's tables carry the bar product's prefix (bar_menu_item, bar_status),
+ * which read "Bar menu item" in a restaurant's log (live test 2026-11-09). The prefix is the code's, not the business's.
+ */
+export const entityWord = (v: string) => humanise(String(v || '').replace(/^bar_(?=.)/, '').replace(/^status$/, 'tonight'))
 
 /** A field by its camelCase name, however the API spelled it. */
 export const field = (log: any, camel: string): any => {

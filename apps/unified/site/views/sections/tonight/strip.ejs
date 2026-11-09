@@ -1,0 +1,23 @@
+<%
+  // TONIGHT, AS A STRIP — a restaurant's (SiteSettings.facts 'menu'), set under its home page's hero by server/site/render.ts
+  // when Tonight (bar_tonight) is on: open now or when it opens, how busy, the owner's note and tonight's special — what the
+  // owner sets on the CRM's Tonight page, read when the page is drawn. Restaurant live test 2026-11-09: none of it reached
+  // the website. The bar's own home opens with the full board (tonight/board.ejs) instead.
+  const L = (typeof live !== 'undefined' && live) ? live : null
+  if (!L || !L.kitchen) return
+  const k = L.kitchen
+  const busy = L.room && L.room.status !== 'quiet' ? L.room.label : ''
+  const menuHref = data.menuHref || '/menu'
+%>
+<section class="tonight-strip" id="tonight" aria-label="Tonight">
+  <div class="container tonight-strip__inner">
+    <p class="tonight-strip__status" data-state="<%= k.isOpen ? 'open' : 'closed' %>">
+      <span class="tonight-strip__dot" aria-hidden="true"></span>
+      <strong><%= k.isOpen ? 'Open now' : 'Closed now' %></strong><% if (k.short && k.short !== 'open' && k.short !== 'closed') { %> · <%= k.short %><% } %><% if (busy) { %> · <%= busy %><% } %>
+    </p>
+    <% if (L.special) { %>
+    <p class="tonight-strip__special"><span class="tonight-strip__label">Tonight's special</span> <a href="<%= menuHref %>"><%= L.special.title %><%= L.special.price ? ' — ' + L.special.price : '' %></a><% if (L.special.description) { %> <span class="tonight-strip__sub"><%= L.special.description %></span><% } %></p>
+    <% } %>
+    <% if (L.note) { %><p class="tonight-strip__note"><%= L.note %></p><% } %>
+  </div>
+</section>

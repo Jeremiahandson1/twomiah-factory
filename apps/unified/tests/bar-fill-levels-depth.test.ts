@@ -55,6 +55,10 @@ describe('on the real server', () => {
     const noWeights = await k.B('POST', '/api/stock/count/item', { stockItemId: gin.id, packs: 1, weightsGrams: [900] })
     expect(noWeights.status).toBe(400); expect(noWeights.json.error).toContain('no bottle weights on file')
     expect((await k.B('POST', '/api/stock/count/item', { stockItemId: vodka.id, packs: 1, weightsGrams: Array(25).fill(1000) })).json.error).toContain('at most 24')
+    // Counted by the fl oz, the bottle is the pack: a full 750 ml bottle (25.36 fl oz) and one at half = 38.04 fl oz, not 25.86.
+    const whiskey = (await k.M('POST', '/api/stock/items', { name: 'House whiskey', category: 'liquor', unit: 'floz', packName: '750 ml bottle', packSize: 25.36 })).json.item
+    const half = await k.B('POST', '/api/stock/count/item', { stockItemId: whiskey.id, packs: 1, fills: [0.5] })
+    expect(half.status).toBe(200); expect(half.json.qty).toBeCloseTo(38.04, 2)
     await k.features(ON.filter((f) => f !== 'stock_fill_levels'))
     expect((await k.B('POST', '/api/stock/count/item', { stockItemId: vodka.id, packs: 1, weightsGrams: [1000] })).json.error).toContain('not switched on')
     await k.features(ON)

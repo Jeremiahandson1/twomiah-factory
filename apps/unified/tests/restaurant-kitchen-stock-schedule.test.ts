@@ -105,10 +105,10 @@ describe('schedule: build the week, see the cost, publish, clock in', () => {
     expect(week.status).toBe(200)
     expect(week.json.shifts.length).toBe(1)
     expect(JSON.stringify(week.json)).toMatch(/labor/i)
-    expect((await k.B('GET', '/api/schedule/published')).json.weeks[0].published).toBe(false)
+    expect((await k.B('GET', `/api/schedule/published?day=${day}`)).json.weeks[0].published).toBe(false)
     const pub = await k.M('POST', '/api/schedule/publish', { day })
     expect(pub.status).toBe(200); expect(pub.json.shifts).toBe(1)
-    const mine = (await k.B('GET', '/api/schedule/published')).json.weeks[0]
+    const mine = (await k.B('GET', `/api/schedule/published?day=${day}`)).json.weeks[0]
     expect(mine.published).toBe(true); expect(mine.shifts[0].name).toBeTruthy()
   })
 
