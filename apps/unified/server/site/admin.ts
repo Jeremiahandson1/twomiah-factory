@@ -340,11 +340,14 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   app.get('/settings', may('site:read'), async (c) => one(c, withDraft(await siteRow(c.get('user').companyId))))
 
   /** The looks the site can wear; `isDefault` is the vertical's, which an empty site.design means. */
-  app.get('/designs', may('site:read'), (c) => {
+  app.get('/designs', may('site:read'), async (c) => {
     // `trade`: a design drawn for one kind of business (roofing, home care, the bar's…), offered under its own heading so a
     // restaurant's list does not read as if those were meant for it (restaurant re-check 2026-11-09). Still choosable.
     const general = new Set<string>(['classic', 'showcase'])
-    const rows = SITE_DESIGNS.map((id) => ({ id, label: SITE_DESIGN_LABELS[id], isDefault: id === deps.vertical.site.design, trade: !general.has(id) && SITE_DESIGN_SPECS[id].choosable !== true }))
+    // A retired design is offered only to a site already wearing it (saved or in its draft), so its own list still names it.
+    const [site] = await db.select().from(website).where(eq(website.companyId, c.get('user').companyId)).limit(1)
+    const wearing = new Set([site?.design, site ? (workingOf(site, SETTINGS_DRAFT) as Record<string, any>).design : null].filter(Boolean) as string[])
+    const rows = SITE_DESIGNS.filter((id) => !SITE_DESIGN_SPECS[id].retired || wearing.has(id)).map((id) => ({ id, label: SITE_DESIGN_LABELS[id], isDefault: id === deps.vertical.site.design, trade: !general.has(id) && SITE_DESIGN_SPECS[id].choosable !== true }))
     return listAll(c, rows)
   })
 
@@ -391,6 +394,10 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     }
     if ('design' in body) {
       if (body.design !== null && !(SITE_DESIGNS as readonly string[]).includes(String(body.design))) return fail(c, 400, 'Unknown design')
+      if (body.design !== null && SITE_DESIGN_SPECS[body.design as keyof typeof SITE_DESIGN_SPECS].retired) {
+        const [cur] = await db.select().from(website).where(eq(website.companyId, c.get('user').companyId)).limit(1)
+        if (cur?.design !== body.design) return fail(c, 400, 'That design is no longer offered. Pick another.')
+      }
       patch.design = body.design
     }
     if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')

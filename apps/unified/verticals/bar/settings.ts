@@ -237,7 +237,8 @@ const bar: VerticalSettings = {
   // (the Tonight board, the menu and taps, hours, what's on) straight from the bar add-on. Its contact section says
   // Address, asks for "Your message", and answers an empty one with "Please write a short message."
   site: {
-    design: 'bar',
+    // Game day, the owner's pick for a new bar (2026-11-09); Tavern and Taproom are in the list. The old 'bar' design is retired.
+    design: 'gameday',
     facts: 'bar',
     // The header's Visit button (templates/website-premium-bar base.ejs).
     ctaHref: '/visit',

@@ -75,7 +75,9 @@ beforeAll(async () => {
   await t.db.update(t.schema.company).set({ name: 'The Amber Tap', phone: '715-555-0100', address: '12 River St', city: 'Eau Claire', state: 'WI', enabledFeatures: FEATURES })
     .where(eq(t.schema.company.id, companyId))
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
-  await t.db.insert(t.schema.website).values({ companyId, tagline: 'A tavern on the river', nav: Object.keys(PAGES).filter((p) => p !== 'home').map((p) => ({ label: p, href: p })) })
+  // A site already on the bar's leather-book design (retired for new bars 2026-11-09; a new bar starts on Game day): it
+  // keeps drawing it, which is what this file checks.
+  await t.db.insert(t.schema.website).values({ companyId, design: 'bar', tagline: 'A tavern on the river', nav: Object.keys(PAGES).filter((p) => p !== 'home').map((p) => ({ label: p, href: p })) })
   let order = 0
   for (const [slug, sections] of Object.entries(PAGES)) {
     await t.db.insert(t.schema.page).values({ companyId, slug, title: slug === 'home' ? 'Home' : slug[0].toUpperCase() + slug.slice(1), sections, isPublished: true, navOrder: order++ })
@@ -221,6 +223,21 @@ describe('the two forms', () => {
 })
 
 describe('the bar\'s files and the board\'s live answers', () => {
+  test('a bar with no design chosen wears Game day, and the retired design is not offered to it', async () => {
+    await t.db.update(t.schema.website).set({ design: null }).where(eq(t.schema.website.companyId, companyId))
+    try {
+      expect((await page('/')).html).toContain('Big+Shoulders+Display')
+      const designs = (await (await as('/api/site/designs')).json()).data
+      expect(designs.filter((d: any) => d.isDefault).map((d: any) => d.id)).toEqual(['gameday'])
+      expect(designs.map((d: any) => d.id)).not.toContain('bar')
+      expect(designs.map((d: any) => d.id)).toEqual(expect.arrayContaining(['tavern', 'gameday', 'taproom']))
+    } finally {
+      await t.db.update(t.schema.website).set({ design: 'bar' }).where(eq(t.schema.website.companyId, companyId))
+    }
+    // A site still on it sees it in its own list.
+    expect((await (await as('/api/site/designs')).json()).data.map((d: any) => d.id)).toContain('bar')
+  })
+
   test('the stylesheet is the bar\'s look over the base layer, with the company\'s colours', async () => {
     const css = await (await t.call('/styles/main.css')).text()
     expect(css.startsWith('@layer base {')).toBe(true)
@@ -293,7 +310,7 @@ describe('the painted sign (design sign) and its picks (menu/bento)', () => {
       expect((await t.call('/fonts/AlfaSlabOne-400.woff2')).headers.get('content-type')).toBe('font/woff2')
     } finally {
       await t.db.update(t.schema.page).set({ sections: was }).where(eq(t.schema.page.id, home.id))
-      await t.db.update(t.schema.website).set({ design: null }).where(eq(t.schema.website.companyId, companyId))
+      await t.db.update(t.schema.website).set({ design: 'bar' }).where(eq(t.schema.website.companyId, companyId))
     }
   })
 })

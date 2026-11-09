@@ -338,7 +338,7 @@ export interface CrmSettings {
  * first eight are the premium template families' looks; 'classic' is the base alone. The rest are whole looks of their
  * own (SITE_DESIGN_SPECS: build 'whole').
  */
-export const SITE_DESIGNS = ['classic', 'bar', 'sign', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market'] as const
+export const SITE_DESIGNS = ['classic', 'bar', 'sign', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market', 'tavern', 'gameday', 'taproom'] as const
 export type SiteDesign = typeof SITE_DESIGNS[number]
 
 /**
@@ -376,6 +376,8 @@ export interface SiteDesignSpec {
   headerDark?: boolean
   /** A visitor may pick this look for the site they sign up for (the free preview on twomiah.com, POST /public/signup). */
   choosable?: boolean
+  /** No longer offered in the website settings' list (a site already on it keeps it and still sees it there). */
+  retired?: boolean
   /**
    * The frame's own type when the look is not the book's (base.ejs): display, eyebrow, body and live-board faces, and the
    * face the sign wordmark is set in. Each is self-hosted (site/public/fonts, styles/fonts.css). Absent: the book's faces.
@@ -394,7 +396,9 @@ export interface SiteDesignSpec {
 
 export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   classic: { label: 'Classic', build: 'overrides' },
-  bar: { label: 'Bar & tavern', build: 'whole', frame: 'book', tokens: 'bar' },
+  // Retired 2026-11-09 (the owner: "get rid of that bar template"): no longer offered or a default; a site still on it keeps
+  // drawing it. Its files go in the cleanup review after the live tests. A new bar starts on Game day.
+  bar: { label: 'Bar & tavern', build: 'whole', frame: 'book', tokens: 'bar', retired: true },
   // The bar as its building stands (the reference bar's owner, 2026-11-05): black ribbed siding, the painted yellow
   // lettering as the brand, and the sign over the door as the wordmark. The bar's frame and sections; its own faces.
   sign: {
@@ -424,6 +428,20 @@ export const SITE_DESIGN_SPECS: Record<SiteDesign, SiteDesignSpec> = {
   studio: {
     label: 'Studio', build: 'whole', schemes: true, choosable: true, tokens: 'look', band: '--panel', headAlign: 'left',
     fonts: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap',
+  },
+  // Three looks for a bar & grill (docs/bar-looks), built new on the shared sections and the bar's live ones (the Tonight
+  // board, the taps, the menu, what's on). Game day is a new bar's (verticals/bar/settings.ts, the owner's pick 2026-11-09).
+  tavern: {
+    label: 'Tavern', build: 'whole', schemes: true, tokens: 'look', band: '--wood',
+    fonts: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Source+Sans+3:wght@400;600;700&display=swap',
+  },
+  gameday: {
+    label: 'Game day', build: 'whole', schemes: true, tokens: 'look', band: '--board', headAlign: 'left', headerDark: true,
+    fonts: 'https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Public+Sans:wght@400;500;600;700;800&display=swap',
+  },
+  taproom: {
+    label: 'Taproom', build: 'whole', schemes: true, tokens: 'look', band: '--panel', headAlign: 'left',
+    fonts: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap',
   },
 }
 
