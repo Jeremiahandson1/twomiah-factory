@@ -122,7 +122,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)
     // A roster card left blank says the seat its login holds (restaurant re-check 2026-11-09: "Staff" turned to "-" once
     // the server had a card for their pay rate).
-    { key: 'role', label: roleLabel, render: (v: any, row: Member) => (row._source === 'user' ? seatWord(v) || '-' : v || seatWord(row.loginRole) || '-') },
+    { key: 'role', label: roleLabel, render: (v: any, row: Member) => (row._source !== 'user' && !v && row.loginRole ? seatWord(row.loginRole) : (row._source === 'user' ? ROLE_LABELS[String(v)] || v || '-' : v || '-')) },
     ...(showDepartment ? [{ key: 'department', label: 'Department', render: (v: any) => v || '-' }] : []),
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },

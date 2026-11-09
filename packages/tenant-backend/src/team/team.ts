@@ -209,7 +209,9 @@ export function createTeamRoutes(deps: TeamDeps) {
     // The pay decision is made ONCE for the request, not per row — and applied inside this map so the
     // response below stays `data: withCounts` on one line, which check-team-removal-warning.ts reads.
     const payVisible = await maySeePay(c)
-    const withCounts = rows.map((r: any) => pay(payVisible, r._source === 'user' ? { ...r, hasLogin: true, invitePending: invitePending(r) } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r), invitePending: invitePending(r), loginRole: loginRoles.get(String(r.email || '').toLowerCase()) || null }))
+    const withCounts = rows.map((r: any) => pay(payVisible, r._source === 'user' ? { ...r, hasLogin: true, invitePending: invitePending(r) } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r), invitePending: invitePending(r) }))
+    // A roster card's login's seat, for a card whose position was left blank (TeamPage.tsx; restaurant re-check 2026-11-09).
+    for (const r of withCounts as any[]) if (r._source !== 'user') r.loginRole = loginRoles.get(String(r.email || '').toLowerCase()) || null
     // …and what that work is CALLED here, so the confirm dialog warns a salon about appointments rather
     // than about jobs it does not have. (Salon T27 N14)
     return c.json({ data: withCounts, workLabel, pagination: { page, limit, total: totalN, pages } })
