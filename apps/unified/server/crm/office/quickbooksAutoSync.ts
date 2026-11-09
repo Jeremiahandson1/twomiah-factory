@@ -47,7 +47,10 @@ export function quickBooksReason(err: unknown): string {
 }
 
 /** The connection is gone (not a refusal of one record): stop the run. */
-export const connectionLost = (err: unknown) => /not connected|Token refresh failed|AuthenticationFailed|401/.test(String((err as any)?.message ?? err))
+// Read from the START of the shared service's three messages (packages/tenant-backend integrations/quickbooks.ts), never
+// anywhere in them: a refusal's body carries QuickBooks' "time", and a Duplicate Name at …:45.401Z read as "not connected
+// any more" and stopped the whole sync (unified CI, 2026-11-09).
+export const connectionLost = (err: unknown) => /^(QuickBooks is not connected|Token refresh failed|QBO API error: 401 )/.test(String((err as any)?.message ?? err))
 
 export interface AutoSyncDeps {
   db: any
