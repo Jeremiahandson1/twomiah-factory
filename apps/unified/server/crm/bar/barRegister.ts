@@ -507,7 +507,7 @@ async function recordCardInTx(tx: Tx, actor: Actor, checkId: string, p: { tender
  * with a CONFIRMED payment the check closes and its food fires to the grill as one ticket (closeIfPaid) — only then.
  * Without one (the kiosk's pay at the counter) it is an open check on the register, and the food goes when it is paid.
  */
-async function checkFromOrderInTx(tx: Tx, by: Actor, o: { kind: 'kiosk' | 'online'; label: string; spot: string | null; note: string | null; lines: OrderLine[] }, payment: { tender: 'card_terminal' | 'card_online'; amountCents: number; tipCents: number; providerPaymentId: string; stripeAccount: string | null } | null): Promise<{ checkId: string; number: number; fired: boolean }> {
+async function checkFromOrderInTx(tx: Tx, by: Actor, o: { kind: 'kiosk' | 'online'; label: string; spot: string | null; note: string | null; lines: OrderLine[] }, payment: { tender: 'card_terminal' | 'card_online'; amountCents: number; tipCents: number; providerPaymentId: string; stripeAccount: string | null } | null, opts: { fireNow?: boolean } = {}): Promise<{ checkId: string; number: number; fired: boolean }> {
   const companyId = by.companyId
   const number = await nextCheckNumber(tx, companyId)
   const [row] = await tx.insert(barCheck).values({ number, kind: o.kind, label: o.label.slice(0, 40), spot: o.spot, note: o.note, openedById: by.id || null, openedByName: by.name, companyId }).returning({ id: barCheck.id })
@@ -515,7 +515,9 @@ async function checkFromOrderInTx(tx: Tx, by: Actor, o: { kind: 'kiosk' | 'onlin
     await tx.insert(barCheckItem).values({ checkId: row.id, menuItemId: l.menuItemId, name: l.name, size: l.size, qty: l.qty, unitPriceCents: l.unitPriceCents, note: l.note, toKitchen: l.toKitchen, addedById: by.id || null, addedByName: by.name, companyId })
     await takeFromCount(tx, companyId, l.menuItemId, l.qty)   // a kiosk or website order takes from the count too
   }
-  const fired = payment ? (await recordCardInTx(tx, by, row.id, payment, false)).fired : false
+  // Unpaid, the food waits for the money — unless the owner fires pay-at-the-counter orders at once (foodSettings
+  // kiosk.fireBeforePaid); paying later then sends nothing twice (only unsent items fire).
+  const fired = payment ? (await recordCardInTx(tx, by, row.id, payment, false)).fired : opts.fireNow ? await sendInTx(tx, companyId, row.id, by.name, undefined, true) : false
   return { checkId: row.id as string, number, fired }
 }
 
@@ -744,7 +746,7 @@ async function unredeemInTx(tx: Tx, companyId: string, line: typeof barCheckItem
 }
 
 return {
-  notifyRegister, taxRateBps, getCheck, listOpen, listRecentClosed, menuForRegister, openCheck, addItem, updateItem, itemNeedsManager,
+  notifyRegister, notifyKitchen, taxRateBps, getCheck, listOpen, listRecentClosed, menuForRegister, openCheck, addItem, updateItem, itemNeedsManager,
   voidItem, sendCheck, addPayment, addGiftCardLine, voidPayment, splitItems, splitBySeat, checkNeedsManager, voidCheck, renameCheck,
   attachGuest, redeemReward, recordCardInTx, afterCardPayment, checkFromOrderInTx, priceOrderLine, hooks, checkEnded,
 }

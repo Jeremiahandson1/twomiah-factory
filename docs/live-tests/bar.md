@@ -40,7 +40,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 14. **Register:** open a bar tab; a pint and Wings; send to the grill. Open the grill screen in another tab. **Expect:** the food arrives, paced.
 15. Cash, split, a void (asks for a manager). **Expect:** each recorded.
 16. **Card tabs / card reader:** **Expect:** a polite "connect Stripe first".
-17. **Kiosk:** order under a table number. **Expect:** arrives on the register; pay step says card payments aren't set up.
+17. **Kiosk:** with no card reader, the kiosk says to connect one and won't start. In Register Settings, turn on **Let guests pay at the counter**, then order under a table number. **Expect:** it arrives on the register unpaid, and reaches the grill only once paid — unless **Start cooking before it's paid** is on, when it reaches the grill at once.
 18. **Online ordering** on the website: the cart works; pay step says card payments aren't set up. **Orders:** listed.
 
 ## E. Regulars and gift cards

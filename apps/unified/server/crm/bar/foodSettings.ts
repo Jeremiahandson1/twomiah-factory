@@ -24,8 +24,17 @@ export interface FoodSettings {
   /** The register opens long tabs ("Mike's tab"). A bar's yes; a restaurant or a truck rings walk-ups and tables. */
   tabs: boolean
   kiosk: {
-    /** With no card reader (or as well as one), the guest may order and pay at the counter. */
+    /**
+     * The guest may order here and pay at the counter. Off unless the owner turns it on, and never automatic: a kiosk
+     * that only queues guests to pay saves them nothing (owner, bar live test 2026-11-09). Toast's and Square's kiosks
+     * take the card on the spot.
+     */
     payAtCounter: boolean
+    /**
+     * A pay-at-the-counter order goes to the grill as soon as it is placed, before it is paid — the owner's choice for a
+     * place whose food is often ready to go. Off: it fires when it is paid. Applies only while payAtCounter is on.
+     */
+    fireBeforePaid: boolean
     /** Back to the welcome screen after this long untouched. */
     idleSeconds: number
     /** The kiosk asks for a table number as well as a name. */
@@ -46,7 +55,7 @@ export function foodDefaults(opts: { tabs?: boolean } = {}): FoodSettings {
   return {
     terminal: { tipping: false, locationId: null, locationAccount: null, configurationId: null, tabHoldHours: 24 },
     tabs: opts.tabs ?? true,
-    kiosk: { payAtCounter: true, idleSeconds: 90, askTable: false },
+    kiosk: { payAtCounter: false, fireBeforePaid: false, idleSeconds: 90, askTable: false },
     ordering: { paused: false, leadMinutes: 20 },
     delivery: { doordashUrl: null, ubereatsUrl: null },
   }
@@ -66,7 +75,7 @@ export function readFoodSettings(raw: unknown, defaults: FoodSettings): FoodSett
       tabHoldHours: int(t.tabHoldHours, defaults.terminal.tabHoldHours, 1, 168),
     },
     tabs: bool(s.tabs, defaults.tabs),
-    kiosk: { payAtCounter: bool(k.payAtCounter, defaults.kiosk.payAtCounter), idleSeconds: int(k.idleSeconds, defaults.kiosk.idleSeconds, 30, 600), askTable: bool(k.askTable, defaults.kiosk.askTable) },
+    kiosk: { payAtCounter: bool(k.payAtCounter, defaults.kiosk.payAtCounter), fireBeforePaid: bool(k.fireBeforePaid, defaults.kiosk.fireBeforePaid), idleSeconds: int(k.idleSeconds, defaults.kiosk.idleSeconds, 30, 600), askTable: bool(k.askTable, defaults.kiosk.askTable) },
     ordering: { paused: bool(o.paused, defaults.ordering.paused), leadMinutes: int(o.leadMinutes, defaults.ordering.leadMinutes, 5, 240) },
     delivery: { doordashUrl: deliveryUrl('doordash', dl.doordashUrl) ?? null, ubereatsUrl: deliveryUrl('ubereats', dl.ubereatsUrl) ?? null },
   }
@@ -99,6 +108,7 @@ export function applyFoodPatch(cur: FoodSettings, b: Record<string, any>): FoodS
   }
   if (b.kiosk && typeof b.kiosk === 'object') {
     if (b.kiosk.payAtCounter !== undefined) next.kiosk.payAtCounter = !!b.kiosk.payAtCounter
+    if (b.kiosk.fireBeforePaid !== undefined) next.kiosk.fireBeforePaid = !!b.kiosk.fireBeforePaid
     if (b.kiosk.askTable !== undefined) next.kiosk.askTable = !!b.kiosk.askTable
     if (b.kiosk.idleSeconds !== undefined) {
       const n = Math.round(Number(b.kiosk.idleSeconds))

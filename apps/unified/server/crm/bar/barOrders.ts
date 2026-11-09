@@ -95,10 +95,12 @@ export function createBarOrders(deps: {
     const table = clean(input.table, 10)
     if (!name && !(s.kiosk.askTable && table)) throw new CheckError('Type your name so we can call you.')
     const pay = input.pay === 'counter' ? 'counter' : 'reader'
-    if (pay === 'counter' && !(s.kiosk.payAtCounter || !input.haveReader)) throw new CheckError('Pay on the card reader, please.', 409)
-    if (pay === 'reader' && !input.haveReader) throw new CheckError('The card reader is not set up. Pay at the counter.', 409)
+    // Counter payment only where the owner turned it on; never as a fallback for a missing reader.
+    if (pay === 'counter' && !s.kiosk.payAtCounter) throw new CheckError(input.haveReader ? 'Pay on the card reader, please.' : 'This kiosk is not taking orders: no card reader is connected.', 409)
+    if (pay === 'reader' && !input.haveReader) throw new CheckError(s.kiosk.payAtCounter ? 'The card reader is not set up. Pay at the counter.' : 'This kiosk is not taking orders: no card reader is connected.', 409)
     const priced = await price(companyId, input.lines)
     const kiosk: Actor = { ...actor, name: 'Kiosk' }
+    let fired = false
     const id = await db.transaction(async (tx: Tx) => {
       const [o] = await tx.insert(barOrder).values({
         companyId, channel: 'kiosk', status: pay === 'counter' ? 'at_counter' : 'awaiting_payment', name, tableLabel: table,
@@ -107,12 +109,14 @@ export function createBarOrders(deps: {
       if (pay === 'counter') {
         // No "Pay at the counter" note: a check's note rides onto its grill ticket, and a kiosk order only reaches the
         // grill once it is paid, so the ticket read "Pay at the counter" in red after the money was taken (bistro, 10/25).
-        const c = await register.checkFromOrderInTx(tx, kiosk, { kind: 'kiosk', label: kioskLabel(name, table), spot: table ? `Table ${table}` : null, note: null, lines: priced.lines }, null)
+        const c = await register.checkFromOrderInTx(tx, kiosk, { kind: 'kiosk', label: kioskLabel(name, table), spot: table ? `Table ${table}` : null, note: null, lines: priced.lines }, null, { fireNow: s.kiosk.fireBeforePaid })
+        fired = c.fired
         await tx.update(barOrder).set({ checkId: c.checkId, number: c.number, updatedAt: new Date() }).where(eq(barOrder.id, o.id))
       }
       return o.id as string
     })
     if (pay === 'counter') register.notifyRegister(companyId)
+    if (fired) register.notifyKitchen(companyId)
     return orderView((await one(companyId, id))!)
   }
 

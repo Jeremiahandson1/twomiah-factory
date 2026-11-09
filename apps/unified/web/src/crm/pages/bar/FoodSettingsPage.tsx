@@ -19,7 +19,7 @@ interface Reader { id: string; label: string; deviceType: string | null; serialN
 interface Settings {
   terminal: { tipping: boolean; tabHoldHours?: number }
   tabs: boolean
-  kiosk: { payAtCounter: boolean; idleSeconds: number; askTable: boolean }
+  kiosk: { payAtCounter: boolean; fireBeforePaid: boolean; idleSeconds: number; askTable: boolean }
   ordering: { paused: boolean; leadMinutes: number }
   delivery: { doordashUrl: string | null; ubereatsUrl: string | null }
 }
@@ -148,8 +148,13 @@ export default function FoodSettingsPage() {
         <section className={`${CARD} space-y-4`} aria-labelledby="fs-kiosk">
           <h2 id="fs-kiosk" className="text-lg font-semibold text-gray-900 dark:text-slate-100">Kiosk</h2>
           <p className={`text-sm ${MUTED}`}>Open <Link className="underline" to="/crm/kiosk">the kiosk</Link> on a tablet. A manager's till PIN starts it and stops it: the owner and each manager set their own on the <Link className="underline" to="/crm/register">Register</Link> with <strong>Set my till PIN</strong> (top of the page).</p>
-          <Toggle id="fs-counter" label="Pay at the counter" help={a.readers.length ? 'Guests may also order and pay at the counter.' : 'With no card reader, guests order here and pay at the counter.'} on={s.kiosk.payAtCounter} disabled={!mayEdit || !!busy}
+          {!a.readers.length && !s.kiosk.payAtCounter && <p className={`text-sm ${MUTED}`}>The kiosk takes orders once a card reader is connected (Card reader, above), so guests order and pay in one go. Or let them pay at the counter below.</p>}
+          <Toggle id="fs-counter" label="Let guests pay at the counter" help={a.readers.length ? 'Guests may also order here and pay at the counter.' : 'Guests order here and pay at the counter. With a card reader they pay on the spot instead.'} on={s.kiosk.payAtCounter} disabled={!mayEdit || !!busy}
             onChange={(v) => save('counter', { kiosk: { payAtCounter: v } }, 'Saved.')} />
+          {s.kiosk.payAtCounter && (
+            <Toggle id="fs-fire" label="Start cooking before it's paid" help="A pay-at-the-counter order goes to the grill as soon as it is placed. Good when food is often ready to go; an order nobody comes to pay for is still cooked." on={s.kiosk.fireBeforePaid} disabled={!mayEdit || !!busy}
+              onChange={(v) => save('fire', { kiosk: { fireBeforePaid: v } }, 'Saved.')} />
+          )}
           <Toggle id="fs-table" label="Ask for a table number" on={s.kiosk.askTable} disabled={!mayEdit || !!busy} onChange={(v) => save('table', { kiosk: { askTable: v } }, 'Saved.')} />
           <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); save('idle', { kiosk: { idleSeconds: Number(idle) } }, 'Saved.') }}>
             <div>

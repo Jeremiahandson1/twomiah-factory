@@ -106,8 +106,10 @@ export default function KioskPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Order kiosk</h1>
           <p className={MUTED}>Guests order from this tablet and pay on {st.reader ? 'the card reader' : 'the counter'}{st.reader && st.payAtCounter ? ' or at the counter' : ''}. Paid orders go to the grill marked KIOSK. A manager's till PIN starts it and stops it; while it runs, this tablet shows nothing else.</p>
           {!st.menu.length && <p className="text-sm text-gray-900 dark:text-slate-100">Nothing on the menu has a price yet. Add prices under Menu first.</p>}
+          {/* Order and pay in one go, or not at all — a kiosk that only queues guests to pay saves them nothing (owner, 2026-11-09). */}
+          {!st.reader && !st.payAtCounter && <p className="text-sm text-gray-900 dark:text-slate-100">Connect a card reader in Register Settings so guests can order and pay here. (Or turn on "Let guests pay at the counter" there.)</p>}
           <div className="flex flex-wrap gap-2">
-            {mayRing && <button className={`${BTN} ${ON} inline-flex items-center gap-2`} disabled={!st.menu.length} onClick={() => setPin('start')}><Lock className="w-4 h-4" />Start the kiosk</button>}
+            {mayRing && <button className={`${BTN} ${ON} inline-flex items-center gap-2`} disabled={!st.menu.length || (!st.reader && !st.payAtCounter)} onClick={() => setPin('start')}><Lock className="w-4 h-4" />Start the kiosk</button>}
             <button className={`${BTN} ${OFF}`} onClick={() => navigate('/crm/register')}>Back to the register</button>
           </div>
         </div>
