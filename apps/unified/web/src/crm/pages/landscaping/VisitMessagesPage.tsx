@@ -198,7 +198,7 @@ export default function VisitMessagesPage() {
                       <div className="rounded bg-gray-50 p-3 dark:bg-slate-800">
                         <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">What the customer got{r.photoCount ? ` (with ${r.photoCount} photo${r.photoCount === 1 ? '' : 's'})` : ''}</p>
                         {r.channel === 'email' && r.messageSubject && <p className="font-medium mb-1">{r.messageSubject}</p>}
-                        <p className="whitespace-pre-wrap">{r.messageText}</p>
+                        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{r.messageText}</p>
                       </div>
                     ) : r.status === 'sent' || r.status === 'queued' ? <p className="text-gray-500 dark:text-slate-400">This message was sent before copies were kept.</p> : null}
                     {r.rating != null && (

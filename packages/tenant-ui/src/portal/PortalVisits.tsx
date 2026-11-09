@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import { Camera } from 'lucide-react'
 import { usePortal } from './PortalContext'
-import { Spinner, PageTitle, Empty, card, formatDate } from './common'
+import { Spinner, PageTitle, Empty, card } from './common'
+import { momentDate } from '../time/companyClock'
 
 export interface PortalVisit {
   jobId: string; title: string; completedAt: string | null; note: string | null
@@ -27,7 +28,8 @@ export function PortalVisits() {
             <div key={v.jobId} className={`${card} p-5`}>
               <div className="flex items-start justify-between gap-3">
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">{v.title}</h3>
-                {v.completedAt && <span className="text-sm text-gray-500 dark:text-slate-400">{formatDate(v.completedAt)}</span>}
+                {/* Finished at a moment: printed as the business's day (re-check 11/08: an evening visit read as the next day). */}
+                {v.completedAt && <span className="text-sm text-gray-500 dark:text-slate-400">{momentDate(v.completedAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>}
               </div>
               {v.note && <p className="mt-2 text-sm text-gray-700 dark:text-slate-300 whitespace-pre-line">{v.note}</p>}
               {v.photos.length > 0 && (

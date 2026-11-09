@@ -115,3 +115,42 @@ test('the crew picks materials by name — the catalogue carries no price — an
   expect(landscaping.roleWithheld).toEqual({ crew_lead: ['prices:read'], crew: ['prices:read'] })
   expect((landscaping.screens as any).navOnlyFor.crew).toEqual(['/crm/dashboard', '/crm/tech', '/crm/time'])
 })
+
+// ── The re-check (11/08) ──
+test('a Crew member keeps their seat after a reload: /me carries it beside the rung', async () => {
+  const password = 'Correct-horse-1'
+  await ins(t.schema.user, { companyId, email: 'member@test.example', firstName: 'Mo', lastName: 'Member', role: 'crew', passwordHash: await Bun.password.hash(password, 'bcrypt') })
+  const tok = await login('member@test.example', password)
+  const me = (await json(await as(tok, '/api/auth/me'))).body
+  expect(me.user.seat).toBe('crew')
+  expect(me.user.role).toBe('field')
+})
+
+test('a single snow visit bills its salt by the bag', async () => {
+  await t.db.update(t.schema.company).set({ enabledFeatures: [...FEATURES, 'snow_billing', 'snow_tools'] } as any).where(eq(t.schema.company.id, companyId))
+  t.services.features.forgetFeatures()
+  const ct = await ins(t.schema.contact, { companyId, name: 'Salt Customer', type: 'client' })
+  const site = await ins(t.schema.site, { companyId, contactId: ct.id, name: 'Salt home' })
+  const contract = await ins(t.schema.snowContract, { companyId, siteId: site.id, billingMode: 'per_push', perPushRate: '50', saltUnit: 'bags', saltPerUnitRate: '8', triggerDepthInches: '0' })
+  const r = await json(await post(owner, '/api/snow/events', { snowContractId: contract.id, pushes: 1, snowfallInches: 3, saltApplied: true, saltQuantity: 2 }))
+  expect(r.status).toBeLessThan(300)
+  expect(Number((r.body.data ?? r.body).billableAmount)).toBe(66)
+})
+
+test('a commission recorded by hand is not paid again automatically', async () => {
+  const j = await visit('Hand', { status: 'completed', completedAt: new Date() })
+  const [inv] = await t.db.insert(t.schema.invoice).values({ companyId, number: 'INV-H1', contactId: j.contactId, status: 'sent', subtotal: '20', total: '20', taxAmount: '0', amountPaid: '0' } as any).returning() as any[]
+  await t.db.insert(t.schema.routeVisitInvoice).values({ companyId, jobId: j.id, invoiceId: inv.id, amount: '20' } as any)
+  const [plan] = await t.db.select().from(t.schema.commissionPlan).where(eq(t.schema.commissionPlan.companyId, companyId)) as any[]
+  await t.db.insert(t.schema.commission).values({ companyId, planId: plan.id, userId: crewId, jobId: j.id, baseAmount: '20', commissionAmount: '2', status: 'paid' } as any)
+  expect((await post(owner, `/api/invoices/${inv.id}/payments`, { amount: 20, method: 'cash' })).status).toBeLessThan(300)
+  const rows = await t.db.select().from(t.schema.commission).where(eq(t.schema.commission.jobId, j.id)) as any[]
+  expect(rows.length).toBe(1)
+})
+
+test('"Completed today" lists only what was finished today', async () => {
+  await visit('Yesterday', { status: 'completed', completedAt: new Date(Date.now() - 2 * 86_400_000) })
+  const list = (await json(await as(owner, '/api/jobs?status=completed&tile=completed_today&limit=200'))).body.data as any[]
+  expect(list.some((j) => j.number === 'JOB-Yesterday')).toBe(false)
+  expect(list.some((j) => j.number === 'JOB-Hand')).toBe(true)
+})

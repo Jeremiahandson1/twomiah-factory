@@ -90,7 +90,8 @@ const landscaping: VerticalSettings = {
     sites: { singular: 'Property', plural: 'Properties', namePlaceholder: 'e.g. "Home", "Lake cottage"' },
     // A landscaper does not take service calls: the work is a scheduled visit to a property — a job. (T41)
     // repeatWeekdays: a repeating job can run on chosen days of the week (Monday and Thursday); the server's jobs.repeatWeekdays is the same switch.
-    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true, repeatWeekdays: true },
+    // billing: the job page's Invoice button, for the server's POST /api/jobs/:id/invoice above (re-check 11/08: the button never showed).
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true, requireCustomer: true, repeatWeekdays: true, billing: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Spring cleanup and mulch', pricebook: true },
     // markup/projects: construction's, as for field service (the template still offered both; projects is not offered
     // to this vertical).

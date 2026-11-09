@@ -11,7 +11,8 @@ import { jobLocalDay, storeDayRange } from '../time/businessDay'
 import { DEFAULT_OPEN_STATUSES } from '../invoicing/money'
 
 /** The filters a list route accepts as `?tile=`, per list. A value outside the list is refused, never answered as "empty". */
-export const JOB_TILES = ['today'] as const
+// completed_today: finished today on the business's clock — the dashboard's "Completed today" counter (jobsDashboard.ts) opens these.
+export const JOB_TILES = ['today', 'completed_today'] as const
 export const QUOTE_TILES = ['pending'] as const
 export const INVOICE_TILES = ['open'] as const
 

@@ -42,6 +42,7 @@ import { OwnerDashboard, CrewDashboard } from './pages/HomePanels'
 import { LostReasonsReport } from './pages/LostReasonsReport'
 import { CrewJobExtras, CrewFinishDay, DrawOnPhoto } from './crewVisitTools'
 import VisitRatingPanel from './pages/landscaping/VisitRatingPanel'
+import CrewWorkPanel from './pages/landscaping/CrewWorkPanel'
 
 const v = verticalScreens
 /** A builder's appointment kinds (no test drives): the site visit a lead books, and the office's own meetings. */
@@ -130,7 +131,7 @@ export function JobDetail() {
     ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
-    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
+    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><CrewWorkPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }
 /**
