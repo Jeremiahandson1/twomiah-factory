@@ -20,9 +20,9 @@
 // Moved from templates/crm-bar/backend/src/routes/barStock.ts; paths, permissions and answers as they were. The order
 // email goes through the app's email (the template's sendRaw).
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { checkFilter } from '@twomiah/tenant-backend'
-import { company } from '../../db/schema/index.ts'
+import { barPurchaseOrder, barStockItem, company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, listAll, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -81,7 +81,9 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
       const count = await currentCount(actor.companyId, actor.name)
       const qty = await countItem(actor.companyId, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear, fills: b.fills, weightsGrams: b.weightsGrams }, actor.name)
       // Named rows (the request floor wrote "Created — item"; restaurant live test 2026-11-09).
-      audit.log({ req: c, action: 'update', entity: 'bar_stock_count', entityId: count!.id, entityName: 'Stock count', changes: { item: String(b.stockItemId), counted: qty } })
+      // The item by its name, not its id (restaurant re-check 2026-11-09: "Item: n7on6824…").
+      const [named] = await db.select({ name: barStockItem.name }).from(barStockItem).where(and(eq(barStockItem.id, String(b.stockItemId)), eq(barStockItem.companyId, actor.companyId))).limit(1)
+      audit.log({ req: c, action: 'update', entity: 'bar_stock_count', entityId: count!.id, entityName: 'Stock count', changes: { [named?.name || 'item']: qty } })
       return { ok: true, qty, countId: count!.id }
     })
   })
@@ -136,9 +138,31 @@ export function createBarStockRoutes(d: CrmDeps, bar: BarServices) {
     const companyId = companyOf(c); const onTheWay = c.req.query('tile') === 'on_the_way'
     return run(c, async () => ({ orders: await orderList(companyId, onTheWay) }))
   })
-  app.post('/orders', ...manage, async (c) => { const actor = await actorOf(c); const b = await body(c); return run(c, async () => ({ id: await saveOrder(actor.companyId, null, b as any, actor.name) })) })
-  app.put('/orders/:id', ...manage, async (c) => { const actor = await actorOf(c); const b = await body(c); return run(c, async () => ({ id: await saveOrder(actor.companyId, c.req.param('id'), b as any, actor.name) })) })
-  app.post('/orders/draft-low', ...manage, async (c) => { const actor = await actorOf(c); return run(c, async () => ({ ids: await draftFromLow(actor.companyId, actor.name) })) })
+  // Each order write is its own named row (the request floor wrote "Order | Updated — order" and "Draft low"; restaurant re-check 2026-11-09).
+  const orderLabel = async (companyId: string, id: string) => {
+    const [o] = await db.select({ number: barPurchaseOrder.number }).from(barPurchaseOrder).where(and(eq(barPurchaseOrder.id, id), eq(barPurchaseOrder.companyId, companyId))).limit(1)
+    return o ? `Stock order #${o.number}` : 'Stock order'
+  }
+  app.post('/orders', ...manage, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return run(c, async () => { const id = await saveOrder(actor.companyId, null, b as any, actor.name); audit.log({ req: c, action: 'create', entity: 'bar_purchase_order', entityId: id, entityName: await orderLabel(actor.companyId, id) }); return { id } })
+  })
+  app.put('/orders/:id', ...manage, async (c) => {
+    const actor = await actorOf(c); const b = await body(c)
+    return run(c, async () => {
+      const id = await saveOrder(actor.companyId, c.req.param('id'), b as any, actor.name)
+      audit.log({ req: c, action: 'update', entity: 'bar_purchase_order', entityId: id, entityName: await orderLabel(actor.companyId, id), metadata: { description: 'Supplier, lines or note changed' } })
+      return { id }
+    })
+  })
+  app.post('/orders/draft-low', ...manage, async (c) => {
+    const actor = await actorOf(c)
+    return run(c, async () => {
+      const ids = await draftFromLow(actor.companyId, actor.name)
+      for (const id of ids) audit.log({ req: c, action: 'create', entity: 'bar_purchase_order', entityId: id, entityName: await orderLabel(actor.companyId, id), metadata: { description: 'Drafted from what is below par' } })
+      return { ids }
+    })
+  })
   app.post('/orders/:id/cancel', ...manage, async (c) => { const companyId = companyOf(c); return run(c, async () => ({ order: await setOrderStatus(companyId, c.req.param('id'), 'cancelled') })) })
   app.post('/orders/:id/send', ...manage, async (c) => {
     const actor = await actorOf(c); const b = await body(c)

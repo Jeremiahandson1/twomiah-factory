@@ -148,7 +148,7 @@ export function TillPinDialog({ hasPin, onClose, onSaved, save, clear }: { hasPi
         try { await save(pin); onSaved(); } catch (e) { setErr(errorText(e, 'That did not save. Try again.')); } finally { setBusy(false); }
       }}>
         <p className={`text-sm mb-3 ${MUTED}`}>
-          A manager types it on a bartender's register to OK a void or the close-out. It is never a sign-in by itself. 4 to 8 digits, and nobody else here may use the same one.
+          You type it on the time clock to clock in and out, and a manager types theirs on the register to OK a void or the close-out. It is never a sign-in by itself. 4 to 8 digits, and nobody else here may use the same one.
         </p>
         <label className={LABEL} htmlFor="own-pin">{hasPin ? 'New PIN' : 'PIN'}</label>
         <input id="own-pin" className={`${INPUT} mt-1 text-2xl tracking-[0.4em]`} type="password" inputMode="numeric" autoComplete="new-password" autoFocus

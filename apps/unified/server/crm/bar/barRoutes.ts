@@ -310,6 +310,12 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
       const [cur] = await db.select().from(barStatus).where(eq(barStatus.companyId, companyId)).limit(1)
       const any = (['kitchenOpen', 'barOpen', 'kitchenClosesAt', 'barClosesAt'] as const).some((k) => (k in patch ? patch[k] : cur?.[k]) !== null && (k in patch ? patch[k] : cur?.[k]) !== undefined)
       patch.overrideUntil = any ? endOfBusinessDay(new Date(), tz) : null
+    } else if ('note' in patch) {
+      // A note typed on its own stays until changed (barLive.ts noteLive). An earlier override's end date that has already
+      // passed must not take it down with it: restaurant re-check 2026-11-09, a fresh note never showed on the website.
+      const [cur] = await db.select({ until: barStatus.overrideUntil }).from(barStatus).where(eq(barStatus.companyId, companyId)).limit(1)
+      // The lapsed override goes with its date, so clearing the date cannot bring it back for good.
+      if (cur?.until && cur.until.getTime() <= Date.now()) Object.assign(patch, { overrideUntil: null, kitchenOpen: null, barOpen: null, kitchenClosesAt: null, barClosesAt: null })
     }
     patch.updatedAt = new Date()
     patch.updatedById = userId

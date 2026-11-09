@@ -56,17 +56,24 @@ function packageFloor(pkg: any, perPerson: boolean, quantity: any, notes: string
  * someone set to another number is theirs and stays. Tripleseat's and Perfect Venue's per-person items work this way;
  * restaurant live test 2026-11-09: INV-00001 stayed at 30 guests after the guarantee went to 26.
  */
-async function followHeadCount(tx: any, companyId: string, eventId: string, oldHeads: number, newHeads: number) {
-  if (!(oldHeads > 0) || !(newHeads > 0) || oldHeads === newHeads) return
+async function followHeadCount(tx: any, companyId: string, eventId: string, oldCounts: number[], newHeads: number) {
+  // Either old figure was "the head count" a line could be billing: the estimate, or the guarantee once there was one.
+  // Restaurant re-check 2026-11-09: a guarantee set before this rule left the line on the estimate (30), so later
+  // guarantee changes (26 -> 27) matched nothing.
+  const olds = oldCounts.filter((n) => n > 0 && n !== newHeads)
+  if (!(newHeads > 0) || !olds.length) return
   const lines = await tx.select().from(eventMenuItem).where(and(eq(eventMenuItem.eventId, eventId), eq(eventMenuItem.companyId, companyId), eq(eventMenuItem.perPerson, true)))
   for (const l of lines) {
     const entered = Number((String(l.notes || '').match(/^Billed at the \d+-guest package minimum \((\d+) entered\)/) || [])[1] || NaN)
-    if (Number(l.quantity) !== oldHeads && entered !== oldHeads) continue
+    if (!olds.includes(Number(l.quantity)) && !olds.includes(entered)) continue
     const [pkg] = l.packageId ? await tx.select().from(menuPackage).where(eq(menuPackage.id, l.packageId)).limit(1) : [null]
     const next = packageFloor(pkg, true, newHeads, l.notes || null)
     await tx.update(eventMenuItem).set({ quantity: next.quantity, notes: next.notes }).where(eq(eventMenuItem.id, l.id))
   }
 }
+
+/** A save that changed nothing says so in the Audit Log, instead of an empty "—" (restaurant re-check 2026-11-09). */
+const eventChanges = (changes: Record<string, unknown> | null) => (changes ? { changes } : { metadata: { description: 'Saved — nothing changed' } })
 
 // Line total: per-head lines multiply by the head count on the line.
 function lineTotal(l: { quantity: number; unitPrice: string | null }): number {
@@ -308,7 +315,7 @@ export function createEventRoutes(d: CrmDeps) {
         const [row] = await tx.update(event).set(updates).where(eq(event.id, id)).returning()
         if ((existing.spaceId || null) !== (row.spaceId || null)) await syncHireLine(tx, currentUser.companyId, row)
         if (['confirmed', 'completed'].includes(row.status)) await promoteBookedClient(tx, currentUser.companyId, row.contactId)
-        if (countChanged) await followHeadCount(tx, currentUser.companyId, id, Number(existing.guestCountFinal ?? existing.guestCount ?? 0), Number(row.guestCountFinal ?? row.guestCount ?? 0))
+        if (countChanged) await followHeadCount(tx, currentUser.companyId, id, [Number(existing.guestCountFinal || 0), Number(existing.guestCount || 0)], Number(row.guestCountFinal ?? row.guestCount ?? 0))
         // Leaving the book closes the invoice (void, or deposit retained — body.keepDeposit); anything else keeps the
         // invoice in step with the event (quote, room, client, due date).
         if (EXIT_STATUSES.includes(row.status) && !EXIT_STATUSES.includes(existing.status)) {
@@ -329,7 +336,7 @@ export function createEventRoutes(d: CrmDeps) {
       if (refused) return refused
       throw e
     }
-    await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: auditName(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
+    await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: auditName(updated), ...eventChanges(audit.diff(existing, updated)), req: { user: currentUser } })
     emitToCompany(currentUser.companyId, REFRESH, { entity: 'event' })
     // A hold let go (stage, room, day or hours changed) is offered to whoever is waiting for it.
     if (HELD.includes(existing.status) && (!HELD.includes(updated.status) || existing.spaceId !== updated.spaceId || existing.eventDate !== updated.eventDate || existing.startTime !== updated.startTime || existing.endTime !== updated.endTime)) {
@@ -362,7 +369,7 @@ export function createEventRoutes(d: CrmDeps) {
       throw e
     }
 
-    await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: auditName(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
+    await audit.log({ action: 'update', entity: 'event', entityId: id, entityName: auditName(updated), ...eventChanges(audit.diff(existing, updated)), req: { user: currentUser } })
     emitToCompany(currentUser.companyId, REFRESH, { entity: 'event' })
     if (HELD.includes(existing.status)) await offerWaitlist(d, currentUser.companyId, existing.spaceId, existing.eventDate)
     return one(c, { success: true, event: updated })

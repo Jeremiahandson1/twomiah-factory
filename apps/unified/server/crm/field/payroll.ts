@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import { and, eq, gte, lt } from 'drizzle-orm'
 import { createStaffBalanceStore, companyTimeZone, storeDayRange } from '@twomiah/tenant-backend'
-import { timeEntry, user, staffAccountEntry } from '../../db/schema/index.ts'
+import { timeEntry, user, staffAccountEntry, teamMember } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -35,6 +35,7 @@ export function createPayrollRoutes(d: CrmDeps) {
     const entries = await db.select({
       entry: timeEntry,
       userId: user.id,
+      userEmail: user.email,
       userFirstName: user.firstName,
       userLastName: user.lastName,
     })
@@ -45,6 +46,16 @@ export function createPayrollRoutes(d: CrmDeps) {
         gte(timeEntry.date, payPeriod.start),
         lt(timeEntry.date, payPeriod.end),
       ))
+
+    // An entry's own rate wins (the rate when the work was done). One stored with none — clocked before the roster card had
+    // a rate — is valued at the card's rate now, as the Time page's summary does (time.ts ratesByUserId). Restaurant
+    // re-check 2026-11-09: a $15/hr server's clocked hours showed Earned $0.00.
+    const cardRate = new Map<string, number>()
+    if (entries.some((e: any) => e.entry.hourlyRate == null)) {
+      const roster = await db.select({ email: teamMember.email, rate: teamMember.hourlyRate }).from(teamMember).where(eq(teamMember.companyId, currentUser.companyId))
+      for (const m of roster) { const n = Number(m.rate); if (m.email && Number.isFinite(n) && n > 0) cardRate.set(String(m.email).toLowerCase(), n) }
+    }
+    const rateOf = (e: any) => (e.entry.hourlyRate != null ? Number(e.entry.hourlyRate) : cardRate.get(String(e.userEmail || '').toLowerCase()) ?? 0)
 
     // Overtime is hours over 40 in each work week (the company's start day), the Gusto file's own split.
     const workWeek = await companyWorkWeek(db, currentUser.companyId)
@@ -62,7 +73,7 @@ export function createPayrollRoutes(d: CrmDeps) {
         }
       }
       byUser[id].totalHours += Number(e.entry.hours || 0)
-      byUser[id].totalPay += Number(e.entry.hours || 0) * Number(e.entry.hourlyRate || 0)
+      byUser[id].totalPay += Number(e.entry.hours || 0) * rateOf(e)
       byUser[id].entryCount++
       ;(mine[id] ??= []).push(e.entry)
     })

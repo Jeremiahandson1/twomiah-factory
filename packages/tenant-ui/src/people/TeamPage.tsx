@@ -9,11 +9,14 @@ import { useAuth } from '../auth/AuthContext'
 import { meetsRole } from '../shell/types'
 import type { Pagination } from '../invoicing/ui'
 import { ROLE_LABELS } from '../shell/types'
+
+/** A login's seat as a word: the fleet's rungs (Staff, Manager…), else a vertical's own seat by name (server → Server). */
+const seatWord = (v: unknown) => { const s = String(v || ''); return s ? ROLE_LABELS[s] || (s.charAt(0).toUpperCase() + s.slice(1)).replace(/_/g, ' ') : '' }
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 import { useMayWrite, usePermissions } from '../auth/PermissionsContext'
 import { money } from '../money'
 
-interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; locationId?: string | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; _source?: 'user' }
+interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; locationId?: string | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; loginRole?: string | null; _source?: 'user' }
 const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '', locationId: '' }
 
 export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TeamConfig }) {
@@ -117,7 +120,9 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     // Two different things share this column: a roster member's job title is free text they typed, but a login
     // account's is a permission role, and that was printing the stored slug — "field" and "user" on a page whose
     // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)
-    { key: 'role', label: roleLabel, render: (v: any, row: Member) => (row._source === 'user' ? ROLE_LABELS[String(v)] || v || '-' : v || '-') },
+    // A roster card left blank says the seat its login holds (restaurant re-check 2026-11-09: "Staff" turned to "-" once
+    // the server had a card for their pay rate).
+    { key: 'role', label: roleLabel, render: (v: any, row: Member) => (row._source !== 'user' && !v && row.loginRole ? seatWord(row.loginRole) : (row._source === 'user' ? ROLE_LABELS[String(v)] || v || '-' : v || '-')) },
     ...(showDepartment ? [{ key: 'department', label: 'Department', render: (v: any) => v || '-' }] : []),
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },

@@ -16,7 +16,7 @@ import { PalettePicker, type Palette, type PaletteInfo } from '../components/Pal
 import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
 interface NavItem { label: string; href: string }
-interface Design { id: string; label: string; isDefault: boolean }
+interface Design { id: string; label: string; isDefault: boolean; trade?: boolean }
 
 interface SiteRow {
   design: string | null
@@ -56,6 +56,10 @@ export function SiteSettingsPage() {
   const mayOpenCompany = useMayWrite('company:update')
   const wide = useIsWide()
   const SITE_FIELDS = verticalScreens().website || {}
+  // The pages that add themselves, in this trade's words (restaurant re-check 2026-11-09: it named Projects and Service areas).
+  const galleryWord = (verticalScreens() as { vocabulary?: { gallery?: string } }).vocabulary?.gallery || 'Projects'
+  const autoList = ['Blog', galleryWord, ...(SITE_FIELDS.serviceAreas !== false ? ['Service areas'] : [])]
+  const autoPages = `${autoList.slice(0, -1).join(', ')} and ${autoList[autoList.length - 1]}`
   const [designs, setDesigns] = useState<Design[]>([])
   const [paletteInfo, setPaletteInfo] = useState<(PaletteInfo & { fonts: FontChoice[] }) | null>(null)
   const [loading, setLoading] = useState(true)
@@ -139,7 +143,12 @@ export function SiteSettingsPage() {
               <Label htmlFor="site-design">Design</Label>
               <select id="site-design" className="input" value={settings.design || ''} onChange={(e) => update({ design: e.target.value || null })}>
                 <option value="">{defaultDesign ? `${defaultDesign.label} (your business type's)` : 'Your business type\'s'}</option>
-                {designs.filter((d) => !d.isDefault).map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                {designs.filter((d) => !d.isDefault && !d.trade).map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                {designs.some((d) => !d.isDefault && d.trade) && (
+                  <optgroup label="Made for another trade">
+                    {designs.filter((d) => !d.isDefault && d.trade).map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
             <ImageUrlField label="Favicon" value={settings.faviconUrl || ''} onChange={(v) => update({ faviconUrl: v || null })} uploadTag="misc" hint="The little icon in the browser tab. Square." />
@@ -187,7 +196,7 @@ export function SiteSettingsPage() {
         {/* Navigation */}
         <section className="card card-padding mb-6">
           <h2 className="text-lg font-semibold text-ink mb-1">Navigation</h2>
-          <p className="text-xs text-muted mb-4">Items appear in the header in this order. A page you publish is added here; a link to a hidden page isn't shown. Blog, Projects and Service areas are shown on their own once they have something in them.</p>
+          <p className="text-xs text-muted mb-4">Items appear in the header in this order. A page you publish is added here; a link to a hidden page isn't shown. {autoPages} are shown on their own once they have something in them.</p>
           <div className="space-y-2">
             {nav.map((item, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_auto] sm:grid-cols-[1fr_1fr_auto_auto_auto] gap-2 items-center">
