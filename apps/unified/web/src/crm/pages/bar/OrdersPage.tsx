@@ -59,7 +59,9 @@ export default function OrdersPage() {
       {!list.length && <p className={`text-sm ${MUTED}`}>{showDone ? 'Nothing picked up yet tonight.' : 'No open orders.'}</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {list.map((o) => {
-          const s = STATUS[o.status] || { label: o.status, cls: STATUS.collected.cls }
+          // A kiosk order has no Ready step (the grill's bump does not reach it), so "On the grill" stayed on it after the
+          // food was out; what is always true of it until Picked up is that it is paid (bar re-check 2, 11/09).
+          const s = o.channel === 'kiosk' && o.status === 'received' ? { label: 'Paid', cls: STATUS.received.cls } : STATUS[o.status] || { label: o.status, cls: STATUS.collected.cls }
           return (
             <article key={o.id} className={CARD} aria-label={`Order ${o.number ?? ''} ${o.name ?? ''}`}>
               <div className="flex items-start justify-between gap-2">

@@ -65,6 +65,12 @@ describe('the words', () => {
     expect(src('../../../packages/tenant-ui/src/shell/AppShell.tsx')).toContain('i.labelWithout && !can(i.labelWithout[0])')
   })
 
+  test('a paid kiosk order is badged "Paid" on Orders, not "On the grill" (it has no Ready step); a website pickup keeps its steps', () => {
+    const orders = src('../web/src/crm/pages/bar/OrdersPage.tsx')
+    expect(orders).toContain("o.channel === 'kiosk' && o.status === 'received' ? { label: 'Paid'")
+    expect(orders).toContain("received: { label: 'On the grill'")
+  })
+
   test('Email Domain and Branded Email name no SendGrid, SPF, DKIM or Cloudflare', () => {
     const domain = src('../../../packages/tenant-ui/src/settings/EmailDomainPage.tsx')
     const page = domain.slice(domain.indexOf('return ('))
