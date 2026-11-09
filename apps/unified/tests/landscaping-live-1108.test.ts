@@ -10,6 +10,7 @@
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
+import { agencyDay } from './agencyDay.ts'
 import landscaping from '../verticals/landscaping/settings.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
@@ -61,7 +62,8 @@ test('what the crew writes on Complete is the visit\'s note to the customer', as
 })
 
 test('Crew Score counts hours logged by hand; seconds between Arrived and Complete are not scored', async () => {
-  const day = new Date().toISOString().slice(0, 10)
+  // The company's day on its own clock (tests/agencyDay.ts): this test company names no zone, so the server reads UTC (businessDay.ts).
+  const day = agencyDay('UTC')
   const logged = await visit('Logged', { status: 'completed', estimatedHours: '0.5', startedAt: new Date(Date.now() - 30_000), completedAt: new Date() })
   await ins(t.schema.timeEntry, { companyId, userId: crewId, jobId: logged.id, hours: '0.75', date: new Date() })
   const rows = (await json(await as(owner, `/api/crew-day/score?from=${day}&to=${day}`))).body.data as any[]

@@ -169,7 +169,7 @@ const contractor: VerticalSettings = {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: sees the projects, jobs, quotes and reports; changes nothing' },
         { value: 'crew', label: 'Crew', description: 'the jobs they are on, daily logs, punch lists, photos and their own time; no prices and no company money' },
-        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads, quotes, projects and site visits, the jobs they are on and their own commissions; not settings, the team or billing' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads, quotes and projects, the jobs they are on and their own commissions; not settings, the team or billing' },
         { value: 'field', label: 'Staff', description: 'the jobs they are on and day-to-day work; not settings, the team or billing' },
         { value: 'manager', label: 'Manager', description: 'runs the projects, jobs, crews, quotes and purchase orders; not billing or company settings' },
         { value: 'admin', label: 'Admin', description: 'full access, including billing, company settings and logins' },

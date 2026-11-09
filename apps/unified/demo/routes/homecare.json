@@ -73,6 +73,7 @@
   "/api/job-postings",
   "/api/leads/sources",
   "/api/leads/stats",
+  "/api/leads/workers",
   "/api/leads?limit=25&page=1",
   "/api/matching/capabilities",
   "/api/messages/inbox",

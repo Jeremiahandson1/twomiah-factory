@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { api, listAll, rows, errorMessage } from '../lib/http'
 import { agencyToday } from '../lib/agencyClock'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 const inp = 'w-full rounded-md border px-2 py-1.5 text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 const card = 'rounded-lg border p-4 mb-3 border-gray-200 bg-white text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
@@ -111,7 +112,7 @@ function BoardTab() {
             <div>
               <strong>{s.shiftDate} · {hm(s.startTime)}–{hm(s.endTime)}</strong> · {clientOf(s)}
               {s.seriesId ? <span className={soft}> · part of a series</span> : null}
-              {Number(s.bonusAmount) > 0 ? <span className="font-semibold text-emerald-800 dark:text-emerald-300"> · ${Number(s.bonusAmount).toFixed(2)} bonus</span> : null}
+              {Number(s.bonusAmount) > 0 ? <span className="font-semibold text-emerald-800 dark:text-emerald-300"> · {money(s.bonusAmount)} bonus</span> : null}
               {s.respondBy ? <div className={soft}>Answer by {s.respondBy.replace('T', ' ').slice(0, 16)}</div> : null}
             </div>
             <div className={`font-semibold ${toneOf(s.offerStatus)}`}>{s.offerStatusLabel}</div>

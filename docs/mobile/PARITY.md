@@ -18,8 +18,8 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 | Home care | 67 | 9 | 13 | 1 | 25 | 28 |
 | RV / powersports dealership | 45 | 14 | 10 | 1 | 21 | 13 |
 | Salon / barber / spa | 36 | 13 | 7 | 5 | 10 | 14 |
-| Restaurant / caterer / event venue | 38 | 12 | 9 | 5 | 8 | 16 |
-| Bar / tavern | 44 | 13 | 10 | 8 | 7 | 19 |
+| Restaurant / caterer / event venue | 40 | 12 | 9 | 5 | 9 | 17 |
+| Bar / tavern | 45 | 13 | 10 | 8 | 7 | 20 |
 | Online store | 30 | 5 | 6 | 2 | 4 | 18 |
 | Veterinary practice | 34 | 0 | 8 | 4 | 9 | 13 |
 
@@ -45,7 +45,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Sales | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Sales | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Sales | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Sales | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
+| Sales | Pricebook | `/crm/pricebook` | prices:read | pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Sales | Agreements | `/crm/agreements` | — | service_agreements (on by default) | all | none | C |
 | Sales | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
 | Sales | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
@@ -81,7 +81,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Field | Dispatch Board | `/crm/dispatch` | jobs:read | dispatch_board (on by default) | all | none | A — the day's work |
 | Finance | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
 | Finance | Expenses | `/crm/expenses` | — | expense_tracking (on by default) | all | Expenses (More): list + approve + add one with a receipt photo | C |
-| Finance | Commissions | `/crm/commissions` | commissions:read | commission_tracking (on by default) | owner, admin, manager | none | C |
+| Finance | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
 | Finance | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
 | Finance | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page | B — projects, bids and the price book |
 | Finance | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
@@ -135,14 +135,14 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Locations | `/crm/locations` | locations:read | multi_location (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Business | Commissions | `/crm/commissions` | commissions:read | commission_tracking (on by default) | owner, admin, manager | none | C |
+| Business | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
 | Business | Fleet | `/crm/fleet` | — | fleet (on by default) | all | none | C |
 | Business | GPS & Geofences | `/crm/geofences` | — | gps_tracking (on by default) | all | none | D — set-up and review screens for the owner at a desk |
 | Business | Inventory | `/crm/inventory` | — | inventory (on by default) | all | none | C |
 | Business | Equipment | `/crm/equipment` | — | equipment_tracking (on by default) | all | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Business | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
+| Business | Pricebook | `/crm/pricebook` | prices:read | pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Business | Agreements | `/crm/agreements` | — | service_agreements (on by default) | all | none | C |
 | Business | Warranties | `/crm/warranties` | — | warranties (on by default) | all | none | C |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
@@ -201,14 +201,14 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Locations | `/crm/locations` | locations:read | multi_location (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Business | Commissions | `/crm/commissions` | commissions:read | commission_tracking (on by default) | owner, admin, manager | none | C |
+| Business | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
 | Business | Fleet | `/crm/fleet` | — | fleet (on by default) | all | none | C |
 | Business | GPS & Geofences | `/crm/geofences` | — | gps_tracking (on by default) | all | none | D — set-up and review screens for the owner at a desk |
 | Business | Inventory | `/crm/inventory` | — | inventory (on by default) | all | none | C |
 | Business | Equipment | `/crm/equipment` | — | equipment_tracking (on by default) | all | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Business | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
+| Business | Pricebook | `/crm/pricebook` | prices:read | pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Business | Agreements | `/crm/agreements` | — | service_agreements (on by default) | all | none | C |
 | Business | Warranties | `/crm/warranties` | — | warranties (on by default) | all | none | C |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
@@ -270,14 +270,14 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Locations | `/crm/locations` | locations:read | multi_location (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Business | Commissions | `/crm/commissions` | commissions:read | commission_tracking (on by default) | owner, admin, manager | none | C |
+| Business | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
 | Business | Fleet | `/crm/fleet` | — | fleet (on by default) | all | none | C |
 | Business | GPS & Geofences | `/crm/geofences` | — | gps_tracking (on by default) | all | none | D — set-up and review screens for the owner at a desk |
 | Business | Inventory | `/crm/inventory` | — | inventory (on by default) | all | none | C |
 | Business | Equipment | `/crm/equipment` | — | equipment_tracking (on by default) | all | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
-| Business | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
+| Business | Pricebook | `/crm/pricebook` | prices:read | pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Business | Agreements | `/crm/agreements` | — | service_agreements (on by default) | all | none | C |
 | Business | Warranties | `/crm/warranties` | — | warranties (on by default) | all | none | C |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
@@ -341,9 +341,9 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 | Business | Adjusters | `/crm/adjusters` | — | insurance_workflow (on by default) | all | none | C |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
-| Business | Commissions | `/crm/commissions` | commissions:read | commission_tracking (on by default) | owner, admin, manager | none | C |
+| Business | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
-| Business | Pricebook | `/crm/pricebook` | — | pricebook (on by default) | all | none | B — projects, bids and the price book |
+| Business | Pricebook | `/crm/pricebook` | prices:read | pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
 | Business | AI Receptionist | `/crm/ai-receptionist` | ai-receptionist:read | ai_receptionist (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
@@ -598,6 +598,7 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts list (More) in the trade's own types and words + contact detail (a salon client opens on their chart) | B — useful later; the event already names the client and the room |
 | Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | A — the first to answer a wedding enquiry usually books it |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Overdue tab (payments overdue, office seats only) | A — deposits and balances: status and chasing (nothing is charged on the phone) |
+| Business | Time | `/crm/time` | — | time_tracking (on by default) | all | none | C |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
@@ -617,6 +618,7 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Kitchen & Counter | Tonight | `/crm/tonight` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | Tonight tab (open / closed, how busy, note — until 4 AM) | A — close the kitchen and 86 an item mid-service (when switched on) |
 | Kitchen & Counter | Register | `/crm/register` | bar:register | bar_register (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
+| Kitchen & Counter | Grill | `/crm/grill` | bar:console | bar_register (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Kitchen & Counter | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Kitchen & Counter | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later; the event already names the client and the room |
 | Kitchen & Counter | Kitchen Stock | `/crm/stock` | bar:update | bar_stock (off by default (add-on or opt-in)) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | C |
@@ -676,6 +678,7 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | Website | Domain | `/crm/domain` | settings:update | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | The Bar | Tonight | `/crm/tonight` | bar:read | bar_tonight (on by default) | all | Tonight tab (open / closed, how busy, note — until 4 AM) | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | Register | `/crm/register` | bar:register | bar_register (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
+| The Bar | Grill | `/crm/grill` | bar:console | bar_register (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Kiosk | `/crm/kiosk` | bar:register | order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | The Bar | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later, not the bar's nightly loop |
 | The Bar | Gift Cards | `/crm/gift-cards` | bar:manage | gift_cards (on by default) | owner, admin, manager | none | D — rings sales, takes cards or sells stored value; the phone is not a register |

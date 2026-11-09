@@ -125,7 +125,8 @@ describe('the budget screen’s routes', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).markupDefaultsOn).toBe(true)
     const defaults = await (await as(owner, '/api/markup-defaults')).json()
-    expect(defaults).toEqual({ labor: combinedMarkup(55.6, 10), material: 21, part: 21, service: 15.5, other: 37.5 })
+    // The budget fills the kinds it has a markup for; Subcontractor (a kind since e4ba6e1bc, contractor live test 11/07) reads as none set.
+    expect(defaults).toEqual({ labor: combinedMarkup(55.6, 10), material: 21, part: 21, service: 15.5, subcontractor: null, other: 37.5 })
   })
 
   test('a crew seat is refused; off, every path is shut; the switch is hidden and landscaping’s', async () => {

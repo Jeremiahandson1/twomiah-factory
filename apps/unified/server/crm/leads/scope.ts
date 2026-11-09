@@ -7,7 +7,11 @@ import { lead, quote } from '../../db/schema/index.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
 
 export async function ownLeadsWhere(d: CrmDeps, me: { role: string; userId: string }) {
-  let all = false
+  // A seat that reads no enquiries at all (no leads:read — a field seat a company granted leads:update) is not narrowed: the route's own
+  // permission decides, as the inbox's door does (packages/tenant-backend leads.ts ownLeadDoor). Only a seat that reads its own is.
+  let reads = false, all = false
+  try { reads = !!(await canSeeWith(d.permissions)(me.role, 'leads:read', me.userId)) } catch { reads = true } // a failed check narrows
+  if (!reads) return null
   try { all = !!(await canSeeWith(d.permissions)(me.role, 'leads:read-all', me.userId)) } catch { all = false }
   return all ? null : eq(lead.assignedToId, String(me.userId))
 }

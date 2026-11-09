@@ -452,10 +452,14 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const me = String((c.get('user') as any)?.userId || '')
     return 'salespersonId' in t.quote ? or(eq(t.quote.createdById, me), eq(t.quote.salespersonId, me)) : eq(t.quote.createdById, me)
   }
-  // Every door on one quote (/:id and /:id/…) answers "not found" for a quote that is not this seat's own.
+  // Every door on one quote (/:id and /:id/…) answers "not found" for a quote that is not this seat's own. A seat that reads no quotes at
+  // all (quotes:read — a field seat) is not narrowed here: the route's own permission refuses it, 403 as before the narrowing.
   const ownQuoteDoor = async (c: any, next: any) => {
     const id = c.req.param('id')
-    if (id && id !== 'stats') {
+    const u = c.get('user') as any
+    let reads = true // a failed check narrows
+    try { reads = !!(await deps.canSee(u?.role, 'quotes:read', u?.userId)) } catch { reads = true }
+    if (id && id !== 'stats' && reads) {
       const scope = await ownQuotes(c)
       if (scope) {
         const [row] = await db.select({ id: t.quote.id }).from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, (c.get('user') as any).companyId))).limit(1)

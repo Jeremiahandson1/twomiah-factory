@@ -7,7 +7,7 @@
 //   GET  /api/forms/templates/:id                   the form's fields
 import { useCallback, useEffect, useState } from 'react'
 import { api, errorMessage } from '../../lib/http'
-import { useToast } from '../../../../../shared'
+import { useMayWrite, useToast } from '../../../../../shared'
 import SignaturePad from '../../lib/SignaturePad'
 
 interface Item { id: string; kind: 'form' | 'intervention' | 'goal' | 'general_task'; name: string; detail: string | null; formTemplateId: string | null; required: boolean; status: string | null; rating: string | null; note: string | null }
@@ -89,7 +89,7 @@ function FormSheet({ item, visitId, onClose, onSent }: { item: Item; visitId: st
   )
 }
 
-function ItemRow({ item, onRecord, onForm }: { item: Item; onRecord: (status: 'done' | 'skipped' | 'refused', extra?: { note?: string; rating?: string }) => Promise<void>; onForm: () => void }) {
+function ItemRow({ item, onRecord, onForm, mayRecord, mayForm }: { item: Item; onRecord: (status: 'done' | 'skipped' | 'refused', extra?: { note?: string; rating?: string }) => Promise<void>; onForm: () => void; mayRecord: boolean; mayForm: boolean }) {
   const [ask, setAsk] = useState<null | 'skipped' | 'refused' | 'rating'>(null)
   const [note, setNote] = useState(item.note || '')
   const settled = !!item.status
@@ -110,15 +110,15 @@ function ItemRow({ item, onRecord, onForm }: { item: Item; onRecord: (status: 'd
             <button type="button" className={btnSoft} onClick={() => setAsk(null)}>Cancel</button>
           </div>
         </div>
-      ) : (
+      ) : (mayRecord || (item.kind === 'form' && mayForm)) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {item.kind === 'form'
-            ? <button type="button" className={btnMain} onClick={onForm}>{item.status === 'done' ? 'Fill in again' : 'Fill in'}</button>
+            ? mayForm && <button type="button" className={btnMain} onClick={onForm}>{item.status === 'done' ? 'Fill in again' : 'Fill in'}</button>
             : item.kind === 'goal'
               ? <button type="button" className={btnMain} onClick={() => setAsk('rating')}>How did it go?</button>
               : <button type="button" className={btnMain} onClick={() => onRecord('done')}>Done</button>}
-          {item.status !== 'skipped' && <button type="button" className={btnSoft} onClick={() => setAsk('skipped')}>Skip</button>}
-          {item.status !== 'refused' && <button type="button" className={btnSoft} onClick={() => setAsk('refused')}>Refused</button>}
+          {mayRecord && item.status !== 'skipped' && <button type="button" className={btnSoft} onClick={() => setAsk('skipped')}>Skip</button>}
+          {mayRecord && item.status !== 'refused' && <button type="button" className={btnSoft} onClick={() => setAsk('refused')}>Refused</button>}
         </div>
       )}
     </div>
@@ -127,6 +127,9 @@ function ItemRow({ item, onRecord, onForm }: { item: Item; onRecord: (status: 'd
 
 export default function VisitItemsPanel({ timeEntryId }: { timeEntryId: string }) {
   const toast = useToast()
+  // What the routes ask: recording an item, evv:update; saving a form, evv:create (server/crm/homecare/visits/visitItems.ts).
+  const mayRecord = useMayWrite('evv:update')
+  const mayForm = useMayWrite('evv:create')
   const [items, setItems] = useState<Item[] | null>(null)
   const [form, setForm] = useState<Item | null>(null)
   const load = useCallback(() => {
@@ -149,7 +152,7 @@ export default function VisitItemsPanel({ timeEntryId }: { timeEntryId: string }
         return (
           <div key={k}>
             <h4 className="mb-2 mt-1 font-extrabold text-gray-900 dark:text-slate-100">{HEAD[k]}</h4>
-            {list.map((i) => <ItemRow key={i.id} item={i} onRecord={(s, e) => record(i, s, e)} onForm={() => setForm(i)} />)}
+            {list.map((i) => <ItemRow key={i.id} item={i} onRecord={(s, e) => record(i, s, e)} onForm={() => setForm(i)} mayRecord={mayRecord} mayForm={mayForm} />)}
           </div>
         )
       })}

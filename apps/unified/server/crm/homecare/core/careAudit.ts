@@ -30,8 +30,11 @@ export function createCareAudit(d: CrmDeps) {
   async function writeCareAudit(user: any, action: string, tableName: string, recordId: string | null, newData?: unknown, oldData?: unknown,
     extra: { ipAddress?: string | null; reasonCode?: string | null } = {}) {
     // This request is recorded: the write floor (app.ts) does not add a second, plainer row to the app's trail, which the
-    // Audit Logs page also reads.
-    const scope = requestScope.getStore(); if (scope) scope.logged = true
+    // Audit Logs page also reads. Inside a View As it still does: only the app's trail names the admin behind the seat (impersonator_id;
+    // audit_logs has no place for it), and that is the row View As promises (core/viewAs.ts, tests/view-as.test.ts).
+    const scope = requestScope.getStore()
+    const viewAs = typeof scope?.c?.get === 'function' ? scope.c.get('viewAs') : null
+    if (scope && !viewAs) scope.logged = true
     try {
       await d.db.insert(auditLogs).values({
         companyId: user?.companyId,

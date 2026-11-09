@@ -210,7 +210,8 @@ describe('the crew dashboard ("my day")', () => {
   }, 120_000)
 
   test('hours and tasks appear only where time tracking and tasks are on; signed out is refused', async () => {
-    const x = await boot([...ALL].filter((f) => f !== 'time_tracking' && f !== 'tasks'))
+    // The Tasks page's own switch is projects (or patient_records), not a 'tasks' feature (e4ba6e1bc, contractor live test 11/07).
+    const x = await boot([...ALL].filter((f) => f !== 'time_tracking' && f !== 'tasks' && f !== 'projects'))
     const me = await x.person('field', 'Carl')
     const b = await json(await me.call('/api/crew-dashboard'))
     expect(b.hours).toBeUndefined()
