@@ -368,6 +368,8 @@ function RateFormModal({ item, categories, onSave, onClose }: {
       } else {
         await api.post('/api/pricebook/items', payload);
       }
+      // Every save says so (landscaping re-check 11/08: Add Rate closed with no message).
+      toast.success(item ? 'Rate saved' : 'Rate added');
       onSave();
     } catch (error) {
       toast.error(serverMessage(error, 'Failed to save rate'));

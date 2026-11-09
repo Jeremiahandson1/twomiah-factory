@@ -99,7 +99,8 @@ export async function dayRecap(db: any, companyId: string, visits: any[], notesO
   const done = visits.filter((v) => v.status === 'completed')
   const reports: any[] = notesOn && done.length ? await db.select({ jobId: visitReport.jobId, note: visitReport.note }).from(visitReport).where(and(eq(visitReport.companyId, companyId), inArray(visitReport.jobId, done.map((v) => v.id)))) : []
   const noted = new Set(reports.filter((r) => String(r.note || '').trim()).map((r) => r.jobId))
-  const label = (v: any) => v.contactName || v.title || v.number || 'Visit'
+  // The customer and the visit, so two visits for one customer read apart (re-check 11/08: "Hank Homeowner; Hank Homeowner").
+  const label = (v: any) => [v.contactName, v.title || v.number].filter(Boolean).join(' — ') || 'Visit'
   return {
     stops: visits.length,
     done: done.length,
@@ -254,7 +255,8 @@ export async function crewScore(db: any, companyId: string, from: string, to: st
     const span = r.startedAt && r.completedAt ? Math.max(0, (new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()) / 3_600_000) : 0
     // Arrived → Complete stands in only when it is a believable visit (5 minutes or more); a tap-through is not hours worked.
     const actual = crew.get(r.id) || logged.get(r.id) || (span >= MIN_SPAN_HOURS ? span : 0)
-    if (budget > 0 && actual >= MIN_SPAN_HOURS) { g.scored++; g.budgetHours += budget; g.actualHours += actual }
+    // The crew's own timers and hours logged by hand always count; only the Arrived → Complete stand-in needs 5 minutes (above).
+    if (budget > 0 && actual > 0) { g.scored++; g.budgetHours += budget; g.actualHours += actual }
     by.set(k, g)
   }
   return [...by.values()].map((g) => ({

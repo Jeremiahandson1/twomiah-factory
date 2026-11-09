@@ -105,7 +105,7 @@ export function CrewScorePanel() {
             ))}</tbody>
           </table>
         )}
-      <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">A visit is scored when it has time allowed and hours worked (the crew's clocks on the phone, else its start to finish).</p>
+      <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">A visit is scored when it has time allowed and hours worked: the crew's timers, else hours logged against it on the Time page, else its start to finish when that is 5 minutes or more.</p>
     </section>
   )
 }

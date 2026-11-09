@@ -266,7 +266,9 @@ export function createAuthRoutes(deps: AuthDeps) {
     const taken = new Set(extra.filter((x) => x.startsWith('-')).map((x) => x.slice(1)))
     return Array.from(new Set([...base, ...extra.filter((x) => !x.startsWith('-'))])).filter((p) => !taken.has(p) || extra.includes(p))
   }
-  const userPayload = (u: any, role: string) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role, roleLabel: roleLabelOf(role), avatar: u.avatar })
+  // `seat`: the role as stored — a vertical's own seat (landscaping's Crew member, roofing's Crew) — beside `role`, which /me answers as its
+  // rung. The menu reads the seat (landscaping re-check 11/08: a Crew member's short menu was back to 30 items after a reload).
+  const userPayload = (u: any, role: string) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role, seat: u.role || role, roleLabel: roleLabelOf(u.role || role), avatar: u.avatar })
 
   async function storeRefreshToken(userId: string, token: string, extra: Record<string, any> = {}) {
     const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)

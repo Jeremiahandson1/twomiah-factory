@@ -769,6 +769,19 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
     return j || null
   }
 
+  /**
+   * Already paid by hand: a commission recorded by hand for this person on this invoice or one of these jobs (not void) means the office
+   * paid it that way, so the automatic one is not written beside it (landscaping re-check 11/08: JOB-00022 had both).
+   */
+  const paidByHand = async (companyId: string, userId: string, invoiceId: string, jobIds: string[]) => {
+    const [hit] = await db.select({ id: t.commission.id }).from(t.commission).where(and(
+      eq(t.commission.companyId, companyId), eq(t.commission.userId, userId), sql`coalesce(${t.commission.source}, 'manual') NOT IN ('auto', 'reversal')`,
+      sql`${t.commission.status} NOT IN ('void', 'cancelled')`,
+      jobIds.length ? or(eq(t.commission.invoiceId, invoiceId), inArray(t.commission.jobId, jobIds)) : eq(t.commission.invoiceId, invoiceId),
+    )).limit(1)
+    return !!hit
+  }
+
   /** Earn — or take back — every automatic commission one invoice owes. Safe to call any number of times. */
   async function earnForInvoice(invoiceId: string): Promise<{ earned: number; cancelled: number; reversed: number }> {
     const out = { earned: 0, cancelled: 0, reversed: 0 }
@@ -803,6 +816,7 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
           for (const [earnerId, g] of per) {
             const [person] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, earnerId), eq(t.user.companyId, inv.companyId))).limit(1)
             if (!person) continue
+            if (await paidByHand(inv.companyId, person.id, inv.id, shares.filter((s) => (byId.get(s.jobId)?.assignedToId ?? byId.get(s.jobId)?.createdById) === earnerId).map((s) => s.jobId))) continue
             const base = cents(Math.max(0, g.base))
             const result = commissionFor(plan, base)
             if ('error' in result) continue
@@ -825,6 +839,7 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
         if (!planPaysPerson(plan, earnerId, everyPlan)) continue
         const [person] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, earnerId), eq(t.user.companyId, inv.companyId))).limit(1)
         if (!person) continue
+        if (await paidByHand(inv.companyId, person.id, inv.id, [job.id])) continue
         const result = commissionFor(plan, base)
         if ('error' in result) continue
         const rows = await db.insert(t.commission).values({

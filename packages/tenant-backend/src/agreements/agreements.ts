@@ -655,8 +655,9 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       const end = new Date(agreement.endDate)
       const opens = new Date(end.getTime() - RENEW_WINDOW_DAYS * 86_400_000)
       if (opens.getTime() > Date.now()) {
-        const tz = await companyTimeZone(db, companyId)
-        const day = (d: Date) => d.toLocaleDateString('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric' })
+        // A contract's dates are calendar days kept as midnight UTC (dayMarker): printed as that day, as the list prints them (re-check
+        // 11/08: the message said Nov 7, the table 11/8).
+        const day = (d: Date) => d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' })
         throw Object.assign(new Error(`This contract runs until ${day(end)}. It can be renewed from ${day(opens)}, ${RENEW_WINDOW_DAYS} days before it ends.`), { status: 409 })
       }
     }

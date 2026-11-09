@@ -497,6 +497,9 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       saltApplied: !!body.saltApplied,
       billBelowTrigger: !!body.billBelowTrigger,
       hours: String(body.hours ?? '').trim() === '' ? 0 : Number(body.hours),
+      // Salt by amount (row 24, snow_tools): bags, tons… at the contract's price per unit (landscaping re-check 11/08: the form sent
+      // the bags and this route dropped them — "billed $50.00" where $66.00 was right).
+      saltQuantity: (await toolsOn(u.companyId)) && String(body.saltQuantity ?? '').trim() !== '' ? Number(body.saltQuantity) : null,
     }
     const badCharge = snowEventChargeError(contract.billingMode, ev)
     if (badCharge) return fail(c, 400, badCharge)
@@ -513,6 +516,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       saltApplied: ev.saltApplied,
       billBelowTrigger: ev.billBelowTrigger,
       hours: String(ev.hours),
+      ...(ev.saltQuantity != null ? { saltQuantity: String(ev.saltQuantity), saltApplied: ev.saltApplied || ev.saltQuantity > 0 } : {}),
       billableAmount: String(billableAmount),
       billingMode: contract.billingMode,
       assignedToId: body.assignedToId ?? u.userId ?? null,

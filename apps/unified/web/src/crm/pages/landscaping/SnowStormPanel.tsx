@@ -2,7 +2,7 @@
 // whole route with one set of figures, bill the storm, end it. The crews log their own stops from "Today's route" on the phone.
 // Same asks as the server (/api/snow/storms): jobs:dispatch to start and send out, invoices:create to bill; the money columns
 // only show for a seat that may read invoices.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CloudSnow, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useConfirm, useMayWrite, useAuth } from '../../../shared'
@@ -39,6 +39,8 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
   const [stops, setStops] = useState<Stop[]>([])
   const [fig, setFig] = useState({ pushes: '1', snowfallInches: '', saltApplied: false, hours: '', saltQuantity: '' })
   const [bill, setBill] = useState<{ lines: BillLine[]; invoices: number; total: number } | null>(null)
+  const billRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (bill) billRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [bill])
   // Rows 25 and 30 (snow_tools, not ready): the snowfall expected, the forecast's proposals, starting on its own, the storm text.
   const tools = useAuth().hasFeature('snow_tools')
   const mayText = useMayWrite('sms:send')
@@ -239,7 +241,8 @@ export default function SnowStormPanel({ onBilled }: { onBilled: () => void }) {
                   )}
                 </div>
                 {bill && (
-                  <div className="mt-3 rounded-lg border p-3 text-sm dark:border-slate-700">
+                  // Brought into view when it opens: low on the page it opened below the screen and the click looked dead (re-check 11/08).
+                  <div ref={billRef} className="mt-3 rounded-lg border p-3 text-sm dark:border-slate-700">
                     {bill.lines.length === 0 ? <p>Nothing to bill — every visit in this storm is already billed.</p> : (
                       <>
                         {bill.lines.map((l) => (

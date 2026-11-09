@@ -41,6 +41,15 @@ const NTH_WORDS: Array<{ n: number; label: string }> = [{ n: 1, label: '1st' }, 
 interface RepeatForm { choice: RepeatChoice; ends: 'count' | 'until'; count: string; until: string; weekdays: number[]; everyDays: string; skipWeekdays: number[]; excludeDates: string; nthPositions: number[]; nthWeekday: number }
 const NO_REPEAT: RepeatForm = { choice: 'none', ends: 'count', count: '12', until: '', weekdays: [], everyDays: '3', skipWeekdays: [], excludeDates: '', nthPositions: [1], nthWeekday: 5 }
 /** Sunday-first, as the server counts them; shown Monday-first below. */
+/** Which Nth weekday of its month a day (YYYY-MM-DD) is — { n: 1..5, last: is it the last one, weekday 0..6 } — or null. */
+const nthOfDay = (ymd: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || ''); if (!m) return null
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
+  const next = new Date(d.getTime() + 7 * 86_400_000)
+  return { n: Math.ceil(+m[3] / 7), last: next.getUTCMonth() !== d.getUTCMonth(), weekday: d.getUTCDay() }
+}
+const DAY_WORDS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th']
 const WEEKDAY_BUTTONS: Array<{ n: number; label: string }> = [{ n: 1, label: 'Mon' }, { n: 2, label: 'Tue' }, { n: 3, label: 'Wed' }, { n: 4, label: 'Thu' }, { n: 5, label: 'Fri' }, { n: 6, label: 'Sat' }, { n: 0, label: 'Sun' }]
 const repeatBody = (r: RepeatForm, withDays = false) => r.choice === 'none' ? undefined : {
   ...(r.choice === 'days' ? { frequency: 'daily', interval: Number(r.everyDays) || 1, ...(r.skipWeekdays.length ? { skipWeekdays: r.skipWeekdays } : {}), ...(r.excludeDates.trim() ? { excludeDates: r.excludeDates.split(/[\s,]+/).filter(Boolean) } : {}) }
@@ -124,6 +133,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       const params: Record<string, string | number> = { page, limit: 25 }
       if (search) params.search = search
       if (statusFilter) params.status = statusFilter
+      // ?tile= (the dashboard's Today's board): today's work, or what was finished today.
+      const tile = searchParams.get('tile')
+      if (tile === 'today' || tile === 'completed_today') params.tile = tile
       if (projectFilter) params.projectId = projectFilter
       if (branchFilter) params.locationId = branchFilter
       const res = await api.get('/api/jobs', params)
@@ -131,7 +143,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       setPagination(res?.pagination || null)
       if (Array.isArray(res?.statuses) && res.statuses.length) setServerStatuses(res.statuses)
     } catch (err) { toast.error(errMsg(err, `Failed to load ${cfg.labels.plural.toLowerCase()}`)) } finally { setLoading(false) }
-  }, [page, search, statusFilter, projectFilter, branchFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, search, statusFilter, projectFilter, branchFilter, searchParams.get('tile')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
   useEffect(() => { setPage(1) }, [projectFilter])
@@ -345,6 +357,12 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           </button>
         </div>
       )}
+      {(searchParams.get('tile') === 'today' || searchParams.get('tile') === 'completed_today') && (
+        <p className="mb-2 text-sm text-gray-700 dark:text-slate-300">
+          {searchParams.get('tile') === 'today' ? 'Showing today’s work only.' : 'Showing what was finished today only.'}{' '}
+          <button type="button" className="font-medium text-orange-700 underline dark:text-orange-200" onClick={() => { const p = new URLSearchParams(searchParams); p.delete('tile'); setSearchParams(p) }}>Show all</button>
+        </p>
+      )}
       <div className="mb-4 flex gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -479,6 +497,13 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
                   </fieldset>
                   <Field label="Day"><select aria-label="Weekday of the month" value={repeat.nthWeekday} onChange={(e) => setRepeat((r) => ({ ...r, nthWeekday: Number(e.target.value) }))} className={inputCls}>{WEEKDAY_BUTTONS.map((d) => <option key={d.n} value={d.n}>{d.label}</option>)}</select></Field>
                   <p className="text-xs text-gray-600 dark:text-slate-300">of every month</p>
+                  {/* The job's own date not on the pattern: say so before saving (landscaping re-check 11/08: "1st Friday" started on 11/13, a 2nd Friday). */}
+                  {(() => {
+                    const at = nthOfDay(form.scheduledDate)
+                    if (!at) return null
+                    const fits = at.weekday === repeat.nthWeekday && (repeat.nthPositions.includes(at.n) || (at.last && repeat.nthPositions.includes(-1)))
+                    return fits ? null : <p role="status" className="w-full text-xs text-amber-800 dark:text-amber-300">{form.scheduledDate} is the {at.last && at.n >= 4 ? 'last' : ORDINAL[at.n]} {DAY_WORDS[at.weekday]} of its month, not one of the days picked, so no visit is made on it: the first visit is the first day picked after it.</p>
+                  })()}
                 </div>
               )}
               {cfg.repeatWeekdays && repeat.choice !== 'none' && repeat.choice !== 'm1' && !['days', 'nth', 'y1'].includes(repeat.choice) && (

@@ -48,7 +48,21 @@ export default function PortalApp() {
           <Route path="appointments" element={<PortalAppointments />} />
           <Route path="account" element={<PortalAccount />} />
         </Route>
+        {/* Any other address under a portal link is no page at all: say so, never a blank page (landscaping re-check 11/08). */}
+        <Route path="*" element={<PortalNoPage />} />
       </Routes>
     </PortalProvider>
+  )
+}
+
+/** An address under /portal/<link>/ that is not one of the portal's pages. */
+function PortalNoPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 dark:bg-slate-900">
+      <div className="max-w-md text-center">
+        <h1 className="mb-2 text-xl font-bold text-gray-900 dark:text-slate-100">This link can’t be opened</h1>
+        <p className="text-gray-700 dark:text-slate-300">It isn’t a page of the customer portal. Open the portal from the link in the email, or from the customer’s record (Portal access).</p>
+      </div>
+    </div>
   )
 }

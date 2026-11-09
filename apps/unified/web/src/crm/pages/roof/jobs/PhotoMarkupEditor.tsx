@@ -79,9 +79,14 @@ export default function PhotoMarkupEditor({ original, shapes: initial, onClose, 
   const draft = drag && tool !== 'text' ? shapeFromDrag(tool, drag.a, drag.b, color) : null
 
   const save = async () => {
+    // Words typed but not yet placed go on with the save (landscaping re-check 11/08: the text was typed, Save pressed, and it was lost).
+    const typed = words.trim()
+    const all: MarkupShape[] = pending && typed && shapes.length < MAX_SHAPES
+      ? [...shapes, { kind: 'text', x: Math.min(pending.x, 0.95), y: Math.min(pending.y, 0.95), text: typed.slice(0, MAX_TEXT), color, size } as MarkupShape]
+      : shapes
     setBusy(true)
     try {
-      const done = (await api.put(`/api/photo-markup/${original.id}`, { shapes })) as MarkedResult
+      const done = (await api.put(`/api/photo-markup/${original.id}`, { shapes: all })) as MarkedResult
       toast.success(done.marked ? 'Marked copy saved beside the original' : 'Marks removed')
       onSaved(done)
     } catch (e) { toast.error(errorText(e, 'Could not save the marks')) } finally { setBusy(false) }

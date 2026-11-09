@@ -465,7 +465,9 @@ function ContractFormModal({ contract, onSave, onClose }: {
         const made = await api.post('/api/agreements', { ...payload, ...(planVisits > 0 && firstVisitDate ? { firstVisitDate } : {}) });
         // Say where the visits went: the Schedule, on these days.
         if (Number(made?.visitsMade || 0) > 0) toast.success(`${made.visitsMade} visit${made.visitsMade === 1 ? '' : 's'} put on the Schedule: ${(made.visitDates || []).map((d: string) => formatDate(d)).join(', ')}`);
+        else toast.success('Contract created');
       }
+      if (contract) toast.success('Contract saved');
       onSave();
     } catch (error) {
       toast.error(serverMessage(error, 'Failed to save contract'));

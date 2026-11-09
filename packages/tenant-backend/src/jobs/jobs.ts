@@ -697,6 +697,10 @@ export function createJobRoutes(deps: JobDeps) {
     if (badTile) return badTile
     if (q.status) conditions.push(eq(t.job.status, q.status))
     if (q.tile === 'today') conditions.push(jobsTodayCondition(t.job, await companyTimeZone(db, currentUser.companyId)))
+    if (q.tile === 'completed_today') {
+      const { start, end } = storeDayRange(await companyTimeZone(db, currentUser.companyId))
+      conditions.push(gte(t.job.completedAt, start), lt(t.job.completedAt, end))
+    }
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.job.contactId, q.contactId))
     // A person's jobs: the ones they lead or are on (./onJob.ts) — the Schedule's and the Dispatch Board's lanes read this.
