@@ -59,6 +59,7 @@ describe('a restaurant has the food side', () => {
 
   test('the kiosk, the reader, the hours and online ordering work here as at the bar', async () => {
     expect((await k.M('PUT', '/api/register/pin', { pin: '2468' })).status).toBe(200)
+    await k.M('PUT', '/api/food/settings', { kiosk: { payAtCounter: true } })   // the owner's choice, off by default (2026-11-09)
     expect((await k.B('POST', '/api/food/kiosk/unlock', { pin: '2468' })).status).toBe(200)
     const r = await k.B('POST', '/api/food/kiosk/order', { name: 'Ana', pay: 'counter', lines: [{ menuItemId: items.soda.id }] })
     expect(r.json.order.status).toBe('at_counter')

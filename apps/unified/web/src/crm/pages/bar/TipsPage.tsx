@@ -4,7 +4,7 @@ import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../../api';
 import FormError, { errorText } from '../../ui/FormError';
 import { useAuth, useMayWrite } from '../../../shared';
-import { DeclaredTipsView } from './DeclaredTipsUi';
+import { DeclaredTipsView, MyCashTips } from './DeclaredTipsUi';
 import TipSourcesView from './TipSourcesUi';
 import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock';
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes';
@@ -51,6 +51,12 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
 export default function TipsPage() {
   const may = useMayWrite('bar:manage');
   const { hasFeature } = useAuth();
+  // A bartender or barback: their own nights only (bar live test 2026-11-09: no page showed anyone their own tip share).
+  if (!may) return <MyTipsView />;
+  return <ManagerTips may={may} hasFeature={hasFeature} />;
+}
+
+function ManagerTips({ may, hasFeature }: { may: boolean; hasFeature: (k: string) => boolean }) {
   const [tab, setTab] = useState<'night' | 'rules' | 'report' | 'cash' | 'sources'>(new URLSearchParams(window.location.search).has('register') && hasFeature('bar_tip_import') ? 'sources' : 'night');
   return (
     <div className="space-y-4 max-w-5xl">
@@ -67,6 +73,41 @@ export default function TipsPage() {
       {tab === 'cash' && <DeclaredTipsView />}
       {tab === 'sources' && <TipSourcesView />}
       {tab === 'rules' && <RulesView may={may} />}
+    </div>
+  );
+}
+
+interface MyNight { day: string; role: string; hours: number; tipsCents: number; tipOutPaidCents: number; tipOutReceivedCents: number; poolShareCents: number; totalCents: number }
+
+/** One person's own tips, night by night, from the nights a manager closed (GET /api/tips/mine) — never anyone else's. */
+function MyTipsView() {
+  const [from, setFrom] = useState(shiftDay(companyTodayKey(), -13));
+  const [to, setTo] = useState(companyTodayKey());
+  const [r, setR] = useState<{ nights: MyNight[]; totalCents: number } | null>(null);
+  const [err, setErr] = useState('');
+  useEffect(() => { setR(null); api.get(`/api/tips/mine?from=${from}&to=${to}`).then((x) => { setR(x); setErr(''); }).catch((e) => setErr(errorText(e, 'Could not read your tips.'))); }, [from, to]);
+  return (
+    <div className="space-y-4 max-w-4xl">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">My tips</h1>
+      <p className={MUTED}>Your share of each night, as it was settled when the night was closed. Tonight shows here once a manager closes it.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input aria-label="From" type="date" className={`${INPUT} max-w-[11rem]`} value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} />
+        <span className={MUTED}>to</span>
+        <input aria-label="To" type="date" className={`${INPUT} max-w-[11rem]`} value={to} onChange={(e) => e.target.value && setTo(e.target.value)} />
+      </div>
+      <FormError message={err} />
+      {!r ? (err ? null : <Loader2 className="w-5 h-5 animate-spin text-gray-500" />) : (
+        <div className={CARD}>
+          <p className={`${LABEL} mb-2`}>{money(r.totalCents)} in tips on the nights closed</p>
+          {r.nights.length === 0 ? <p className={`text-sm ${MUTED}`}>No closed nights with your tips in this range.</p> : (
+            <div className="overflow-x-auto"><table className="w-full min-w-[30rem]">
+              <thead><tr><th className={TH}>Night</th><th className={TH}>Role</th><th className={TH}>Hours</th><th className={TH}>Tips</th><th className={TH}>Tip-outs</th><th className={TH}>Pool</th><th className={TH}>Takes home</th></tr></thead>
+              <tbody>{r.nights.map((n) => <tr key={n.day} className="border-t border-gray-100 dark:border-slate-800"><td className={TD}>{n.day}</td><td className={TD}>{codeLabel(n.role)}</td><td className={TD}>{n.hours}</td><td className={`${TD} font-mono`}>{money(n.tipsCents)}</td><td className={`${TD} font-mono`}>{money(n.tipOutReceivedCents - n.tipOutPaidCents)}</td><td className={`${TD} font-mono`}>{money(n.poolShareCents)}</td><td className={`${TD} font-mono font-bold`}>{money(n.totalCents)}</td></tr>)}</tbody>
+            </table></div>
+          )}
+        </div>
+      )}
+      <MyCashTips />
     </div>
   );
 }

@@ -38,6 +38,8 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const [error, setError] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [voidOpen, setVoidOpen] = useState(false)
+  // Send emails the client at once: it asks first, naming who gets it (bar live test 2026-11-09: no confirm step).
+  const [sendOpen, setSendOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '', tipAmount: '' })
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -79,7 +81,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const overdue = balance > 0 && !!invoice.dueDate && isPastDay(invoice.dueDate) && !['draft'].includes(invoice.status)
 
   const run = async (fn: () => Promise<unknown>, ok: string, fail: string) => { setBusy(true); try { await fn(); toast.success(ok); await load(); return true } catch (e) { toast.error(errMsg(e, fail)); return false } finally { setBusy(false) } }
-  const handleSend = () => run(() => api.post(`/api/invoices/${id}/send`, {}), 'Invoice sent', 'Could not send')
+  const handleSend = async () => { if (await run(() => api.post(`/api/invoices/${id}/send`, {}), 'Invoice sent', 'Could not send')) setSendOpen(false) }
   const handleDelete = async () => { try { await api.delete('/api/invoices', id); toast.success('Invoice deleted'); navigate('/crm/invoices') } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }
   const handleVoid = async () => { if (await run(() => api.post(`/api/invoices/${id}/void`, {}), 'Invoice voided', 'Could not void')) setVoidOpen(false) }
   const handlePayment = async () => {
@@ -125,7 +127,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!closed && mayBill && <Button variant="secondary" onClick={handleSend} disabled={busy}><Send className="w-4 h-4" /> {invoice.sentAt ? 'Send again' : 'Send'}</Button>}
+          {!closed && mayBill && <Button variant="secondary" onClick={() => setSendOpen(true)} disabled={busy}><Send className="w-4 h-4" /> {invoice.sentAt ? 'Send again' : 'Send'}</Button>}
           {!closed && balance > 0.005 && mayBill && <Button variant="success" onClick={() => { setPaymentError(null); setPayment({ amount: balance.toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }); setPaymentOpen(true) }}><DollarSign className="w-4 h-4" /> Record Payment</Button>}
           {/*
             * MONEY GOING BACK OUT IS ADMIN-TIER, AND THE SCREEN SAYS SO NOW. (T35 N4)
@@ -223,7 +225,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
               {invoice.contact && <div><p className="text-gray-500 dark:text-slate-400">{cfg.clientLabel}</p><NavLink to={cfg.clientPath(invoice.contact.id)} className="text-orange-600 dark:text-orange-200 hover:underline">{invoice.contact.name}</NavLink><TextButton phone={invoice.contact.mobile || invoice.contact.phone} name={invoice.contact.name} record={{ entity: 'contact', id: invoice.contact.id }} invoice={{ number: invoice.number, link: documentLink(invoice.publicToken) }} compact className="mt-1" /></div>}
               {cfg.projects && invoice.project && <div><p className="text-gray-500 dark:text-slate-400">Project</p><NavLink to={`/crm/projects/${invoice.project.id}`} className="text-orange-600 dark:text-orange-200 hover:underline">{invoice.project.name}</NavLink></div>}
               {invoice.quote && <div><p className="text-gray-500 dark:text-slate-400">From quote</p><NavLink to={`/crm/quotes/${invoice.quote.id}`} className="text-orange-600 dark:text-orange-200 hover:underline">{invoice.quote.number}</NavLink></div>}
-              <div><p className="text-gray-500 dark:text-slate-400">Due Date</p><p className={overdue ? 'text-red-600 dark:text-red-300 font-medium' : ''}>{dueDateLabel(invoice.dueDate)}{overdue ? ' · overdue' : ''}</p></div>
+              <div><p className="text-gray-500 dark:text-slate-400">Due Date</p><p className={overdue ? 'text-red-600 dark:text-red-300 font-medium' : ''}>{dueDateLabel(invoice.dueDate)}{overdue ? ' · overdue' : ''}</p>{invoice.eventId && <p className="text-xs text-gray-500 dark:text-slate-400">When the next payment on the event's schedule is due; it moves on as each one is paid.</p>}</div>
               {invoice.sentAt && <div><p className="text-gray-500 dark:text-slate-400">Sent</p><p>{dateTime(invoice.sentAt)}</p></div>}
               {invoice.paidAt && <div><p className="text-gray-500 dark:text-slate-400">Paid</p><p>{dateTime(invoice.paidAt)}</p></div>}
               <div><p className="text-gray-500 dark:text-slate-400">Created</p><p>{dateTime(invoice.createdAt)}</p></div>
@@ -286,6 +288,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setCreditOpen(false)}>Cancel</Button><Button onClick={handleCredit} disabled={busy}>{busy ? 'Applying…' : 'Apply credit'}</Button></div>
       </Modal>
 
+      <ConfirmModal isOpen={sendOpen} onClose={() => setSendOpen(false)} onConfirm={handleSend} title={invoice.sentAt ? 'Send the invoice again' : 'Send the invoice'} message={`Email ${invoice.number} to ${invoice.contact?.name || 'the client'}${invoice.contact?.email ? ` (${invoice.contact.email})` : ''} now, with a link to view${balance > 0 ? ' and pay' : ''} it?`} confirmText="Send" />
       <ConfirmModal isOpen={voidOpen} onClose={() => setVoidOpen(false)} onConfirm={handleVoid} title="Void invoice" message={`Void ${invoice.number}? It stays on record but no longer counts as owed.`} confirmText="Void" />
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete invoice" message={`Delete ${invoice.number}? This cannot be undone.`} confirmText="Delete" />
     </div>

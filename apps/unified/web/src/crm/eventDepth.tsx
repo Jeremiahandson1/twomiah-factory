@@ -41,7 +41,8 @@ export function WaitlistOffer({ spaceId, eventDate, startTime, endTime, contactI
       setState('done'); toast.success('Added to the waitlist'); onDone?.()
     } catch (e) { setState('idle'); toast.error(errorText(e, 'Could not add them to the waitlist')) }
   }
-  return <button type="button" className={`${btn} mt-2 bg-white dark:bg-slate-900`} disabled={state === 'busy'} onClick={add}>Put them on the waitlist for that date</button>
+  // On its own line under the refusal, never run on after its last word (bar live test 2026-11-09).
+  return <div className="mt-2"><button type="button" className={`${btn} bg-white dark:bg-slate-900`} disabled={state === 'busy'} onClick={add}>Put them on the waitlist for that date</button></div>
 }
 const abs = (path: string) => `${window.location.origin}${path}`
 const copy = async (toast: ReturnType<typeof useToast>, text: string) => { try { await navigator.clipboard.writeText(text); toast.success('Link copied') } catch { toast.error('Could not copy — select the link and copy it') } }

@@ -204,7 +204,19 @@ const restaurant: VerticalSettings = {
     navHiddenFor: { server: ['/crm/register-settings', '/crm/bar-settings'], field: ['/crm/register-settings', '/crm/bar-settings'] },
     // Jobber import and Angi / Thumbtack / Local Services lead sources are field-service concepts (OnboardingWizard.tsx,
     // FIT-01/F14).
-    onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
+    // Opening hours first: the website, the Tonight board, online ordering and the schedule all read them, and a new
+    // business has none (bar live test 2026-11-09: the schedule read every day Closed).
+    onboarding: {
+      integrations: ['food_hours', 'dns', 'quickbooks', 'stripe', 'twilio'],
+      extra: [
+        {
+          id: 'food_hours', label: 'Your opening hours', category: 'hours',
+          description: 'Set the hours your kitchen keeps. Your website, online ordering and the schedule read them.',
+          guideSteps: ['Open Hours & settings', 'Tick each day you open and set its hours (a close earlier than the open runs past midnight)', 'Press Save hours'],
+          open: { to: '/crm/bar-settings', label: 'Open Hours & settings' },
+        },
+      ],
+    },
   },
   // No premium site of its own: industryRouting.ts sends restaurants and venues to the showcase site
   // (templates/website-premium-showcase: its contact section and its empty-message reply).

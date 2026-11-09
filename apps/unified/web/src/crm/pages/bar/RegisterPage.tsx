@@ -35,7 +35,7 @@ interface Check {
 interface Reward { id: string; name: string; pointsCost: number; type: string }
 interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; regulars: { rewards: Reward[] } | null; me: { name: string; mayManage: boolean; hasPin: boolean }; cardReader?: { readers: ReaderChoice[]; tipping: boolean; cardTabs?: boolean }; tabs?: boolean }
 
-const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_terminal: 'Card (reader)', card_online: 'Card (online)', giftcard: 'Gift card' };
+const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (own machine)', card_terminal: 'Card (reader)', card_online: 'Card (online)', giftcard: 'Gift card' };
 /** A card Stripe took (the reader, the website): given back with Refund, never crossed off with Void. */
 const viaStripe = (p: Payment) => !!p.providerPaymentId && (p.tender === 'card_terminal' || p.tender === 'card_online');
 
@@ -97,7 +97,8 @@ export default function RegisterPage() {
     await act('ring', () => api.post(`/api/register/check/${id}/items`, { menuItemId: item.id, sizeId: size?.id ?? null, seat, priceCents, ...(modifierIds?.length ? { modifierIds } : {}) }));
   };
   const pick = (item: MenuItem) => {
-    if (item.is86ed) return;
+    // A tap on an 86'd tile says why nothing happened (bar live test 2026-11-09: it did nothing, with no word).
+    if (item.is86ed) { setErr(`${item.name} is 86'd. Bring it back on the Menu page.`); return; }
     // Add-ons on a priced item: one dialog for its size and its add-ons.
     if (item.modifiers?.length && item.sizes.length && item.sizes.every((s) => s.priceCents !== null)) { setDialog({ kind: 'options', item }); return; }
     if (item.sizes.length > 1) { setDialog({ kind: 'size', item }); return; }
@@ -126,7 +127,7 @@ export default function RegisterPage() {
         <div className="flex flex-wrap gap-2">
           <Link to="/crm/floor" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><LayoutGrid className="w-4 h-4" />Floor</Link>
           <Link to="/crm/grill" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><Flame className="w-4 h-4" />Grill screen</Link>
-          <Link to="/crm/clock" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><Clock className="w-4 h-4" />Clock in</Link>
+          <Link to="/crm/clock" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><Clock className="w-4 h-4" />Time clock</Link>
           <Link to="/crm/closeout" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><ClipboardCheck className="w-4 h-4" />Close-out</Link>
           <button className={`${BTN} ${OFF} inline-flex items-center gap-2`} onClick={() => setDialog({ kind: 'pin' })}><KeyRound className="w-4 h-4" />{state.me.hasPin ? 'My till PIN' : 'Set my till PIN'}</button>
         </div>
@@ -196,7 +197,7 @@ export default function RegisterPage() {
             {menuItems.map((i) => {
               const price = i.sizes.length === 1 && i.sizes[0].priceCents !== null ? money(i.sizes[0].priceCents) : i.sizes.length > 1 ? `${i.sizes.length} sizes` : 'Enter price';
               return (
-                <button key={i.id} disabled={i.is86ed || !!busy} onClick={() => pick(i)}
+                <button key={i.id} disabled={!!busy} aria-disabled={i.is86ed} onClick={() => pick(i)}
                   className={`rounded-xl border min-h-[72px] px-3 py-2 text-left ${i.is86ed ? 'border-gray-200 bg-gray-100 text-gray-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500 line-through' : 'border-gray-300 bg-white text-gray-900 hover:bg-orange-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'}`}>
                   <span className="block font-semibold leading-tight">{i.name}</span>
                   <span className={`block text-sm mt-1 ${i.is86ed ? '' : MUTED}`}>{i.is86ed ? "86'd" : price}{!i.is86ed && i.stockCount != null ? ` · ${i.stockCount} left` : ''}</span>
@@ -508,11 +509,12 @@ function PayDialog({ check, result, onClose, onPay, giftCards, readers, readerTi
       }}>
         <div className={`grid ${(giftCards ? 3 : 2) + (hasReader ? 1 : 0) >= 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'} gap-2 mb-3`}>
           {hasReader && <button type="button" className={`${BTN} ${tender === 'reader' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'reader'} onClick={() => setTender('reader')}><CreditCard className="w-4 h-4" />Card reader</button>}
-          <button type="button" className={`${BTN} ${tender === 'card_external' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'card_external'} onClick={() => setTender('card_external')}><CreditCard className="w-4 h-4" />{hasReader ? 'Card (record)' : 'Card'}</button>
+          <button type="button" className={`${BTN} ${tender === 'card_external' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'card_external'} onClick={() => setTender('card_external')}><CreditCard className="w-4 h-4" />Card (record)</button>
           <button type="button" className={`${BTN} ${tender === 'cash' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'cash'} onClick={() => setTender('cash')}><Banknote className="w-4 h-4" />Cash</button>
           {giftCards && <button type="button" className={`${BTN} ${tender === 'giftcard' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'giftcard'} onClick={() => setTender('giftcard')}><Gift className="w-4 h-4" />Gift card</button>}
         </div>
-        {tender === 'card_external' && <p className={`text-sm mb-3 ${MUTED}`}>{hasReader ? 'Run the card on another machine first, then record it here.' : 'Run the card on the card reader first, then record it here.'}</p>}
+        {/* With no reader the register takes no card money at all; it says so before anything is recorded (bar live test 2026-11-09). */}
+        {tender === 'card_external' && <p className={`text-sm mb-3 ${MUTED}`}>{hasReader ? 'Run the card on another machine first, then record it here.' : 'Card payments are not set up on this register, so nothing is charged here. Run the card on your own card machine first, then record it. To take cards here, connect Stripe and a reader in Register Settings.'}</p>}
         {tender === 'reader' && (
           <div className="mb-3">
             {readers.length > 1 && (

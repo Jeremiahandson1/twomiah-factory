@@ -263,7 +263,7 @@ export function createBarFoodRoutes(d: CrmDeps, bar: BarServices) {
     ])
     c.header('Cache-Control', 'no-store')
     const simulated = reader ? (await terminal.listReaders(actor.companyId)).find((r) => r.id === reader)?.simulated ?? false : false
-    return one(c, { menu, kiosk: s.kiosk, reader: !!reader, readerSimulated: simulated, payAtCounter: s.kiosk.payAtCounter || !reader, taxRateBps: rate, businessName: co[0]?.name || '' })
+    return one(c, { menu, kiosk: s.kiosk, reader: !!reader, readerSimulated: simulated, payAtCounter: s.kiosk.payAtCounter, taxRateBps: rate, businessName: co[0]?.name || '' })
   })
   app.post('/kiosk/order', ...kiosk, async (c) => {
     const actor = await actorOf(c); const b = await body(c)

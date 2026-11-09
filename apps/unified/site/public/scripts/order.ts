@@ -84,9 +84,12 @@
         <button type="submit" class="btn btn--primary" ${busy ? 'disabled' : ''}>${busy ? 'Opening the payment page…' : 'Pay ' + money(sub + tax)}</button>
         <p class="order-muted">You pay by card on a secure Stripe page. We ask for a phone or an email to tell you when it is ready.</p>
       </form>` : ''
-      root.innerHTML = `${closed}<div class="order-layout"><div><div class="order-tabs" role="tablist">${tabs}</div><div class="order-items">${grid}</div></div>
-        <aside class="order-cart" aria-label="Your order"><h2>Your order</h2>${cart.length ? `<ul>${lines}</ul>` : '<p class="order-muted">Nothing yet.</p>'}
-        <div class="order-sum"><span>Subtotal</span><span>${money(sub)}</span></div><div class="order-sum"><span>Tax</span><span>${money(tax)}</span></div><div class="order-sum order-total"><span>Total</span><span>${money(sub + tax)}</span></div>${form}</aside></div>`
+      // Not taking orders: the menu to read, and no cart that nothing can go in (bar live test 2026-11-09: the cards looked
+      // tappable beside "Your order — Nothing yet.").
+      const cartBox = a.open ? `<aside class="order-cart" aria-label="Your order"><h2>Your order</h2>${cart.length ? `<ul>${lines}</ul>` : '<p class="order-muted">Nothing yet.</p>'}
+        <div class="order-sum"><span>Subtotal</span><span>${money(sub)}</span></div><div class="order-sum"><span>Tax</span><span>${money(tax)}</span></div><div class="order-sum order-total"><span>Total</span><span>${money(sub + tax)}</span></div>${form}</aside>` : ''
+      root.innerHTML = `${closed}<div class="order-layout${a.open ? '' : ' order-layout--menu'}"><div><div class="order-tabs" role="tablist">${tabs}</div><div class="order-items">${grid}</div></div>
+        ${cartBox}</div>`
     }
 
     function sheet(item: Item) {

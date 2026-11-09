@@ -65,6 +65,7 @@ function WeekBuilder() {
         <span className={`text-sm ${MUTED}`}>{w.published ? `Published${w.unpublishedChanges ? ' · changed since — publish again' : ''}` : 'Not published yet'}</span>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
+      {w.hoursSet === false && <p className="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 p-4 text-sm">Your opening hours are not set yet, so every day reads Closed and gaps and labor cannot be worked out. <Link className="underline font-semibold" to="/crm/bar-settings">Set your hours</Link></p>}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className={CARD}><p className={LABEL}>Wages (planned)</p><p className="text-xl font-bold text-gray-900 dark:text-slate-100">{w.wagesCents === null ? 'Needs every rate' : money(w.wagesCents)}</p></div>
         <div className={CARD}><p className={LABEL}>Sales (same days, last 4 weeks)</p><p className="text-xl font-bold text-gray-900 dark:text-slate-100">{w.salesForecastCents === null ? `${w.forecastDays.known} of ${w.forecastDays.open} days known` : money(w.salesForecastCents)}</p></div>
@@ -177,7 +178,8 @@ function ShiftDialog({ shift: s0, people, days, onClose, onSaved }: { shift: any
 /** Availability and swaps for the person signed in: they act on the published schedule, so it is read here once. */
 function MyStaffRequests() {
   const { user, hasFeature } = useAuth();
-  const [published, setPublished] = useState<any[]>([]);
+  // null while it loads: the person read "Nothing coming up" for a few seconds first (bar live test 2026-11-09).
+  const [published, setPublished] = useState<any[] | null>(null);
   useEffect(() => {
     if (!hasFeature('bar_shift_swaps')) return;
     api.get('/api/schedule/published').then((d) => setPublished((d.weeks || []).flatMap((w: any) => (w.published ? w.shifts : [])))).catch(() => setPublished([]));

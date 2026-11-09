@@ -17,6 +17,8 @@ beforeAll(async () => {
   items = await k.menu()
   // A manager's till PIN.
   expect((await k.M('PUT', '/api/register/pin', { pin: '4321' })).status).toBe(200)
+  // Counter payment is the owner's choice, off by default (bar live test 2026-11-09); these tests switch it on.
+  expect((await k.M('PUT', '/api/food/settings', { kiosk: { payAtCounter: true } })).status).toBe(200)
 }, 60_000)
 afterAll(() => k.restore())
 
@@ -118,5 +120,29 @@ describe('an order at the kiosk', () => {
     const r = await k.B('POST', '/api/food/kiosk/order', { table: '4', pay: 'reader', lines: [{ menuItemId: items.soda.id }] })
     expect(r.status).toBe(200)
     await k.B('POST', `/api/food/kiosk/order/${r.json.order.id}/cancel`, {})
+  })
+})
+
+describe('the owner decides how the kiosk is paid (bar live test 2026-11-09)', () => {
+  test('with no reader and counter payment off, the kiosk takes no orders', async () => {
+    await (k.t.db as any).delete(k.S.barReader).where(eq(k.S.barReader.companyId, k.companyId))
+    expect((await k.M('PUT', '/api/food/settings', { kiosk: { payAtCounter: false } })).status).toBe(200)
+    const s = (await k.B('GET', '/api/food/kiosk/state')).json
+    expect([s.reader, s.payAtCounter]).toEqual([false, false])
+    const r = await k.B('POST', '/api/food/kiosk/order', { name: 'Sam', pay: 'counter', lines: [{ menuItemId: items.soda.id }] })
+    expect(r.status).toBe(409)
+    expect(r.json.error).toBe('This kiosk is not taking orders: no card reader is connected.')
+  })
+
+  test('"start cooking before it is paid": the food fires on placement, and paying sends nothing twice', async () => {
+    expect((await k.M('PUT', '/api/food/settings', { kiosk: { payAtCounter: true, fireBeforePaid: true } })).status).toBe(200)
+    for (const tk of await tickets()) await k.B('POST', '/api/grill/bump', { id: (tk as any).id })
+    const r = await k.B('POST', '/api/food/kiosk/order', { name: 'Taco', pay: 'counter', lines: [{ menuItemId: items.burger.id }] })
+    expect(r.json.order.status).toBe('at_counter')
+    expect((await tickets()).map((x) => x.label)).toEqual(['KIOSK · Taco'])
+    const row = (await k.B('GET', '/api/register/state')).json.open.find((o: any) => o.label === 'KIOSK · Taco')
+    expect((await k.B('POST', `/api/register/check/${row.id}/pay`, { tender: 'cash', amountCents: row.balanceCents })).json.check.status).toBe('paid')
+    expect((await tickets()).map((x) => x.label)).toEqual(['KIOSK · Taco'])
+    await k.M('PUT', '/api/food/settings', { kiosk: { fireBeforePaid: false } })
   })
 })

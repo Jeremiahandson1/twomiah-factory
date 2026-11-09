@@ -219,13 +219,26 @@ const bar: VerticalSettings = {
       ],
     },
     // No Jobber export and no Angi account behind a bar: the domain, QuickBooks, Stripe and texting (OnboardingWizard.tsx, T41).
-    onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
+    // Opening hours first: the website, the Tonight board, online ordering and the schedule all read them, and a new
+    // business has none (bar live test 2026-11-09: the schedule read every day Closed).
+    onboarding: {
+      integrations: ['food_hours', 'dns', 'quickbooks', 'stripe', 'twilio'],
+      extra: [
+        {
+          id: 'food_hours', label: 'Your opening hours', category: 'hours',
+          description: 'Set the hours your bar and kitchen keep. Your website, online ordering and the schedule read them.',
+          guideSteps: ['Open Bar Settings', 'Tick each day you open and set its hours (a close earlier than the open runs past midnight)', 'Press Save hours'],
+          open: { to: '/crm/bar-settings', label: 'Open Bar Settings' },
+        },
+      ],
+    },
   },
   // The bar's own site, templates/website-premium-bar: its leather-book design, and its sections reading the night
   // (the Tonight board, the menu and taps, hours, what's on) straight from the bar add-on. Its contact section says
   // Address, asks for "Your message", and answers an empty one with "Please write a short message."
   site: {
-    design: 'bar',
+    // Game day, the owner's pick for a new bar (2026-11-09); Tavern and Taproom are in the list. The old 'bar' design is retired.
+    design: 'gameday',
     facts: 'bar',
     // The header's Visit button (templates/website-premium-bar base.ejs).
     ctaHref: '/visit',

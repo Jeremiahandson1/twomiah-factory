@@ -108,7 +108,7 @@ describe("the website's settings", () => {
 
   test('the designs on offer are the distinct looks, the vertical\'s marked as the default', async () => {
     const body = await (await as('manager', '/api/site/designs')).json()
-    expect(body.data.map((d: any) => d.id)).toEqual(['classic', 'bar', 'sign', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market'])
+    expect(body.data.map((d: any) => d.id)).toEqual(['classic', 'sign', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase', 'foundry', 'heritage', 'studio', 'market', 'tavern', 'gameday', 'taproom'])
     expect(body.data.filter((d: any) => d.isDefault).map((d: any) => d.id)).toEqual(['classic'])
     expect((await as('staff', '/api/site/designs')).status).toBe(403)
   })

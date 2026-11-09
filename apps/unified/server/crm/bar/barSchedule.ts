@@ -112,6 +112,8 @@ async function loadWeek(companyId: string, day?: string | null, now = new Date()
     overlaps: overlaps(shifts, tz).map(([a, b]) => ({ name: names.get(a.userId) || '?', day: b.day, a: (a as any).id, b: (b as any).id })),
     wagesCents: plan.wagesCents, salesForecast: sales, salesForecastCents: salesTotal, forecastDays: { known: knownOpen.length, open: openDays.length },
     laborPct: plan.wagesCents === null || !salesTotal ? null : Math.round((plan.wagesCents / salesTotal) * 1000) / 10,
+    // No weekly hours saved at all (a new business): every day reads Closed until Bar Settings has them (bar live test 2026-11-09).
+    hoursSet: Object.values(hours.bar || {}).some(r => Array.isArray(r) && r.length > 0),
     actual,
     published: week?.publishedAt ? { at: week.publishedAt, by: week.publishedByName } : null,
     unpublishedChanges: !!week?.changedAt && (!week.publishedAt || week.changedAt > week.publishedAt),

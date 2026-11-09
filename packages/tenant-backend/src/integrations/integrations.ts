@@ -192,7 +192,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
   app.post('/quickbooks/sync', requireAdmin, async (c) => {
     const u = user(c)
     const status = await qb.getConnectionStatus(u.companyId)
-    if (!status.connected) return c.json({ error: 'QuickBooks not connected' }, 400)
+    if (!status.connected) return c.json({ error: 'QuickBooks is not connected. Connect it in Settings › Integrations.' }, 400)
     Promise.resolve().then(async () => {
       try { await qb.syncAllCustomers(u.companyId); await qb.syncAllInvoices(u.companyId) } catch (e: any) { console.error('[integrations] QuickBooks sync failed:', e?.message) }
     })

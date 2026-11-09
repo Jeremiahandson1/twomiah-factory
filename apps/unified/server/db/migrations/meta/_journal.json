@@ -743,6 +743,13 @@
       "when": 1794170853559,
       "tag": "0105_training_credential_names",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1794248419910,
+      "tag": "0106_bar_item_voided_at",
+      "breakpoints": true
     }
   ]
 }
