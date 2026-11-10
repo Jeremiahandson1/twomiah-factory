@@ -44,6 +44,11 @@ interface WarrantyData {
   equipment?: { name: string; model?: string | null } | null;
   contact?: { name: string };
   _count?: { claims: number };
+  contactId?: string | null;
+  equipmentId?: string | null;
+  startDate?: string | null;
+  durationMonths?: number | null;
+  coverageDetails?: string | null;
 }
 
 /** What a warranty covers: its project, else the unit it names ("Gas Furnace · 59TN6"). */
@@ -119,6 +124,7 @@ export default function WarrantiesPage({ api, config }: WarrantiesPageProps) {
   const [showExpiring, setShowExpiring] = useState<boolean>(false);
   const [showNewClaim, setShowNewClaim] = useState<boolean>(false);
   const [showNewWarranty, setShowNewWarranty] = useState<boolean>(false);
+  const [editing, setEditing] = useState<WarrantyData | null>(null);
 
   useEffect(() => {
     loadData();
@@ -236,7 +242,7 @@ export default function WarrantiesPage({ api, config }: WarrantiesPageProps) {
       ) : (
         <>
           {tab === 'warranties' && (
-            <WarrantiesList warranties={warranties} onRefresh={loadData} />
+            <WarrantiesList warranties={warranties} onRefresh={loadData} onEdit={setEditing} />
           )}
           {tab === 'claims' && (
             <ClaimsList claims={claims} onRefresh={loadData} />
@@ -257,6 +263,13 @@ export default function WarrantiesPage({ api, config }: WarrantiesPageProps) {
         <NewWarrantyModal
           onSave={() => { setShowNewWarranty(false); loadData(); }}
           onClose={() => setShowNewWarranty(false)}
+        />
+      )}
+      {editing && (
+        <NewWarrantyModal
+          warranty={editing}
+          onSave={() => { setEditing(null); loadData(); }}
+          onClose={() => setEditing(null)}
         />
       )}
     </div>
@@ -290,9 +303,11 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
 interface WarrantiesListProps {
   warranties: WarrantyData[];
   onRefresh: () => void;
+  onEdit?: (w: WarrantyData) => void;
 }
 
-function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
+function WarrantiesList({ warranties, onRefresh, onEdit }: WarrantiesListProps) {
+  const { mayWork } = useWarranties();
   if (warranties.length === 0) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
@@ -358,8 +373,10 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                   {warranty._count?.claims || 0}
                 </span>
               </td>
-              <td className="px-4 py-3">
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+              <td className="px-4 py-3 text-right">
+                {mayWork && onEdit
+                  ? <button type="button" onClick={() => onEdit(warranty)} className="px-3 py-1 text-sm border rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" aria-label={`Edit ${warranty.name}`}>Edit</button>
+                  : <ChevronRight className="w-4 h-4 text-gray-400" />}
               </td>
             </tr>
           ))}
@@ -700,23 +717,25 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
 interface NewWarrantyModalProps {
   onSave: () => void;
   onClose: () => void;
+  /** Editing this one (PUT /api/warranties/:id): its customer stays; the rest, and the unit it covers, can change. */
+  warranty?: WarrantyData;
 }
 
 /** A warranty written by hand for one customer (POST /api/warranties): what it covers, when it starts and for how long. */
-function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
+function NewWarrantyModal({ onSave, onClose, warranty }: NewWarrantyModalProps) {
   const toast = useOptionalToast()
   const { api, words } = useWarranties();
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
-    contactId: '',
-    equipmentId: '',
-    name: '',
-    category: '',
-    startDate: companyTodayKey(),
-    durationMonths: '12',
-    coverageDetails: '',
+    contactId: warranty?.contactId || '',
+    equipmentId: warranty?.equipmentId || '',
+    name: warranty?.name || '',
+    category: warranty?.category || '',
+    startDate: warranty?.startDate ? String(warranty.startDate).slice(0, 10) : companyTodayKey(),
+    durationMonths: String(warranty?.durationMonths || 12),
+    coverageDetails: warranty?.coverageDetails || '',
   });
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -748,16 +767,28 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/api/warranties', {
-        contactId: form.contactId,
-        equipmentId: form.equipmentId || undefined,
-        name: form.name,
-        category: form.category || undefined,
-        startDate: form.startDate || undefined,
-        durationMonths: Number(form.durationMonths),
-        coverageDetails: form.coverageDetails || undefined,
-      });
-      toast?.success('Warranty added');
+      if (warranty) {
+        await api.put(`/api/warranties/${warranty.id}`, {
+          equipmentId: form.equipmentId || null,
+          name: form.name,
+          category: form.category,
+          startDate: form.startDate,
+          durationMonths: Number(form.durationMonths),
+          coverageDetails: form.coverageDetails,
+        });
+        toast?.success('Warranty saved');
+      } else {
+        await api.post('/api/warranties', {
+          contactId: form.contactId,
+          equipmentId: form.equipmentId || undefined,
+          name: form.name,
+          category: form.category || undefined,
+          startDate: form.startDate || undefined,
+          durationMonths: Number(form.durationMonths),
+          coverageDetails: form.coverageDetails || undefined,
+        });
+        toast?.success('Warranty added');
+      }
       onSave();
     } catch (err: unknown) {
       setError(errorText(err, 'That warranty could not be saved.'));
@@ -774,9 +805,15 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
-          <h2 id="warranty-dialog-2-title" className="text-lg font-bold mb-4 text-gray-900 dark:text-slate-100">New Warranty</h2>
+          <h2 id="warranty-dialog-2-title" className="text-lg font-bold mb-4 text-gray-900 dark:text-slate-100">{warranty ? 'Edit Warranty' : 'New Warranty'}</h2>
           <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {warranty ? (
+              <div>
+                <span className={label}>Customer</span>
+                <p className="text-gray-900 dark:text-slate-100">{warranty.contact?.name || warranty.project?.name || '—'}</p>
+              </div>
+            ) : (
             <div>
               <label className={label} htmlFor="warranty-customer-search">Customer</label>
               <input id="warranty-customer-search" type="search" value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className={`${input} mb-2`} placeholder="Search customers…" />
@@ -785,6 +822,7 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
+            )}
             {units.length > 0 && (
               <div>
                 <label className={label} htmlFor="warranty-equipment">Equipment it covers</label>

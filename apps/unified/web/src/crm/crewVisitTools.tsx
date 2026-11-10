@@ -28,10 +28,11 @@ const closed = (s: string) => s === 'completed' || s === 'cancelled'
 
 // ── The office's checklists ──
 interface Field { id: string; label: string; type: string; required: boolean; options?: string[] }
-interface Template { id: string; name: string; description?: string | null; fields: Field[]; requireSignature: boolean; requirePhoto: boolean }
+export interface Template { id: string; name: string; description?: string | null; fields: Field[]; requireSignature: boolean; requirePhoto: boolean }
 interface Answer { value?: string; choices?: string[]; photos?: string[]; signature?: string }
 
-function ChecklistForm({ job, tpl, onClose, onSent }: { job: JobLite; tpl: Template; onClose: () => void; onSent: () => void }) {
+// Also the office's, on the job page (checklistLife.tsx JobChecklistsPanel — field service re-check 11/10: only Tech View could fill one in).
+export function ChecklistForm({ job, tpl, onClose, onSent }: { job: JobLite; tpl: Template; onClose: () => void; onSent: () => void }) {
   const toast = useToast()
   const [answers, setAnswers] = useState<Record<string, Answer>>({})
   const [notes, setNotes] = useState('')

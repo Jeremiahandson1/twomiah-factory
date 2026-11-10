@@ -284,6 +284,53 @@ async function createProjectWarranty(companyId: string, data: {
 }
 
 /**
+ * Change a warranty: its name and words, its term, and the unit it covers (field service re-check 11/10: a warranty written before
+ * the equipment could be named had no way to name it — Buildertrend and ServiceTitan edit a warranty). The customer and project stay:
+ * its claims are theirs. A changed start or term moves the expiry, worked out as on creating it.
+ */
+async function updateProjectWarranty(companyId: string, id: string, data: {
+  name?: string; category?: string | null; description?: string | null; coverageDetails?: string | null; exclusions?: string | null;
+  startDate?: string; durationMonths?: number; equipmentId?: string | null;
+}) {
+  const bad = (message: string, status = 400) => Object.assign(new Error(message), { status });
+  const [w] = await db.select().from(projectWarranty).where(and(eq(projectWarranty.id, id), eq(projectWarranty.companyId, companyId))).limit(1);
+  if (!w) throw bad('Warranty not found', 404);
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.name !== undefined) {
+    const name = typeof data.name === 'string' ? data.name.trim() : '';
+    if (!name) throw bad('Give the warranty a name.');
+    set.name = name;
+  }
+  for (const k of ['category', 'description', 'coverageDetails', 'exclusions'] as const) {
+    if (data[k] !== undefined) set[k] = typeof data[k] === 'string' && data[k]!.trim() ? data[k]!.trim() : null;
+  }
+  if (data.durationMonths !== undefined && (!Number.isInteger(Number(data.durationMonths)) || Number(data.durationMonths) < 1 || Number(data.durationMonths) > 600)) {
+    throw bad('The term is a whole number of months, from 1 to 600.');
+  }
+  if (data.startDate !== undefined && (!data.startDate || isNaN(new Date(data.startDate).getTime()))) throw bad('The start date is not a date.');
+  if (data.startDate !== undefined || data.durationMonths !== undefined) {
+    const startDate = data.startDate ? dayMarker(new Date(data.startDate).toISOString()) : w.startDate ? new Date(w.startDate) : todayMarker(await companyTimeZone(db, companyId));
+    const months = data.durationMonths !== undefined ? Number(data.durationMonths) : Number(w.durationMonths || 12);
+    const expiresAt = new Date(startDate);
+    expiresAt.setUTCMonth(expiresAt.getUTCMonth() + months);
+    Object.assign(set, { startDate, durationMonths: months, expiresAt });
+  }
+  if (data.equipmentId !== undefined) {
+    if (!equipmentTable) { if (data.equipmentId) throw bad('A warranty cannot name a piece of equipment here.'); }
+    else if (!data.equipmentId) set.equipmentId = null;
+    else {
+      const [unit] = await db.select({ id: equipmentTable.id, contactId: equipmentTable.contactId }).from(equipmentTable)
+        .where(and(eq(equipmentTable.id, String(data.equipmentId)), eq(equipmentTable.companyId, companyId))).limit(1);
+      if (!unit) throw bad('Equipment not found', 404);
+      if (w.contactId && unit.contactId && unit.contactId !== w.contactId) throw bad("That equipment is another customer's.");
+      set.equipmentId = unit.id;
+    }
+  }
+  const [saved] = await db.update(projectWarranty).set(set as any).where(and(eq(projectWarranty.id, id), eq(projectWarranty.companyId, companyId))).returning();
+  return saved;
+}
+
+/**
  * Create warranties from templates for a project
  */
 async function createWarrantiesFromTemplates(
@@ -857,6 +904,7 @@ async function getClaimsByCategory(
     getWarrantyTemplates,
     seedDefaultTemplates,
     createProjectWarranty,
+    updateProjectWarranty,
     createWarrantiesFromTemplates,
     getProjectWarranties,
     getActiveWarranties,
@@ -953,6 +1001,18 @@ export function createWarrantiesRoutes(deps: WarrantiesRoutesDeps) {
     const body = await c.req.json();
     const warranty = await service.createProjectWarranty(user.companyId, body);
     return c.json(warranty, 201);
+  });
+
+  // Change a warranty (its words, term and the unit it covers).
+  app.put('/:id', requirePermission('warranties:update'), async (c) => {
+    const user = c.get('user') as any;
+    const body = await c.req.json().catch(() => ({}));
+    try {
+      return c.json(await service.updateProjectWarranty(user.companyId, c.req.param('id'), body));
+    } catch (e: any) {
+      if (e?.status) return c.json({ error: e.message }, e.status);
+      throw e;
+    }
   });
 
   // Create warranties from templates

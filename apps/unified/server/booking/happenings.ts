@@ -2,6 +2,7 @@
 // telling the waitlist when a time frees up. One listener for every route that changes a booking — the premium site
 // did this per route, so a customer's own cancel told the waitlist nothing and a customer's reschedule sent no
 // webhook. Each part fails on its own without stopping the others.
+import { whereOf } from './where.ts'
 import { and, eq, or, isNull, lte, gte } from 'drizzle-orm'
 import { company, bookingWaitlist } from '../db/schema/index.ts'
 import { safeTz, tzParts } from '@twomiah/tenant-backend'
@@ -23,7 +24,7 @@ export function messageFor(b: BookingRow, svc: ServiceRow | null, s: SettingsRow
   const tz = safeTz(s.timezone)
   return {
     serviceName: bookedName(b, svc), when: whenText(b.startAt, tz),
-    customerName: b.customerName, customerEmail: b.customerEmail, customerPhone: b.customerPhone, customerAddress: b.customerAddress, customerNotes: b.customerNotes,
+    customerName: b.customerName, customerEmail: b.customerEmail, customerPhone: b.customerPhone, customerAddress: whereOf(b), customerNotes: b.customerNotes,
     manageUrl: `${siteOrigin()}/booking/${b.token}`,
     ...extra,
   }
@@ -31,7 +32,7 @@ export function messageFor(b: BookingRow, svc: ServiceRow | null, s: SettingsRow
 
 export const icsOf = (b: BookingRow, svc: ServiceRow | null, companyName: string, cancelled = false) => icsFor({
   uid: `booking-${b.id}@twomiah`, summary: `${bookedName(b, svc)} — ${companyName}`, startAt: b.startAt, endAt: b.endAt,
-  location: b.customerAddress, description: `Reschedule or cancel: ${siteOrigin()}/booking/${b.token}`, cancelled,
+  location: whereOf(b), description: `Reschedule or cancel: ${siteOrigin()}/booking/${b.token}`, cancelled,
 })
 
 /**

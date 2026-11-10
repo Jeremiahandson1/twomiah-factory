@@ -9,6 +9,7 @@ import { ClipboardCheck, Download, Mail, Paperclip, X } from 'lucide-react'
 import { api } from '../api'
 import { useAuth, useToast, usePermissions } from '../shared'
 import { downloadFile } from '@twomiah/tenant-ui/src/invoicing/ui'
+import { ChecklistForm, type Template } from './crewVisitTools'
 
 const card = 'rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900'
 const ghost = 'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-sm text-gray-900 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800'
@@ -28,6 +29,7 @@ export function JobChecklistsPanel({ job }: { job: Record<string, any> }) {
   const mayUpdate = !known || can('jobs:update')
   const [view, setView] = useState<JobView | null>(null)
   const [busy, setBusy] = useState('')
+  const [filling, setFilling] = useState<Template | null>(null)
   const load = useCallback(() => { api.get(`/api/checklists/job/${job.id}`).then((r: any) => setView(r)).catch(() => setView(null)) }, [job.id])
   useEffect(() => { if (on && job?.id) load() }, [on, job?.id, load, job?.status])
   if (!on || !view || !view.templates.length) return null
@@ -54,7 +56,14 @@ export function JobChecklistsPanel({ job }: { job: Record<string, any> }) {
         {view.outstanding.map((o) => (
           <li key={o.templateId} className="flex flex-wrap items-center justify-between gap-2">
             <span>{o.name}</span>
-            <span className="text-gray-700 dark:text-slate-300">{o.why === 'needs the customer to sign' ? 'Needs the customer to sign' : 'Not filled in yet'}{o.required ? '' : ' (optional)'}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-gray-700 dark:text-slate-300">{o.why === 'needs the customer to sign' ? 'Needs the customer to sign' : 'Not filled in yet'}{o.required ? '' : ' (optional)'}</span>
+              {mayUpdate && job.status !== 'completed' && job.status !== 'cancelled' && (
+                <button type="button" className={ghost} onClick={() => setFilling((view.templates as unknown as Template[]).find((t) => t.id === o.templateId) ?? null)}>
+                  {o.why === 'needs the customer to sign' ? 'Fill in again' : 'Fill in'}
+                </button>
+              )}
+            </span>
           </li>
         ))}
         {finished.map((s) => (
@@ -67,6 +76,7 @@ export function JobChecklistsPanel({ job }: { job: Record<string, any> }) {
           </li>
         ))}
       </ul>
+      {filling && <ChecklistForm job={job as any} tpl={filling} onClose={() => setFilling(null)} onSent={() => { setFilling(null); load() }} />}
     </section>
   )
 }

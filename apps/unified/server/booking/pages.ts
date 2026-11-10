@@ -8,6 +8,7 @@
 //   • a waitlist the customer can actually join when nothing fits (the site had the endpoint and no button);
 //   • a cancel that works without JavaScript, and a reschedule page that loads (the site's script stopped on it).
 import { Hono, type Context } from 'hono'
+import { whereOf } from './where.ts'
 import fs from 'node:fs'
 import path from 'node:path'
 import { safeTz } from '@twomiah/tenant-backend'
@@ -200,7 +201,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
       <div class="book-thanks__summary">
         <div><span>Service</span><strong>${escHtml(bookedName(b, svc))}</strong></div>
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
-        ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
+        ${whereOf(b) ? `<div><span>Where</span><strong>${escHtml(whereOf(b)!)}</strong></div>` : ''}
       </div>
       <p class="book-thanks__addcal"><a href="/booking/${escHtml(b.token)}/ics">Add to your calendar</a> · <a href="/booking/${escHtml(b.token)}"${top(c)}>Reschedule or cancel</a></p>
     </div></section>`
@@ -273,7 +274,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         <div><span>Service</span><strong>${escHtml(bookedName(b, svc))}</strong></div>
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         <div><span>Status</span><strong>${escHtml(status)}</strong></div>
-        ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
+        ${whereOf(b) ? `<div><span>Where</span><strong>${escHtml(whereOf(b)!)}</strong></div>` : ''}
         ${b.depositAmount ? `<div><span>${svc?.prepay ? 'Payment' : 'Deposit'}</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
       </div>
       ${forms.length ? `<div class="book-forms"><h2>${waitingForms ? 'Fill in your forms to confirm your booking' : 'Before your visit'}</h2><p class="book-thanks__lead">${waitingForms
