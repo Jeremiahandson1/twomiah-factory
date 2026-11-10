@@ -32,6 +32,7 @@ import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 import { DocumentAside } from './invoiceAside'
 import { JobChecklistsPanel } from './checklistLife'
+import { JobChangeOrdersPanel } from './jobChangeOrders'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
 import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { ProposalPanel } from './proposalOptions'
@@ -133,7 +134,7 @@ export function JobDetail() {
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
     // Drawing on a photo works on the job's own photos (job_photo), not the photo library's.
     photoActions: v().jobs.photos ? (photo: { id: string; url?: string; caption?: string }, reload: () => void) => <DrawOnPhoto photo={photo} reload={reload} /> : undefined,
-    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><CrewWorkPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
+    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><CrewWorkPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobChangeOrdersPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }
 /**

@@ -1484,7 +1484,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     const coScope = async (contactId: string): Promise<any | null> => {
       const projectIds = await contactProjectIds(contactId)
       const jobIds = jobsCo ? (await db.select({ id: t.job.id }).from(t.job).where(eq(t.job.contactId, contactId))).map((j: any) => j.id) : []
-      const parts = [projectIds.length ? inArray(t.changeOrder.projectId, projectIds) : null, jobIds.length ? inArray(t.changeOrder.jobId, jobIds) : null].filter(Boolean)
+      const parts: any[] = []
+      if (projectIds.length) parts.push(inArray(t.changeOrder.projectId, projectIds))
+      if (jobIds.length) parts.push(inArray(t.changeOrder.jobId, jobIds))
       return parts.length ? (parts.length === 1 ? parts[0] : or(...parts)) : null
     }
     const coSelect = () => ({ id: t.changeOrder.id, number: t.changeOrder.number, title: t.changeOrder.title, description: t.changeOrder.description, status: t.changeOrder.status, reason: t.changeOrder.reason, amount: t.changeOrder.amount, daysAdded: t.changeOrder.daysAdded, submittedDate: t.changeOrder.submittedDate, approvedDate: t.changeOrder.approvedDate, approvedBy: t.changeOrder.approvedBy, createdAt: t.changeOrder.createdAt, projectId: t.changeOrder.projectId, projectName: t.project.name, projectNumber: t.project.number, ...(jobsCo ? { jobId: t.changeOrder.jobId, jobTitle: t.job.title, jobNumber: t.job.number } : {}) })

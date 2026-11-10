@@ -1612,19 +1612,21 @@ export function createJobRoutes(deps: JobDeps) {
         const changeLines = changeOrders.map((co: any) => ({ description: `Change order ${co.number}${co.title ? `: ${co.title}` : ''}`, quantity: 1, unitPrice: round2(Number(co.amount || 0)) }))
         if (!lines) {
           const amount = round2(Number(j.estimated_value || 0))
-          if ((!amount || amount <= 0) && changeLines.length) lines = []
-          else if (!amount || amount <= 0) {
-            return { status: 400 as const, body: { error: 'This job has no price to bill. Set what it is worth in its Price box (Edit), then invoice it.' } }
+          if (!amount || amount <= 0) {
+            // No price of its own: its approved change orders are the bill (below), else there is nothing to bill.
+            if (!changeLines.length) return { status: 400 as const, body: { error: 'This job has no price to bill. Set what it is worth in its Price box (Edit), then invoice it.' } }
+            lines = []
+          } else {
+            const settings = rowsOf(await tx.execute(
+              sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`,
+            ))[0]?.settings
+            taxRate = defaultTaxRateFrom((settings as any) || {})
+            lines = [{
+              description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(),
+              quantity: 1,
+              unitPrice: amount,
+            }]
           }
-          const settings = rowsOf(await tx.execute(
-            sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`,
-          ))[0]?.settings
-          taxRate = defaultTaxRateFrom((settings as any) || {})
-          lines = [{
-            description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(),
-            quantity: 1,
-            unitPrice: amount,
-          }]
         }
         if (!lines!.length) {
           // Only change orders to bill: the company's own rate, as for an estimate.
