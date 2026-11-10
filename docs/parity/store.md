@@ -65,7 +65,7 @@ The owner's paste of Shopify's "Compare features across plans" (Basic / Grow / A
 
 | Shopify | Ours (code, 11/10) | Mark | Builds on (share first) |
 |---|---|---|---|
-| **In-person sales**: card reader, tap to pay on a phone, POS | an order can be *recorded* as paid in person (New order › Already paid in person, store live test 11/10); no card taken in person, no counter screen | not built | **shared** `tap_to_pay` (on contractor, field service, basic, landscaping, roofing, salon) — open it to the store, plus a counter screen that sells from the catalogue and takes stock off |
+| **In-person payments (POS)**: a customer's credit or debit card taken at the counter — card reader or tap to pay on a phone | an order can be *recorded* as paid in person (New order › Already paid in person, store live test 11/10); no card taken in person, no counter screen | not built | **shared** `tap_to_pay` (on contractor, field service, basic, landscaping, roofing, salon) — open it to the store, plus a counter screen that sells from the catalogue and takes stock off |
 | **SMS campaigns; chat with customers** | Two-Way Texting is not offered to the store | not built | **shared** `two_way_texting` (on 12 CRMs) — open it to the store; campaigns ride Email Marketing's audiences |
 | **Inventory locations** (10 on every plan, 200 on Plus) | one stock count per variant (`store_product_variant.inventory_qty`) | not built | **shared** inventory (`packages/tenant-backend/src/inventory`: `inventory_location`, `stock_level` per item per location, transfers) — the store's variants counted there, not a fourth version (the salon's `salon_stock_location` and the card shop's `022_store_inventory.sql` are the other two; the card shop's transfer requests — requested / accepted / fulfilled / declined — are the flow to copy) |
 | **Carrier rates at checkout** ("3rd-party calculated shipping rates", Advanced and Plus) | the owner sees live EasyPost rates when buying a label (`orders/shipping.ts` GET /orders/:id/rates); checkout charges the flat or zone rate | partly | the same EasyPost `getRates`, asked at checkout for the shopper's address |
@@ -79,7 +79,7 @@ pays Stripe's own rate; Shopify adds 2% on Basic without Shopify Payments), unme
 none), unlimited wholesale groups (Shopify: 3 catalogs below Plus), and the QuickBooks books (row 6).
 
 ### What is left (11/10), shared first
-1. In-person sales — open `tap_to_pay` to the store, add the counter screen.
+1. In-person payments (credit / debit cards at the counter) — open `tap_to_pay` to the store, add the counter screen.
 2. SMS and customer chat — open `two_way_texting` to the store.
 3. Inventory locations — store variants on the shared inventory locations.
 4. Carrier rates at checkout — EasyPost `getRates` at checkout.
