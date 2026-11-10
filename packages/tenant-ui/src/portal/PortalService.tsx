@@ -21,7 +21,7 @@ export function PortalEquipment() {
   if (loading) return <Spinner />
   return (
     <div>
-      <PageTitle title={config.labels.equipment} subtitle="The systems we look after for you, with their service history." />
+      <PageTitle title={config.labels.equipment} subtitle="What we look after for you, with its service history." />
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {units.length === 0 ? <Empty icon={Wrench} text="No equipment registered yet."><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Contact us to add your systems.</p></Empty> : (
         <div className="space-y-3">

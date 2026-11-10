@@ -47,7 +47,18 @@ const basic: VerticalSettings = {
   extraRolePermissions: { field: ['sms:send'] },
   // Crew scope: a staff seat reads its own and its crews' jobs and their customers (server/core/vertical.ts).
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
+  // A Sales rep seat (basic live test 11/10: there was none, and a Staff login stood in for the rep could not open Quotes) — Jobber's
+  // Salesperson, as field service's and the contractor's: every customer; their own leads and quotes; the plans they sell.
+  roleLabels: { sales_rep: 'Sales rep' },
+  roleMapping: { sales_rep: 'field' },
+  roleExtra: { sales_rep: ['contacts:read-all', 'leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'agreements:create', 'agreements:update'] },
+  roleWithheld: { sales_rep: ['leads:read-all', 'quotes:read-all'] },
   crm: {
+    // The seats a login may be given here: the shared ones and the Sales rep (roleMapping above).
+    team: { roles: ['admin', 'manager', 'sales_rep', 'field', 'viewer'] },
+    // The rep who sold the quote (its salesperson, else who wrote it), or the plan (its Sold by), earns as its invoices are paid —
+    // without the job being assigned to them (basic live test 11/10; server/crm/billing/quoteSellerCommissions.ts).
+    quoteSellerCommissions: true,
     serviceSites: true,
     // No billing a job on its own: the basic copy's job table had no invoice link mounted (routes/jobs.ts).
     jobs: { photos: true, textArrival: true, requireCustomer: true },
@@ -84,7 +95,8 @@ const basic: VerticalSettings = {
       contacts: true, sites: true, linkedJobs: true,
       categories: [
         { name: 'Power tools', icon: 'tool' }, { name: 'Heavy equipment', icon: 'mower' }, { name: 'Trucks & trailers', icon: 'truck' },
-        { name: 'HVAC', icon: 'hvac' }, { name: 'Plumbing', icon: 'plumbing' }, { name: 'Electrical', icon: 'electrical' },
+        // Not one trade's systems (basic live test 11/10: HVAC / Plumbing / Electrical on an "Other" business).
+        { name: 'Appliances', icon: 'electrical' }, { name: 'Building systems', icon: 'hvac' }, { name: 'Other equipment', icon: 'tool' },
       ],
     },
     import: {
@@ -156,11 +168,21 @@ const basic: VerticalSettings = {
     messages: {},
     reviews: {},
     // No trade licence for a gym or a venue (settingsConfig.ts, T41).
-    settings: { licenseNumber: false },
+    settings: {
+      licenseNumber: false,
+      // The role picker (Settings › Users): each seat said by what it holds.
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'every customer; their own leads and quotes, the plans they sell, the jobs they are on and their own commissions; not settings, the team or billing' },
+        { value: 'field', label: 'Staff', description: 'the jobs they are on: status, notes, photos and their own time' },
+        { value: 'manager', label: 'Manager', description: 'runs the schedule, jobs, quotes, plans and invoicing; not company settings or logins' },
+        { value: 'admin', label: 'Admin', description: 'full access, including company settings and logins' },
+      ],
+    },
     // Only the four every business can use: no Jobber, Angi, Thumbtack or Local Services (OnboardingWizard.tsx, T41).
     onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
     // The four stored role keys in this CRM's words: nobody here is a technician (pages/CommissionsPage.tsx, T51).
-    commissions: { roleWords: { technician: 'Staff', sales_rep: 'Sales', manager: 'Managers', all: 'Everyone' }, planExample: 'Standard staff plan' },
+    commissions: { roleWords: { technician: 'Staff', sales_rep: 'Sales rep', manager: 'Managers', all: 'Everyone' }, planExample: 'Standard staff plan', quoteSeller: true, quoteSellerWords: 'Yes — the sales rep who sold it (the signed quote’s rep, or a plan’s Sold by), as each invoice is paid', quoteSellerNotDefault: true },
     // No tech view (tech_mobile_view is not in this CRM's features), so no screens.tech.
   },
   // The showcase site (templates/website-premium-showcase): its contact section and its empty-message reply.

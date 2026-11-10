@@ -225,7 +225,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Current plan</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{sub.planName || 'Twomiah CRM'}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{sub.planName ? sub.planName.replace(/^./, (c) => c.toUpperCase()) : 'Twomiah CRM'}</div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                   {price ? <>{price} <span className="text-gray-500 dark:text-slate-400">/ {sub.billingCycle === 'annual' || sub.billingCycle === 'yearly' ? 'year' : 'month'}</span></> : sub.billingType === 'one_time' ? 'Lifetime license' : 'Included'}
                   {sub.seats ? <> · up to {sub.seats} users</> : null}

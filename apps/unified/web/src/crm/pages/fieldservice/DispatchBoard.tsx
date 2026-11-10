@@ -143,9 +143,12 @@ export default function DispatchBoard() {
   // The spinner is for a new day only: a reload of the day showing (the roster arriving once the permissions are known,
   // a live update) swaps the data in place, so a card being dragged is never pulled out from under the pointer.
   const shownDate = useRef<string | null>(null);
+  const latestDate = useRef<string | null>(null);
   const loadData = useCallback(async (quietAsked = false) => {
     const quiet = quietAsked || shownDate.current === selectedDate;
     shownDate.current = selectedDate;
+    const asked = selectedDate;
+    latestDate.current = asked;
     if (!quiet) setLoading(true);
     try {
       // SETTLED, not all: the technician list is team:read, which a technician does not hold, and one refused
@@ -157,6 +160,10 @@ export default function DispatchBoard() {
         maySeeRoster ? api.get('/api/team/assignable') : Promise.resolve({ data: [] }),
         showAvailability ? api.get(`/api/availability/day?date=${selectedDate}`) : Promise.resolve({ people: [] }),
       ]);
+      // A day typed into the date box passes through other days on the way (each keystroke is a date), and their answers can
+      // land after the last one: only the day still chosen is shown (basic live test 11/10: a typed date showed 0 jobs and
+      // another day's "Doesn't work Sundays" until a reload).
+      if (latestDate.current !== asked) return;
       if (jobsOut.status === 'rejected') throw jobsOut.reason;
       const jobsRes = jobsOut.value as { data?: DispatchJob[] };
       const techsRes = (techsOut.status === 'fulfilled' ? techsOut.value : { data: [] }) as { data?: Tech[] };
@@ -168,7 +175,7 @@ export default function DispatchBoard() {
       console.error('Failed to load dispatch data:', error);
       if (!quiet) toast.error('Failed to load dispatch board');
     } finally {
-      if (!quiet) setLoading(false);
+      if (!quiet && latestDate.current === asked) setLoading(false);
     }
   }, [selectedDate, maySeeRoster, showAvailability]); // eslint-disable-line react-hooks/exhaustive-deps
 

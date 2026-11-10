@@ -6,6 +6,7 @@ import { ClipboardCheck, Loader2, Plus, Trash2, ArrowUp, ArrowDown } from 'lucid
 import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
 import { ChecklistReport } from '../checklistLife'
+import { vocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 
 type FieldType = 'pass_fail' | 'yes_no' | 'text' | 'dropdown' | 'multi_select' | 'number' | 'date' | 'photo' | 'signature' | 'section'
 /** `optionsText` is only the box the owner types the choices into (one per line); the server's `options` is what is kept. */
@@ -39,11 +40,11 @@ function Editor({ draft, onChange, onSave, onCancel, busy }: { draft: Draft; onC
   return (
     <section className={box} aria-label={draft.id ? 'Edit checklist' : 'New checklist'}>
       <div className="grid gap-3 md:grid-cols-2">
-        <label className="grid gap-1 text-sm text-gray-800 dark:text-slate-200">Name<input className={input} value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Furnace tune-up" /></label>
+        <label className="grid gap-1 text-sm text-gray-800 dark:text-slate-200">Name<input className={input} value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="e.g. Site check" /></label>
         <label className="grid gap-1 text-sm text-gray-800 dark:text-slate-200">For these kinds of job
-          <input className={input} value={draft.jobTypes} onChange={(e) => onChange({ ...draft, jobTypes: e.target.value })} placeholder="Furnace tune-up, Install (leave empty for every job)" />
+          <input className={input} value={draft.jobTypes} onChange={(e) => onChange({ ...draft, jobTypes: e.target.value })} placeholder="e.g. First visit, Repair (leave empty for every job)" />
         </label>
-        <label className="grid gap-1 text-sm text-gray-800 dark:text-slate-200 md:col-span-2">Note for the tech (optional)<input className={input} value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} /></label>
+        <label className="grid gap-1 text-sm text-gray-800 dark:text-slate-200 md:col-span-2">Note for whoever does the job (optional)<input className={input} value={draft.description} onChange={(e) => onChange({ ...draft, description: e.target.value })} /></label>
       </div>
 
       <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-slate-100">Questions</h3>
@@ -52,7 +53,7 @@ function Editor({ draft, onChange, onSave, onCancel, busy }: { draft: Draft; onC
           <li key={f.id ?? i} className="grid gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="w-6 text-sm text-gray-600 dark:text-slate-300">{i + 1}.</span>
-              <input aria-label={f.type === 'section' ? `Heading ${i + 1}` : `Question ${i + 1}`} className={`${input} min-w-[14rem] flex-1 ${f.type === 'section' ? 'font-semibold' : ''}`} value={f.label} onChange={(e) => setQ(i, { label: e.target.value })} placeholder={f.type === 'section' ? 'Name this group of questions' : 'What should the tech check?'} />
+              <input aria-label={f.type === 'section' ? `Heading ${i + 1}` : `Question ${i + 1}`} className={`${input} min-w-[14rem] flex-1 ${f.type === 'section' ? 'font-semibold' : ''}`} value={f.label} onChange={(e) => setQ(i, { label: e.target.value })} placeholder={f.type === 'section' ? 'Name this group of questions' : 'What should they check?'} />
               <select aria-label={`Answer for question ${i + 1}`} className={input} value={f.type} onChange={(e) => setQ(i, { type: e.target.value as FieldType, ...(e.target.value === 'section' ? { required: false } : {}) })}>
                 {(Object.keys(TYPE_WORDS) as FieldType[]).map((k) => <option key={k} value={k}>{TYPE_WORDS[k]}</option>)}
               </select>
@@ -73,7 +74,7 @@ function Editor({ draft, onChange, onSave, onCancel, busy }: { draft: Draft; onC
       <button type="button" className={`${ghost} ml-2 mt-2`} onClick={() => onChange({ ...draft, fields: [...draft.fields, { label: '', type: 'section', required: false }] })}><Plus className="mr-1 inline h-4 w-4" />Add a heading</button>
 
       <fieldset className="mt-4 text-sm text-gray-800 dark:text-slate-200">
-        <legend className="font-semibold text-gray-900 dark:text-slate-100">Ask the crew to fill it in when the job is</legend>
+        <legend className="font-semibold text-gray-900 dark:text-slate-100">Ask your {vocabulary().team.many} to fill it in when the job is</legend>
         <div className="mt-1 flex flex-wrap gap-4">
           {PROMPT_WORDS.map((p) => (
             <label key={p.v} className="flex items-center gap-2"><input type="checkbox" checked={draft.promptOn.includes(p.v)} onChange={(e) => onChange({ ...draft, promptOn: e.target.checked ? [...draft.promptOn, p.v] : draft.promptOn.filter((x) => x !== p.v) })} />{p.label[0].toUpperCase() + p.label.slice(1)}</label>
