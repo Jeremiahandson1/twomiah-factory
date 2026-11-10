@@ -9,7 +9,7 @@
 //     invoices, each as it is paid in full;
 //   · once per invoice, plan and person (commission_auto_once); a full refund is taken back by the shared engine, which takes back every
 //     automatic commission on the invoice.
-import { and, asc, desc, eq, gte, inArray, isNotNull, notExists, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, notExists, notInArray } from 'drizzle-orm'
 import { commissionFor, planPaysPerson, QUOTE_SELLER } from '@twomiah/tenant-backend'
 import { commission, commissionPlan, invoice, quote, serviceAgreement, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -56,7 +56,7 @@ export function createQuoteSellerCommissions(d: CrmDeps) {
     // shared engine's rule (tenant-backend commissions.ts paidByHand).
     const [byHand] = await db.select({ id: commission.id }).from(commission).where(and(
       eq(commission.companyId, inv.companyId), eq(commission.userId, person.id), eq(commission.invoiceId, inv.id),
-      sql`coalesce(${commission.source}, 'manual') NOT IN ('auto', 'reversal')`, sql`${commission.status} NOT IN ('void', 'cancelled')`,
+      notInArray(commission.source, ['auto', 'reversal']), notInArray(commission.status, ['void', 'cancelled']),
     )).limit(1)
     if (byHand) return out
     const base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))

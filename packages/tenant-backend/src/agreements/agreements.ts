@@ -811,6 +811,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
    * `source` is reported so a screen can tell them apart if it ever wants to, and so this is
    * debuggable without reading the query.
    */
+  /** How far back an open visit still shows on Upcoming Visits, as Overdue. */
+  const OVERDUE_DAYS = 30
   async function getUpcomingVisits(companyId: string, { days = 30 }: { days?: number } = {}) {
     const visitsTz = await companyTimeZone(db, companyId)
     // From the start of TODAY, not from this instant: work due earlier today is still upcoming, and
@@ -820,6 +822,10 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const startDate = businessToday(visitsTz)
     // …through the end of the day `days` on.
     const endDate = new Date(startDate.getTime() + (days + 1) * 86_400_000 - 1)
+    // …and back OVERDUE_DAYS: a visit still open from the last month is overdue work, shown first and marked (Jobber's overdue visits —
+    // field service re-check 11/10: yesterday's plan visit, never done, left the list reading "No upcoming visits"). Older than that it is
+    // a leftover, not work — a visit scheduled in 2024 does not count (T42).
+    const overdueFrom = new Date(startDate.getTime() - OVERDUE_DAYS * 86_400_000)
 
     /**
      * NOT EVERY TEMPLATE STORES A NEXT SERVICE DATE. (T48 — caught live on ctrtest as a 500)
@@ -869,8 +875,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [booked, generated] = await Promise.all([
       db.select().from(agreementVisit).where(and(
         eq(agreementVisit.status, 'scheduled'),
-        // No lower bound: a visit still open from before today is OVERDUE and shown as such, first (Jobber's overdue visits —
-        // field service re-check 11/10: yesterday's plan visit, never done, left the list reading "No upcoming visits").
+        gte(agreementVisit.scheduledDate, overdueFrom),
         lte(agreementVisit.scheduledDate, endDate),
         inArray(agreementVisit.agreementId, agreementIds),
       )),
@@ -880,6 +885,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       }).from(job).where(and(
         eq(job.companyId, companyId),
         inArray(job.status, ['scheduled', 'in_progress']),
+        gte(job.scheduledDate, overdueFrom),
         lte(job.scheduledDate, endDate),
         inArray(job.serviceAgreementId, agreementIds),
       )),
