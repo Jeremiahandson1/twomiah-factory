@@ -172,7 +172,7 @@
       '<form data-return-form="' + esc(o.id) + '" novalidate>' + lines +
       '<label>Why are you returning it?<select name="reason">' + reasons + '</select></label>' +
       '<label>What would you like?<select name="resolution"><option value="refund">My money back</option><option value="exchange">An exchange</option></select></label>' +
-      '<label class="account-check"><input type="checkbox" name="preferCredit"> Give me store credit instead of a refund to my card</label>' +
+      '<label class="account-check"><input type="checkbox" name="preferCredit"> Give me store credit instead of my money back</label>' +
       '<label data-wanted-label hidden>What would you like instead? (size, colour…)<input name="wanted" maxlength="500"></label>' +
       '<label>Anything we should know? (optional)<textarea name="note" maxlength="1000" rows="2"></textarea></label>' +
       '<button class="btn btn--primary" type="submit">Ask to return</button>' +
@@ -189,7 +189,7 @@
     if (r.status === 'refunded' || r.status === 'exchanged') {
       var toCard = (Number(r.refundCents) || 0) - (Number(r.creditCents) || 0);
       var bits = [];
-      if (toCard > 0) bits.push(money(toCard) + ' back to your card');
+      if (toCard > 0) bits.push(money(toCard) + (r.paidBy === 'in_person' ? ' back to you, the way you paid' : r.paidBy === 'gift_card' ? ' back on your gift card' : ' back to your card'));
       if (r.creditCents > 0) bits.push(money(r.creditCents) + ' as store credit');
       if (r.exchangeOrderNumber) bits.push('exchange sent as order ' + esc(r.exchangeOrderNumber));
       money2 = bits.length ? '<p class="account-total">' + bits.join(', ') + '</p>' : '';

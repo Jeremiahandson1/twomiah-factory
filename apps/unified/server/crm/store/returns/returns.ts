@@ -500,6 +500,8 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       declineReason: ret.status === 'declined' ? ret.declineReason : null, label: ret.labelUrl ? { url: ret.labelUrl, carrier: ret.labelCarrier, tracking: ret.labelTracking } : null,
       refundCents: ['refunded', 'exchanged'].includes(ret.status) ? ret.refundCents : null, creditCents: ['refunded', 'exchanged'].includes(ret.status) ? ret.creditCents : null,
       restockingFeeCents: ret.restockingFeeCents, returnShippingFeeCents: ret.returnShippingFeeCents, exchangeOrderNumber: d2.exchangeOrder?.orderNumber ?? null,
+      // How the order was paid, for the shopper's words on the money back (store re-check 2, 11/10: a cash order read "back to your card").
+      paidBy: d2.order?.paidBy ?? 'card',
     }
   }
 
