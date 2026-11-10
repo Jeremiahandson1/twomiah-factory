@@ -1,5 +1,9 @@
 # Contractor / builder parity — Buildertrend, JobTread, Jobber
 
+**Re-checked against the code 11/10:** every row below that was "not built" or "partly" on 10/31 has since been built (10/31
+commits and rows 7–12 on 11/06), each hidden until tried; see the feature id on its row. The Buildertrend inventory section near the
+end (11/10) lists what is still missing.
+
 **Status (10/31).** The research was done before 10/30 from the vendors' own help pages (the checklist in the 10/30 follow-up
 to the cloud session, "build each item to THIS checklist"); PR #173 built against it and is live since 10/31 (main
 f855f4d65). Built features that are not yet tested stay hidden (`project_templates`, `inspection_checklists`, `ar_aging`,
@@ -13,16 +17,16 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Quote sections / groups (room by room, by cost-code group) | sections with subtotals on screen, PDF and the customer's page | built |
 | Multi-line line descriptions | yes | built |
 | Cost type per line (labour / material / sub / equipment / other) | `type` per line (labor, material, part, service, other) | built |
-| **Default markup % per cost type**, overridable per line, markup or margin shown live | markup % per line from "our cost"; no default per cost type, no live margin column | partly |
+| **Default markup % per cost type**, overridable per line, markup or margin shown live | built (`markup_defaults`, 10/31): the usual markup per kind of line fills a line with a cost; the quote shows the margin as it is built | built |
 | Allowance lines that become Selections allowances | an allowance line opens on Selections when the quote is approved | built |
 | One allowance covering several selections; overages flowing to a revised budget | built (`shared_allowances`, row 7a): project_allowance; overage charged as change orders as each is approved, credit on the last; Job Costing budget shows the revisions and revised totals | built |
-| Quote templates (lines, deposit, message, terms) and "create similar" | not found | not built |
+| Quote templates (lines, deposit, message, terms) and "create similar" | built (`quote_templates`, 10/31) | built |
 | Optional items (can be pre-selected; deposit recalculates when the client adds one) | optional lines ticked by office or customer, deposit follows (`quoteOptions.ts`) | built |
-| Line images | not found on quote lines | not built |
-| Automatic quote follow-up | not found | not built |
+| Line images | built (`quote_line_images`, 10/31) | built |
+| Automatic quote follow-up | built (`quote_followup`, 10/31): emailed a few days after sending, once per step, never after they answer or unsubscribe | built |
 | Good / better / best options | one implementation for every quoting trade (10/31, `quote_proposals`, hidden) | built |
 | **Approved quote → project budget** (original budget = the signed quote) | approved quote → budget by cost code; Job Costing's "Project budgets" panel | built |
-| Bills / purchase orders linked to budget lines; projected profit per line | budget vs "spent so far" for the whole project — actual cost is not split by cost code | partly |
+| Bills / purchase orders linked to budget lines; projected profit per line | built (`cost_by_code`, 10/31): time, expenses and vendor bills filed under a cost code, so each budget line shows its cost and profit | built |
 | A JobTread-style formula / parameter engine | built (`quote_formulas`, row 9): parameters on a job and a quote (the quote's win); line quantity / price formulas over parameters and other lines by name (round, ceil, floor, roundup, min, max, abs, sqrt); worked out on every save and when the job's parameters change (open quotes, a broken one named and left as it was); errors in words; kept in quote templates and as a price-guide item's quantity formula; a takeoff measurement fills a job parameter | built |
 
 ## Reports
@@ -40,9 +44,9 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Cash collected vs owed, past due | on every trade's home screen | built |
 | Unanswered leads | yes | built |
 | Today's work | Today's board on for contractor | built |
-| Pipeline strip: count and $ at each stage (leads → quotes → jobs → invoices) | only on the restaurant's dashboard | not built |
-| "Needs me" list incl. quotes awaiting a reply | leads and overdue invoices yes; quotes awaiting reply no | partly |
-| An owner view and a crew view | one view | not built |
+| Pipeline strip: count and $ at each stage (leads → quotes → jobs → invoices) | built (`lead_pipeline`, 10/31) | built |
+| "Needs me" list incl. quotes awaiting a reply | built (`lead_pipeline` and `owner_dashboard`, 10/31): quotes still waiting on a customer, longest first; bills due, jobs nobody is on, projects over budget | built |
+| An owner view and a crew view | built (`owner_dashboard`, `crew_dashboard`, 10/31): the owner's "needs you today"; the crew's jobs today and next, hours this week, open tasks | built |
 
 ## Lead inbox
 
@@ -51,8 +55,8 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 | Convert straight to a quote, a job or a project | one step | built |
 | A human "Spam" action (hidden from New and counts, undo) | yes — neither Jobber nor Housecall documents one | beats |
 | Source tag | leads carry their source | built |
-| A site-visit / assessment step a lead can be booked into | not found | not built |
-| Lost with a reason | not found for contractor leads (roofing jobs and restaurant events have it) | not built |
+| A site-visit / assessment step a lead can be booked into | built (`lead_site_visit`, 10/31): booked from the enquiry onto the schedule, moved or cancelled | built |
+| Lost with a reason | built (`lead_lost`, 10/31) | built |
 
 ## Inspections
 
@@ -60,9 +64,9 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 |---|---|---|
 | Checklist templates: pass / fail / n.a., note, photo per item | built (`inspection_checklists`) | built |
 | A failed item creates a punch-list item | yes — no leader documents the link | beats |
-| Signature | owner's decision: not now | not built |
-| Auto-attach a checklist by job / project type | not stated, not found | not built |
-| Filled in on the phone | no phone screen; the field role cannot answer checklists (owner's decision) | not built |
+| Signature | built (`inspection_signature`, 10/31): the customer signs on the phone, with the record a signed quote keeps | built |
+| Auto-attach a checklist by job / project type | built (`inspection_auto_checklists`, 10/31) | built |
+| Filled in on the phone | built (`phone_inspections`, 10/31; row 11b): crew answer on the jobs they are on, with no signal | built |
 
 ## Project templates
 
@@ -78,18 +82,48 @@ leaders' pages do not document it). Checked against the code on 10/31 where the 
 |---|---|---|
 | Collapsible groups in workflow order, each trade its own order, every item in a group | built | built |
 | Open / closed remembered per user | yes (per user, on that browser) | built |
-| Collapse-to-icons rail | not found | not built |
+| Collapse-to-icons rail | built (`nav_rail`, row 8), kept per user | built |
 | No blank pages while loading | every page says what it is loading | built |
 
 ## Pricing
 Every feature included for every seat (seat plans only) — Jobber gates optional items, images and follow-ups to its Grow
 plan. **beats**, on price.
 
-## What is left, in the order a builder would feel it
-1. Quote templates / "create similar" and automatic quote follow-up.
-2. Default markup by cost type with a live margin column; line images.
-3. Actual cost by cost code, so the budget shows profit per line and bills/POs post to budget lines.
-4. Pipeline strip and an owner/crew dashboard split; "quotes awaiting reply" in the needs-me list.
-5. Leads: site-visit booking, Lost with a reason.
-6. Inspections on the phone (with the field role), signature, auto-attach by type.
-7. Project templates carrying budget lines and selections; allowance → several selections and overage → revised budget.
+## Buildertrend inventory (11/10)
+
+Read view-only from a working Buildertrend account (the owner's inventory, 11/10) and checked against our code the same day. Only
+what we do not have is listed; everything else in the inventory is built (the rows above, and `contractor-portal.md`,
+`contractor-payments.md`, `contractor-phone.md`).
+
+| Buildertrend | Ours (code, 11/10) | Mark |
+|---|---|---|
+| **Bid packages to subs**: send a package, track each sub's response, compare bids | "Bids" (`crm/projects/bids.ts`) are the company's own bids to its clients; nothing goes to subs | not built |
+| **Schedule baseline**, and baseline vs actual duration (also a report) | a `project_baseline` table in the schema (task snapshots) with no route or screen reading it | not built (half-started) |
+| **Workday exceptions**: holidays and days off the schedule skips | none on the project schedule (only booking hours and the bar have closed days) | not built |
+| **Lead map** | none | not built |
+| **Weekly client update** (a digest, liked / read) | none (listed for a later row in `contractor-portal.md`) | not built |
+| **Credit memos** on invoices | none | not built |
+| **Photo folders per job** (pre-sale, progress, from change orders and messages) | photos carry tags in the table, but no folders and no screen uses the tags | not built |
+| Builder's risk insurance on a job; cost / price per sq ft on the jobs list | none | not built |
+
+Also checked and built: **hiding the schedule** ("Schedule Offline") — the client's schedule is off / phases / every task per
+project (row 10a), and subs never see it (the vendor portal shows a sub its own purchase orders only).
+
+Set aside, not counted as gaps: **AI Bill Capture** (a paid AI call per receipt — the parked paid features) and the **partner
+integrations** (Gusto, Lowe's PRO, Home Depot, HubSpot, Salesforce, Pipedrive, Bluebeam), which need partner accounts.
+
+## What is left, in the order a builder would feel it (11/10)
+1. Bid packages to subs.
+2. Schedule baseline and baseline vs actual (finish the half-started table), with workday exceptions.
+3. Photo folders per job.
+4. Credit memos.
+5. Weekly client update.
+6. Lead map.
+7. Builder's risk field; cost / price per sq ft on the jobs list.
+
+Still open from the other contractor files: a message thread per **project** in the client portal (today one thread per contact;
+roofing has one per job), and "seen" for documents, not only quotes (`contractor-portal.md`). `contractor-payments.md` and
+`contractor-phone.md` are built in full (re-checked 11/10).
+
+The 10/31 list (quote templates, markup defaults, cost by code, pipeline and dashboards, lead site visits and Lost, inspections on
+the phone, template parts) is built.
