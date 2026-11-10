@@ -15,6 +15,7 @@ import { createJobCostingRoutes } from './jobCosting.ts'
 import { createReceivablesRoutes, createWipRoutes } from './reportsDepth.ts'
 import { createRoutingRoutes } from './routing.ts'
 import { createDayRouteRoutes } from './dayRoute.ts'
+import { createDaysOffRoutes } from './daysOffRoutes.ts'
 import { createMapsRoutes, createMapCenterRoutes } from './maps.ts'
 import { createGeofencingRoutes } from './geofencing.ts'
 import { createWeatherRoutes } from './weather.ts'
@@ -58,6 +59,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/maps', access: 'user', feature: 'map_view', router: createMapsRoutes(d) },
     // Where a new map opens (the business's address or service area): every map screen's, so no one map's feature.
     { path: '/api/map-center', access: 'user', router: createMapCenterRoutes(d) },
+    // The business's days off (holidays), for the trades with jobs — feature days_off, not ready (daysOffRoutes.ts, parity tier 2).
+    { path: '/api/days-off', access: 'user', feature: 'days_off', router: createDaysOffRoutes(d) },
     { path: '/api/geofencing', access: 'user', feature: 'gps_tracking', router: createGeofencingRoutes(d) },
     // Time Clock settings, overtime, the kiosk (crm/field/clockExtras.ts): part of Time Tracking.
     { path: '/api/time-clock', access: 'user', feature: 'time_tracking', router: clockExtras.routes },

@@ -129,6 +129,8 @@ export default function DispatchBoard() {
   const showAvailability = hasFeature('tech_availability');
   // …and, with it, each person's shifts as bars on a time axis (regular, on call and time off apart — ServiceTitan's board).
   const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string; bars: ShiftBar[] }>>({});
+  // The business is closed this day (Settings › Days off — a holiday): said above the board; jobs can still be put on it.
+  const [closed, setClosed] = useState<{ reason: string | null } | null>(null);
   const meId = (user as any)?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayKey());
@@ -154,11 +156,12 @@ export default function DispatchBoard() {
       // SETTLED, not all: the technician list is team:read, which a technician does not hold, and one refused
       // request emptied the whole board — staff opened Dispatch to a blank day. The day's work is the board; the
       // roster is the dispatcher's. (T62: "the Dispatch board is empty for staff, because one 403 breaks the page")
-      const [jobsOut, techsOut, awayOut] = await Promise.allSettled([
+      const [jobsOut, techsOut, awayOut, closedOut] = await Promise.allSettled([
         api.get(`/api/jobs?date=${selectedDate}&limit=200`),
         // /assignable, NOT /api/team: GET /api/team ignores ?role, and roster-only crew are only on /assignable. (T42)
         maySeeRoster ? api.get('/api/team/assignable') : Promise.resolve({ data: [] }),
         showAvailability ? api.get(`/api/availability/day?date=${selectedDate}`) : Promise.resolve({ people: [] }),
+        api.get(`/api/days-off?from=${selectedDate}&to=${selectedDate}`),
       ]);
       // A day typed into the date box passes through other days on the way (each keystroke is a date), and their answers can
       // land after the last one: only the day still chosen is shown (basic live test 11/10: a typed date showed 0 jobs and
@@ -171,6 +174,8 @@ export default function DispatchBoard() {
       setTechs(Array.isArray(techsRes?.data) ? techsRes.data : []);
       const awayRes = (awayOut.status === 'fulfilled' ? awayOut.value : { people: [] }) as { people?: Array<{ personId: string; state: 'off' | 'part' | 'hours'; label: string; bars?: ShiftBar[] }> };
       setAway(Object.fromEntries((awayRes.people || []).map(p => [p.personId, { state: p.state, label: p.label, bars: Array.isArray(p.bars) ? p.bars : [] }])));
+      const closedDay = closedOut.status === 'fulfilled' ? ((closedOut.value as { data?: Array<{ reason: string | null }> })?.data || [])[0] : undefined;
+      setClosed(closedDay ? { reason: closedDay.reason ?? null } : null);
     } catch (error) {
       console.error('Failed to load dispatch data:', error);
       if (!quiet) toast.error('Failed to load dispatch board');
@@ -285,6 +290,7 @@ export default function DispatchBoard() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dispatch Board</h1>
           <p className="text-gray-600 dark:text-slate-400">{dateDisplay}</p>
+          {closed && <p role="status" className="mt-1 inline-block rounded-lg bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Closed today{closed.reason ? ` — ${closed.reason}` : ''} (Settings › Days off)</p>}
           {mayDispatch && <p className="text-sm text-gray-600 dark:text-slate-400">Drag a {JOB_WORD.toLowerCase()} to a person's lane — or tap Move, then a lane — to change who is on it.</p>}
           {showAvailability && (
             <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-slate-400" data-testid="shift-legend">
