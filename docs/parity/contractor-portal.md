@@ -6,26 +6,26 @@ then checked against our portal (`packages/tenant-backend/src/portal/portal.ts`,
 
 ## What the leaders give the client
 
-| Leader feature | Ours (before row 10) | Mark |
+| Leader feature | Ours (before row 10) | Mark now (re-checked against the code 11/10) |
 |---|---|---|
 | Quotes / estimates: read, approve with signature, pick options, request changes (Jobber, BT, JobTread) | quotes, options, Good/Better/Best, approve with e-sign evidence, pay deposit | built |
 | Invoices paid online, partial payments (all three) | invoices, pay online; pay any amount (`portal_pay_options`, roofing) | built |
 | Change orders approved / declined (BT, JobTread) | change orders approve / reject | built |
 | Selections chosen against allowances (BT) | selections | built |
 | Messages with the team, per job (all three) | portal messages; a thread per job for roofing (`portal_posts_packets`) | partly — no thread per **project** for the contractor |
-| Files and photos the builder shares (BT, JobTread) | shared documents / file room; roofing shares job photos (`portal_job_files`) | partly — the contractor cannot choose a project photo or file to show |
+| Files and photos the builder shares (BT, JobTread) | shared documents / file room; roofing shares job photos (`portal_job_files`) | built (10a) — each file and photo shared or not, per project |
 | Work requests, appointments (Jobber) | service request, appointments | built |
 | Warranty requests (BT) | warranty | built |
 | Lien waivers, RFIs, submittals (BT, for subs / architects) | built | built |
-| **Daily logs the builder shares** — notes and photos (BT: "Daily logs give clients site progress updates, photos and notes") | not in the portal | not built |
-| **The schedule** — phases only or every item, how far ahead, the client comments (BT); full schedule / phases / only what is theirs (JobTread) | the project page shows dates and up to 10 jobs; no schedule | not built |
-| **Payment schedule / draws paid online** — draws split the contract into scheduled payments tied to progress; released draws are invoiced and paid from the portal (BT draws, BT Payments) | draw schedules exist for lender (AIA) draws; a draw never becomes something the client can see or pay | not built |
-| **Documents to e-sign** — contracts and other documents sent for signature and signed in the portal (BT digital signatures) | only quotes and change orders are signed | not built |
-| **Owner-set visibility per job and per item** — client job permissions per job with company defaults; each daily log / to-do / photo shared or not (BT Default Job Permissions, per-job Clients tab) | the portal's sections are on or off for the whole business (company portal settings); nothing per project or per item | not built |
-| **Client to-dos** — a to-do shared with the client: title, notes, checklist (BT) | none | not built |
-| **Notifications to the client** — choose on the job which notifications the client gets (BT); everyone in the thread is told of a reply (JobTread); "tell them when something new is shared" (ours for roofing, `portal_tools`) | portal link email; roofing new-item notice | partly — nothing tells a contractor's client of a new daily log, schedule change, draw, to-do or document to sign |
-| Weekly client update, liked / read (BT Client Updates) | none | not built |
-| See what the client sees (BT "Edit from Client Portal"; ours for roofing, `portal_tools`) | roofing only | partly |
+| **Daily logs the builder shares** — notes and photos (BT: "Daily logs give clients site progress updates, photos and notes") | built (10a) |
+| **The schedule** — phases only or every item, how far ahead, the client comments (BT); full schedule / phases / only what is theirs (JobTread) | built (10a) — phases or every task, weeks ahead, comments both ways |
+| **Payment schedule / draws paid online** — draws split the contract into scheduled payments tied to progress; released draws are invoiced and paid from the portal (BT draws, BT Payments) | built (10b) — released payments raise invoices the client pays in the portal |
+| **Documents to e-sign** — contracts and other documents sent for signature and signed in the portal (BT digital signatures) | built (10c) |
+| **Owner-set visibility per job and per item** — client job permissions per job with company defaults; each daily log / to-do / photo shared or not (BT Default Job Permissions, per-job Clients tab) | built (10a) — per project over a company default, and per item |
+| **Client to-dos** — a to-do shared with the client: title, notes, checklist (BT) | none | built (10a) |
+| **Notifications to the client** — choose on the job which notifications the client gets (BT); everyone in the thread is told of a reply (JobTread); "tell them when something new is shared" (ours for roofing, `portal_tools`) | portal link email; roofing new-item notice | built (10a–c) — emailed as the project's settings say |
+| Weekly client update, liked / read (BT Client Updates) | none | not built — still open (contractor.md, Buildertrend inventory 11/10) |
+| See what the client sees (BT "Edit from Client Portal"; ours for roofing, `portal_tools`) | built (10a) — the office's preview of the client's page |
 | Seen: when the client viewed a document (JobTread) | quote viewed; last portal visit (roofing) | partly |
 
 ## What row 10 builds (each hidden until tested, feature `client_portal_plus`, contractor CRM)
