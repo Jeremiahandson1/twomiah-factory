@@ -136,7 +136,7 @@ export default function ChecklistsPage() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-slate-100"><ClipboardCheck className="h-6 w-6" aria-hidden />Job Checklists</h1>
-          <p className="text-sm text-gray-600 dark:text-slate-300">Build the checklist for each kind of job. Your {vocabulary().team.many} fill it in on the phone, and the customer can sign it on site. Set a job’s kind on the job itself.</p>
+          <p className="text-sm text-gray-600 dark:text-slate-300">Build the checklist for each kind of job. Your {vocabulary().team.many} can fill it in on the phone, and the customer can sign it on site. Set a job’s kind on the job itself.</p>
         </div>
         {mayEdit && !draft && <button type="button" className={btn} onClick={() => setDraft(blank())}><Plus className="mr-1 inline h-4 w-4" />New checklist</button>}
       </div>
