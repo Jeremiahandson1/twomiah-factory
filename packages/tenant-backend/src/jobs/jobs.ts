@@ -33,6 +33,9 @@ import { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './dispatch'
 import { travelMinutes, type Place } from './travel'
 import { partialOf } from '../partialOf'
 
+
+/** The folders a job's photos are filed in (job_photo.photo_type); 'general' is none. Roofing's own five are among them. */
+export const JOB_PHOTO_KINDS = ['general', 'before', 'during', 'after', 'progress', 'damage', 'inspection', 'issue'] as const
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
   teamMember?: any
@@ -838,7 +841,9 @@ export function createJobRoutes(deps: JobDeps) {
      * Before or after the work (Yardbook before/after photos; landscaping parity row 9): the photo's kind, where the table keeps one
      * (job_photo.photo_type). Anything else is an ordinary photo, as before.
      */
-    const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && (v === 'before' || v === 'after') ? { photoType: v } : {})
+    // …and the job's photo folders (parity tier 2 #2, 11/10 — Buildertrend's photo folders): the same kinds roofing's job page
+    // files under (before, during, after, damage) and progress, inspection, issue. 'general' is a photo in no folder.
+    const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && typeof v === 'string' && (JOB_PHOTO_KINDS as readonly string[]).includes(v) ? { photoType: v } : {})
 
     app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
@@ -898,6 +903,17 @@ export function createJobRoutes(deps: JobDeps) {
       const fresh = [...new Set(urls)].filter((u) => !have.has(u))
       const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption, ...photoKind(body?.kind) }))).returning() : []
       return c.json({ saved: made.length, photos: made }, made.length ? 201 : 200)
+    })
+
+    // Move a photo to another folder (or out of one: 'general').
+    app.patch('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const body = await c.req.json().catch(() => null) as { kind?: unknown } | null
+      const kind = photoKind(body?.kind)
+      if (!('photoType' in kind)) return c.json({ error: `Choose one of: ${JOB_PHOTO_KINDS.join(', ')}.`, code: 'validation_failed' }, 400)
+      const [moved] = await db.update(t.jobPhoto).set(kind).where(and(eq(t.jobPhoto.id, c.req.param('photoId')), eq(t.jobPhoto.jobId, c.req.param('id')), eq(t.jobPhoto.companyId, currentUser.companyId))).returning()
+      if (!moved) return c.json({ error: 'Photo not found' }, 404)
+      return c.json(moved)
     })
 
     app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {

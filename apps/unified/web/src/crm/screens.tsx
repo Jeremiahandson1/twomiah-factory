@@ -128,7 +128,7 @@ export function JobDetail() {
   // the vertical has job photos, else in the photo library by job (/api/photos?jobId) — contractor's. Notes are the job's
   // comments (/api/comments, every vertical). Live test 2026-10-22: the page had neither an add nor a notes log.
   return <JobDetailPage api={client} toast={useToast()} config={{
-    ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
+    ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library', photoFolders: hasFeature('photo_folders'),
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
     // Drawing on a photo works on the job's own photos (job_photo), not the photo library's.
