@@ -16,6 +16,11 @@ Started 11/10 from the Buildertrend inventory (`contractor.md`, "Buildertrend in
 | **In-person payments** — a customer's credit or debit card taken at the counter (tap to pay on a phone, or a card reader); not gift cards | store (and any trade selling at a counter) | `tap_to_pay` (shared; not yet offered to the store) | open the feature to the store; a counter screen that sells from the catalogue (`store.md`, Shopify chart) |
 | **Texting** — SMS campaigns and two-way chat | store | `two_way_texting` (shared, on 12 CRMs) | open the feature to the store |
 | **Stock in more than one place** — locations, a count per location, transfers | store; the salon has its own (`salon_stock_location`) | the shared inventory (`packages/tenant-backend/src/inventory`: `inventory_location`, `stock_level`, transfers) | store variants counted on it; later the salon's moved onto it — one version, not three |
+| **Built for one trade, wanted by more** — estimate templates, quote follow-up, change orders, sales pipeline, owner / crew dashboards | field service, landscaping, basic (ServiceTitan list, 11/10 — `fieldservice-servicetitan.md`) | `quote_templates`, `quote_followup`, `change_orders`, `lead_pipeline`, `owner_dashboard`, `crew_dashboard` (contractor only today) | add the trades to each feature's `templates`, then try each |
+| **Booking from the customer portal** | field service, landscaping, basic | `portal_appointments` (the salon only) | open it to the trades with online booking |
+| **Skill matching** — the right person for the job | field service, landscaping, basic, roofing | `skills` already on team members (`tenant-backend/src/team/team.ts`); home care's matching (row 14) | one rule the dispatch board and the schedule both use |
+| **"Where's my tech" link** in the on-my-way text | field service, landscaping, basic, roofing | GPS (`gps_tracking`) and the on-my-way text (`tech/tech.ts`) | a live link in the text |
+| **Barcode scanning on the phone** | field service (equipment, parts), store | the store's scanner (`apps/mobile/src/trades/store.ts`) | one scanner the trades share |
 
 Contractor-only for now (they ride on things only the contractor has): bid packages to subs (on `vendor_portal` and
 `purchase_orders` — opens to roofing and landscaping with the vendor portal, not as a second build), the schedule baseline
