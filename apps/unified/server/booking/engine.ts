@@ -163,6 +163,9 @@ export interface BookInput {
   email: string
   phone?: string | null
   address?: string | null
+  /** The town and state typed beside the street (field service re-check 11/10: they reached nothing). */
+  city?: string | null
+  state?: string | null
   zip?: string | null
   notes?: string | null
   /** One of the service's tip choices, in percent. */
@@ -962,10 +965,10 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   /** The person, matched by email or made (the booking is linked to them: SPEC §4.7). Never overwrites their record. */
-  async function contactFor(tx: any, companyId: string, c: { name: string; email: string; phone: string | null; address: string | null; zip: string | null }) {
+  async function contactFor(tx: any, companyId: string, c: { name: string; email: string; phone: string | null; address: string | null; city?: string | null; state?: string | null; zip: string | null }) {
     const [found] = await tx.select({ id: contact.id }).from(contact).where(and(eq(contact.companyId, companyId), eq(contact.email, c.email))).limit(1)
     if (found) return found.id as string
-    const [made] = await tx.insert(contact).values({ companyId, type: 'client', name: c.name, email: c.email, phone: c.phone, mobile: c.phone, address: c.address, zip: c.zip, source: 'online_booking' }).returning({ id: contact.id })
+    const [made] = await tx.insert(contact).values({ companyId, type: 'client', name: c.name, email: c.email, phone: c.phone, mobile: c.phone, address: c.address, city: c.city ?? null, state: c.state ?? null, zip: c.zip, source: 'online_booking' }).returning({ id: contact.id })
     return made.id as string
   }
 
@@ -991,7 +994,11 @@ export function createBookingEngine(deps: EngineDeps) {
     const name = String(input.name || '').trim().slice(0, 200)
     const email = String(input.email || '').trim().toLowerCase().slice(0, 320)
     const phone = String(input.phone || '').trim().slice(0, 40) || null
-    const address = String(input.address || '').trim().slice(0, 300) || null
+    const street = String(input.address || '').trim().slice(0, 300) || null
+    const city = String(input.city || '').trim().slice(0, 100) || null
+    const state = String(input.state || '').trim().slice(0, 20) || null
+    // The booking keeps one line to read and to drive to ("88 Oak Ave, Chippewa Falls, WI"); the person's record keeps each part.
+    const address = street && (city || state) ? [street, city, state].filter(Boolean).join(', ').slice(0, 300) : street
     const typedZip = String(input.zip || '').trim().slice(0, 10) || null
     const zip = typedZip && (normaliseZip(typedZip) ?? typedZip)
     if (!name) throw new BookingError('Please enter your name.')
@@ -1054,7 +1061,7 @@ export function createBookingEngine(deps: EngineDeps) {
       const out: { alsoWho?: Array<Array<string | null>> } = {}
       const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override, external, also: extra, out })
       if (assignedUserId && !opts.override && !who.includes(assignedUserId) && (chosen || !who.includes(null))) throw new BookingError(chosen ? 'That time has just been taken — please pick another.' : "That person isn't free then.", 409, 'taken')
-      const contactId = await contactFor(tx, companyId, { name, email, phone, address, zip })
+      const contactId = await contactFor(tx, companyId, { name, email, phone, address: street, city, state, zip })
       // Forms the salon wants done before this is confirmed: the booking is held (before any deposit or card step) until they are. Every service's forms.
       if (customer && deps.addOn?.forms) for (const x of all) if (!formsFirst && (await deps.addOn.forms.blocking({ companyId, contactId, serviceMenuId: (x as any).serviceMenuId ?? null }, tx)) > 0) formsFirst = true
       const firstWho = assignedUserId ?? pickWho(who)

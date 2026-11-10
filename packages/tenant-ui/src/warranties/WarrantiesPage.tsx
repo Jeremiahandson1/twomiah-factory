@@ -41,9 +41,14 @@ interface WarrantyData {
   isExpiringSoon: boolean;
   isExpired: boolean;
   project?: { name: string };
+  equipment?: { name: string; model?: string | null } | null;
   contact?: { name: string };
   _count?: { claims: number };
 }
+
+/** What a warranty covers: its project, else the unit it names ("Gas Furnace · 59TN6"). */
+const coversOf = (x: { project?: { name: string } | null; equipment?: { name: string; model?: string | null } | null }) =>
+  x.project?.name || (x.equipment ? [x.equipment.name, x.equipment.model].filter(Boolean).join(' · ') : '');
 
 interface ClaimData {
   id: string;
@@ -60,6 +65,7 @@ interface ClaimData {
   location?: string | null;
   warranty?: { name: string };
   project?: { name: string };
+  equipment?: { name: string; model?: string | null } | null;
   contact?: { name: string };
 }
 
@@ -302,7 +308,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
         <thead className="bg-gray-50 dark:bg-slate-900">
           <tr>
             <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Warranty</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Project</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Covers</th>
             <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
             <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
             <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Claims</th>
@@ -330,7 +336,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                 </div>
               </td>
               <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
-                {warranty.project?.name}
+                {coversOf(warranty)}
               </td>
               <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                 {warranty.contact?.name}
@@ -467,7 +473,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
             <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Claim</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Project</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Covers</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Reported</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
                 <th className="px-4 py-3"></th>
@@ -485,7 +491,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                       <p className="text-sm text-gray-500 dark:text-slate-400">{claim.warranty?.name}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-gray-900 dark:text-slate-100">{claim.project?.name}</p>
+                      <p className="text-gray-900 dark:text-slate-100">{coversOf(claim)}</p>
                       <p className="text-sm text-gray-500 dark:text-slate-400">{claim.contact?.name}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-slate-400">

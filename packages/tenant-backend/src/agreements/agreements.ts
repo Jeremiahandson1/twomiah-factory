@@ -811,6 +811,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
    * `source` is reported so a screen can tell them apart if it ever wants to, and so this is
    * debuggable without reading the query.
    */
+  /** How far back an open visit still shows on Upcoming Visits, as Overdue. */
+  const OVERDUE_DAYS = 30
   async function getUpcomingVisits(companyId: string, { days = 30 }: { days?: number } = {}) {
     const visitsTz = await companyTimeZone(db, companyId)
     // From the start of TODAY, not from this instant: work due earlier today is still upcoming, and
@@ -820,6 +822,10 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const startDate = businessToday(visitsTz)
     // …through the end of the day `days` on.
     const endDate = new Date(startDate.getTime() + (days + 1) * 86_400_000 - 1)
+    // …and back OVERDUE_DAYS: a visit still open from the last month is overdue work, shown first and marked (Jobber's overdue visits —
+    // field service re-check 11/10: yesterday's plan visit, never done, left the list reading "No upcoming visits"). Older than that it is
+    // a leftover, not work — a visit scheduled in 2024 does not count (T42).
+    const overdueFrom = new Date(startDate.getTime() - OVERDUE_DAYS * 86_400_000)
 
     /**
      * NOT EVERY TEMPLATE STORES A NEXT SERVICE DATE. (T48 — caught live on ctrtest as a 500)
@@ -869,7 +875,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [booked, generated] = await Promise.all([
       db.select().from(agreementVisit).where(and(
         eq(agreementVisit.status, 'scheduled'),
-        gte(agreementVisit.scheduledDate, startDate),
+        gte(agreementVisit.scheduledDate, overdueFrom),
         lte(agreementVisit.scheduledDate, endDate),
         inArray(agreementVisit.agreementId, agreementIds),
       )),
@@ -879,7 +885,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       }).from(job).where(and(
         eq(job.companyId, companyId),
         inArray(job.status, ['scheduled', 'in_progress']),
-        gte(job.scheduledDate, startDate),
+        gte(job.scheduledDate, overdueFrom),
         lte(job.scheduledDate, endDate),
         inArray(job.serviceAgreementId, agreementIds),
       )),
@@ -929,6 +935,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           if (a.status !== 'active') return false
           if (a.endDate && markerDayHasBegun(a.endDate, visitsTz)) return false
           const due = new Date(a.nextServiceDate).getTime()
+          // From today only: a plan's own next date in the past may be one a completed visit already covered (its job is not read above).
           if (!(due >= startDate.getTime() && due <= endDate.getTime())) return false
           const already = (d: Date | string) => new Date(d).toISOString().slice(0, 10) === new Date(a.nextServiceDate).toISOString().slice(0, 10)
           if (booked.some((v: any) => v.agreementId === a.id && already(v.scheduledDate))) return false
@@ -947,7 +954,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         }))),
     ]
     rows.sort((a, b) => new Date(a.scheduledDate as any).getTime() - new Date(b.scheduledDate as any).getTime())
-    return rows
+    // Before today on the business's clock and still not done.
+    return rows.map((r) => ({ ...r, overdue: new Date(r.scheduledDate as any).getTime() < startDate.getTime() }))
   }
 
   // ---- billing ----
@@ -1431,7 +1439,7 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   })
 
   // ---- visits ----
-  app.get('/visits/upcoming', async (c: any) => c.json(await service.getUpcomingVisits((c.get('user')).companyId, { days: parseInt(c.req.query('days')) || 30 })))
+  app.get('/visits/upcoming', async (c: any) => c.json(await service.getUpcomingVisits((c.get('user')).companyId, { days: Math.min(400, Math.max(1, parseInt(c.req.query('days')) || 30)) })))
   app.post('/:id/visits', requirePermission('agreements:update'), async (c: any) => c.json(await service.scheduleVisit(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
   app.post('/visits/:visitId/complete', requirePermission('agreements:update'), async (c: any) => c.json(await service.completeVisit(c.req.param('visitId'), (c.get('user')).companyId, await c.req.json())))
 

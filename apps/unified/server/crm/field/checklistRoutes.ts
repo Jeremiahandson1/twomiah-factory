@@ -21,7 +21,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { ownJobScope, sniffType, withoutSigningEvidence } from '@twomiah/tenant-backend'
+import { companyTimeZone, noteStamp, ownJobScope, sniffType, withoutSigningEvidence } from '@twomiah/tenant-backend'
 import { formSubmission, formTemplate, job, jobAssignee, crewLogin, jobPhoto } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, listAll, one } from '../../http/reply.ts'
@@ -399,6 +399,20 @@ export function createChecklistRoutes(d: CrmDeps) {
     }
   }
 
+  /**
+   * A line in the job's field log, beside "Tech arrived on site" and "Job completed by tech" — the office reads the log on the job's
+   * Notes ("From the field"), and a checklist finished in the field was the one step missing from it (field service re-check 11/10).
+   */
+  async function logOnJob(companyId: string, jobId: string, line: string) {
+    try {
+      const [j] = await db.select({ notes: job.internalNotes }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, companyId))).limit(1)
+      if (!j) return
+      const stamped = `[${noteStamp(new Date(), await companyTimeZone(db, companyId))}] ${line}`
+      await db.update(job).set({ internalNotes: [j.notes, stamped].filter(Boolean).join('\n'), updatedAt: new Date() } as any).where(and(eq(job.id, jobId), eq(job.companyId, companyId)))
+    } catch { /* the checklist is saved; its line in the log is a convenience */ }
+  }
+  const STATE_WORDS: Record<string, string> = { submitted: 'done', signed: 'done and signed', awaiting_signature: 'filled in, needs the customer to sign' }
+
   app.post('/job/:jobId/submit', requirePermission('jobs:update'), async (c) => {
     const parsed = submitSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
@@ -478,6 +492,7 @@ export function createChecklistRoutes(d: CrmDeps) {
     // The row this job was given for the checklist is now this filled-in copy.
     await db.delete(formSubmission).where(and(eq(formSubmission.companyId, u.companyId), eq(formSubmission.jobId, j.id), eq(formSubmission.templateId, tpl.id), eq(formSubmission.status, 'assigned')))
     audit.log({ action: audit.ACTIONS.CREATE, entity: 'checklist_submission', entityId: id, entityName: tpl.name, metadata: { jobId: j.id, status, ...(signed ? { signatureHash: signed.signatureHash } : {}) }, req: c })
+    await logOnJob(u.companyId, j.id, `Checklist "${tpl.name}" ${STATE_WORDS[status] ?? status}`)
     return one(c, await shapeSubmission(c, saved), 201)
   })
 
@@ -496,6 +511,7 @@ export function createChecklistRoutes(d: CrmDeps) {
       .where(and(eq(formSubmission.id, found.id), isNull(formSubmission.signedAt))).returning()
     if (!saved) return fail(c, 409, 'This checklist is already signed.', 'already_signed')
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'checklist_submission', entityId: found.id, entityName: tpl.name, metadata: { jobId: found.jobId, signed: true, signatureHash: signed.signatureHash }, req: c })
+    await logOnJob(u.companyId, found.jobId, `Checklist "${tpl.name}" signed by the customer`)
     return one(c, await shapeSubmission(c, saved))
   })
 
