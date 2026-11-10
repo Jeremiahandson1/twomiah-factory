@@ -57,3 +57,31 @@ Only an outside party, an approval or a real-device look remains; nothing in the
 2. **Owner's approvals before these work live:** Apple Pay domain registration with Stripe; the Stripe Connect webhook subscribed to `payment_intent.succeeded` (wallet payments); a Meta System User token with `ads_management` (App Review if the app is not theirs); Google's developer-token approval and an OAuth client for Customer Match.
 3. **Never run against the real thing:** Stripe.js and the wallets, Meta's and Google's APIs (tested against stand-ins), any webhook receiver. No page was seen in a real browser and no phone screen on a real phone.
 4. **Is the trade at full parity with Shopify?** Not yet: what a single shop can do is built, behind hidden switches, but the three outside-party items above are Shopify's own network and marketplace, and the unseen items must be tried live before any switch is turned on.
+
+## Shopify's plan chart (11/10)
+
+The owner's paste of Shopify's "Compare features across plans" (Basic / Grow / Advanced / Plus), checked against our code on
+11/10. Most rows are built (above). What is not:
+
+| Shopify | Ours (code, 11/10) | Mark | Builds on (share first) |
+|---|---|---|---|
+| **In-person payments (POS)**: a customer's credit or debit card taken at the counter — card reader or tap to pay on a phone | an order can be *recorded* as paid in person (New order › Already paid in person, store live test 11/10); no card taken in person, no counter screen | not built | **shared** `tap_to_pay` (on contractor, field service, basic, landscaping, roofing, salon) — open it to the store, plus a counter screen that sells from the catalogue and takes stock off |
+| **SMS campaigns; chat with customers** | Two-Way Texting is not offered to the store | not built | **shared** `two_way_texting` (on 12 CRMs) — open it to the store; campaigns ride Email Marketing's audiences |
+| **Inventory locations** (10 on every plan, 200 on Plus) | one stock count per variant (`store_product_variant.inventory_qty`) | not built | **shared** inventory (`packages/tenant-backend/src/inventory`: `inventory_location`, `stock_level` per item per location, transfers) — the store's variants counted there, not a fourth version (the salon's `salon_stock_location` and the card shop's `022_store_inventory.sql` are the other two; the card shop's transfer requests — requested / accepted / fulfilled / declined — are the flow to copy) |
+| **Carrier rates at checkout** ("3rd-party calculated shipping rates", Advanced and Plus) | the owner sees live EasyPost rates when buying a label (`orders/shipping.ts` GET /orders/:id/rates); checkout charges the flat or zone rate | partly | the same EasyPost `getRates`, asked at checkout for the shopper's address |
+| **Sell globally**: prices in local currencies, translated storefront, duties | one currency per shop, English | not built | — (only for shops selling abroad) |
+| **Marketplace orders** (Amazon, eBay, Etsy imported) | none; Google and Meta product feeds exist (`checkout/feeds.ts`) | not built | each marketplace's seller approval — outside party first |
+| 200+ reports | the core reports (row 1 above): sales over time, by product, variant, discount code, profit, repeat customers, CSV | partly | the shared report builder (home care row 12) |
+| Shopify Balance, Capital, Credit card, Bill Pay; Shop Pay network; Collective; Shopify Audiences | — | outside party | Shopify's own banking and network |
+
+Where we are ahead on the chart: no platform fee on the shop's payments (the store's code adds no application fee — the shop
+pays Stripe's own rate; Shopify adds 2% on Basic without Shopify Payments), unmetered email, staff logins on every plan (Basic has
+none), unlimited wholesale groups (Shopify: 3 catalogs below Plus), and the QuickBooks books (row 6).
+
+### What is left (11/10), shared first
+1. In-person payments (credit / debit cards at the counter) — open `tap_to_pay` to the store, add the counter screen.
+2. SMS and customer chat — open `two_way_texting` to the store.
+3. Inventory locations — store variants on the shared inventory locations.
+4. Carrier rates at checkout — EasyPost `getRates` at checkout.
+5. Reports — the store's sales on the shared report builder.
+6. Selling abroad (currencies, translation, duties) and marketplaces — only if the owner targets those shops.
