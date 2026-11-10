@@ -49,7 +49,9 @@ const fieldservice: VerticalSettings = {
   // server/crm/ownWork.ts — the contractor's rep), the maintenance plans it sells, and its own commissions.
   roleLabels: { sales_rep: 'Sales rep' },
   roleMapping: { sales_rep: 'field' },
-  roleExtra: { sales_rep: ['leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'agreements:create', 'agreements:update'] },
+  // contacts:read-all: a rep quotes and sells plans to the customers the office added (Jobber's Salesperson sees every client — field
+  // service re-check 11/10: "the rep could not choose Hank anywhere"). Their leads and quotes stay their own (roleWithheld).
+  roleExtra: { sales_rep: ['contacts:read-all', 'leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'agreements:create', 'agreements:update'] },
   roleWithheld: { sales_rep: ['leads:read-all', 'quotes:read-all'] },
   crm: {
     // The seats a login may be given here: the shared ones and the Sales rep (roleMapping above).
@@ -135,7 +137,7 @@ const fieldservice: VerticalSettings = {
     settings: {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
-        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads and quotes, the maintenance plans they sell, the service calls they are on and their own commissions; not settings, the team or billing' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'every customer; their own leads and quotes, the maintenance plans they sell, the service calls they are on and their own commissions; not settings, the team or billing' },
         { value: 'field', label: 'Staff', description: 'the service calls they are on: status, notes, photos and their own time' },
         { value: 'manager', label: 'Manager', description: 'runs dispatch, service calls, quotes, plans and invoicing; not company settings or logins' },
         { value: 'admin', label: 'Admin', description: 'full access, including company settings and logins' },

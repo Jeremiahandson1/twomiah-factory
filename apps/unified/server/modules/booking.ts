@@ -286,7 +286,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
     const b = await body(c)
     if (!notBot(b)) return fail(c, 400, 'Please try again.')
     const r = await engine.book(id, {
-      service: c.req.param('slug'), date: b.date, time: b.time, name: b.name, email: b.email, phone: b.phone, address: b.address, zip: b.zip, notes: b.notes,
+      service: c.req.param('slug'), date: b.date, time: b.time, name: b.name, email: b.email, phone: b.phone, address: b.address, city: b.city, state: b.state, zip: b.zip, notes: b.notes,
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
       answers: answersOf(engine, b), smsConsent: ticked(b), who: b.who ? String(b.who) : null, also: alsoOf(b.also),
       // Reserve with Google (row 23): the referral the client came by, kept only while the salon has it switched on.

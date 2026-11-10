@@ -83,6 +83,14 @@ export function createWarrantiesService(deps: WarrantiesServiceDeps) {
   const { warrantyTemplate, projectWarranty, warrantyClaim, activityLog, jobAssignment, job, project, contact } = tables;
   const equipmentTable = tables.equipment && 'equipmentId' in projectWarranty ? tables.equipment : null;
 
+  /** The units these warranties name, by id ("Gas Furnace · 59TN6" in the list's Covers column — field service re-check 11/10). */
+  async function unitsOf(ids: Array<string | null | undefined>): Promise<Map<string, { id: string; name: string; model: string | null }>> {
+    const wanted = [...new Set(ids.filter(Boolean))] as string[];
+    if (!equipmentTable || !wanted.length) return new Map();
+    const rows = await db.select({ id: equipmentTable.id, name: equipmentTable.name, model: equipmentTable.model }).from(equipmentTable).where(inArray(equipmentTable.id, wanted));
+    return new Map(rows.map((r: any) => [r.id, r]));
+  }
+
 // ============================================
 // WARRANTY TEMPLATES
 // ============================================
@@ -382,8 +390,10 @@ async function getActiveWarranties(
   // …through the SAME derivation the per-project read uses, which is the whole point: this list is
   // what WarrantiesPage renders "days left" from, and it was the one that did not compute it. (T51)
   const now = new Date();
+  const units = await unitsOf(data.map(({ warranty: w }: any) => w.equipmentId));
   const result = data.map(({ warranty: w, project: p, contact: c, claimCount }) => withExpiry({
     ...w,
+    equipment: w.equipmentId ? units.get(w.equipmentId) ?? null : null,
     project: p,
     contact: c,
     _count: { claims: claimCount },
@@ -537,7 +547,7 @@ async function getClaims(
 
   const data = await db.select({
     claim: warrantyClaim,
-    warranty: { name: projectWarranty.name, category: projectWarranty.category },
+    warranty: { name: projectWarranty.name, category: projectWarranty.category, ...(equipmentTable ? { equipmentId: projectWarranty.equipmentId } : {}) },
     project: { id: project.id, name: project.name },
     contact: { id: contact.id, name: contact.name },
   })
@@ -554,9 +564,11 @@ async function getClaims(
     .from(warrantyClaim)
     .where(whereClause);
 
+  const units = await unitsOf(data.map(({ warranty: w }: any) => w?.equipmentId));
   const result = data.map(({ claim: c, warranty: w, project: p, contact: ct }) => ({
     ...c,
     warranty: w,
+    equipment: w?.equipmentId ? units.get(w.equipmentId) ?? null : null,
     project: p,
     contact: ct,
   }));

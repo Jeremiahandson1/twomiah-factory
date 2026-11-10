@@ -869,7 +869,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [booked, generated] = await Promise.all([
       db.select().from(agreementVisit).where(and(
         eq(agreementVisit.status, 'scheduled'),
-        gte(agreementVisit.scheduledDate, startDate),
+        // No lower bound: a visit still open from before today is OVERDUE and shown as such, first (Jobber's overdue visits —
+        // field service re-check 11/10: yesterday's plan visit, never done, left the list reading "No upcoming visits").
         lte(agreementVisit.scheduledDate, endDate),
         inArray(agreementVisit.agreementId, agreementIds),
       )),
@@ -879,7 +880,6 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       }).from(job).where(and(
         eq(job.companyId, companyId),
         inArray(job.status, ['scheduled', 'in_progress']),
-        gte(job.scheduledDate, startDate),
         lte(job.scheduledDate, endDate),
         inArray(job.serviceAgreementId, agreementIds),
       )),
@@ -929,6 +929,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           if (a.status !== 'active') return false
           if (a.endDate && markerDayHasBegun(a.endDate, visitsTz)) return false
           const due = new Date(a.nextServiceDate).getTime()
+          // From today only: a plan's own next date in the past may be one a completed visit already covered (its job is not read above).
           if (!(due >= startDate.getTime() && due <= endDate.getTime())) return false
           const already = (d: Date | string) => new Date(d).toISOString().slice(0, 10) === new Date(a.nextServiceDate).toISOString().slice(0, 10)
           if (booked.some((v: any) => v.agreementId === a.id && already(v.scheduledDate))) return false
@@ -947,7 +948,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         }))),
     ]
     rows.sort((a, b) => new Date(a.scheduledDate as any).getTime() - new Date(b.scheduledDate as any).getTime())
-    return rows
+    // Before today on the business's clock and still not done.
+    return rows.map((r) => ({ ...r, overdue: new Date(r.scheduledDate as any).getTime() < startDate.getTime() }))
   }
 
   // ---- billing ----
@@ -1431,7 +1433,7 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
   })
 
   // ---- visits ----
-  app.get('/visits/upcoming', async (c: any) => c.json(await service.getUpcomingVisits((c.get('user')).companyId, { days: parseInt(c.req.query('days')) || 30 })))
+  app.get('/visits/upcoming', async (c: any) => c.json(await service.getUpcomingVisits((c.get('user')).companyId, { days: Math.min(400, Math.max(1, parseInt(c.req.query('days')) || 30)) })))
   app.post('/:id/visits', requirePermission('agreements:update'), async (c: any) => c.json(await service.scheduleVisit(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
   app.post('/visits/:visitId/complete', requirePermission('agreements:update'), async (c: any) => c.json(await service.completeVisit(c.req.param('visitId'), (c.get('user')).companyId, await c.req.json())))
 

@@ -99,6 +99,9 @@ interface Visit {
   id: string;
   scheduledDate: string;
   serviceType?: string;
+  /** Before today and still not done. */
+  overdue?: boolean;
+  jobNumber?: string;
   agreement?: {
     contact?: AgreementContact;
     plan?: AgreementPlan;
@@ -824,14 +827,16 @@ function VisitsTab() {
   const { api } = useAgreements();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  // How far ahead: a twice-a-year plan's next visit is months away (field service re-check 11/10).
+  const [days, setDays] = useState<number>(30);
 
   useEffect(() => {
     loadVisits();
-  }, []);
+  }, [days]);
 
   const loadVisits = async () => {
     try {
-      const data = await api.get('/api/agreements/visits/upcoming');
+      const data = await api.get(`/api/agreements/visits/upcoming?days=${days}`);
       setVisits(data || []);
     } catch (error) {
       console.error('Failed to load visits:', error);
@@ -850,12 +855,17 @@ function VisitsTab() {
 
   return (
     <div className="bg-white rounded-xl border dark:bg-slate-900">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium text-gray-900 dark:text-slate-100">Upcoming Service Visits</h3>
+        <select aria-label="How far ahead" value={days} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setLoading(true); setDays(Number(e.target.value)); }} className="px-3 py-1.5 border rounded-lg text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+          <option value={30}>Next 30 days</option>
+          <option value={90}>Next 90 days</option>
+          <option value={365}>Next 12 months</option>
+        </select>
       </div>
       {visits.length === 0 ? (
         <div className="p-8 text-center text-gray-500 dark:text-slate-400">
-          No upcoming visits
+          No visits due in the next {days === 365 ? '12 months' : `${days} days`}
         </div>
       ) : (
         <div className="divide-y">
@@ -871,8 +881,10 @@ function VisitsTab() {
               </div>
               <div className="text-right">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
+                  {visit.overdue && <span className="mr-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">Overdue</span>}
                   {formatDate(visit.scheduledDate)}
                 </p>
+                {visit.jobNumber && <p className="text-xs text-gray-500 dark:text-slate-400">{visit.jobNumber}</p>}
                 <p className="text-sm text-gray-500 dark:text-slate-400">
                   {visit.agreement?.contact?.phone}
                 </p>

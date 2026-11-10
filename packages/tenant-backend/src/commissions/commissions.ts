@@ -525,6 +525,13 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       if (['draft', 'void', 'voided', 'cancelled'].includes(String(inv.status))) {
         return c.json({ error: `That invoice is ${inv.status}, so there is nothing to pay commission on yet` }, 400)
       }
+      // Earned on this invoice automatically already: recording it by hand as well pays it twice (field service re-check 11/10 — a
+      // hand-paid plan and an automatic one on the same rep). The automatic one is edited or voided instead.
+      const [auto] = await db.select({ id: t.commission.id }).from(t.commission).where(and(
+        eq(t.commission.companyId, companyId), eq(t.commission.userId, earner.id), eq(t.commission.invoiceId, inv.id),
+        eq(t.commission.source, 'auto'), sql`${t.commission.status} NOT IN ('void', 'cancelled')`,
+      )).limit(1)
+      if (auto) return c.json({ error: 'This person already earned commission on this invoice automatically. Change or void that one instead of recording it again.', code: 'already_earned' }, 409)
       // Before tax, after the discount: tax is not the business's money, a discount is money it never got.
       if (base === undefined && baseFromInvoice) base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
     }

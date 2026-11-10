@@ -12,7 +12,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
-import { eq, and, inArray, count, sql, desc, asc, gte, lt, lte, notInArray } from 'drizzle-orm'
+import { eq, and, inArray, count, sql, desc, asc, gte, lt, lte, max, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
@@ -1903,14 +1903,16 @@ export function createPortalRoutes(deps: PortalDeps) {
       // A unit's warranty is its own expiry, else the latest of the warranties written for it (field service live test 11/09: a
       // warranty added for the furnace left its portal card reading "Warranty unknown").
       if (list.length && t.projectWarranty && 'equipmentId' in t.projectWarranty) {
-        const written = await db.select({ equipmentId: t.projectWarranty.equipmentId, expiresAt: sql<string>`MAX(${t.projectWarranty.expiresAt})` }).from(t.projectWarranty)
+        const written = await db.select({ equipmentId: t.projectWarranty.equipmentId, expiresAt: max(t.projectWarranty.expiresAt) }).from(t.projectWarranty)
           .where(and(eq(t.projectWarranty.companyId, contact.companyId), inArray(t.projectWarranty.equipmentId, list.map((e: any) => e.id)), eq(t.projectWarranty.status, 'active')))
           .groupBy(t.projectWarranty.equipmentId)
         const byUnit = Object.fromEntries(written.map((r: any) => [r.equipmentId, r.expiresAt]))
         for (const e of list as any[]) if (!e.warrantyExpiry && byUnit[e.id]) e.warrantyExpiry = byUnit[e.id]
       }
       if (list.length === 0 || !t.job.equipmentId) return c.json(list.map((e: any) => ({ ...e, lastServiceDate: null })))
-      const last = await db.select({ equipmentId: t.job.equipmentId, completedAt: sql<string>`MAX(${t.job.completedAt})` }).from(t.job)
+      // max(), mapped as the column: a raw MAX() came back as zone-less text ("2026-11-10 00:33:00"), which the browser read as ITS
+      // local time — "Last serviced 11/10" for a visit finished at 6:33 PM on 11/9 in Eau Claire (field service re-check 11/10).
+      const last = await db.select({ equipmentId: t.job.equipmentId, completedAt: max(t.job.completedAt) }).from(t.job)
         .where(and(inArray(t.job.equipmentId, list.map((e: any) => e.id)), eq(t.job.status, 'completed'))).groupBy(t.job.equipmentId)
       const lastMap = Object.fromEntries(last.map((r: any) => [r.equipmentId, r.completedAt]))
       return c.json(list.map((e: any) => ({ ...e, lastServiceDate: lastMap[e.id] || null })))
