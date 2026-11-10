@@ -5,7 +5,7 @@
 import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
-import { contact, document, job, project } from './crm.ts'
+import { contact, document, invoice, job, project } from './crm.ts'
 import { equipment, inventoryItem } from './field.ts'
 
 export const jobPurchaseOrder = pgTable('job_purchase_order', {
@@ -231,10 +231,15 @@ export const changeOrder = pgTable('change_order', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  // A project's change order (the contractor), or a JOB's (0108, parity tier 2 #4 — ServiceTitan's change orders on a service call):
+  // exactly one of the two. A job's approved change order is billed as its own line on the job's invoice (invoice_id, once).
+  projectId: text('project_id').references(() => project.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'cascade' }),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
 }, (t) => [
   index('change_order_company_id_idx').on(t.companyId),
   index('change_order_project_id_idx').on(t.projectId),
+  index('change_order_job_id_idx').on(t.jobId),
 ])
 
 export const changeOrderLineItem = pgTable('change_order_line_item', {

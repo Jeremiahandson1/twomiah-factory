@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { createActorName, withoutSigningEvidence, nextNumber } from '@twomiah/tenant-backend'
-import { changeOrder, changeOrderLineItem, company, contact, project, user } from '../../db/schema/index.ts'
+import { changeOrder, changeOrderLineItem, company, contact, job, project, user } from '../../db/schema/index.ts'
 import { escapeHtml } from '../../core/sanitize.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -53,7 +53,9 @@ const lineItemSchema = z.object({
 const changeOrderSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  projectId: z.string(),
+  // A project's (the contractor) or a job's (parity tier 2 #4, 11/10): exactly one, checked on create.
+  projectId: z.string().optional(),
+  jobId: z.string().optional(),
   reason: z.string().optional(),
   daysAdded: z.number().default(0),
   // Status flows through ...coData on PUT (API-02). Guided transitions still use /submit, /approve, /reject.
@@ -79,10 +81,13 @@ const signatureSummary = (co: any) => {
  * approve and sign it (contractor live test 11/07: "No email goes to the client when a change order is submitted"). Answers how they were
  * told: 'email', or 'no-portal' (their portal is off, or there is no email), so the office knows to send it another way. Never throws.
  */
-export async function emailClientChangeOrder(d: CrmDeps, companyId: string, co: { number: string; title?: string | null; amount?: unknown; projectId: string | null }): Promise<'email' | 'no-portal'> {
+export async function emailClientChangeOrder(d: CrmDeps, companyId: string, co: { number: string; title?: string | null; amount?: unknown; projectId: string | null; jobId?: string | null }): Promise<'email' | 'no-portal'> {
   try {
-    if (!co.projectId) return 'no-portal'
-    const [p] = await d.db.select({ name: project.name, contactId: project.contactId }).from(project).where(and(eq(project.id, co.projectId), eq(project.companyId, companyId))).limit(1)
+    if (!co.projectId && !co.jobId) return 'no-portal'
+    // What it is on, by name, and whose: the project's customer, or the job's (a job's change order — parity tier 2 #4).
+    const [p] = co.projectId
+      ? await d.db.select({ name: project.name, contactId: project.contactId }).from(project).where(and(eq(project.id, co.projectId), eq(project.companyId, companyId))).limit(1)
+      : await d.db.select({ name: job.title, contactId: job.contactId }).from(job).where(and(eq(job.id, co.jobId!), eq(job.companyId, companyId))).limit(1)
     if (!p?.contactId) return 'no-portal'
     const [who] = await d.db.select().from(contact).where(and(eq(contact.id, p.contactId), eq(contact.companyId, companyId))).limit(1) as any[]
     const origin = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
@@ -133,12 +138,14 @@ export function createChangeOrderRoutes(d: CrmDeps) {
     const currentUser = c.get('user') as any
     const status = c.req.query('status')
     const projectId = c.req.query('projectId')
+    const jobId = c.req.query('jobId')
     const page = +(c.req.query('page') || '1')
     const limit = +(c.req.query('limit') || '50')
 
     const conditions = [eq(changeOrder.companyId, currentUser.companyId)]
     if (status) conditions.push(eq(changeOrder.status, status))
     if (projectId) conditions.push(eq(changeOrder.projectId, projectId))
+    if (jobId) conditions.push(eq(changeOrder.jobId, jobId))
 
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
@@ -148,9 +155,10 @@ export function createChangeOrderRoutes(d: CrmDeps) {
 
     // Fetch related projects and line items
     const coIds = data.map((co: any) => co.id)
-    const projectIds = [...new Set(data.map((co: any) => co.projectId))]
+    const projectIds = [...new Set(data.map((co: any) => co.projectId).filter(Boolean))]
+    const jobIds = [...new Set(data.map((co: any) => co.jobId).filter(Boolean))]
 
-    const [projects, lineItems] = await Promise.all([
+    const [projects, lineItems, jobs] = await Promise.all([
       projectIds.length ? db.select({ id: project.id, name: project.name }).from(project).where(eq(project.companyId, currentUser.companyId)) : Promise.resolve([]),
       (async () => {
         const allItems: (typeof changeOrderLineItem.$inferSelect)[] = []
@@ -160,16 +168,19 @@ export function createChangeOrderRoutes(d: CrmDeps) {
         }
         return allItems
       })(),
+      jobIds.length ? db.select({ id: job.id, number: job.number, title: job.title }).from(job).where(eq(job.companyId, currentUser.companyId)) : Promise.resolve([]),
     ])
 
     const projectMap = Object.fromEntries((projects as any[]).map((p) => [p.id, p]))
+    const jobMap = Object.fromEntries((jobs as any[]).map((j) => [j.id, j]))
     const lineItemMap: Record<string, (typeof changeOrderLineItem.$inferSelect)[]> = {}
     lineItems.forEach((li) => { (lineItemMap[li.changeOrderId] ||= []).push(li) })
 
     const signsOff = await maySignOff(c)
     const dataWithRelations = data.map((co: any) => ({
       ...(signsOff ? signatureSummary(co) : withoutSigningEvidence(signatureSummary(co))),
-      project: projectMap[co.projectId] || null,
+      project: (co.projectId && projectMap[co.projectId]) || null,
+      job: (co.jobId && jobMap[co.jobId]) || null,
       lineItems: lineItemMap[co.id] || [],
     }))
 
@@ -183,13 +194,14 @@ export function createChangeOrderRoutes(d: CrmDeps) {
     const [foundCo] = await db.select().from(changeOrder).where(and(eq(changeOrder.id, id), eq(changeOrder.companyId, currentUser.companyId))).limit(1)
     if (!foundCo) return fail(c, 404, 'Change order not found')
 
-    const [coProject, lineItems] = await Promise.all([
-      db.select().from(project).where(eq(project.id, foundCo.projectId)).limit(1),
+    const [coProject, lineItems, coJob] = await Promise.all([
+      foundCo.projectId ? db.select().from(project).where(eq(project.id, foundCo.projectId)).limit(1) : Promise.resolve([]),
       db.select().from(changeOrderLineItem).where(eq(changeOrderLineItem.changeOrderId, id)).orderBy(asc(changeOrderLineItem.sortOrder)),
+      foundCo.jobId ? db.select({ id: job.id, number: job.number, title: job.title }).from(job).where(eq(job.id, foundCo.jobId)).limit(1) : Promise.resolve([]),
     ])
 
     const shown = (await maySignOff(c)) ? foundCo : withoutSigningEvidence(foundCo)
-    return one(c, { ...shown, project: coProject[0] || null, lineItems })
+    return one(c, { ...shown, project: (coProject as any[])[0] || null, job: (coJob as any[])[0] || null, lineItems })
   })
 
   app.post('/', requirePermission('change-orders:create'), async (c) => {
@@ -205,6 +217,12 @@ export function createChangeOrderRoutes(d: CrmDeps) {
     const { id: _clientId, ...rawRest } = raw || {}
     const data = changeOrderSchema.parse(rawRest)
     const { lineItems, amount: sentAmount, ...coData } = data
+    if (!!data.projectId === !!data.jobId) return fail(c, 400, 'A change order is for a project or a job — choose one.', 'validation_failed')
+    // The project or job is this company's (both were taken as sent).
+    const [owner] = data.projectId
+      ? await db.select({ id: project.id }).from(project).where(and(eq(project.id, data.projectId), eq(project.companyId, currentUser.companyId))).limit(1)
+      : await db.select({ id: job.id }).from(job).where(and(eq(job.id, data.jobId!), eq(job.companyId, currentUser.companyId))).limit(1)
+    if (!owner) return fail(c, 404, data.projectId ? 'Project not found' : 'Job not found')
 
     if (coData.status !== undefined && !CREATABLE.includes(coData.status)) {
       return fail(c, 400,
@@ -225,8 +243,8 @@ export function createChangeOrderRoutes(d: CrmDeps) {
     const created = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, changeOrder, changeOrder.number, changeOrder.companyId, currentUser.companyId, {
         prefix: 'CO', pad: 3,
-        scope: eq(changeOrder.projectId, data.projectId),
-        markKey: `CO:${data.projectId}`,
+        scope: data.jobId ? eq(changeOrder.jobId, data.jobId) : eq(changeOrder.projectId, data.projectId!),
+        markKey: data.jobId ? `CO:job:${data.jobId}` : `CO:${data.projectId}`,
       })
       const [newCo] = await tx.insert(changeOrder).values({
         ...(clientId ? { id: clientId } : {}),
@@ -347,9 +365,10 @@ export function createChangeOrderRoutes(d: CrmDeps) {
         updatedAt: new Date(),
       }).where(eq(changeOrder.id, id)).returning()
 
-      // The revised contract: the agreed amount on top of the project's value, and the agreed days on the end date.
-      const [proj] = await tx.select().from(project)
-        .where(and(eq(project.id, locked.projectId), eq(project.companyId, currentUser.companyId))).for('update').limit(1)
+      // The revised contract: the agreed amount on top of the project's value, and the agreed days on the end date. A JOB's change
+      // order changes no estimate: it is billed as its own line on the job's invoice (jobs.ts POST /:id/invoice), once.
+      const [proj] = locked.projectId ? await tx.select().from(project)
+        .where(and(eq(project.id, locked.projectId), eq(project.companyId, currentUser.companyId))).for('update').limit(1) : []
       let revised: any = null
       if (proj) {
         const value = Number(proj.estimatedValue || 0) + Number(locked.amount || 0)

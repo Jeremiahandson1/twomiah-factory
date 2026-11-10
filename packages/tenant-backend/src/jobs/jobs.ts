@@ -141,6 +141,8 @@ export interface JobOptions {
     numbering?: { prefix?: string; pad?: number; seed?: number }
     /** Days until due, from today. Default 30. */
     termsDays?: number
+    /** The app keeps change orders on jobs (change_order.job_id / invoice_id): bill a job's approved, unbilled ones on its invoice. */
+    changeOrders?: boolean
   }
 }
 
@@ -1597,9 +1599,21 @@ export function createJobRoutes(deps: JobDeps) {
             quoteId = String(q.id)
           }
         }
+        /**
+         * THE JOB'S APPROVED CHANGE ORDERS (parity tier 2 #4, 11/10 — ServiceTitan's change orders on a call): each approved one not
+         * billed yet goes on as its own line ("Change order CO-002: Add a humidifier"), whatever else the invoice bills, and is
+         * marked billed by this invoice below — so it is billed once. Where the app keeps them (o.billing.changeOrders).
+         */
+        const changeOrders = o.billing?.changeOrders ? rowsOf(await tx.execute(
+          sql`SELECT id, number, title, amount FROM change_order
+               WHERE job_id = ${id} AND company_id = ${currentUser.companyId} AND status = 'approved' AND invoice_id IS NULL
+               ORDER BY created_at ASC, id ASC`,
+        )) : []
+        const changeLines = changeOrders.map((co: any) => ({ description: `Change order ${co.number}${co.title ? `: ${co.title}` : ''}`, quantity: 1, unitPrice: round2(Number(co.amount || 0)) }))
         if (!lines) {
           const amount = round2(Number(j.estimated_value || 0))
-          if (!amount || amount <= 0) {
+          if ((!amount || amount <= 0) && changeLines.length) lines = []
+          else if (!amount || amount <= 0) {
             return { status: 400 as const, body: { error: 'This job has no price to bill. Set what it is worth in its Price box (Edit), then invoice it.' } }
           }
           const settings = rowsOf(await tx.execute(
@@ -1612,6 +1626,12 @@ export function createJobRoutes(deps: JobDeps) {
             unitPrice: amount,
           }]
         }
+        if (!lines!.length) {
+          // Only change orders to bill: the company's own rate, as for an estimate.
+          const settings = rowsOf(await tx.execute(sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`))[0]?.settings
+          taxRate = defaultTaxRateFrom((settings as any) || {})
+        }
+        lines = [...lines!, ...changeLines]
 
         const issueDate = new Date()
         const dueDate = new Date(issueDate.getTime() + termsDays * 86_400_000)
@@ -1629,6 +1649,10 @@ export function createJobRoutes(deps: JobDeps) {
           },
           lines as any,
         )
+        if (changeOrders.length) {
+          await tx.execute(sql`UPDATE change_order SET invoice_id = ${inv.id}, updated_at = NOW()
+                                 WHERE company_id = ${currentUser.companyId} AND id IN (${sql.join(changeOrders.map((co: any) => sql`${co.id}`), sql`, `)})`)
+        }
         return { status: 201 as const, body: inv }
       })
 
