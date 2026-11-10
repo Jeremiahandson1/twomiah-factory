@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { MailCheck } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 interface One { on: boolean; days?: number; subject: string; body: string }
 interface Loaded {
@@ -85,7 +86,7 @@ export default function FollowupsPage() {
                   {data.comingUp!.map((c) => (
                     <li key={`${c.kind}:${c.orderId}`} className="flex flex-wrap justify-between gap-2 py-1.5 text-gray-800 dark:text-slate-200">
                       <span>{c.kind === 'store_first_order' ? 'First-order email' : 'Thank-you and suggestions'} · order {c.orderNumber || '—'} · {c.customer}</span>
-                      <span className="text-gray-600 dark:text-slate-400">{new Date(c.sendOn).getTime() <= Date.now() ? 'goes out with the next send' : `around ${new Date(c.sendOn).toLocaleDateString()}`}{c.arrivedMarked ? '' : ' (counted from when it went out)'}</span>
+                      <span className="text-gray-600 dark:text-slate-400">{new Date(c.sendOn).getTime() <= Date.now() ? 'goes out with the next send' : `around ${momentDate(c.sendOn)}`}{c.arrivedMarked ? '' : ' (counted from when it went out)'}</span>
                     </li>
                   ))}
                 </ul>}
