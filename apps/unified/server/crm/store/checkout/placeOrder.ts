@@ -33,7 +33,15 @@ export interface StartInput {
   /** The storefront's origin, from the request (never a body field). */
   origin: string
   /** A draft order: made by the owner for this customer at their group's prices, paid from the emailed link. */
-  draft?: { contactId: string; customerName?: string | null; pricing: GroupPricing | null; note?: string | null }
+  draft?: {
+    contactId: string; customerName?: string | null; pricing: GroupPricing | null; note?: string | null
+    /**
+     * Paid already, in person — cash, a check, a card on the shop's own terminal (Shopify's draft order "Mark as paid"; store live
+     * test 11/10: a hand-made order needed a payment provider even for cash). The order is paid when it is made: no link, no
+     * provider, the store's own tax rates; a refund goes back the way it was paid (refunds.ts "none on file").
+     */
+    paidInPerson?: 'cash' | 'check' | 'card' | 'other'
+  }
   /**
    * A signed-in shopper (their account's cookie, checked by the route): the order is theirs whatever email is typed, at
    * their group's prices, with their saved address ready on the payment page. Never taken from the request body.
@@ -55,8 +63,9 @@ export interface StartInput {
   /** Price the cart and stop: nothing is written (the wallet sheet asks what the total is for an address). */
   preview?: boolean
 }
+const IN_PERSON_WORDS = { cash: 'cash', check: 'check', card: "card on the shop's terminal", other: 'other' } as const
 export type StartResult =
-  | { ok: true; orderId: string; url: string; paidByGiftCard: boolean; clientSecret?: string; preview?: { subtotalCents: number; discountCents: number; shippingCents: number; taxCents: number; totalCents: number; currency: string } }
+  | { ok: true; orderId: string; url: string; paidByGiftCard: boolean; clientSecret?: string; preview?: { subtotalCents: number; discountCents: number; shippingCents: number; taxCents: number; totalCents: number; currency: string; discountCode?: string | null; taxAtCheckout?: boolean } }
   | { ok: false; status: 400 | 409 | 502 | 503; error: string; code?: string }
 
 // Shipping: first matching zone (by the buyer's ship-to region) wins, else the flat rate. Free-shipping thresholds
@@ -211,11 +220,12 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     const totalDiscountCents = Math.min(goodsCents, discountCents + loyaltyDiscountCents)
 
     const shippingCents = fulfillment === 'ship' ? computeShipping(settings, goodsCents, shipTo) : 0
-    const automaticTax = usesStripeTax(settings, provider)
+    const inPerson = input.draft?.paidInPerson ?? null
+    const automaticTax = !inPerson && usesStripeTax(settings, provider)
     const taxCents = automaticTax ? 0 : Math.round(Math.max(0, goodsCents - totalDiscountCents) * (computeTaxBps(settings, shipTo) / 10000))
     const totalCents = subtotalCents - totalDiscountCents + shippingCents + taxCents
 
-    if (input.preview) return { ok: true, orderId: '', url: '', paidByGiftCard: false, preview: { subtotalCents, discountCents: totalDiscountCents, shippingCents, taxCents, totalCents, currency } }
+    if (input.preview) return { ok: true, orderId: '', url: '', paidByGiftCard: false, preview: { subtotalCents, discountCents: totalDiscountCents, shippingCents, taxCents, totalCents, currency, discountCode: appliedCode, taxAtCheckout: automaticTax } }
 
     // A gift card pays what it can of the order — never the gift cards in it. Its balance is looked at now and HELD when
     // the order is written (giftCards.hold, the card row locked), so the figure the provider is told is the one taken.
@@ -232,7 +242,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     if (card && wantFromCard <= 0) return refuse(400, 'A gift card cannot pay for this order (gift cards cannot buy gift cards).', 'gift_card')
     // Stripe Tax adds its tax at the payment page, so an order whose card covers everything before tax still has tax to
     // pay: it goes to the provider with the minimum left on it rather than being taken as paid.
-    if (!provider && !(card && wantFromCard >= totalCents && !automaticTax)) return refuse(503, 'This store is not accepting orders yet')
+    if (!provider && !inPerson && !(card && wantFromCard >= totalCents && !automaticTax)) return refuse(503, 'This store is not accepting orders yet')
 
     let contactId: string | null = input.draft?.contactId ?? input.shopper?.contactId ?? null
     if (!contactId && customerEmail) {
@@ -245,15 +255,16 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     const orderId = createId()
     const [order] = await db.insert(storeOrder).values({
       id: orderId, companyId, contactId, orderNumber: orderNumberFor(orderId),
-      provider: provider?.name ?? 'giftcard', providerSessionId: `pending_${createId()}`, status: 'pending',
+      provider: inPerson ? 'in_person' : provider?.name ?? 'giftcard', providerSessionId: `pending_${createId()}`, status: 'pending',
       customerEmail: customerEmail ?? NO_EMAIL_YET, customerName: input.draft?.customerName ?? input.shopper?.name ?? null,
       subtotalCents, shippingCents, taxCents,
       discountCents: totalDiscountCents, discountCode: appliedCode, loyaltyRewardId, loyaltyDiscountCents,
       totalCents, currency, fulfillment, taxAutomatic: automaticTax,
       source: input.draft ? 'draft' : 'storefront', customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
-      internalNote: input.draft?.note ?? null,
-      // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout).
-      recoveryToken: input.draft ? newRecoveryToken() : null,
+      internalNote: [input.draft?.note, inPerson ? `Paid in person: ${IN_PERSON_WORDS[inPerson]}` : null].filter(Boolean).join('\n') || null,
+      // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout) — not one
+      // paid in person.
+      recoveryToken: input.draft && !inPerson ? newRecoveryToken() : null,
     }).returning()
     await db.insert(storeOrderItem).values(lines.map((li) => ({
       orderId: order.id, productId: li.productId, variantId: li.variantId, productName: li.productName, variantName: li.variantName,
@@ -285,6 +296,12 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
         .where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId))).returning()
       await checkout.finalizeOrder(fresh, { type: 'paid', providerSessionId: fresh.providerSessionId, customerEmail })
       return { ok: true, orderId: order.id, url: `${storefront}/checkout/success?ref=${encodeURIComponent(order.id)}`, paidByGiftCard: true }
+    }
+    // Paid in person: paid now, as a webhook would say it (stock, points, the receipt, the owner's email — finalizeOrder).
+    if (inPerson) {
+      const [fresh] = await db.select().from(storeOrder).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId))).limit(1)
+      await checkout.finalizeOrder(fresh, { type: 'paid', providerSessionId: fresh.providerSessionId, customerEmail, customerName: input.draft?.customerName ?? undefined })
+      return { ok: true, orderId: order.id, url: '', paidByGiftCard: false }
     }
     if (!provider) { await forget('No payment provider'); return refuse(503, 'This store is not accepting orders yet') }
     if (input.draft) return { ok: true, orderId: order.id, url: `${storefront}/api/public/recover/${order.recoveryToken}`, paidByGiftCard: false }

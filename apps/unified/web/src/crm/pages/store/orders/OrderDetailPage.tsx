@@ -84,6 +84,9 @@ function useMay() {
 interface RateQuote { id: string; carrier: string; service: string; amountCents: number; currency: string; estimatedDays?: number | null }
 interface RefundQuote { suggestedCents: number; maxCents: number; shippingLeftCents: number }
 
+// How it was paid, in words (an order paid in person was made from New order — store live test 11/10).
+const PAID_BY: Record<string, string> = { stripe: 'Stripe', square: 'Square', paypal: 'PayPal', giftcard: 'Gift card', in_person: 'Paid in person' }
+
 export default function OrderDetailPage() {
   const { id = '' } = useParams()
   const toast = useToast()
@@ -245,7 +248,7 @@ export default function OrderDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.orderNumber || 'Pending order'}</h1>
-          <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.createdAt)} · <span className="capitalize">{order.provider}</span></p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.createdAt)} · <span>{PAID_BY[order.provider] ?? order.provider}</span></p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusBadge(order.status)}`}>{codeLabel(order.status)}</span>
       </div>

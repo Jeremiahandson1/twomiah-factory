@@ -46,7 +46,7 @@ export default function ExportEverythingPage() {
           <div>
             <h2 className="font-semibold text-gray-900 dark:text-white">Export everything</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700 dark:text-slate-200">
-              <li>Every list your business has — your {vocabulary().customer.many}, {vocabulary().work?.many ?? 'work'}, invoices, payments, time, expenses, your team and the rest — each as a spreadsheet (CSV) file.</li>
+              <li>Every list your business has — {vocabulary().records || `your ${vocabulary().customer.many}, ${vocabulary().work ? `${vocabulary().work!.many}, ` : ''}invoices, payments, time, expenses, your team and the rest`} — each as a spreadsheet (CSV) file.</li>
               <li>Your website: every page and its content, and the list of your photos and files.</li>
               <li>One ZIP file. Only your business. Passwords, sign-in tokens and the keys of connected services are never in it.</li>
               <li>Each download is recorded in your audit log.</li>

@@ -15,6 +15,8 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const token = searchParams.get('token')
+  // The same page serves an invitation and a reset (one token, one link — the suites read the link as it is), so its words fit both:
+  // an invited person was told "Set new password" / "Reset password" (store live test 11/10).
   // This page is reachable while signed in (an owner opening an invite they sent, a shared computer). Saving signs that
   // session out, so the sign-in page that follows is for the account whose password was just set. (10/14)
   const { isAuthenticated, user, logout } = useAuth()
@@ -53,7 +55,7 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-green-900/40">
             <CheckCircle className="w-8 h-8 text-green-500 dark:text-green-300" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Password reset successful</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Password saved</h1>
           <p className="text-gray-600 mb-6 dark:text-slate-400">Your password has been changed. Redirecting to login...</p>
           <RouterLink to="/login" className="inline-block px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Go to login</RouterLink>
         </div>
@@ -80,8 +82,8 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-xl shadow-lg p-8 dark:bg-slate-900 dark:border dark:border-slate-800">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Set new password</h1>
-          <p className="text-gray-600 mb-6 dark:text-slate-400">Your new password must be {PASSWORD_RULE_TEXT}.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Set your password</h1>
+          <p className="text-gray-600 mb-6 dark:text-slate-400">Your password must be {PASSWORD_RULE_TEXT}.</p>
           {isAuthenticated && (
             <div className="mb-4 p-3 rounded-lg text-sm bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               This browser is signed in as <strong>{user?.email || 'someone else'}</strong>. Saving this password signs that account out, so the person this link was sent to can sign in.
@@ -133,7 +135,7 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
               disabled={loading}
               className="w-full py-2 px-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Resetting...' : 'Reset password'}
+              {loading ? 'Saving...' : 'Save password'}
             </button>
           </form>
         </div>

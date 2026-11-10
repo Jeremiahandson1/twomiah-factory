@@ -28,6 +28,8 @@ export default function NewOrderPage() {
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // How it is paid: a link emailed to pay online, or paid already in person (store live test 11/10 — Shopify's "Mark as paid").
+  const [paidBy, setPaidBy] = useState<'link' | 'cash' | 'check' | 'card' | 'other'>('link')
 
   useEffect(() => {
     api.get('/api/admin/products').then((r) => setOptions(listOf<any>(r).filter((p) => p.status === 'active').flatMap((p: any) => (p.variants || []).map((v: any) => ({
@@ -42,17 +44,17 @@ export default function NewOrderPage() {
   const submit = async () => {
     setError(null)
     if (!chosen) { setError('Choose the customer.'); return }
-    if (!chosen.email) { setError(`${chosen.name} has no email address to send the order to.`); return }
+    if (!chosen.email && paidBy === 'link') { setError(`${chosen.name} has no email address to send the link to pay to.`); return }
     const items = lines.filter((l) => l.sku).map((l) => ({ sku: l.sku, quantity: Number(l.quantity) }))
     if (!items.length) { setError('Add at least one item.'); return }
     if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1)) { setError('Each quantity is a whole number, 1 or more.'); return }
     setSaving(true)
     try {
       const r = await api.post('/api/admin/draft-orders', {
-        contactId: chosen.id, items, delivery, note: note.trim() || null,
+        contactId: chosen.id, items, delivery, note: note.trim() || null, ...(paidBy !== 'link' ? { paidInPerson: paidBy } : {}),
         ...(delivery === 'ship' && (country.trim() || state.trim()) ? { shipTo: { country: country.trim().toUpperCase(), state: state.trim().toUpperCase() } } : {}),
       }) as { order: { id: string; totalCents: number; currency: string }; sent: boolean; group: { name: string } | null }
-      toast.success(`Order made${r.group ? ` at ${r.group.name} prices` : ''} — ${cents(r.order.totalCents, r.order.currency)}${r.sent ? `, link to pay emailed to ${chosen.email}` : ''}`)
+      toast.success(`Order made${r.group ? ` at ${r.group.name} prices` : ''} — ${cents(r.order.totalCents, r.order.currency)}${paidBy !== 'link' ? ', paid' : r.sent ? `, link to pay emailed to ${chosen.email}` : ''}`)
       navigate(`/crm/orders/${r.order.id}`)
     } catch (e) { setError(errorText(e, 'Could not make the order')) } finally { setSaving(false) }
   }
@@ -62,7 +64,7 @@ export default function NewOrderPage() {
       <Link to="/crm/orders" className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-slate-100"><ArrowLeft className="h-4 w-4" /> Orders</Link>
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">New order for a customer</h1>
-        <p className="text-sm text-gray-600 dark:text-slate-400">Priced at the customer's group prices when they are in one (Customer groups). They are emailed a link to pay.</p>
+        <p className="text-sm text-gray-600 dark:text-slate-400">Priced at the customer's group prices when they are in one (Customer groups). They are emailed a link to pay, or it is marked paid when they paid in person.</p>
       </div>
       {!mayCreate ? <p className="text-sm text-gray-600 dark:text-slate-400">Making an order for a customer is for a manager or the owner.</p> : (
         <div className="card p-5 space-y-4">
@@ -98,9 +100,22 @@ export default function NewOrderPage() {
               <div><label className="label" htmlFor="no-s">State</label><input id="no-s" className="input" maxLength={16} value={state} onChange={(e) => setState(e.target.value)} placeholder="WI" /></div>
             </div>
           )}
+          <fieldset className="space-y-1">
+            <legend className="label">Payment</legend>
+            <label className="block text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="no-pay" checked={paidBy === 'link'} onChange={() => setPaidBy('link')} /> Email them a link to pay online</label>
+            <label className="block text-sm text-gray-800 dark:text-slate-200"><input type="radio" name="no-pay" checked={paidBy !== 'link'} onChange={() => setPaidBy('cash')} /> Already paid in person</label>
+            {paidBy !== 'link' && (
+              <select className="input w-auto" aria-label="How they paid" value={paidBy} onChange={(e) => setPaidBy(e.target.value as typeof paidBy)}>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="card">Card on our own terminal</option>
+                <option value="other">Other</option>
+              </select>
+            )}
+          </fieldset>
           <div><label className="label" htmlFor="no-note">Internal note</label><textarea id="no-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} /></div>
           <PageError message={error} />
-          <button type="button" className="btn btn-primary" disabled={saving} onClick={submit}>{saving ? 'Making the order…' : 'Make order and email the link to pay'}</button>
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={submit}>{saving ? 'Making the order…' : paidBy === 'link' ? 'Make order and email the link to pay' : 'Make order — paid'}</button>
         </div>
       )}
     </div>

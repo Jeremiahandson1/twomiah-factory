@@ -260,6 +260,20 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     return { contactId: s.contactId, email: s.email, name: s.name, pricing: await pricingForContact(d.db, companyId, s.contactId), ...(where ? { shipping: { name: where.name, address: where.address } } : {}) }
   }
 
+  // The cart's totals before paying (store live test 11/10: a discount code typed in the cart showed nothing until checkout, and
+  // checkout was where a store without payments stopped): priced by the same rule as the order (placeOrder's preview — nothing is
+  // written, no gift card held), so the cart's figure is the order's. A code that does not apply is refused in words.
+  pub.post('/checkout/preview', shopperDoor, async (c) => {
+    const parsed = checkoutSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return fail(c, 400, 'Invalid cart', 'validation_failed', fieldsOf(parsed.error))
+    const s = await theShop(c); if (s.reply) return s.reply
+    const shopper = await signedInShopper(c, s.co.id)
+    const { saveCard: _s, useSavedCard: _u, giftCardCode: _g, ...cart } = parsed.data
+    const r = await starter.start({ ...cart, companyId: s.co.id, origin: requestOrigin(c), preview: true, ...(shopper ? { shopper } : {}) })
+    if (!r.ok) return fail(c, r.status, r.error, r.code)
+    return one(c, r.preview ?? {})
+  })
+
   pub.post('/checkout', shopperDoor, async (c) => {
     const parsed = checkoutSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return fail(c, 400, 'Invalid cart', 'validation_failed', fieldsOf(parsed.error))

@@ -188,7 +188,7 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
   storeGiftCard: (p: { orderNumber: string | null; currency: string; cards: { code: string; cents: number }[]; supportEmail?: string | null }, b) => done(
     p.cards.length === 1 ? `Your ${b.companyName} gift card` : `Your ${p.cards.length} ${b.companyName} gift cards`,
     wrap(b.companyName, p.cards.length === 1 ? 'Your gift card' : 'Your gift cards', `
-      <p style="color:#444;font-size:15px;line-height:1.6;">Thanks for your order${num(p)}. ${p.cards.length === 1 ? 'Here is your gift card' : 'Here are your gift cards'} — enter the number at checkout to spend it. It never expires.</p>
+      <p style="color:#444;font-size:15px;line-height:1.6;">${p.orderNumber ? `Thanks for your order${num(p)}. ${p.cards.length === 1 ? 'Here is your gift card' : 'Here are your gift cards'}` : `${p.cards.length === 1 ? 'Here is your gift card' : 'Here are your gift cards'} from ${esc(b.companyName)}`} — enter the number at checkout to spend it. It never expires.</p>
       ${p.cards.map((c) => `<p style="margin:16px 0 0;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;color:#111;"><strong style="font-family:Consolas,Menlo,monospace;letter-spacing:1px;">${esc(c.code)}</strong><span style="float:right;">${formatCents(c.cents, p.currency)}</span></p>`).join('')}
       <p style="color:#666;font-size:13px;margin-top:24px;">Keep this email: the number is the card.${p.supportEmail ? ' Questions? Reply to this email.' : ''}</p>`),
   ),

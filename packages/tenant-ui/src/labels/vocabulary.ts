@@ -42,6 +42,16 @@ export interface Vocabulary {
    * business. null: the trade has no such message and the menu does not offer one.
    */
   readyText: string | null
+  /**
+   * What the business's email is, as the end of "the email your CRM sends, like …": "invoices, reminders and receipts" for a trade
+   * that bills; a store sends order confirmations (store live test 11/10: Settings › Email Domain spoke of invoices). Optional.
+   */
+  emailExamples?: string
+  /**
+   * What "Your data" downloads, as the middle of "Every list your business has — … — each as a spreadsheet". Optional: built from
+   * customer and work, then "invoices, payments, time, expenses, your team and the rest".
+   */
+  records?: string
 }
 
 /** The words the shared screens were written in: a contractor's. */

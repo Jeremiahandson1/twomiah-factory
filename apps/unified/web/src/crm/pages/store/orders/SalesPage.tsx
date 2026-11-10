@@ -122,7 +122,7 @@ export default function SalesPage() {
             <Tile label="Net sales" value={cents(report.totals.netCents)} note={`${cents(report.totals.grossCents)} paid, ${cents(report.totals.refundedCents)} sent back`} strong />
             <Tile label="Orders" value={String(report.totals.orders)} note={`${report.totals.customers} ${report.totals.customers === 1 ? 'customer' : 'customers'}`} />
             <Tile label="Average order" value={cents(report.totals.averageOrderCents)} note="Paid per order, before refunds" />
-            {report.profit && <Tile label="Profit" value={cents(report.profit.profitCents)} note={report.profit.costedSalesCents === report.profit.productSalesCents ? 'Every sale had a cost' : `On ${cents(report.profit.costedSalesCents)} of ${cents(report.profit.productSalesCents)} product sales that have a cost`} />}
+            {report.profit && <Tile label="Profit" value={cents(report.profit.profitCents)} note={report.profit.productSalesCents === 0 ? 'No product sales in these days' : report.profit.costedSalesCents === report.profit.productSalesCents ? 'Every sale had a cost' : `On ${cents(report.profit.costedSalesCents)} of ${cents(report.profit.productSalesCents)} product sales that have a cost`} />}
             <Tile label="Came back" value={report.repeat.customers ? percent(report.repeat.repeatRate) : '—'} note={`${report.repeat.repeat} of ${report.repeat.customers} ${report.repeat.customers === 1 ? 'customer' : 'customers'} had ordered before`} />
           </div>
 

@@ -3,6 +3,7 @@
 // breaking every subsequent page until a full reload.
 import React from 'react'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import { isStaleBuild, reloadForNewBuild } from './staleBuild'
 
 interface Props { children?: React.ReactNode; resetKey?: unknown; fallback?: (error: any, reset: () => void) => React.ReactNode; message?: string; onReset?: () => void }
 interface State { hasError: boolean; error: any; errorInfo: any; lastKey: unknown }
@@ -18,6 +19,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return null
   }
   componentDidCatch(error: any, errorInfo: any) {
+    if (isStaleBuild(error) && reloadForNewBuild()) return
     this.setState({ errorInfo })
     console.error('Error caught by boundary:', error, errorInfo)
   }

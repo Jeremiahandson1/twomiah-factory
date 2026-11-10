@@ -343,8 +343,18 @@
             '<span>Subtotal</span><span data-cart-subtotal>' + formatMoney(cartSubtotalCents(cart)) + '</span>' +
           '</div>' +
           '<div class="cart-summary__field">' +
-            '<input type="text" data-discount-code placeholder="Discount code (optional)" class="cart-summary__input" autocomplete="off" />' +
+            '<div class="cart-summary__gift">' +
+              '<input type="text" data-discount-code placeholder="Discount code (optional)" class="cart-summary__input" autocomplete="off" aria-label="Discount code" value="' + esc(discountCode) + '" />' +
+              '<button type="button" class="btn btn--secondary btn--sm" data-discount-apply' + (quoteBusy ? ' disabled' : '') + '>' + (quoteBusy ? 'Working…' : 'Apply') + '</button>' +
+            '</div>' +
+            (quoteError ? '<p class="cart-summary__giftmsg cart-summary__giftmsg--bad" role="status">' + esc(quoteError) + '</p>' : '') +
           '</div>' +
+          (quote && quoteKey === keyOf(cart)
+            ? (quote.discountCents ? '<div class="cart-summary__row"><span>Discount' + (quote.discountCode ? ' (' + esc(quote.discountCode) + ')' : '') + '</span><span>−' + formatMoney(quote.discountCents) + '</span></div>' : '') +
+              '<div class="cart-summary__row"><span>Shipping</span><span>' + (deliveryChoice === 'pickup' ? 'Free' : formatMoney(quote.shippingCents)) + '</span></div>' +
+              '<div class="cart-summary__row"><span>Tax</span><span>' + (quote.taxAtCheckout ? 'At checkout' : formatMoney(quote.taxCents)) + '</span></div>' +
+              '<div class="cart-summary__row cart-summary__row--total"><strong>Total</strong><strong>' + formatMoney(quote.totalCents) + '</strong></div>'
+            : '') +
           // The email is what identifies a shopper for loyalty — this store has no customer login,
           // so without it there is no balance to look up. Optional: leaving it blank checks out
           // exactly as before, and the payment provider still collects an address for the receipt.
@@ -374,12 +384,12 @@
           (deliveryChoice === 'pickup'
             ? '<p class="cart-summary__pickup"><strong>Pick up from</strong>\n' + esc(pickup.address) + (pickup.hours ? '\n' + esc(pickup.hours) : '') + '</p>'
             : '<div class="cart-summary__field cart-summary__ship">' +
-                '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" aria-label="Country" />' +
-                '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" aria-label="State" />' +
+                '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" aria-label="Country" value="' + esc(shipCountry) + '" />' +
+                '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" aria-label="State" value="' + esc(shipState) + '" />' +
               '</div>') +
           '<p class="cart-summary__note">' + (shopSettings && shopSettings.automaticTax
             ? (deliveryChoice === 'pickup' ? 'Sales tax is worked out at checkout from your billing address.' : 'Shipping is worked out from your region; sales tax at checkout, from your address.')
-            : (deliveryChoice === 'pickup' ? 'No shipping charge for pickup; final total shown at checkout.' : 'Enter your region for accurate shipping &amp; tax; final total shown at checkout.')) + '</p>' +
+            : (deliveryChoice === 'pickup' ? 'No shipping charge for pickup. Press Apply to see the total.' : 'Enter your region, then press Apply to see shipping, tax and the total.')) + '</p>' +
           (fastAccount && fastAccount.savedCard
             ? '<button type="button" class="btn btn--primary btn--lg btn--block" data-pay-saved>Pay with ' + esc(cardLabel(fastAccount.savedCard)) + '</button>'
             : '') +
@@ -429,6 +439,14 @@
       if (e.target.closest('[data-pay-saved]')) { doCheckout(e.target.closest('[data-pay-saved]'), true); return; }
       if (e.target.closest('[data-checkout]')) { doCheckout(e.target.closest('[data-checkout]')); }
       if (e.target.closest('[data-gift-apply]')) { applyGiftCard(); }
+      if (e.target.closest('[data-discount-apply]')) { applyDiscount(); }
+    });
+
+    // What is typed is kept as it is typed, so a redraw puts it back.
+    root.addEventListener('input', function (e) {
+      if (e.target.closest('[data-discount-code]')) { discountCode = e.target.value.trim(); return; }
+      if (e.target.closest('[data-ship-country]')) { shipCountry = e.target.value.trim(); return; }
+      if (e.target.closest('[data-ship-state]')) { shipState = e.target.value.trim(); return; }
     });
 
     root.addEventListener('change', function (e) {
@@ -541,6 +559,47 @@
   var giftCode = '';
   var giftBalance = null;
   var giftError = '';
+  // The discount code and the region, kept like the rest: the summary is drawn again on every change, and the boxes came back
+  // empty — a code typed before applying a gift card was gone by checkout (store live test 11/10).
+  var discountCode = '';
+  var shipCountry = '';
+  var shipState = '';
+  // The cart's totals from the server (POST /api/public/checkout/preview — the order's own pricing), for this exact cart,
+  // code, region and delivery; any change makes them stale until Apply is pressed again.
+  var quote = null;
+  var quoteKey = '';
+  var quoteError = '';
+  var quoteBusy = false;
+
+  function cartBody(cart) {
+    var body = { items: cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }) };
+    if (discountCode) body.discountCode = discountCode;
+    if (shipCountry || shipState) body.shipTo = { country: shipCountry, state: shipState };
+    if (deliveryChoice === 'pickup') body.delivery = 'pickup';
+    return body;
+  }
+  function keyOf(cart) { return JSON.stringify(cartBody(cart)); }
+
+  function applyDiscount() {
+    var cart = readCart();
+    quoteError = '';
+    if (!cart.length) return;
+    quoteBusy = true;
+    renderCartPage();
+    var key = keyOf(cart);
+    fetch('/api/public/checkout/preview', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cartBody(cart)) })
+      .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+      .then(function (r) {
+        quoteBusy = false;
+        if (!r.ok) { quote = null; quoteKey = ''; quoteError = (r.data && r.data.error) || 'The total could not be worked out. Try again.'; }
+        else {
+          quote = r.data; quoteKey = key;
+          if (discountCode && !r.data.discountCode) quoteError = 'That code does not apply to this cart.';
+        }
+        renderCartPage();
+      })
+      .catch(function () { quoteBusy = false; quoteError = 'The total could not be worked out. Try again.'; renderCartPage(); });
+  }
 
   function loadShopSettings() {
     fetch('/api/public/settings')
@@ -594,16 +653,7 @@
     btn.disabled = true;
     btn.textContent = useSaved ? 'Paying…' : 'Redirecting…';
 
-    var discountEl = document.querySelector('[data-discount-code]');
-    var countryEl = document.querySelector('[data-ship-country]');
-    var stateEl = document.querySelector('[data-ship-state]');
-    var body = { items: cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }) };
-    var dc = discountEl && discountEl.value ? discountEl.value.trim() : '';
-    if (dc) body.discountCode = dc;
-    var country = countryEl && countryEl.value ? countryEl.value.trim() : '';
-    var state = stateEl && stateEl.value ? stateEl.value.trim() : '';
-    if (country || state) body.shipTo = { country: country, state: state };
-    if (deliveryChoice === 'pickup') body.delivery = 'pickup';
+    var body = cartBody(cart);
     if (giftCode && giftBalance !== null) body.giftCardCode = giftCode;
     // Accelerated checkout: only a signed-in shopper is offered it (the server ignores these for anyone else).
     if (useSaved) body.useSavedCard = true;

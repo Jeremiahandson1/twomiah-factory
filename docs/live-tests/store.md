@@ -35,20 +35,20 @@ You need two or three small product photos (any images).
 ## C. Products
 
 12. **Products:** add a T-shirt with sizes S / M / L and two colours (variants), prices and stock, and photos; a Mug with one price. **Expect:** saved; the storefront shows both.
-13. **Product Writer:** open it — **do not press draft.** **Expect:** the page loads and offers tones.
+13. **Product Writer:** skip on a test site — it is a paid AI feature that test sites never switch on, so it is correctly absent from the menu.
 14. **Stock alerts:** set the T-shirt M / blue level to 2. **Supplier reorders:** add a supplier; draft a purchase order from what is low. **Expect:** saved.
 15. **Discounts:** a 10 % code. **Gift cards, store loyalty, customer groups, shipping, product reviews:** open each and add one thing. **Expect:** saved.
 
 ## D. The storefront
 
-16. 📱 Open the store in a private window. Browse; add the T-shirt (M / blue) and the Mug to the cart; enter the 10 % code. **Expect:** the total right.
+16. 📱 Open the store in a private window. Browse; add the T-shirt (M / blue) and the Mug to the cart; enter the 10 % code and your region (US, WI) and press **Apply**. **Expect:** the discount, shipping, tax and total shown and right; the code and region stay in their boxes after applying a gift card or changing a quantity.
 17. Check out. **Expect:** card payment says it isn't set up yet (no raw error).
 18. **Customer accounts:** sign in as a shopper with `twomiah14+chromeshopper@gmail.com` (the emailed link or code from twomiah14's inbox). **Expect:** their orders, addresses and "order again".
 19. **Fast checkout:** **Expect:** a polite note that it needs the shop's Stripe.
 
 ## E. Orders and returns
 
-20. **Orders:** make an order by hand for the shopper (the CRM's "new order"), mark it paid in cash, fulfil it. **Expect:** the stock drops; when the T-shirt hits the alert level, one email is listed.
+20. **Orders:** make an order by hand for the shopper (the CRM's "new order"), choose **Already paid in person › Cash**, fulfil it. **Expect:** the stock drops; when the T-shirt hits the alert level, one email is listed.
 21. **Returns and exchanges:** the shopper starts a return from their account; approve it; receive the goods back; refund (cash, or the polite not-connected note for a card). **Expect:** the stock comes back.
 22. **Post-purchase emails:** a first-order follow-up. **Expect:** saved and listed for the order.
 
