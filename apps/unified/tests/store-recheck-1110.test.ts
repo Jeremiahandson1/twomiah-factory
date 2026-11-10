@@ -49,6 +49,9 @@ test("a return knows how its order was paid; the screens say where the money goe
   expect(page).toContain("in_person: 'is recorded here — they paid in person, so give it back the same way (cash, check or your own terminal).'")
   expect(page).toContain('{REST_TO[ret.order?.paidBy ?? \'card\']}')
   expect(src('../web/src/crm/pages/store/orders/OrderDetailPage.tsx')).toContain("' · stock: as the return was received'")
+  // …and the shopper's own account (store re-check 2): their return says where the money goes by how they paid.
+  expect(src('../server/crm/store/returns/returns.ts')).toContain("paidBy: d2.order?.paidBy ?? 'card',")
+  expect(src('../site/public/scripts/account.ts')).toContain("r.paidBy === 'in_person' ? ' back to you, the way you paid'")
 })
 
 test('the low-stock list says the email is daily; QuickBooks speaks of orders; the cart re-prices itself', () => {
