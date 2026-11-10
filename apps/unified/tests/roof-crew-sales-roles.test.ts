@@ -41,7 +41,9 @@ test('a Crew login reads the price list without its prices, and its menu has no 
   expect(list[0].name).toBe('Gutter cleaning visit')
   expect(list[0].price).toBeUndefined()
   expect(list[0].cost).toBeUndefined()
-  expect(JSON.stringify(items.body)).not.toContain('180')
+  // The price (180) as a VALUE: in the whole text it can be a timestamp's milliseconds or a random id (unified CI 2026-11-10, same flaw).
+  const values = (v: any): unknown[] => v && typeof v === 'object' ? Object.values(v).flatMap(values) : [v]
+  expect(values(items.body).some((x) => x === 180 || x === '180' || x === '180.00')).toBe(false)
 })
 
 test('a Sales rep quotes from the prices (but not the cost), as Field always has', async () => {

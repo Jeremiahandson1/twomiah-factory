@@ -244,6 +244,11 @@ describe('Store API keys', () => {
   })
 })
 
+// Every value in a response, so the cost (777) is looked for as a VALUE: in the whole text it matched a random id
+// ("aky5v29q777hmh7niv24p4um", unified CI 2026-11-10).
+const valuesOf = (v: any): unknown[] => v && typeof v === 'object' ? Object.values(v).flatMap(valuesOf) : [v]
+const carriesCost = (v: any) => valuesOf(v).some((x) => x === 777 || x === '777' || x === 7.77 || x === '7.77')
+
 describe('Store API reads', () => {
   let key = ''
   beforeAll(async () => { key = (await makeKey(['products:read', 'orders:read', 'customers:read', 'inventory:read'], 'Reader')).key })
@@ -254,7 +259,8 @@ describe('Store API reads', () => {
     const p = r.json.data.find((x: any) => x.slug === 'mug')
     expect(p.variants[0]).toMatchObject({ sku: 'MUG-1', priceCents: 2000, inventoryQty: 50 })
     const text = JSON.stringify(r.json)
-    for (const secret of ['costCents', '777', 'sup_secret', 'supplierId', 'lowStockAt', 'reorderToQty', 'companyId']) expect(text).not.toContain(secret)
+    for (const secret of ['costCents', 'sup_secret', 'supplierId', 'lowStockAt', 'reorderToQty', 'companyId']) expect(text).not.toContain(secret)
+    expect(carriesCost(r.json)).toBe(false)
     expect((await api(key, 'GET', `/products/${mug.product.id}`)).json.data.name).toBe('Mug')
     expect((await api(key, 'GET', '/products/nope')).status).toBe(404)
   })
@@ -288,7 +294,10 @@ describe('Store API reads', () => {
     expect(mine.totals.totalCents).toBe(o.totalCents)
     expect(mine.items[0]).toMatchObject({ sku: 'MUG-1', quantity: 2, unitPriceCents: 2000, lineTotalCents: 4000 })
     const text = JSON.stringify(r.json)
-    for (const secret of ['SECRET NOTE', 'internalNote', '4242', 'supplier', 'unitCostCents', 'providerSessionId', 'recoveryToken', 'labelCostCents']) expect(text).not.toContain(secret)
+    for (const secret of ['SECRET NOTE', 'internalNote', 'supplier', 'unitCostCents', 'providerSessionId', 'recoveryToken', 'labelCostCents']) expect(text).not.toContain(secret)
+    // The supplier's cost (4242) and the line's (777) as values, not text an id can spell.
+    expect(valuesOf(r.json).some((x) => x === 4242 || x === '4242' || x === 42.42 || x === '42.42')).toBe(false)
+    expect(carriesCost(r.json)).toBe(false)
     expect((await api(key, 'GET', '/orders?status=pending')).json.data.every((x: any) => x.status === 'pending')).toBe(true)
     expect((await api(key, 'GET', '/orders?status=bogus')).status).toBe(400)
     expect((await api(key, 'GET', `/orders/${o.id}`)).json.data.number).toBe(o.orderNumber)
@@ -308,7 +317,7 @@ describe('Store API reads', () => {
     const r = await api(key, 'GET', '/inventory?sku=MUG-1')
     expect(r.json.data).toHaveLength(1)
     expect(r.json.data[0]).toMatchObject({ sku: 'MUG-1', productName: 'Mug', tracked: true })
-    expect(JSON.stringify(r.json)).not.toContain('777')
+    expect(carriesCost(r.json)).toBe(false)
   })
 })
 
