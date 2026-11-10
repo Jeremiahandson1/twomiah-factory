@@ -110,13 +110,19 @@ export function createWipRoutes(d: CrmDeps) {
     // …and what was filed on the project with no job (time, expenses, vendor bills), as Job Costing's project budget counts it.
     const projectOnly = await projectOnlyCost(db, companyId, projectIds)
 
-    // Billed: each invoice once, to the project it is on — or its job's project — or the loose job it bills.
-    const invs = (projectIds.length || loose.length) ? await db.select({ id: invoice.id, total: invoice.total, projectId: invoice.projectId, jobId: invoice.jobId, status: invoice.status }).from(invoice)
+    // Billed: each invoice once, to the project it is on — or its job's project — or the loose job it bills. An invoice made from
+    // the job's quote names the quote, not the job (quote → invoice; the job page's billing reads it by the quote): it is that
+    // job's too (basic live test 11/10: "Billed $0.00" beside a job the job page said was billed in full).
+    const jobOfQuote = new Map<string, string>([...onProjects, ...loose].filter((j) => j.quoteId).map((j) => [j.quoteId, j.id]))
+    const quoteIds = [...jobOfQuote.keys()]
+    const invs = (projectIds.length || loose.length) ? await db.select({ id: invoice.id, total: invoice.total, projectId: invoice.projectId, jobId: invoice.jobId, quoteId: invoice.quoteId, billedQuoteId: invoice.billedQuoteId, status: invoice.status }).from(invoice)
       .where(and(eq(invoice.companyId, companyId), notInArray(invoice.status, NOT_BILLED),
-        or(projectIds.length ? inArray(invoice.projectId, projectIds) : undefined, jobIds.length ? inArray(invoice.jobId, jobIds) : undefined))) as any[] : []
-    const billedToProject = sumBy(invs, (i) => (i.projectId && projectIds.includes(i.projectId) ? i.projectId : i.jobId ? projectOfJob.get(i.jobId) || null : null), (i) => Number(i.total) || 0)
+        or(projectIds.length ? inArray(invoice.projectId, projectIds) : undefined, jobIds.length ? inArray(invoice.jobId, jobIds) : undefined,
+          quoteIds.length ? inArray(invoice.quoteId, quoteIds) : undefined, quoteIds.length ? inArray(invoice.billedQuoteId, quoteIds) : undefined))) as any[] : []
+    const jobOf = (i: any): string | null => i.jobId || jobOfQuote.get(i.quoteId) || jobOfQuote.get(i.billedQuoteId) || null
+    const billedToProject = sumBy(invs, (i) => (i.projectId && projectIds.includes(i.projectId) ? i.projectId : jobOf(i) ? projectOfJob.get(jobOf(i)!) || null : null), (i) => Number(i.total) || 0)
     const looseIds = new Set(loose.map((j) => j.id))
-    const billedToJob = sumBy(invs, (i) => (!(i.projectId && projectIds.includes(i.projectId)) && i.jobId && looseIds.has(i.jobId) ? i.jobId : null), (i) => Number(i.total) || 0)
+    const billedToJob = sumBy(invs, (i) => (!(i.projectId && projectIds.includes(i.projectId)) && jobOf(i) && looseIds.has(jobOf(i)!) ? jobOf(i) : null), (i) => Number(i.total) || 0)
 
     const quotes = projectIds.length ? await db.select({ projectId: quote.projectId, total: quote.total }).from(quote)
       .where(and(eq(quote.companyId, companyId), eq(quote.status, 'approved'), inArray(quote.projectId, projectIds))) as any[] : []

@@ -626,7 +626,10 @@ export function LineItemsEditor({ items, onChange, pricebook, optional, estimati
   const addFromPricebook = (id: string) => {
     const pb = (pricebook?.items || []).find(p => p.id === id)
     if (!pb) return
-    emit([...items, pricebookLine(pb)])
+    // Lines nobody has typed in yet (the empty first line a new quote or invoice starts with) give way to the item, not sit above
+    // it (basic live test 11/10: a blank first line stayed when adding from the price book).
+    const blank = (li: any) => !String(li.description || '').trim() && !Number(li.unitPrice) && !li.pricebookItemId
+    emit([...items.filter((li) => !blank(li)), pricebookLine(pb)])
   }
   // Sections, in the order each first appears (same rule as the server's and the customer's page).
   const groups = est ? groupLines(items.map((li) => ({ ...li, total: round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)) }))) : null

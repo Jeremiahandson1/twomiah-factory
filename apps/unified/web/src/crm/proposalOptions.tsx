@@ -261,7 +261,7 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
           <fieldset key={si} className="space-y-4 rounded-xl border-2 border-gray-300 p-4 dark:border-slate-600" data-testid="set-editor">
             <legend className="px-1 text-sm font-semibold">Set {si + 1}{s.name ? `: ${s.name}` : ''}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={sets.length > 1 ? 'Set name (the customer sees it)' : 'Set name (optional)'}><input className={inputCls} value={s.name} maxLength={80} placeholder="e.g. Furnace, Thermostat, Add-ons" onChange={(e) => patchSet(si, { name: e.target.value })} aria-label={`Set ${si + 1} name`} /></Field>
+              <Field label={sets.length > 1 ? 'Set name (the customer sees it)' : 'Set name (optional)'}><input className={inputCls} value={s.name} maxLength={80} placeholder="e.g. Main work, Add-ons" onChange={(e) => patchSet(si, { name: e.target.value })} aria-label={`Set ${si + 1} name`} /></Field>
               <Field label="How the customer chooses"><select className={selectCls} value={s.kind} onChange={(e) => patchSet(si, { kind: e.target.value as SetKind })} aria-label={`Set ${si + 1} kind`}>{(Object.keys(KIND_LABEL) as SetKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}</select></Field>
             </div>
             {s.options.map((d, i) => (
@@ -274,10 +274,10 @@ function OptionsEditor({ quote, initial, onClose, onSaved }: { quote: Record<str
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="Name"><input className={inputCls} value={d.name} maxLength={80} onChange={(e) => patch(si, i, { name: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} name`} /></Field>
-                  <Field label="Brand"><input className={inputCls} value={d.brand} maxLength={120} placeholder="e.g. GAF Timberline HDZ" onChange={(e) => patch(si, i, { brand: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} brand`} /></Field>
+                  <Field label="Brand"><input className={inputCls} value={d.brand} maxLength={120} placeholder="e.g. the make and model" onChange={(e) => patch(si, i, { brand: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} brand`} /></Field>
                   <Field label="Level"><select className={`${inputCls}`} value={d.tier} onChange={(e) => patch(si, i, { tier: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} level`}><option value="">—</option><option value="good">Good</option><option value="better">Better</option><option value="best">Best</option></select></Field>
                 </div>
-                <Field label="Warranty"><input className={inputCls} value={d.warranty} maxLength={300} placeholder="e.g. Lifetime shingle warranty, 10-year workmanship" onChange={(e) => patch(si, i, { warranty: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} warranty`} /></Field>
+                <Field label="Warranty"><input className={inputCls} value={d.warranty} maxLength={300} placeholder="e.g. 1-year parts, 90-day workmanship" onChange={(e) => patch(si, i, { warranty: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} warranty`} /></Field>
                 <Field label="What the customer is told"><textarea className={inputCls} rows={2} value={d.description} maxLength={2000} onChange={(e) => patch(si, i, { description: e.target.value })} aria-label={`Set ${si + 1} option ${i + 1} description`} /></Field>
                 <Field label="Photos" hint={`Up to ${MAX_PHOTOS}. Pick from the job's photos, or paste an https address, one per line.`}>
                   {jobPhotos.length > 0 && (

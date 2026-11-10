@@ -221,7 +221,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
           <>
             <div className={`grid grid-cols-1 sm:grid-cols-2 ${cfg.dealership && cfg.quotes ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
               <Metric title="Revenue collected" value={money(revenue.collected)} subtitle={`${money(revenue.invoiced)} invoiced in this period${revenue.refunded ? ` · ${money(revenue.refunded)} refunded` : ''}`} icon={DollarSign} color="green" trend={revenue.collectionRate} trendLabel="collection rate" />
-              <Metric title="Outstanding now" value={money(revenue.outstanding)} subtitle={`${money(revenue.overdue)} overdue · ${revenue.overdueCount} invoice${revenue.overdueCount === 1 ? '' : 's'}`} icon={AlertCircle} color="orange" alert={revenue.overdueCount > 0} />
+              <Metric title="Outstanding now" value={money(revenue.outstanding)} subtitle={revenue.overdueCount > 0 ? `${money(revenue.overdue)} of it overdue, on ${revenue.overdueCount} invoice${revenue.overdueCount === 1 ? '' : 's'}` : 'None of it overdue'} icon={AlertCircle} color="orange" alert={revenue.overdueCount > 0} />
               {cfg.eventsPipeline ? (
                 <>
                   {/* The book ahead: the held events (confirmed and tentative — a tentative one holds its room) that "booked
