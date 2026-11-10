@@ -14,11 +14,11 @@ const BASE = ['contacts', 'quotes', 'jobs', 'projects', 'dashboard', 'vendor_bil
 const ALL = [...BASE, 'owner_dashboard', 'crew_dashboard']
 
 describe('the features', () => {
-  test.each(['owner_dashboard', 'crew_dashboard'])('%s is registered, not ready, and offered to the general contractor only', (id) => {
+  test.each(['owner_dashboard', 'crew_dashboard'])('%s is registered, not ready, and offered to the job trades (parity tier 1, 11/10)', (id) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
     expect(f.hidden).toBe(true)
-    expect(f.templates).toEqual(['crm'])
+    expect(f.templates).toEqual(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
   })
 })
 

@@ -37,12 +37,12 @@ Shared ones are also in `shared-backlog.md`.
 
 | ServiceTitan | Ours | Mark |
 |---|---|---|
-| Estimate templates | `quote_templates` — offered to the contractor only | built elsewhere |
-| Automatic quote follow-up | `quote_followup` — contractor only | built elsewhere |
-| Change orders | `change_orders` — contractor only | built elsewhere |
-| CRM pipeline, quotes awaiting a reply | `lead_pipeline` — contractor only | built elsewhere |
-| Owner / technician dashboards | `owner_dashboard`, `crew_dashboard` — contractor only | built elsewhere |
-| Customer self-scheduling in the portal | `portal_appointments` — the salon only; field service's portal takes a service request, not a booking | partly |
+| Estimate templates | `quote_templates` — offered to the contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
+| Automatic quote follow-up | `quote_followup` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
+| Change orders | `change_orders` — contractor only, and tied to a **project** (`projectId` required); field service has no projects — change orders on a **job** are a build | not built for jobs |
+| CRM pipeline, quotes awaiting a reply | `lead_pipeline` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
+| Owner / technician dashboards | `owner_dashboard`, `crew_dashboard` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
+| Customer self-scheduling in the portal | `portal_appointments` — the salon only, built on the salon's stylists and service menu (crm.ts portal hooks); field service's portal takes a service request. Opening it means adapting it to the general bookings — a build | partly |
 | A `route_optimization` switch | in the registry, offered to **no** trade; the dispatch board's optimiser works without it — find what it was for before opening it | to check |
 
 Each is opened by adding the trade to the feature's `templates` and trying it — shared first: landscaping and basic with field
