@@ -10,7 +10,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { createQboMock } from './qboMock.ts'
-import { quickBooksReason, MAX_ATTEMPTS } from '../server/crm/office/quickbooksAutoSync.ts'
+import { quickBooksReason, connectionLost, MAX_ATTEMPTS } from '../server/crm/office/quickbooksAutoSync.ts'
 
 const json = async (r: Response) => (await r.json()) as any
 const qbo = createQboMock()
@@ -45,6 +45,15 @@ describe("QuickBooks' error words", () => {
     expect(quickBooksReason(new Error('QBO API error: 400 - {"Fault":{"Error":[{"Message":"Duplicate Name Exists Error","Detail":"The name supplied already exists.","code":"6240"}],"type":"ValidationFault"}}')))
       .toBe('Duplicate Name Exists Error: The name supplied already exists. (QuickBooks error 6240)')
     expect(quickBooksReason(new Error('QBO API error: 401 - {"fault":{"error":[{"message":"message=AuthenticationFailed","detail":"Token revoked","code":"3200"}]}}'))).toContain('Token revoked')
+  })
+
+  test('a lost connection is told by the status and the message, never by a "401" inside a refusal (its time, say)', () => {
+    expect(connectionLost(new Error('QBO API error: 401 - {"fault":{"error":[{"message":"message=AuthenticationFailed","detail":"Token revoked","code":"3200"}]}}'))).toBe(true)
+    expect(connectionLost(new Error('Token refresh failed: {"error":"invalid_grant"}'))).toBe(true)
+    expect(connectionLost(new Error('QuickBooks is not connected. Connect it in Settings › Integrations.'))).toBe(true)
+    // unified CI, 2026-11-09: this Duplicate Name stopped the sync as "not connected any more".
+    expect(connectionLost(new Error('QBO API error: 400 - {"Fault":{"Error":[{"Message":"Duplicate Name Exists Error","code":"6240"}],"type":"ValidationFault"},"time":"2026-11-09T23:13:45.401Z"}'))).toBe(false)
+    expect(connectionLost(new Error('QBO API error: 400 - {"Fault":{"Error":[{"Message":"Invoice 401 is not valid","code":"6000"}]}}'))).toBe(false)
   })
 })
 
