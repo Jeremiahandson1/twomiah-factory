@@ -37,7 +37,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 14. **Tech availability:** give tech 1 working hours and a day off next week. **Expect:** shown on the Dispatch Board; giving tech 1 a job on the day off warns.
 15. Make a job "No heat" for Hank; assign tech 1 on the **Dispatch Board**; reassign to tech 2; set its status. **Expect:** the board and the job agree.
 16. **Job reminders:** turn on reminders before booked jobs. **Expect:** saved; the reason says texts won't send without a number; the email reminder is listed.
-17. **Job checklists:** build "Furnace tune-up" (5 items); fill it on the job and have the customer sign. **Expect:** kept on the job, and the job's Notes › From the field has a line for it being filled in and one for the signature.
+17. **Job checklists:** build "Furnace tune-up" (5 items); fill it on the job and have the customer sign. Fill it in from the office's job page (**Fill in** on the Checklists panel) as well as from Tech View. **Expect:** kept on the job, and the job's Notes › From the field has a line for it being filled in and one for the signature.
 18. As **tech 1** (🙋 **PERSON** types the password) in the tech's mobile view at phone width: today's jobs, directions, on my way / on site / done, a photo, the checklist. **Expect:** the office sees each.
 19. Schedule: drag a job to another day (desktop). **Expect:** moved.
 
@@ -51,7 +51,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 ## E. Plans and agreements
 
 24. **Maintenance plans (Agreements):** as the **sales rep**, sell Hank a two-visit yearly plan on his furnace. **Expect:** Sold by the rep; the visits go on the schedule as service calls on the furnace; the rep finds Hank in Contacts and in the customer box though the office added him; Agreements › Upcoming Visits lists the next one (a visit past its day and not done shows **Overdue**; "Next 12 months" reaches the second visit).
-25. **Warranties:** add one for Hank's furnace (Equipment it covers). **Expect:** his portal's Equipment page shows the warranty active, and after a completed service call on the furnace, "Last serviced" is that day on the business's clock (also after 6 PM). The Warranties list's **Covers** column names the furnace.
+25. **Warranties:** add one for Hank's furnace (Equipment it covers). **Expect:** his portal's Equipment page shows the warranty active, and after a completed service call on the furnace, "Last serviced" is that day on the business's clock (also after 6 PM). The Warranties list's **Covers** column names the furnace; **Edit** on an older warranty can name the furnace too.
 26. **Plan reports:** **Expect:** plans sold by rep, renewals coming due, ended plans.
 
 ## F. Invoices and payments

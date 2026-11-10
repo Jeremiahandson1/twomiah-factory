@@ -8,6 +8,7 @@
 // POST /api/internal/calendar/store-tokens; they are stored encrypted (core/crypto.ts). The customer is not added as a
 // guest: Google and Outlook would send them a second invitation beside the confirmation, which carries its own.
 // The site's change-notification channels are not moved: they only stamped a time (busy time is read fresh each time).
+import { whereOf } from './where.ts'
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import { booking, calendarConnection, company, gbpConnection, user } from '../db/schema/index.ts'
 import { encrypt, decrypt } from '../core/crypto.ts'
@@ -90,14 +91,14 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
     if (b.customerPhone) lines.push('Phone: ' + b.customerPhone)
     if (b.customerNotes) lines.push('', 'Customer notes:', b.customerNotes)
     if (provider === 'google') return {
-      summary: title, description: lines.join('\n'), location: b.customerAddress || undefined,
+      summary: title, description: lines.join('\n'), location: whereOf(b) || undefined,
       start: { dateTime: b.startAt.toISOString() }, end: { dateTime: b.endAt.toISOString() }, reminders: { useDefault: true },
     }
     const utc = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, '')
     return {
       subject: title, body: { contentType: 'text', content: lines.join('\n') },
       start: { dateTime: utc(b.startAt), timeZone: 'UTC' }, end: { dateTime: utc(b.endAt), timeZone: 'UTC' },
-      location: b.customerAddress ? { displayName: b.customerAddress } : undefined,
+      location: whereOf(b) ? { displayName: whereOf(b)! } : undefined,
     }
   }
 
