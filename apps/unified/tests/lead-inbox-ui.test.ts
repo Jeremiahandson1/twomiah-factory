@@ -58,7 +58,7 @@ describe('the inbox', () => {
     expect(options).toContain('New (2)')
     expect(options).toContain('Contacted (1)')
     expect(options).toContain('Spam (1)')
-    expect(text()).toContain('5 new leads — 2 enquiries in this inbox and 3 contacts added as leads')
+    expect(text()).toContain('5 leads waiting — 2 new enquiries in this inbox and 3 contacts added as leads')
     root.unmount()
   })
 
@@ -67,7 +67,7 @@ describe('the inbox', () => {
     const options = [...document.querySelectorAll('option')].map((o: any) => o.textContent)
     expect(options).toContain('New')
     expect(options).not.toContain('Spam')
-    expect(text()).not.toContain('new leads —')
+    expect(text()).not.toContain('leads waiting —')
     root.unmount()
   })
 

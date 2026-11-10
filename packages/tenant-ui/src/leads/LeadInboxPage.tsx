@@ -280,8 +280,10 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
 
       {stats?.waiting && stats.waiting.total > 0 && (
         <p style={{ margin: '0 0 12px', fontSize: 13, color: c.muted }} data-testid="lead-waiting">
-          <strong style={{ color: c.text }}>{stats.waiting.total} new {stats.waiting.total === 1 ? 'lead' : 'leads'}</strong>
-          {' — '}{stats.waiting.inbox} {stats.waiting.inbox === 1 ? 'enquiry' : 'enquiries'} in this inbox
+          {/* "Waiting", not "new": a lead made into a contact is no longer a new enquiry here (the filter says 0 new), but it is still
+              waiting for a quote, a booking or a bill — the dashboard's New leads rule (reporting/newLeads.ts). Basic re-check 11/10. */}
+          <strong style={{ color: c.text }}>{stats.waiting.total} {stats.waiting.total === 1 ? 'lead' : 'leads'} waiting</strong>
+          {' — '}{stats.waiting.inbox} new {stats.waiting.inbox === 1 ? 'enquiry' : 'enquiries'} in this inbox
           {stats.waiting.contacts > 0 && <> and {stats.waiting.contacts} {stats.waiting.contacts === 1 ? 'contact' : 'contacts'} added as leads that nobody has quoted, booked or billed yet. <Link to="/crm/new-leads" style={{ color: c.link }}>See them all</Link></>}
         </p>
       )}
