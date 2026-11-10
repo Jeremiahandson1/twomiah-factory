@@ -31,7 +31,7 @@ const store: VerticalSettings = {
   // 'store': industryRouting's vertical id (apps/api/src/config/industryRouting.ts) and what the Factory calls it.
   id: 'store',
   label: 'Online Store',
-  vocabulary: { readyText: 'your order is ready for pickup.', customer: { one: 'customer', many: 'customers' }, work: null, team: { one: 'team member', many: 'team' }, reviewAfter: null, gallery: 'Gallery', customerCompany: true },
+  vocabulary: { readyText: 'your order is ready for pickup.', customer: { one: 'customer', many: 'customers' }, work: null, team: { one: 'team member', many: 'team' }, reviewAfter: null, gallery: 'Gallery', customerCompany: true, emailExamples: 'order confirmations, receipts and shipping updates', records: 'your customers, orders, products, payments, your team and the rest' },
   mfaIssuer: 'Twomiah Store',
   starter: STARTER,
   featureSet: 'crm-store',
@@ -74,8 +74,25 @@ const store: VerticalSettings = {
     // HomeAdvisor, Thumbtack, Local Services and Houzz). Lead Sources, the forwarding guide, is hidden for a shop
     // (screens.navHidden), so nothing else can arrive. Same ids as screens.leads.platforms.
     leads: { platforms: ['website'] },
+    // Settings › Migrate Data: the stores a shop moves from, not Jobber or ServiceTitan (store live test 11/10).
+    migration: { providers: ['shopify', 'woocommerce', 'bigcommerce', 'squarespace', 'wix'] },
   },
   screens: {
+    // Settings › Import, Migrate Data and Integrations in a shop's words (store live test 11/10): its customers come across; its
+    // products are made in Products (a CSV here would land in a price list the store does not use); QuickBooks gets sales
+    // receipts, refunds and payouts (server/crm/store/books.ts), not invoices; the email it sends is order email.
+    import: {
+      intro: 'Import your customers from a CSV file',
+      types: [{ id: 'contacts', label: 'Customers', description: 'Import your customers, from your old store or a spreadsheet' }],
+    },
+    migration: { entityLabels: { contacts: 'Customers' }, genericTypes: ['contacts'] },
+    integrations: {
+      copy: {
+        quickbooks: 'Send paid orders, refunds and payouts to QuickBooks Online.',
+        quickbooksAutoSync: 'Auto-sync paid orders, refunds and payouts every 15 minutes',
+        email: 'Send order confirmations, receipts and shipping updates by email.',
+      },
+    },
     // The menu's groups (web/src/navGroups.ts): the store's pages had no headings at all.
     navGroupOrder: ['Shop', 'Customers', 'Money', 'Website', 'Account'],
     navGroups: {

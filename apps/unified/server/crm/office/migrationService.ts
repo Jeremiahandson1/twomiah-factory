@@ -281,6 +281,38 @@ export const PLATFORM_PRESETS: Record<string, {
     logo: '', hasApi: false,
     csvMappings: { contacts: { name: ['name', 'client name'], email: ['email'], phone: ['phone'], company: ['company'] } },
   },
+  // A shop moves its customer list from its old store (store live test 11/10: Migrate Data offered Jobber and ServiceTitan to a shop).
+  // Each one's own customer export; the columns are matched by name, as every preset's are.
+  shopify: {
+    name: 'Shopify',
+    description: 'Import your customers from a Shopify customers export (Customers › Export, CSV)',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email'], phone: ['phone', 'default address phone'], company: ['company', 'default address company'], address: ['address1', 'default address address1'], city: ['city', 'default address city'], state: ['province code', 'province', 'default address province code'], zip: ['zip', 'default address zip'], notes: ['note'] } },
+  },
+  woocommerce: {
+    name: 'WooCommerce',
+    description: 'Import your customers from a WooCommerce customer export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first_name', 'first name', 'billing_first_name'], lastName: ['last_name', 'last name', 'billing_last_name'], email: ['email', 'user_email', 'billing_email'], phone: ['billing_phone', 'phone'], company: ['billing_company', 'company'], address: ['billing_address_1', 'address'], city: ['billing_city', 'city'], state: ['billing_state', 'state'], zip: ['billing_postcode', 'postcode', 'zip'] } },
+  },
+  bigcommerce: {
+    name: 'BigCommerce',
+    description: 'Import your customers from a BigCommerce customers export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email', 'email address'], phone: ['phone'], company: ['company'], notes: ['notes'] } },
+  },
+  squarespace: {
+    name: 'Squarespace',
+    description: 'Import your customers from a Squarespace customer list export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name', 'billing first name'], lastName: ['last name', 'billing last name'], email: ['email', 'email address'], phone: ['phone', 'billing phone number'], address: ['billing address 1', 'address'], city: ['billing city', 'city'], state: ['billing state', 'state'], zip: ['billing zip', 'zip'] } },
+  },
+  wix: {
+    name: 'Wix',
+    description: 'Import your customers from a Wix contacts export',
+    logo: '', hasApi: false,
+    csvMappings: { contacts: { firstName: ['first name'], lastName: ['last name'], email: ['email 1', 'email'], phone: ['phone 1', 'phone'], company: ['company'], address: ['address 1 - street', 'address'], city: ['address 1 - city', 'city'], state: ['address 1 - state/region', 'state'], zip: ['address 1 - zip', 'zip'] } },
+  },
   opentable: {
     name: 'OpenTable',
     description: 'Import your guests from an OpenTable guest export',

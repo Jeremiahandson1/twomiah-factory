@@ -200,7 +200,8 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       const co = await core.shop()
       const mailOrder = emailOrder(paid)
       const mailItems = emailItems(items)
-      void core.mail(paid.customerEmail, 'storeOrderConfirmation', { order: mailOrder, items: mailItems, supportEmail: co?.email }, co?.email)
+      // No address to send it to (an order paid in person for a customer with no email): no receipt email.
+      if (paid.customerEmail && paid.customerEmail !== NO_EMAIL_YET) void core.mail(paid.customerEmail, 'storeOrderConfirmation', { order: mailOrder, items: mailItems, supportEmail: co?.email }, co?.email)
       if (co?.email) void core.mail(co.email, 'storeMerchantNewOrder', { order: mailOrder, items: mailItems })
     } catch (e: any) {
       logger.warn('[store] order emails failed', { error: e?.message })

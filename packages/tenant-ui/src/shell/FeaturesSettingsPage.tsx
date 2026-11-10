@@ -18,6 +18,19 @@ export function inOwnWords(text: string): string {
   return text.replace(/[Cc]ustomers/g, swap('customers', w.many)).replace(/[Cc]ustomer/g, swap('customer', w.one))
 }
 
+/**
+ * A feature's line in this business's terms where the catalogue's sentence is one trade's: Review Requests said "sent automatically
+ * after a completed job or salon visit" to a store, which sends none by itself (store live test 11/10) — the vocabulary's
+ * reviewAfter says what does, or nothing.
+ */
+function describe(f: { id: string; description: string }): string {
+  if (f.id === 'google_reviews') {
+    const after = vocabulary().reviewAfter
+    return after ? `Ask customers for a Google review — sent automatically after ${after} once switched on in Reviews › Settings, or by hand from Reviews` : 'Ask customers for a Google review, by hand from Reviews'
+  }
+  return f.description
+}
+
 type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean; addOn?: boolean }
 
 /**
@@ -113,7 +126,7 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
                     <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <div className="font-medium text-gray-900 text-sm dark:text-slate-100">{f.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">{inOwnWords(f.description)}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">{inOwnWords(describe(f))}</div>
                         {on && NEEDS_CONNECTION[f.id]?.flag(integrations) && (
                           <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{NEEDS_CONNECTION[f.id].note}</div>
                         )}

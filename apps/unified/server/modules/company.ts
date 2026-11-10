@@ -136,7 +136,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
     // Renamed: the website's pages and its tagline and titles were written with the old name (renameInSite).
     onRenamed: (companyId: string, oldName: string, newName: string) => renameInSite(db, companyId, oldName, newName),
-    sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
+    sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}&invite=1` }),
     // Every business's time zone (company.timezone, Settings › Company — live test 10/22: the contractor's was only under
     // Booking settings) and the zone its days are counted on; home care's own columns besides (mileage rate, legal name,
     // NPI, Medicaid id) and its agency rule for the zone (server/crm/homecare/office/companyFields.ts).

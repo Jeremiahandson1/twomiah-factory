@@ -131,12 +131,12 @@ export default function ReviewsPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {mayDecide && r.status !== 'approved' && (
-                    <button type="button" onClick={() => decide(r.id, 'approved')} title="Publish" aria-label="Publish" className="p-2 text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300 dark:hover:bg-green-950/40"><Check className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => decide(r.id, 'approved')} className="inline-flex items-center gap-1 px-2 py-1.5 text-sm font-medium text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300 dark:hover:bg-green-950/40"><Check className="h-4 w-4" aria-hidden />Publish</button>
                   )}
                   {mayDecide && r.status !== 'rejected' && (
-                    <button type="button" onClick={() => decide(r.id, 'rejected')} title="Reject" aria-label="Reject" className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => decide(r.id, 'rejected')} className="inline-flex items-center gap-1 px-2 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg dark:text-slate-300 dark:hover:bg-slate-800"><X className="h-4 w-4" aria-hidden />Reject</button>
                   )}
-                  {mayDelete && <button type="button" onClick={() => remove(r)} title="Delete" aria-label="Delete" className="p-2 text-red-700 hover:bg-red-50 rounded-lg dark:text-red-300 dark:hover:bg-red-950/40"><Trash2 className="h-4 w-4" /></button>}
+                  {mayDelete && <button type="button" onClick={() => remove(r)} className="inline-flex items-center gap-1 px-2 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 rounded-lg dark:text-red-300 dark:hover:bg-red-950/40"><Trash2 className="h-4 w-4" aria-hidden />Delete</button>}
                 </div>
               </div>
             </div>

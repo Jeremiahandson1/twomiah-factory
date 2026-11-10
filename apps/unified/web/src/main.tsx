@@ -8,7 +8,12 @@ import { registerCodeWords } from '@twomiah/tenant-ui/src/labels/codes'
 import { registerVocabulary } from '@twomiah/tenant-ui/src/labels/vocabulary'
 import { registerTextApi } from '@twomiah/tenant-ui/src/text/record'
 import { api } from './api'
+import { reloadForNewBuild } from '@twomiah/tenant-ui/src/shell/staleBuild'
 import './index.css'
+
+// A screen's script from the release before this one (the site updated while the page was open): load the page again, once
+// (shell/ErrorBoundary.tsx reloadForNewBuild — store live test 11/10).
+window.addEventListener('vite:preloadError', (e) => { if (reloadForNewBuild()) e.preventDefault() })
 
 // The saved theme and colour on <html> before the first render: the sign-in pages render outside the shell, which is
 // what applies them otherwise.

@@ -29,6 +29,8 @@ const draftSchema = z.object({
   note: z.string().trim().max(1000).optional().nullable(),
   /** Email the customer the link to pay now (default), or only make the order. */
   send: z.boolean().default(true),
+  /** Paid already, in person (cash, a check, the shop's own card terminal): the order is made paid — no link, no provider. */
+  paidInPerson: z.enum(['cash', 'check', 'card', 'other']).optional(),
 })
 
 export function createDraftOrderRoutes(d: CrmDeps, core: StoreCore) {
@@ -54,20 +56,22 @@ export function createDraftOrderRoutes(d: CrmDeps, core: StoreCore) {
     const [who] = await db.select({ id: contact.id, name: contact.name, email: contact.email }).from(contact)
       .where(and(eq(contact.id, parsed.data.contactId), eq(contact.companyId, companyId))).limit(1)
     if (!who) return fail(c, 404, 'That customer was not found.')
-    if (!who.email) return fail(c, 400, `${who.name} has no email address to send the order to. Add one on their page first.`, 'validation_failed', { contactId: 'This customer has no email' })
+    const inPerson = parsed.data.paidInPerson
+    // Paid in person needs no link, so no email: the receipt goes to one only when they have one.
+    if (!who.email && !inPerson) return fail(c, 400, `${who.name} has no email address to send the order to. Add one on their page first.`, 'validation_failed', { contactId: 'This customer has no email' })
     const pricing = await pricingForContact(db, companyId, who.id)
     const r = await starter.start({
-      companyId, items: parsed.data.items, customerEmail: who.email, delivery: parsed.data.delivery, shipTo: parsed.data.shipTo,
-      origin: requestOrigin(c), draft: { contactId: who.id, customerName: who.name, pricing, note: parsed.data.note ?? null },
+      companyId, items: parsed.data.items, customerEmail: who.email || undefined, delivery: parsed.data.delivery, shipTo: parsed.data.shipTo,
+      origin: requestOrigin(c), draft: { contactId: who.id, customerName: who.name, pricing, note: parsed.data.note ?? null, ...(inPerson ? { paidInPerson: inPerson } : {}) },
     })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
     const [order] = await db.select().from(storeOrder).where(and(eq(storeOrder.id, r.orderId), eq(storeOrder.companyId, companyId))).limit(1)
-    const sent = parsed.data.send ? await sendInvoice(order.id, companyId, r.url) : false
+    const sent = parsed.data.send && !inPerson ? await sendInvoice(order.id, companyId, r.url) : false
     await audit.log({
       action: audit.ACTIONS.CREATE, entity: 'order', entityId: order.id, entityName: order.orderNumber,
-      metadata: { description: `Order made for ${who.name}${pricing ? ` at ${pricing.name} prices` : ''}${sent ? ', link to pay emailed' : ''}` }, req: c,
+      metadata: { description: `Order made for ${who.name}${pricing ? ` at ${pricing.name} prices` : ''}${inPerson ? `, paid in person (${inPerson})` : ''}${sent ? ', link to pay emailed' : ''}` }, req: c,
     })
-    return one(c, { order, payUrl: r.url, sent, group: pricing ? { id: pricing.groupId, name: pricing.name } : null }, 201)
+    return one(c, { order, payUrl: inPerson ? null : r.url, sent, paidInPerson: inPerson ?? null, group: pricing ? { id: pricing.groupId, name: pricing.name } : null }, 201)
   })
 
   // Email the link again (the customer lost it). Only while the order is still waiting to be paid.
