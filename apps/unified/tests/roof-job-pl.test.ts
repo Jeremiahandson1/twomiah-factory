@@ -110,7 +110,9 @@ describe('a crew’s lump-sum price from a work order is the job’s labour', ()
     // The price is not on the crew's own link.
     const token = (await k.t.db.select().from(k.t.schema.workOrder))[0].publicToken
     const crewSide = await k.json(await k.t.call(`/api/crew-link/${token}`))
-    expect(JSON.stringify(crewSide.body)).not.toContain('2000')
+    // The price (2000) as a VALUE: in the whole text a random id or a timestamp can spell it (unified CI 2026-11-10, same flaw).
+    const values = (v: any): unknown[] => v && typeof v === 'object' ? Object.values(v).flatMap(values) : [v]
+    expect(values(crewSide.body).some((x) => x === 2000 || x === '2000' || x === '2000.00')).toBe(false)
 
     // A second sub on the job at $500 adds to it; a cancelled order does not count.
     const extra = await k.json(await makeOrder('owner', jobId, { price: 500, title: 'Gutters' }))
