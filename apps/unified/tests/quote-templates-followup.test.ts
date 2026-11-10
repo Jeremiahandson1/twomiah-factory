@@ -2,7 +2,7 @@
 // real database. The clock is pinned (each pass is handed its `now`) and no email leaves: the email service's send is replaced
 // to record what it was handed. The screens are quote-templates-ui.test.ts (a DOM installed as globals stops the in-memory
 // database booting, so the two live in separate files).
-//   · both features are registered not ready, general contractor only; off, their doors are shut (the registry's feature gate answers 403);
+//   · both features are registered not ready, for the job trades (the contractor; field service, landscaping and basic since parity tier 1, 11/10); off, their doors are shut (the registry's feature gate answers 403);
 //   · a template is read from the saved quote (not from the browser), leaves out the customer/dates/options, and a seat
 //     without margin:read is not sent what the lines cost; a seat that cannot create quotes cannot save one;
 //   · follow-up: off by default; 8am on the company's clock; once per step (the latest reached); never to a quote that was
@@ -22,11 +22,11 @@ const chicago = (local: string) => new Date(new Date(`${local}Z`).getTime() + 6 
 const FEATURES = ['contacts', 'quotes', 'projects', 'quote_templates', 'quote_followup']
 
 describe('the features', () => {
-  test.each(['quote_templates', 'quote_followup'])('%s is registered, not ready, and offered to the general contractor only', (id) => {
+  test.each(['quote_templates', 'quote_followup'])('%s is registered, not ready, and offered to the job trades (parity tier 1, 11/10)', (id) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
     expect(f.hidden).toBe(true)
-    expect(f.templates).toEqual(['crm'])
+    expect(f.templates).toEqual(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
   })
 })
 
