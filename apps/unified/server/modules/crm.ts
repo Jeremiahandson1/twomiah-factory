@@ -27,7 +27,7 @@ import {
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries, jobAssignee, crewLogin,
+  documentShare, equipment, serviceAgreement, agreementVisit, projectWarranty, site, jobPhoto, jobSeries, jobAssignee, crewLogin,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -613,7 +613,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       tables: {
         contact, company, user, quote, quoteLineItem, quoteProposalOption, quoteProposalDocument, quoteProposalMark, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
-        equipment, serviceAgreement, agreementVisit, formSubmission,
+        equipment, serviceAgreement, agreementVisit, formSubmission, projectWarranty,
         // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).
         ...(v.patients ? { patient, vaccination, appointment, visit } : {}),
       },

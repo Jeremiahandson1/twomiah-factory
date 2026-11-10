@@ -245,7 +245,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             </div>
           )}
 
-          {cfg.notes && <JobNotesPanel api={api} toast={toast} jobId={id} timeZone={cfg.timeZone} />}
+          {cfg.notes && <JobNotesPanel api={api} toast={toast} jobId={id} timeZone={cfg.timeZone} fieldLog={(job as any)?.internalNotes ?? null} />}
 
           {showParts && <JobPartsPanel api={api as any} toast={toast} jobId={id} />}
         </div>

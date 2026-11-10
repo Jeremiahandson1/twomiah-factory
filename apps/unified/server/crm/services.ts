@@ -209,7 +209,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const recurring = createRecurringService({ db, tables: { invoice, invoiceLineItem }, emailService } as any)
   const agreements = createAgreementsService({
     db,
-    tables: { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user },
+    tables: { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user, equipment },
     stripe: { listSavedPaymentMethods: stripeService.listSavedPaymentMethods, chargeInvoiceOffSession: stripeService.chargeInvoiceOffSession },
     audit,
     sendRenewalNotice: (to: string, data: Record<string, unknown>) => email.send(to, 'agreementRenewalNotice', data),
@@ -233,7 +233,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     ? { db, tables: { vehicle, vehicleMaintenance, fuelLog, vehicleTrip, locationLog, user }, calculateDistance, options: { gps: true } }
     : { db, tables: { vehicle, vehicleMaintenance, fuelLog } }) as any)
   const warranties = createWarrantiesService({
-    db, tables: { warrantyTemplate, projectWarranty, warrantyClaim, activityLog: activity, jobAssignment, job, project, contact },
+    db, tables: { warrantyTemplate, projectWarranty, warrantyClaim, activityLog: activity, jobAssignment, job, project, contact, equipment },
   } as any)
   // Customer-asset tracking: the shared service keeps contactId only when told the column exists (the CRMs' T32 H9).
   // Where the vertical has service sites, equipment records its site and the jobs done on it (field service et al).

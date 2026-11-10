@@ -122,7 +122,8 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
           <label>Email<input type="email" name="email" required autocomplete="email"></label>
           <label>Phone${settings.requirePhone ? '' : ' (optional)'}<input type="tel" name="phone" ${settings.requirePhone ? 'required' : ''} autocomplete="tel"></label>
           ${consentBoxHtml('booking')}
-          <label>Address${requireAddress ? '' : ' (optional)'}<input type="text" name="address" ${requireAddress ? 'required' : ''} autocomplete="street-address"></label>
+          <label>Address${requireAddress ? '' : ' (optional)'}<input type="text" name="address" ${requireAddress ? 'required' : ''} autocomplete="address-line1"></label>
+          <div class="book-row"><label>City<input type="text" name="city" autocomplete="address-level2"></label><label>State<input type="text" name="state" maxlength="20" autocomplete="address-level1"></label>${askZip ? '' : '<label>ZIP<input type="text" name="zip" inputmode="numeric" maxlength="10" autocomplete="postal-code"></label>'}</div>
           ${engine.questions.map((q) => `<label>${escHtml(q.label)}<input type="text" name="${escHtml(q.name)}" maxlength="${q.maxLength}"${q.placeholder ? ` placeholder="${escHtml(q.placeholder)}"` : ''}${q.requiredMessage ? ' required' : ''}></label>`).join('\n          ')}
           <label>Anything we should know? (optional)<textarea name="notes" rows="3"></textarea></label>
           ${tips.length ? `<div class="book-tip"><span class="book-tip__label">Add a tip (optional)</span><div class="book-tip-row" role="group" aria-label="Tip">

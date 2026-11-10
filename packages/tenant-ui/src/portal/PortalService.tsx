@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import { Wrench, Shield, ChevronRight, ChevronDown, ChevronUp, Calendar, CheckCircle, AlertTriangle, X, CalendarCheck, ArrowRight, LifeBuoy, Loader2 } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { isPastDay } from '../invoicing/ui'
-import { PLink, Spinner, PageTitle, Empty, card, pill, btnPrimary, inputCls, labelCls, formatDate, moneyShort } from './common'
+import { PLink, Spinner, PageTitle, Empty, card, pill, btnPrimary, inputCls, labelCls, formatDate, formatWhen, moneyShort } from './common'
 import { codeLabel } from '../labels/codes'
 
 // ---------------------------------------------------------------- Equipment
@@ -13,7 +13,7 @@ interface Unit { id: string; name: string; model?: string | null; manufacturer?:
 const warranty = (expiry?: string | null) => !expiry ? null : !isPastDay(expiry)
 
 export function PortalEquipment() {
-  const { token, fetch: portalFetch, config } = usePortal()
+  const { token, fetch: portalFetch, config, company } = usePortal()
   const [units, setUnits] = useState<Unit[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -38,7 +38,7 @@ export function PortalEquipment() {
                       <span className={`inline-flex items-center gap-1 ${pill(w === null ? 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' : w ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40')}`}><Shield className="w-3 h-3" />{w === null ? 'Warranty unknown' : w ? 'Warranty active' : 'Warranty expired'}</span>
                       {u.purchaseDate && <span className="text-xs text-gray-500 dark:text-slate-400">Installed {formatDate(u.purchaseDate)}</span>}
                     </div>
-                    {u.lastServiceDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Last serviced {formatDate(u.lastServiceDate)}</p>}
+                    {u.lastServiceDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Last serviced {formatWhen(u.lastServiceDate, company?.timeZone)}</p>}
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-300 shrink-0 mt-1" />
                 </div>

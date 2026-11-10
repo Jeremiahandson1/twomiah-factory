@@ -201,7 +201,8 @@
       })
     } else {
       new FormData(form).forEach(function (v, k) { data[k] = v })
-      data.zip = zip()
+      // The service-area ZIP asked before the dates, else the one typed with the address (City, State, ZIP: field service live test 11/09).
+      data.zip = zip() || data.zip || ''
       if (who()) data.who = who()
       var more = also()
       if (more.length) data.also = more.map(function (x) { return { service: x.service, who: x.who || null } })

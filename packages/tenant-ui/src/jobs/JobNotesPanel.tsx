@@ -20,7 +20,15 @@ export const whenWritten = (iso: string, timeZone?: string) => {
 }
 const author = (n: Note) => [n.user?.firstName, n.user?.lastName].filter(Boolean).join(' ') || n.user?.email || 'Someone'
 
-export function JobNotesPanel({ api, toast, jobId, timeZone }: { api: JobsApi; toast: JobsToast; jobId: string; timeZone?: string }) {
+/**
+ * The field's own log on the job (job.internalNotes): the tech screen writes a stamped line for each move and checklist — "[Nov 9, 2026,
+ * 7:01 PM CST] Tech en route" (tenant-backend tech.ts). The office page said "No notes yet." beside them (field service live test 11/09).
+ */
+const fieldLines = (log?: string | null) => String(log || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  .map((l) => { const m = /^\[([^\]]+)\]\s*(.*)$/.exec(l); return m ? { when: m[1], text: m[2] } : { when: '', text: l } }).reverse()
+
+export function JobNotesPanel({ api, toast, jobId, timeZone, fieldLog }: { api: JobsApi; toast: JobsToast; jobId: string; timeZone?: string; fieldLog?: string | null }) {
+  const field = fieldLines(fieldLog)
   // The question POST /api/comments/job/:id asks: may this person edit the job (comments.ts, the record's own rule).
   const mayWrite = useMayWrite('jobs:update')
   const [notes, setNotes] = useState<Note[] | null>(null)
@@ -61,7 +69,7 @@ export function JobNotesPanel({ api, toast, jobId, timeZone }: { api: JobsApi; t
       )}
       {failed && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{failed}</p>}
       {notes === null && !failed && <p className="text-sm text-gray-500 dark:text-slate-400">Loading…</p>}
-      {notes && !notes.length && !failed && <p className="text-sm text-gray-500 dark:text-slate-400">No notes yet.</p>}
+      {notes && !notes.length && !failed && !field.length && <p className="text-sm text-gray-500 dark:text-slate-400">No notes yet.</p>}
       {notes && notes.length > 0 && (
         <ul className="space-y-3">
           {notes.map((n) => (
@@ -71,6 +79,18 @@ export function JobNotesPanel({ api, toast, jobId, timeZone }: { api: JobsApi; t
             </li>
           ))}
         </ul>
+      )}
+      {field.length > 0 && (
+        <div className={notes && notes.length ? 'mt-4 pt-4 border-t border-gray-100 dark:border-slate-800' : ''}>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-slate-200 mb-2">From the field</h3>
+          <ul className="space-y-2">
+            {field.map((l, i) => (
+              <li key={i} className="text-sm text-gray-800 dark:text-slate-200">
+                {l.when && <span className="text-xs text-gray-500 dark:text-slate-400">{l.when} · </span>}<span className="whitespace-pre-wrap break-words">{l.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )

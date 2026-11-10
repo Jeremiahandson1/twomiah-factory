@@ -11,7 +11,7 @@
 //     automatic commission on the invoice.
 import { and, asc, desc, eq, gte, inArray, isNotNull, notExists } from 'drizzle-orm'
 import { commissionFor, planPaysPerson, QUOTE_SELLER } from '@twomiah/tenant-backend'
-import { commission, commissionPlan, invoice, quote, user } from '../../db/schema/index.ts'
+import { commission, commissionPlan, invoice, quote, serviceAgreement, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 
 const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
@@ -42,7 +42,13 @@ export function createQuoteSellerCommissions(d: CrmDeps) {
       && (!p.effectiveTo || new Date(p.effectiveTo) >= paidAt))
     if (!plans.length) return out
     const q = await quoteOf(inv)
-    const sellerId = q?.salespersonId || q?.createdById
+    // No quote: a maintenance plan's bill is sold by the plan's Sold by (field service live test 11/09: "the plan's Sold by field is not
+    // used by Commissions").
+    const sold = !q && inv.serviceAgreementId
+      ? (await db.select({ soldById: serviceAgreement.soldById, number: serviceAgreement.number }).from(serviceAgreement)
+        .where(and(eq(serviceAgreement.id, inv.serviceAgreementId), eq(serviceAgreement.companyId, inv.companyId))).limit(1))[0] || null
+      : null
+    const sellerId = q?.salespersonId || q?.createdById || sold?.soldById
     if (!sellerId) return out
     const [person] = await db.select({ id: user.id }).from(user).where(and(eq(user.id, sellerId), eq(user.companyId, inv.companyId))).limit(1)
     if (!person) return out
@@ -55,7 +61,7 @@ export function createQuoteSellerCommissions(d: CrmDeps) {
         companyId: inv.companyId, planId: plan.id, userId: person.id, jobId: q?.jobId ?? null, invoiceId: inv.id,
         baseAmount: String(base), rateApplied: result.rate !== null ? String(result.rate) : null,
         commissionAmount: String(result.amount), earnedAt: paidAt, source: 'auto',
-        notes: `Earned automatically when ${inv.number || 'the invoice'} was paid in full (sold on ${q?.number || 'the quote'})`,
+        notes: `Earned automatically when ${inv.number || 'the invoice'} was paid in full (sold on ${q?.number || sold?.number || 'the quote'})`,
       } as any).onConflictDoNothing().returning({ id: commission.id })
       out.earned += rows.length
     }

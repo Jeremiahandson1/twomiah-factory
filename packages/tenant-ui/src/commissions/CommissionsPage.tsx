@@ -62,6 +62,12 @@ export interface CommissionsConfig {
    * plan starts on it, since that is what a builder's sales plan is (contractor live test 11/07: the plan was made and nothing was earned).
    */
   quoteSeller?: boolean
+  /**
+   * The seller choice in this trade's words, and whether a new plan starts on it. Field service pays the rep who sold the quote OR the
+   * maintenance plan (its Sold by), and its first plan is a technician's, so it does not start there (field service live test 11/09).
+   */
+  quoteSellerWords?: string
+  quoteSellerNotDefault?: boolean
 }
 export interface CommissionsPageProps { api: CommissionsApi; toast: CommissionsToast; config: CommissionsConfig }
 
@@ -174,8 +180,8 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     planType === 'percent_of_margin'
       ? (salesRepAuto ? { none: AUTO_WORDS.none, ...SALES_REP_AUTO_WORDS } : { none: AUTO_WORDS.none })
       // a salon pays the stylist of a visit (salesKinds); every other trade the job's person, and roofing its seller too
-      : { ...(config.salesKinds ? SALON_AUTO_WORDS : AUTO_WORDS), ...(salesRepAuto ? SALES_REP_AUTO_WORDS : {}), ...(config.quoteSeller ? QUOTE_SELLER_WORDS : {}) }
-  const newPlan = () => ({ ...blankPlan(roleKeys[0] || 'all'), ...(config.quoteSeller ? { autoEarn: 'quote_salesperson' } : {}) })
+      : { ...(config.salesKinds ? SALON_AUTO_WORDS : AUTO_WORDS), ...(salesRepAuto ? SALES_REP_AUTO_WORDS : {}), ...(config.quoteSeller ? (config.quoteSellerWords ? { quote_salesperson: config.quoteSellerWords } : QUOTE_SELLER_WORDS) : {}) }
+  const newPlan = () => ({ ...blankPlan(roleKeys[0] || 'all'), ...(config.quoteSeller && !config.quoteSellerNotDefault ? { autoEarn: 'quote_salesperson' } : {}) })
 
   const [tab, setTab] = useState<'records' | 'plans' | 'statements' | 'rules'>('records')
   const [stmtWho, setStmtWho] = useState('')

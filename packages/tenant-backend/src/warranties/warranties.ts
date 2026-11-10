@@ -68,6 +68,8 @@ const CLAIM_STATUSES = ['open', 'scheduled', 'in_progress', 'completed', 'denied
 export interface WarrantiesTables {
   warrantyTemplate: any; projectWarranty: any; warrantyClaim: any;
   activityLog: any; jobAssignment: any; job: any; project: any; contact: any;
+  /** The customers' units, where a warranty may name the one it covers (projectWarranty.equipmentId). Absent: it cannot. */
+  equipment?: any;
 }
 export interface WarrantiesServiceDeps { db: any; tables: WarrantiesTables }
 export interface WarrantiesRoutesDeps {
@@ -79,6 +81,7 @@ export interface WarrantiesRoutesDeps {
 export function createWarrantiesService(deps: WarrantiesServiceDeps) {
   const { db, tables } = deps;
   const { warrantyTemplate, projectWarranty, warrantyClaim, activityLog, jobAssignment, job, project, contact } = tables;
+  const equipmentTable = tables.equipment && 'equipmentId' in projectWarranty ? tables.equipment : null;
 
 // ============================================
 // WARRANTY TEMPLATES
@@ -188,6 +191,7 @@ async function createProjectWarranty(companyId: string, data: {
   startDate?: string;
   durationMonths?: number;
   documentUrl?: string;
+  equipmentId?: string | null;
 }) {
   // A warranty can be written by hand (the Warranties page's New Warranty, for a business without projects — landscaping,
   // field service, basic, RV — whose only way to get one was a project's templates: none could be created there, live
@@ -196,7 +200,7 @@ async function createProjectWarranty(companyId: string, data: {
   const bad = (message: string, status = 400) => Object.assign(new Error(message), { status });
   const name = typeof data.name === 'string' ? data.name.trim() : '';
   if (!name) throw bad('Give the warranty a name.');
-  if (!data.projectId && !data.contactId) throw bad('Choose the customer the warranty is for.');
+  if (!data.projectId && !data.contactId && !data.equipmentId) throw bad('Choose the customer the warranty is for.');
   if (data.durationMonths != null && (!Number.isInteger(Number(data.durationMonths)) || Number(data.durationMonths) < 1 || Number(data.durationMonths) > 600)) {
     throw bad('The term is a whole number of months, from 1 to 600.');
   }
@@ -213,6 +217,18 @@ async function createProjectWarranty(companyId: string, data: {
     // job scheduled from it, know who it is for.
     const r = await resolveCustomer(db, { contact, project }, companyId, { projectId: data.projectId });
     if (r.ok && r.contactId) data = { ...data, contactId: r.contactId };
+  }
+  // The unit it covers: this business's, and the customer's own (field service live test 11/09: the furnace's warranty could not be tied
+  // to the furnace). Named without a customer, the warranty is for the unit's customer.
+  let equipmentId: string | null = null;
+  if (data.equipmentId) {
+    if (!equipmentTable) throw bad('A warranty cannot name a piece of equipment here.');
+    const [unit] = await db.select({ id: equipmentTable.id, contactId: equipmentTable.contactId }).from(equipmentTable)
+      .where(and(eq(equipmentTable.id, String(data.equipmentId)), eq(equipmentTable.companyId, companyId))).limit(1);
+    if (!unit) throw bad('Equipment not found', 404);
+    if (data.contactId && unit.contactId && unit.contactId !== data.contactId) throw bad("That equipment is another customer's.");
+    if (!data.contactId && unit.contactId) data = { ...data, contactId: unit.contactId };
+    equipmentId = unit.id;
   }
   data = { ...data, name, durationMonths: data.durationMonths != null ? Number(data.durationMonths) : undefined };
 
@@ -238,6 +254,7 @@ async function createProjectWarranty(companyId: string, data: {
     expiresAt,
     documentUrl: data.documentUrl ?? null,
     status: 'active',
+    ...(equipmentTable ? { equipmentId } : {}),
   }).returning();
 
   // Fetch related project and contact
