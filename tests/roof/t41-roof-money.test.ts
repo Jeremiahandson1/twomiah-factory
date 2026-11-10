@@ -293,8 +293,10 @@ console.log('\n══════════ /api/crews — read because Report
   const list = rowsOf(crews.json)
   check('the crew seat reads the crew list', crews.status === 200 && list.length === 1,
     { status: crews.status, n: list.length })
+  // By FIELD NAME: the whole text included random ids, and one ("giop7rb3v5wn2payate7oc68", unified CI 2026-11-10) spelled "pay".
+  const fieldNames = (v: any): string[] => v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => [...(Array.isArray(v) ? [] : [k]), ...fieldNames(x)]) : []
   check('…and the crew record carries no money at all',
-    !/rate|cost|revenue|pay|wage|price/i.test(JSON.stringify(list)), JSON.stringify(list).slice(0, 240))
+    !fieldNames(list).some((k) => /rate|cost|revenue|pay|wage|price/i.test(k)), fieldNames(list))
 
   const detail = await asField('GET', `/api/crews/${cr.id}`)
   check('the crew detail lists its jobs', detail.status === 200 && (detail.json?.activeJobs || []).length === 2,
