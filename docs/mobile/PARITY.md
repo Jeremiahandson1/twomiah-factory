@@ -12,7 +12,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 |---|---:|---:|---:|---:|---:|---:|
 | Contractor | 67 | 18 | 12 | 9 | 25 | 21 |
 | Basic (general service business) | 48 | 17 | 12 | 3 | 17 | 16 |
-| Field service | 52 | 17 | 12 | 4 | 19 | 17 |
+| Field service | 50 | 17 | 12 | 4 | 17 | 17 |
 | Landscaping | 55 | 18 | 13 | 4 | 21 | 17 |
 | Roofing | 34 | 13 | 11 | 3 | 7 | 13 |
 | Home care | 67 | 9 | 13 | 1 | 25 | 28 |
@@ -204,12 +204,12 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
 | Business | Fleet | `/crm/fleet` | — | fleet (on by default) | all | none | C |
 | Business | GPS & Geofences | `/crm/geofences` | — | gps_tracking (on by default) | all | none | D — set-up and review screens for the owner at a desk |
-| Business | Inventory | `/crm/inventory` | — | inventory (on by default) | all | none | C |
+| Business | Inventory | `/crm/inventory` | — | inventory, parts_tracking (on by default) | all | none | C |
 | Business | Equipment | `/crm/equipment` | — | equipment_tracking (on by default) | all | none | C |
 | Business | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Business | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
 | Business | Pricebook | `/crm/pricebook` | prices:read | pricebook (on by default) | all | none | B — projects, bids and the price book |
-| Business | Agreements | `/crm/agreements` | — | service_agreements (on by default) | all | none | C |
+| Business | Agreements | `/crm/agreements` | — | service_agreements, maintenance_contracts (on by default) | all | none | C |
 | Business | Warranties | `/crm/warranties` | — | warranties (on by default) | all | none | C |
 | Business | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | Email (More): the inbox + a message as text + reply as the address written to | A — answering customers' email and reviews |
 | Business | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
@@ -222,8 +222,6 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
 | Field Service | Dispatch Board | `/crm/dispatch` | jobs:read | dispatch_board (on by default) | all | none | A — the day's work |
-| Field Service | Maintenance Contracts | `/crm/maintenance` | — | maintenance_contracts (on by default) | all | none | C |
-| Field Service | Parts Inventory | `/crm/parts` | — | parts_tracking (on by default) | all | none | C |
 | Field Service | Flat Rate Pricebook | `/crm/pricebook-rates` | — | flat_rate_pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
 | Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |

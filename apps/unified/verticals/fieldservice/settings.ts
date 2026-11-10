@@ -136,7 +136,7 @@ const fieldservice: VerticalSettings = {
       roles: [
         { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
         { value: 'sales_rep', label: 'Sales rep', description: 'their own leads and quotes, the maintenance plans they sell, the service calls they are on and their own commissions; not settings, the team or billing' },
-        { value: 'field', label: 'Staff', description: 'the service calls they are on: status, notes, photos, checklists and their own time' },
+        { value: 'field', label: 'Staff', description: 'the service calls they are on: status, notes, photos and their own time' },
         { value: 'manager', label: 'Manager', description: 'runs dispatch, service calls, quotes, plans and invoicing; not company settings or logins' },
         { value: 'admin', label: 'Admin', description: 'full access, including company settings and logins' },
       ],
