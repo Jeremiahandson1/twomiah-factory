@@ -130,7 +130,17 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
                       : <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-slate-800 dark:text-slate-200">Optional — {li.selected ? 'included' : 'not included'}</span>}
                   </span>
                 )}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>} />
-                {(quote.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No line items</td></tr>}
+                {/* The chosen option's own lines, so the table adds up to the subtotal (field service live test 11/09: an approved
+                    Good/Better/Best quote listed $1,800 and $250 under a $6,650 total; the $4,600 furnace sat in the options panel). */}
+                {((quote as any).proposal?.options || []).filter((o: any) => o.chosen).map((o: any) => (
+                  <React.Fragment key={o.id}>
+                    <tr data-testid="chosen-option-heading"><td colSpan={4} className="px-4 py-3 font-semibold text-gray-900 dark:text-white">Chosen option: {o.setName && o.setName !== 'Options' ? `${o.setName} — ` : ''}{o.name}</td></tr>
+                    {(o.lines || []).filter((li: any) => li.type !== 'text').map((li: any, i: number) => (
+                      <tr key={`${o.id}-${i}`}><td className="px-4 py-3 whitespace-pre-line">{li.description}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>
+                    ))}
+                  </React.Fragment>
+                ))}
+                {(quote.lineItems || []).length === 0 && !((quote as any).proposal?.options || []).some((o: any) => o.chosen) && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No line items</td></tr>}
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">
                 <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">{money(quote.subtotal)}</td></tr>

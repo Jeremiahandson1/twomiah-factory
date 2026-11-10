@@ -258,7 +258,8 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                 ))}
               </select>
             </div>
-            <div>
+            {/* Only where there are projects to bill against (field service live test 11/09: a trade without projects was asked "Project"). */}
+            {(projects.length > 0 || !!form.projectId) && <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
               <select
                 value={form.projectId}
@@ -270,7 +271,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
                   <option key={p.id as string} value={p.id as string}>{p.name as string}</option>
                 ))}
               </select>
-            </div>
+            </div>}
           </div>
         </div>
 

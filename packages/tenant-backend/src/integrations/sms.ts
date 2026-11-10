@@ -139,24 +139,25 @@ export function createSmsService(deps: SmsServiceDeps) {
     if (!isDialablePhone(toPhone)) throw new Error(`That is not a phone number we can text: ${toPhone}. Use a 10-digit number, or +country code for international.`)
     const formattedPhone = formatPhoneE164(toPhone)
 
-    // A refused send is not a send: with the usage wallet empty nothing is attempted, so no thread is
-    // opened and no message row is written — the caller just gets the refusal. A carrier failure after a
-    // real attempt is still recorded as a failed message in the thread. (T16 N2)
-    if (!(await usage.walletSufficient())) return { status: 'refused', errorMessage: 'Messaging paused: usage wallet is empty — top up to resume.', refused: true } as any
-
-    // …and a shop that has never set texting up is refused before anything else happens, in words
-    // that say what to do. FULL0929 F8: with no Twilio number on the company and a $0 wallet, a
-    // bulk reminder answered {sent: 1} and nothing went anywhere. The wallet check above caught it
-    // first on that tenant, but a shop with credit and no number would have reached Twilio and got
+    // A shop that has never set texting up is refused before anything else happens, in words that say
+    // what to do — FIRST, so it is not told its wallet is empty when it never turned texting on (field
+    // service live test 11/09: "Messaging paused: usage wallet is empty — top up to resume.").
+    // FULL0929 F8: with no Twilio number on the company and a $0 wallet, a bulk reminder answered
+    // {sent: 1} and nothing went anywhere; a shop with credit and no number would have reached Twilio and got
     // back a provider error nobody could act on. A missing number is a setup problem, not a send
     // failure, and it should read like one.
     if (!twilioConfigured(await cfg())) {
       return {
         status: 'refused',
-        errorMessage: 'Texting is not set up for this shop yet — add a number under Settings → Messaging before sending.',
+        errorMessage: 'Texting is not set up for this business yet — turn it on under Settings › Texting.',
         refused: true,
       } as any
     }
+
+    // A refused send is not a send: with the usage wallet empty nothing is attempted, so no thread is
+    // opened and no message row is written — the caller just gets the refusal. A carrier failure after a
+    // real attempt is still recorded as a failed message in the thread. (T16 N2)
+    if (!(await usage.walletSufficient())) return { status: 'refused', errorMessage: 'Messaging paused: usage wallet is empty — top up to resume.', refused: true } as any
 
     // The thread belongs to the person whose number this is (digits compared, so "(608) 555-0166" matches
     // +16085550166) — the same match the inbound webhook makes — so a text typed to a number is filed

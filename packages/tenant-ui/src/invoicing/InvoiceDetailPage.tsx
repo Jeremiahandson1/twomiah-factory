@@ -184,7 +184,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
                 {/* A final invoice credits the deposit and progress invoices raised against its quote (invoice.creditApplied). */}
                 {Number(invoice.creditApplied || 0) > 0 && <tr data-testid="invoice-credit-applied"><td colSpan={3} className="px-4 py-2 text-right text-sm">Billed before (deposit and progress)</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(invoice.creditApplied)}</td></tr>}
                 <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">{money(invoice.total)}</td></tr>
-                {Number(invoice.amountPaid) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(invoice.amountPaid)}</td></tr>}
+                {Number(invoice.amountPaid) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Payments received</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(invoice.amountPaid)}</td></tr>}
                 {Number(invoice.amountRefunded || 0) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Refunded</td><td className="px-4 py-2 text-right text-amber-700 dark:text-amber-300">{money(invoice.amountRefunded)}</td></tr>}
                 <tr className="font-bold text-base"><td colSpan={3} className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balance > 0 ? 'text-red-600 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>{money(balance)}</td></tr>
               </tfoot>

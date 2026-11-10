@@ -280,6 +280,8 @@ export const serviceAgreement = pgTable('service_agreement', {
   // Service-plan reports (0041): who sold the plan, and how and when it ended. All null on a plan made or ended before
   // these were recorded; a report says so rather than guessing (an older ended plan is dated by its last change).
   soldById: text('sold_by_id').references(() => user.id, { onDelete: 'set null' }),
+  // The unit the plan looks after (ServiceTitan's covered equipment; field service live test 11/09): its visits are service calls on it.
+  equipmentId: text('equipment_id').references((): AnyPgColumn => equipment.id, { onDelete: 'set null' }),
   endedAt: timestamp('ended_at'),
   endedHow: text('ended_how'), // 'cancelled' (someone ended it) or 'expired' (its term ran out without a renewal)
   cancelReason: text('cancel_reason'),

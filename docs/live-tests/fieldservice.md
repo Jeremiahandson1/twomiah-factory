@@ -28,8 +28,8 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 8. Sign in from the email; 🙋 **PERSON:** types the password. **Expect:** the setup wizard with the details filled in.
 9. Walk every step of the wizard. **Expect:** each makes sense.
 10. 📱 **Dashboard:** numbers and tiles show, none NaN or undefined; every tile opens the list it counts.
-11. **Team:** add a dispatcher/manager `twomiah14+chromehvacmgr@gmail.com`, a sales rep `twomiah14+chromehvacrep@gmail.com` and two techs `twomiah14+chromehvactech@gmail.com` and `twomiah14+chromehvactech2@gmail.com`. 🙋 **PERSON:** sets each password.
-12. Open the public website. 📱 **Expect:** the company's site; **online booking** works — book a "Furnace tune-up" as a made-up customer. **Expect:** the booking arrives in the CRM.
+11. **Team:** in Settings › Users add a dispatcher/manager `twomiah14+chromehvacmgr@gmail.com` (access role **Manager**), a sales rep `twomiah14+chromehvacrep@gmail.com` (access role **Sales rep**) and two techs `twomiah14+chromehvactech@gmail.com` and `twomiah14+chromehvactech2@gmail.com` (access role **Staff**). 🙋 **PERSON:** sets each password.
+12. Online booking opens once the business has a bookable service: add "Furnace tune-up" (1 hour) under Bookings first — until then the site's /book says bookings are opening soon. Then open the public website. 📱 **Expect:** the company's site; book a "Furnace tune-up" as a made-up customer with a street address, city, state and ZIP. **Expect:** the booking arrives in the CRM, and the new contact has the address with its city, state and ZIP.
 
 ## C. Jobs and dispatch
 
@@ -50,8 +50,8 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 
 ## E. Plans and agreements
 
-24. **Maintenance contracts:** sell Hank a two-visit yearly plan by the sales rep. **Expect:** the visits go on the schedule.
-25. **Service agreements, warranties:** add one of each on Hank's furnace.
+24. **Maintenance plans (Agreements):** as the **sales rep**, sell Hank a two-visit yearly plan on his furnace. **Expect:** Sold by the rep; the visits go on the schedule as service calls on the furnace; Agreements › Upcoming Visits lists the next one.
+25. **Warranties:** add one for Hank's furnace (Equipment it covers). **Expect:** his portal's Equipment page shows the warranty active, and after a completed service call on the furnace, "Last serviced" is that day.
 26. **Plan reports:** **Expect:** plans sold by rep, renewals coming due, ended plans.
 
 ## F. Invoices and payments
@@ -63,7 +63,7 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 
 29. **Reports, receivables aging, WIP, job costing:** **Expect:** numbers match.
 30. **Team revenue reports:** **Expect:** revenue per tech, and quotes each rep and tech turned into work.
-31. **Commissions:** a plan for the sales rep; mark the invoice paid. **Expect:** earned automatically; approve, pay, statement.
+31. **Commissions:** a plan for the sales rep that pays "the sales rep who sold it"; bill the plan and mark its invoice paid. **Expect:** the rep's commission is earned automatically; approve, pay, statement.
 
 ## H. Other features
 
@@ -77,8 +77,8 @@ Use the **test inbox** (`twomiah14+…@gmail.com`) for every email address — t
 
 ## N. Roles
 
-36. Sign in as the **manager**. **Expect:** dispatches and runs jobs; no billing or team-changing controls they shouldn't have.
-37. Sign in as the **sales rep**. **Expect:** their own quotes, plans and commissions only; not company Settings.
+36. Sign in as the **manager**. **Expect:** dispatches and runs service calls, quotes, plans and invoicing (an office manager's job in Jobber and Housecall Pro); no company Settings, no logins (Settings › Users), no Audit Log, and no new commission plans.
+37. Sign in as the **sales rep**. **Expect:** writes quotes and sells a maintenance plan (Sold by them); sees only their own quotes and leads, the customers on them, and their own commissions; not company Settings, the team, invoices or reports.
 38. Sign in as **tech 2**. **Expect:** their own jobs; no prices beyond what a tech should see, no company money; owner-only addresses typed in the bar are refused.
 
 ## O. Finish

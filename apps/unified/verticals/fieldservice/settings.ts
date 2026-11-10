@@ -43,7 +43,19 @@ const fieldservice: VerticalSettings = {
   extraRolePermissions: { field: ['sms:send'] },
   // Crew scope: a technician reads its own and its crews' jobs and their customers (server/core/vertical.ts).
   withheldRolePermissions: { field: CREW_SCOPE_WITHHELD },
+  // A Sales rep (ServiceTitan's and Housecall Pro's comfort advisor; field service live test 11/09: there was no way to make one — a
+  // Staff seat could not write a quote or sell a plan). The Staff rung, so everything that ranks a role reads it as Staff: the service
+  // calls it is on and their customers, plus its OWN leads and quotes (without leads:read-all / quotes:read-all the routes narrow it,
+  // server/crm/ownWork.ts — the contractor's rep), the maintenance plans it sells, and its own commissions.
+  roleLabels: { sales_rep: 'Sales rep' },
+  roleMapping: { sales_rep: 'field' },
+  roleExtra: { sales_rep: ['leads:read', 'leads:create', 'leads:update', 'quotes:read', 'quotes:create', 'quotes:update', 'contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'agreements:create', 'agreements:update'] },
+  roleWithheld: { sales_rep: ['leads:read-all', 'quotes:read-all'] },
   crm: {
+    // The seats a login may be given here: the shared ones and the Sales rep (roleMapping above).
+    team: { roles: ['admin', 'manager', 'sales_rep', 'field', 'viewer'] },
+    // The rep who sold the quote, or the plan (its Sold by), earns as its invoices are paid (server/crm/billing/quoteSellerCommissions.ts).
+    quoteSellerCommissions: true,
     serviceSites: true,
     jobs: { defaultType: 'repair', photos: true, billing: { prefix: 'INV', pad: 5, termsDays: 30 }, textArrival: true, requireCustomer: true },
     quotes: { textOnSend: true },
@@ -58,6 +70,12 @@ const fieldservice: VerticalSettings = {
   },
   // templates/crm-fieldservice/frontend/src/*Config.ts
   screens: {
+    // One menu item per thing (field service live test 11/09: Agreements and Maintenance Contracts, Inventory and Parts Inventory, were
+    // each the same list twice with different counts). The shared pages hold everything the old field-service copies did and more, and
+    // their server mounts answer either feature (modules/crm.ts), so each opens on either; the old addresses still answer. RV does the
+    // same for its parts. The two pricebooks stay: the flat-rate page keeps task codes and parts included, the shared one price raises.
+    navFeatures: { '/crm/agreements': ['service_agreements', 'maintenance_contracts'], '/crm/inventory': ['inventory', 'parts_tracking'] },
+    navHidden: ['/crm/maintenance', '/crm/parts'],
     // The first-run wizard's integrations, by id (required: "absent, all" handed a salon Angi, Thumbtack and Jobber, 10/25).
     onboarding: { integrations: ['dns', 'quickbooks', 'jobber', 'angi', 'thumbtack', 'google_lsa', 'stripe', 'twilio'] },
     // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
@@ -113,8 +131,17 @@ const fieldservice: VerticalSettings = {
     marketing: {},
     messages: {},
     reviews: {},
-    settings: {},
-    commissions: { roleWords: { technician: 'Technician', sales_rep: 'Sales Rep', manager: 'Manager', all: 'All roles' }, planExample: 'Tech standard' },
+    // The role picker (Settings › Users): each seat said by what it holds.
+    settings: {
+      roles: [
+        { value: 'viewer', label: 'Viewer', description: 'read-only: can open any page but change nothing' },
+        { value: 'sales_rep', label: 'Sales rep', description: 'their own leads and quotes, the maintenance plans they sell, the service calls they are on and their own commissions; not settings, the team or billing' },
+        { value: 'field', label: 'Staff', description: 'the service calls they are on: status, notes, photos and their own time' },
+        { value: 'manager', label: 'Manager', description: 'runs dispatch, service calls, quotes, plans and invoicing; not company settings or logins' },
+        { value: 'admin', label: 'Admin', description: 'full access, including company settings and logins' },
+      ],
+    },
+    commissions: { roleWords: { technician: 'Technician', sales_rep: 'Sales Rep', manager: 'Manager', all: 'All roles' }, planExample: 'Tech standard', quoteSeller: true, quoteSellerWords: 'Yes — the sales rep who sold it (the signed quote’s rep, or a maintenance plan’s Sold by), as each invoice is paid', quoteSellerNotDefault: true },
     tech: {
       title: 'My Jobs',
       checklist: {

@@ -502,6 +502,10 @@ a[href^="mailto:"], .contact-section__value, address, p a, dd a, td a { overflow
 .book-loading, .book-empty { color: var(--muted); font-size: 15px; padding: 20px 0; }
 #book-form { display: flex; flex-direction: column; gap: 14px; }
 #book-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-soft); }
+/* City, State, ZIP beside one another; stacked on a phone. */
+#book-form .book-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
+#book-form .book-row input { min-width: 0; }
+@media (max-width: 520px) { #book-form .book-row { grid-template-columns: 1fr; } }
 #book-form input[type="text"], #book-form input[type="email"], #book-form input[type="tel"], #book-form textarea { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; font-family: inherit; }
 .book-submit { margin-top: 6px; padding: 14px 28px; background: var(--brand); color: var(--white); border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
 .book-submit:hover { opacity: 0.9; }

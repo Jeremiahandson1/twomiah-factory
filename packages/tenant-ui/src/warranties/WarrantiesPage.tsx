@@ -705,6 +705,7 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     contactId: '',
+    equipmentId: '',
     name: '',
     category: '',
     startDate: companyTodayKey(),
@@ -724,12 +725,26 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
     return () => { gone = true; clearTimeout(t); };
   }, [search]);
 
+  // The customer's units, so the warranty can name the one it covers (field service live test 11/09: a furnace's warranty could not be
+  // tied to the furnace). None, or no equipment module here: no picker.
+  const [units, setUnits] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let gone = false;
+    setUnits([]);
+    if (!form.contactId) return;
+    api.get('/api/equipment', { contactId: form.contactId, limit: 100 })
+      .then((r: any) => { if (!gone) setUnits(((r?.data || []) as any[]).map((u) => ({ id: String(u.id), name: [u.name, u.manufacturer, u.model].filter(Boolean).join(' · ') || 'Unit' }))); })
+      .catch(() => { if (!gone) setUnits([]); });
+    return () => { gone = true; };
+  }, [form.contactId]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.post('/api/warranties', {
         contactId: form.contactId,
+        equipmentId: form.equipmentId || undefined,
         name: form.name,
         category: form.category || undefined,
         startDate: form.startDate || undefined,
@@ -759,11 +774,20 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
             <div>
               <label className={label} htmlFor="warranty-customer-search">Customer</label>
               <input id="warranty-customer-search" type="search" value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className={`${input} mb-2`} placeholder="Search customers…" />
-              <select aria-label="Customer" value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value }))} className={input} required>
+              <select aria-label="Customer" value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value, equipmentId: '' }))} className={input} required>
                 <option value="">Select customer...</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
+            {units.length > 0 && (
+              <div>
+                <label className={label} htmlFor="warranty-equipment">Equipment it covers</label>
+                <select id="warranty-equipment" value={form.equipmentId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={input}>
+                  <option value="">Not one unit</option>
+                  {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className={label} htmlFor="warranty-name">Warranty</label>
               <input id="warranty-name" type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))} className={input} placeholder={words.namePlaceholder} required />

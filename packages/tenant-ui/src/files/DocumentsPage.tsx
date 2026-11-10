@@ -244,7 +244,7 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
   return (
     <div>
       <PageHeader title="Documents" action={mayCreate ? <Button onClick={() => fileInput.current?.click()}><Upload className="w-4 h-4" /> Upload</Button> : undefined} />
-      <input ref={fileInput} type="file" multiple onChange={onPick} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" data-testid="document-file-input" />
+      <input ref={fileInput} type="file" multiple onChange={onPick} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md" data-testid="document-file-input" />
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 mb-6">
         <div className={`grid gap-3 md:grid-cols-${showProjects ? 4 : 3}`}>

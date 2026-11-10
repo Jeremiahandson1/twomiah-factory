@@ -35,6 +35,8 @@ export interface PortalTables {
   project?: any; job?: any; changeOrder?: any; changeOrderLineItem?: any
   lienWaiver?: any; rfi?: any; submittal?: any; document?: any; documentShare?: any
   equipment?: any; serviceAgreement?: any; agreementVisit?: any; formSubmission?: any
+  /** The warranties written for the customer: one that names a unit (projectWarranty.equipmentId) is that unit's warranty. */
+  projectWarranty?: any
   /** vet: the customer's animals and their care. With `patient` present the portal gains a Pets section —
    *  an owner logging in sees their pets, what is due and what is booked, instead of a builder's project list. */
   patient?: any; vaccination?: any; appointment?: any; visit?: any
@@ -1898,6 +1900,15 @@ export function createPortalRoutes(deps: PortalDeps) {
       const { contact } = P(c)
       const list = await db.select({ id: t.equipment.id, name: t.equipment.name, model: t.equipment.model, manufacturer: t.equipment.manufacturer, serialNumber: t.equipment.serialNumber, status: t.equipment.status, location: t.equipment.location, purchaseDate: t.equipment.purchaseDate, warrantyExpiry: t.equipment.warrantyExpiry })
         .from(t.equipment).where(and(eq(t.equipment.contactId, contact.id), eq(t.equipment.companyId, contact.companyId))).orderBy(asc(t.equipment.name), asc(t.equipment.id))
+      // A unit's warranty is its own expiry, else the latest of the warranties written for it (field service live test 11/09: a
+      // warranty added for the furnace left its portal card reading "Warranty unknown").
+      if (list.length && t.projectWarranty && 'equipmentId' in t.projectWarranty) {
+        const written = await db.select({ equipmentId: t.projectWarranty.equipmentId, expiresAt: sql<string>`MAX(${t.projectWarranty.expiresAt})` }).from(t.projectWarranty)
+          .where(and(eq(t.projectWarranty.companyId, contact.companyId), inArray(t.projectWarranty.equipmentId, list.map((e: any) => e.id)), eq(t.projectWarranty.status, 'active')))
+          .groupBy(t.projectWarranty.equipmentId)
+        const byUnit = Object.fromEntries(written.map((r: any) => [r.equipmentId, r.expiresAt]))
+        for (const e of list as any[]) if (!e.warrantyExpiry && byUnit[e.id]) e.warrantyExpiry = byUnit[e.id]
+      }
       if (list.length === 0 || !t.job.equipmentId) return c.json(list.map((e: any) => ({ ...e, lastServiceDate: null })))
       const last = await db.select({ equipmentId: t.job.equipmentId, completedAt: sql<string>`MAX(${t.job.completedAt})` }).from(t.job)
         .where(and(inArray(t.job.equipmentId, list.map((e: any) => e.id)), eq(t.job.status, 'completed'))).groupBy(t.job.equipmentId)

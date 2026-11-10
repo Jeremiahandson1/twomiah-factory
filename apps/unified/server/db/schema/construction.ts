@@ -6,7 +6,7 @@ import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex,
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact, document, job, project } from './crm.ts'
-import { inventoryItem } from './field.ts'
+import { equipment, inventoryItem } from './field.ts'
 
 export const jobPurchaseOrder = pgTable('job_purchase_order', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -719,6 +719,9 @@ export const projectWarranty = pgTable('project_warranty', {
   expiresAt: timestamp('expires_at'),
   documentUrl: text('document_url'),
   status: text('status').default('active').notNull(),
+  // The customer's unit it covers (field service live test 11/09: a furnace's warranty could not be tied to the furnace, so its
+  // portal said "Warranty unknown"). Null: the warranty is for the customer or the project as a whole.
+  equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

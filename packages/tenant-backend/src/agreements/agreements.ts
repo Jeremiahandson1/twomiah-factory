@@ -28,6 +28,8 @@ export const AGREEMENT_FREQUENCIES = ['weekly', 'monthly', 'quarterly', 'semi-an
 export const AGREEMENT_STATUSES = ['active', 'pending', 'suspended', 'cancelled', 'expired']
 
 export interface AgreementsTables {
+  /** The customers' units, where a plan may name the one it looks after (serviceAgreement.equipmentId). Absent: it cannot. */
+  equipment?: any
   serviceAgreement: any
   agreementVisit: any
   agreementPlan: any
@@ -149,6 +151,9 @@ function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: numb
 export function createAgreementsService(deps: AgreementsServiceDeps) {
   const { db, tables, stripe, audit, sendRenewalNotice } = deps
   const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user: userTable } = tables
+  const equipmentTable = tables.equipment && 'equipmentId' in serviceAgreement ? tables.equipment : null
+  /** The plan's unit on the service calls it puts on the schedule, so the unit's history and "last serviced" follow. */
+  const onUnit = (agr: any) => (agr?.equipmentId && 'equipmentId' in job ? { equipmentId: agr.equipmentId } : {})
 
   /** One line in the plan's history (made, renewed, suspended, reactivated, cancelled, expired). Never fails the action it records. */
   async function record(companyId: string, agreementId: string, kind: string, byUserId?: string | null, at: Date = new Date(), note?: string | null) {
@@ -416,6 +421,19 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         out.soldById = data.soldById
       }
     }
+    // The unit the plan looks after (ServiceTitan's covered equipment; field service live test 11/09): this business's, the customer's own.
+    if (has('equipmentId')) {
+      if (data.equipmentId === null || data.equipmentId === '') out.equipmentId = null
+      else {
+        if (!equipmentTable || typeof data.equipmentId !== 'string') throw new AgreementError('A plan cannot name a piece of equipment here.', 400)
+        const [unit] = await db.select({ id: equipmentTable.id, contactId: equipmentTable.contactId }).from(equipmentTable)
+          .where(and(eq(equipmentTable.id, data.equipmentId), eq(equipmentTable.companyId, companyId))).limit(1)
+        if (!unit) throw new AgreementError('Equipment not found', 404)
+        const customer = (out.contactId as string | undefined) ?? existing?.contactId
+        if (unit.contactId && customer && unit.contactId !== customer) throw new AgreementError("That equipment is another customer's.", 400)
+        out.equipmentId = unit.id
+      }
+    }
     for (const k of ['terms', 'notes'] as const) {
       if (!has(k)) continue
       if (data[k] !== null && typeof data[k] !== 'string') throw new AgreementError(`${k === 'terms' ? 'Terms' : 'Notes'} must be text.`, 400)
@@ -518,6 +536,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           companyId,
           contactId: agr.contactId,
           serviceAgreementId: agreementId,
+          ...onUnit(agr),
         })
       }
     })
@@ -755,6 +774,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           scheduledDate: new Date(data.scheduledDate),
           status: 'scheduled',
           notes: `Service Agreement: ${agreement.name}`,
+          ...onUnit(agreement),
         })
       })
     }
@@ -793,10 +813,13 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
    */
   async function getUpcomingVisits(companyId: string, { days = 30 }: { days?: number } = {}) {
     const visitsTz = await companyTimeZone(db, companyId)
-    const endDate = new Date(); endDate.setDate(endDate.getDate() + days)
     // From the start of TODAY, not from this instant: work due earlier today is still upcoming, and
     // the old query had no lower bound at all, so a visit scheduled in 2024 counted. (T42)
-    const startDate = new Date(); startDate.setHours(0, 0, 0, 0)
+    // TODAY ON THE BUSINESS'S CLOCK, as the day marker the dates are stored as: the server's midnight is UTC, so from 6 PM in
+    // Eau Claire today's plan visit (2026-11-09T00:00Z) had already dropped off "Upcoming Visits" (field service live test 11/09).
+    const startDate = businessToday(visitsTz)
+    // …through the end of the day `days` on.
+    const endDate = new Date(startDate.getTime() + (days + 1) * 86_400_000 - 1)
 
     /**
      * NOT EVERY TEMPLATE STORES A NEXT SERVICE DATE. (T48 — caught live on ctrtest as a 500)
@@ -1212,6 +1235,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       companyId,
       contactId: agr.contactId,
       serviceAgreementId: agreementId,
+      ...onUnit(agr),
       }).returning()
       return row
     })

@@ -67,6 +67,8 @@ interface Agreement {
   nextBillDate?: string | null;
   /** The team member credited with selling the plan (shown on the Plan Reports "Sold" tab). */
   soldById?: string | null;
+  /** The unit the plan looks after (serviceAgreement.equipmentId). */
+  equipmentId?: string | null;
 }
 
 interface Plan {
@@ -1085,6 +1087,8 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     firstVisitDate: string;
     /** '' = no one recorded, 'me' = leave it to the server (the signed-in user), else a user id */
     soldBy: string;
+    /** The customer's unit the plan looks after; '' = none named. */
+    equipmentId: string;
   }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
@@ -1096,7 +1100,20 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     reminderDaysBefore: agreement?.reminderDaysBefore ?? 7,
     firstVisitDate: '',
     soldBy: agreement ? (agreement.soldById || '') : 'me',
+    equipmentId: agreement?.equipmentId || '',
   });
+  // The customer's units, so the plan can name the one it looks after (ServiceTitan's covered equipment; field service live test 11/09:
+  // a furnace's plan could not be tied to the furnace). No units, or no equipment module here: no picker.
+  const [units, setUnits] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => {
+    let gone = false;
+    setUnits([]);
+    if (!form.contactId) return;
+    api.get(`/api/equipment?contactId=${encodeURIComponent(form.contactId)}&limit=100`)
+      .then((r: any) => { if (!gone) setUnits(((r?.data || []) as any[]).map((u) => ({ id: String(u.id), name: [u.name, u.manufacturer, u.model].filter(Boolean).join(' · ') || 'Unit' }))); })
+      .catch(() => { if (!gone) setUnits([]); });
+    return () => { gone = true; };
+  }, [form.contactId]);
   const [team, setTeam] = useState<Array<{ id: string; name: string }>>([]);
   const [history, setHistory] = useState<Array<{ id: string; kind: string; at: string; by?: string | null; note?: string | null }>>([]);
   /**
@@ -1159,6 +1176,8 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
         ...(!agreement && planVisits > 0 && form.firstVisitDate ? { firstVisitDate: form.firstVisitDate } : {}),
         // 'me' on a new plan = say nothing and the server credits the signed-in user; '' = no one.
         ...(form.soldBy === 'me' ? {} : { soldById: form.soldBy || null }),
+        // Only where it was offered (or the plan already names one): a business without equipment sends nothing.
+        ...(units.length || agreement?.equipmentId ? { equipmentId: form.equipmentId || null } : {}),
       };
       const saveRecurrence = async (id: string, on: boolean) => {
         await api.put(`/api/agreements/${id}/recurrence`, {
@@ -1205,7 +1224,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer</label>
               <select
                 value={form.contactId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value }))}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value, equipmentId: '' }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -1218,6 +1237,17 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 ))}
               </select>
             </div>
+
+            {units.length > 0 && (
+              <div>
+                <label htmlFor="agreement-equipment" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Equipment it covers</label>
+                <select id="agreement-equipment" value={form.equipmentId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">Not one unit</option>
+                  {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">Its visits are service calls on this unit.</p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan</label>
