@@ -703,7 +703,7 @@ function RefundHistory({ order, onChanged, reload }: { order: Order; onChanged: 
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
               </div>
               <div className="text-xs text-gray-600 dark:text-slate-300">
-                {formatDate(r.createdAt)}{r.createdByName ? ` · ${r.createdByName}` : ''}{what.length ? ` · ${what.join(', ')}` : ''}{(r.items || []).length ? (r.restock ? ' · restocked' : ' · not restocked') : ''}
+                {formatDate(r.createdAt)}{r.createdByName ? ` · ${r.createdByName}` : ''}{what.length ? ` · ${what.join(', ')}` : ''}{(r.items || []).length ? (r.restock ? ' · restocked' : /^Return /.test(r.reason || '') ? ' · stock: as the return was received' : ' · not restocked') : ''}
               </div>
               {r.reason && <div className="text-xs text-gray-600 dark:text-slate-300">{r.reason}</div>}
               {r.error && <div className="text-xs text-red-700 dark:text-red-300">{r.error}</div>}

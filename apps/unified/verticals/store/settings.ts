@@ -90,6 +90,8 @@ const store: VerticalSettings = {
       copy: {
         quickbooks: 'Send paid orders, refunds and payouts to QuickBooks Online.',
         quickbooksAutoSync: 'Auto-sync paid orders, refunds and payouts every 15 minutes',
+        // The last step of Connect QuickBooks: "… so <this> is sent across for you" (store re-check 11/10: it said "invoice").
+        quickbooksSends: 'each paid order, refund and payout',
         email: 'Send order confirmations, receipts and shipping updates by email.',
       },
     },

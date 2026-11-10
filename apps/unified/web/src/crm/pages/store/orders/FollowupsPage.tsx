@@ -21,6 +21,8 @@ interface Loaded {
   mergeFields: { key: string; label: string }[]
   segments: { id: string; name: string }[]
   note: string
+  /** The next ones to go out, soonest first (store re-check 11/10: the page named no order). */
+  comingUp?: { orderId: string; orderNumber: string | null; customer: string; kind: 'store_first_order' | 'store_cross_sell'; sendOn: string; arrivedMarked: boolean }[]
 }
 type Key = 'firstOrder' | 'crossSell' | 'replenish'
 
@@ -75,6 +77,20 @@ export default function FollowupsPage() {
       </div>
       {loadError ? <PageError message={`${loadError} — refresh to try again.`} /> : !data || !form ? <p className="text-gray-500 dark:text-slate-400">Loading…</p> : (
         <>
+          <section className="card p-4 space-y-2" aria-label="Coming up">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-slate-100">Coming up</h2>
+            {!(data.comingUp || []).length
+              ? <p className="text-sm text-gray-600 dark:text-slate-400">Nothing waiting. An order shows here once it is fulfilled, shipped, delivered or picked up, with the day its email goes.</p>
+              : <ul className="divide-y divide-gray-100 text-sm dark:divide-slate-800">
+                  {data.comingUp!.map((c) => (
+                    <li key={`${c.kind}:${c.orderId}`} className="flex flex-wrap justify-between gap-2 py-1.5 text-gray-800 dark:text-slate-200">
+                      <span>{c.kind === 'store_first_order' ? 'First-order email' : 'Thank-you and suggestions'} · order {c.orderNumber || '—'} · {c.customer}</span>
+                      <span className="text-gray-600 dark:text-slate-400">{new Date(c.sendOn).getTime() <= Date.now() ? 'goes out with the next send' : `around ${new Date(c.sendOn).toLocaleDateString()}`}{c.arrivedMarked ? '' : ' (counted from when it went out)'}</span>
+                    </li>
+                  ))}
+                </ul>}
+            <p className="text-xs text-gray-500 dark:text-slate-400">Customers outside the chosen segment, or who unsubscribed, are skipped when it is time.</p>
+          </section>
           <p className="text-sm text-gray-600 dark:text-slate-400">{data.note} You can use {data.mergeFields.map((m) => `{{${m.key}}}`).join(', ')} in the subject and the wording.</p>
           <label className="block max-w-md text-sm text-gray-700 dark:text-slate-300">Send to
             <select className={field} value={segmentId} disabled={!mayChange} onChange={(e) => { setSegmentId(e.target.value); setSaved('') }}>

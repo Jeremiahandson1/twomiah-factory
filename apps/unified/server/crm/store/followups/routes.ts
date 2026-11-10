@@ -8,7 +8,7 @@ import { asc, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { MERGE_FIELDS } from '@twomiah/tenant-backend'
 import { storeSegment } from '../../../db/schema/store.ts'
-import { followupsSent } from '../../../data/storeFollowups.ts'
+import { followupsSent, followupsComingUp } from '../../../data/storeFollowups.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -32,9 +32,11 @@ export function createFollowupRoutes(d: CrmDeps, followups: Followups) {
 
   app.get('/', async (c) => {
     const companyId = own(c)
-    const [settings, sent, segments] = await Promise.all([
-      followups.get(companyId), followupsSent(db, companyId),
+    const settingsNow = await followups.get(companyId)
+    const [settings, sent, segments, comingUp] = await Promise.all([
+      Promise.resolve(settingsNow), followupsSent(db, companyId),
       db.select({ id: storeSegment.id, name: storeSegment.name }).from(storeSegment).where(eq(storeSegment.companyId, companyId)).orderBy(asc(storeSegment.name)).limit(200),
+      followupsComingUp(db, companyId, new Date(), { firstOrderDays: settingsNow.firstOrder.on ? settingsNow.firstOrder.days : null, crossSellDays: settingsNow.crossSell.on ? settingsNow.crossSell.days : null }),
     ])
     return one(c, {
       ...settings,
@@ -44,6 +46,7 @@ export function createFollowupRoutes(d: CrmDeps, followups: Followups) {
       mergeFields: MERGE_FIELDS,
       segments,
       note: SHIPPED_NOTE,
+      comingUp,
     })
   })
 

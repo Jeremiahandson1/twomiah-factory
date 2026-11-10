@@ -406,6 +406,8 @@
     refreshUpsell(cart);
     mountExpress(document.querySelector('[data-express-cart]'), function () { return cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }); }, function () { return deliveryChoice === 'pickup' ? 'pickup' : 'ship'; });
 
+    if (wantQuote && !quoteBusy && quoteKey !== keyOf(cart) && lastTriedKey !== keyOf(cart)) setTimeout(applyDiscount, 0);
+
     // The panel was just wiped with the rest of the summary, and the subtotal it was priced against
     // may have changed — a reward with a minimum spend can become claimable (or stop being) purely
     // because a quantity moved. Re-ask.
@@ -570,6 +572,10 @@
   var quoteKey = '';
   var quoteError = '';
   var quoteBusy = false;
+  // Once Apply has been pressed, the totals follow the cart: a quantity changed or an item removed asks again by itself (store
+  // re-check 11/10: the lines vanished until Apply was pressed again). Once per cart, so a refusal is never asked in a loop.
+  var wantQuote = false;
+  var lastTriedKey = '';
 
   function cartBody(cart) {
     var body = { items: cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }) };
@@ -584,9 +590,11 @@
     var cart = readCart();
     quoteError = '';
     if (!cart.length) return;
+    wantQuote = true;
     quoteBusy = true;
-    renderCartPage();
     var key = keyOf(cart);
+    lastTriedKey = key;
+    renderCartPage();
     fetch('/api/public/checkout/preview', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cartBody(cart)) })
       .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
       .then(function (r) {

@@ -483,7 +483,8 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
     return {
       ...ret,
       reasonLabel: REASON_LABEL[ret.reason as ReturnReason] ?? ret.reason,
-      order: order ? { id: order.id, orderNumber: order.orderNumber, customerName: order.customerName, customerEmail: order.customerEmail, totalCents: order.totalCents, currency: order.currency } : null,
+      // How it was paid, for the words on the money back (store re-check 11/10: a cash order's refund said "to the card they paid with").
+      order: order ? { id: order.id, orderNumber: order.orderNumber, customerName: order.customerName, customerEmail: order.customerEmail, totalCents: order.totalCents, currency: order.currency, paidBy: !order.providerPaymentId ? (order.provider === 'giftcard' ? 'gift_card' : 'in_person') : 'card' } : null,
       lines: ret.items.map((l) => ({ ...l, productName: byId.get(l.orderItemId)?.productName ?? 'Item', variantName: byId.get(l.orderItemId)?.variantName ?? '', unitPriceCents: byId.get(l.orderItemId)?.unitPriceCents ?? 0 })),
       refund: row ? { status: row.status, amountCents: row.amountCents, creditCents: row.creditCents, error: row.error } : null,
       exchangeOrder: ex ?? null,

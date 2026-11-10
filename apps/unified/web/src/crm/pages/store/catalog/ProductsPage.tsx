@@ -69,6 +69,8 @@ export default function ProductsPage() {
           {reorderOn && <Link to="/crm/reorders" className="btn-secondary text-sm">Draft a reorder</Link>}
         </div>
       )}
+      {/* One email a day, not one per sale (store re-check 11/10: an item that ran low after the morning's email waited for the next one). */}
+      {lowStockOn && onlyLow && <p className="text-sm text-gray-600 dark:text-slate-400">This list is live. The low-stock email is one summary a day, from 8 am: something that runs low after it is in the next morning's email.</p>}
 
       <PageError message={error} />
 
