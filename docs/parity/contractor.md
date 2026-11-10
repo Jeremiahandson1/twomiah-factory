@@ -95,16 +95,21 @@ Read view-only from a working Buildertrend account (the owner's inventory, 11/10
 what we do not have is listed; everything else in the inventory is built (the rows above, and `contractor-portal.md`,
 `contractor-payments.md`, `contractor-phone.md`).
 
-| Buildertrend | Ours (code, 11/10) | Mark |
-|---|---|---|
-| **Bid packages to subs**: send a package, track each sub's response, compare bids | "Bids" (`crm/projects/bids.ts`) are the company's own bids to its clients; nothing goes to subs | not built |
-| **Schedule baseline**, and baseline vs actual duration (also a report) | a `project_baseline` table in the schema (task snapshots) with no route or screen reading it | not built (half-started) |
-| **Workday exceptions**: holidays and days off the schedule skips | none on the project schedule (only booking hours and the bar have closed days) | not built |
-| **Lead map** | none | not built |
-| **Weekly client update** (a digest, liked / read) | none (listed for a later row in `contractor-portal.md`) | not built |
-| **Credit memos** on invoices | none | not built |
-| **Photo folders per job** (pre-sale, progress, from change orders and messages) | photos carry tags in the table, but no folders and no screen uses the tags | not built |
-| Builder's risk insurance on a job; cost / price per sq ft on the jobs list | none | not built |
+| Buildertrend | Ours (code, 11/10) | Mark | For which trades | Where it is built (share first) |
+|---|---|---|---|---|
+| **Credit memos** on invoices | none | not built | every trade that invoices (`invoices` is on 11 CRMs) | **shared**: `packages/tenant-backend/src/invoicing` — once, for all |
+| **Workday exceptions**: holidays and days off the schedule skips | none on the job or project schedule (booking hours and the bar have closed days) | not built | contractor, roofing, field service, landscaping, basic — anyone who schedules jobs | **shared**: one company calendar of days off that job scheduling, the project schedule (Gantt, task links), plan visits and booking all read; booking's closed days move onto it |
+| **Photo folders per job** (pre-sale, progress, from change orders and messages) | the shared `job_photo` table already has a kind (`photo_type`: before, damage, during, after…), but only roofing's screens use it; the contractor's project photos are the core `photo` table with unused `tags` | not built | contractor, roofing, field service, landscaping, basic | **shared**: the shared job page groups by `photo_type` (roofing's kinds kept), the kinds per trade in its settings; the project's photos use the same kinds — no second folder model |
+| **Lead map** | none for leads; roofing's canvassing has a pin map (`web/src/crm/pages/roof/field/PinMap.tsx`) on the shared map pieces (`tenant-ui/src/maps`) | not built | contractor, roofing, field service, landscaping, basic (`lead_inbox` is on 13 CRMs) | **shared**: move `PinMap` into `tenant-ui/src/maps` and put the lead inbox's leads on it; roofing's canvassing keeps using the same component |
+| **Weekly client update** (a digest, liked / read) | none; the contractor portal emails each shared item (row 10a), roofing has "tell them when something new is shared" (`portal_tools`) | not built | contractor, roofing; landscaping installs | **shared**: in the shared portal (`packages/tenant-backend/src/portal`), a weekly digest of what was shared on the customer's jobs or projects that week, built on the existing per-item sharing |
+| **Bid packages to subs**: send a package, track each sub's response, compare bids | "Bids" (`crm/projects/bids.ts`) are the company's own bids to clients; nothing goes to subs | not built | contractor (roofing and landscaping sub out work too, but have no vendors or vendor portal today) | contractor first, **on the vendor portal and purchase orders** (`vendor_portal`, `purchase_orders`): a won bid becomes the sub's PO. Opens to roofing / landscaping with the vendor portal, not as a second build |
+| **Schedule baseline**, and baseline vs actual duration (also a report) | a `project_baseline` table in the schema (task snapshots) with no route or screen reading it | not built (half-started) | contractor (projects, Gantt and task links are contractor-only) | contractor, finishing `project_baseline`; any trade given projects later gets it with them |
+| Builder's risk insurance on a job; cost / price per sq ft on the jobs list | none | not built | contractor (roofing prices by the square in its own estimator) | contractor |
+
+**Rule for building these:** shared first — the shared ones are also listed in `shared-backlog.md`, for every trade. Four of the eight (credit memos, workday exceptions, photo folders, lead map) and the weekly
+update are built once in the shared packages and switched on per trade, as warranties and equipment are — never inside the
+contractor first and copied later. Each extends what is already there (`job_photo.photo_type`, roofing's `PinMap`, booking's closed
+days, the portal's per-item sharing), so nothing gets a second version.
 
 Also checked and built: **hiding the schedule** ("Schedule Offline") — the client's schedule is off / phases / every task per
 project (row 10a), and subs never see it (the vendor portal shows a sub its own purchase orders only).
@@ -113,17 +118,19 @@ Set aside, not counted as gaps: **AI Bill Capture** (a paid AI call per receipt 
 integrations** (Gusto, Lowe's PRO, Home Depot, HubSpot, Salesforce, Pipedrive, Bluebeam), which need partner accounts.
 
 ## What is left, in the order a builder would feel it (11/10)
-1. Bid packages to subs.
-2. Schedule baseline and baseline vs actual (finish the half-started table), with workday exceptions.
-3. Photo folders per job.
-4. Credit memos.
-5. Weekly client update.
-6. Lead map.
-7. Builder's risk field; cost / price per sq ft on the jobs list.
+Shared ones first (they serve every trade at once), then the contractor's own:
+1. Workday exceptions — **shared**.
+2. Photo folders per job — **shared**.
+3. Credit memos — **shared**.
+4. Lead map — **shared** (roofing's pin map moved into the shared maps).
+5. Weekly client update — **shared** portal.
+6. Bid packages to subs — contractor, on the vendor portal.
+7. Schedule baseline and baseline vs actual — contractor (finish `project_baseline`).
+8. Builder's risk field; cost / price per sq ft on the jobs list — contractor.
+
+The 10/31 list (quote templates, markup defaults, cost by code, pipeline and dashboards, lead site visits and Lost, inspections on
+the phone, template parts) is built.
 
 Still open from the other contractor files: a message thread per **project** in the client portal (today one thread per contact;
 roofing has one per job), and "seen" for documents, not only quotes (`contractor-portal.md`). `contractor-payments.md` and
 `contractor-phone.md` are built in full (re-checked 11/10).
-
-The 10/31 list (quote templates, markup defaults, cost by code, pipeline and dashboards, lead site visits and Lost, inspections on
-the phone, template parts) is built.
