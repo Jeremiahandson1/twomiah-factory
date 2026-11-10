@@ -20,7 +20,7 @@ interface Ret {
   preferCredit: boolean; staffNote: string | null; declineReason: string | null; late: boolean
   lineValueCents: number; restockingFeeCents: number; returnShippingFeeCents: number; refundCents: number; creditCents: number
   labelUrl: string | null; labelTracking: string | null; labelCarrier: string | null; createdAt: string
-  order: { id: string; orderNumber: string | null; customerName: string | null; customerEmail: string; currency: string } | null
+  order: { id: string; orderNumber: string | null; customerName: string | null; customerEmail: string; currency: string; paidBy?: 'card' | 'in_person' | 'gift_card' } | null
   lines: Line[]; refund: { status: string; amountCents: number; creditCents: number; error: string | null } | null; exchangeOrder: { orderNumber: string | null } | null
 }
 interface Rule { windowDays: number; restockingFeePercent: number; returnShippingFeeCents: number; labels: boolean; shopperReturns: boolean }
@@ -72,7 +72,7 @@ function Card({ ret, onChange, onError }: { ret: Ret; onChange: () => void; onEr
       </p>
       {ret.declineReason && <p className="text-sm text-gray-700 dark:text-slate-300">Declined: {ret.declineReason}</p>}
       {ret.labelUrl && <p className="text-sm"><a className="underline text-orange-900 dark:text-orange-200" href={ret.labelUrl} target="_blank" rel="noreferrer">Return label</a> ({ret.labelCarrier} {ret.labelTracking})</p>}
-      {ret.refund && <p className="text-sm text-gray-700 dark:text-slate-300">Money: {cents(ret.refund.amountCents - ret.refund.creditCents)} to the card{ret.refund.creditCents ? `, ${cents(ret.refund.creditCents)} as store credit` : ''} — {codeLabel(ret.refund.status)}{ret.refund.error ? ` (${ret.refund.error})` : ''}</p>}
+      {ret.refund && <p className="text-sm text-gray-700 dark:text-slate-300">Money: {cents(ret.refund.amountCents - ret.refund.creditCents)} {BACK_TO[ret.order?.paidBy ?? 'card']}{ret.refund.creditCents ? `, ${cents(ret.refund.creditCents)} as store credit` : ''} — {codeLabel(ret.refund.status)}{ret.refund.error ? ` (${ret.refund.error})` : ''}</p>}
       {ret.exchangeOrder && <p className="text-sm text-gray-700 dark:text-slate-300">Exchange sent as order {ret.exchangeOrder.orderNumber}.</p>}
 
       {mayDecide && ret.status === 'requested' && (
@@ -102,7 +102,7 @@ function Card({ ret, onChange, onError }: { ret: Ret; onChange: () => void; onEr
               <label className="text-sm text-gray-700 dark:text-slate-300">Refund ($)<input className="input ml-1 w-28" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
               <label className="text-sm text-gray-700 dark:text-slate-300">…of it as store credit ($)<input className="input ml-1 w-28" inputMode="decimal" value={credit} onChange={(e) => setCredit(e.target.value)} /></label>
               <button type="button" className="btn-primary" disabled={busy} onClick={() => void act('refund', { amountCents: dollarsToCents(amount), creditCents: dollarsToCents(credit) })}>Refund</button>
-              <p className="text-sm text-gray-500 dark:text-slate-400 w-full">The rest, {cents(Math.max(0, dollarsToCents(amount) - dollarsToCents(credit)))}, goes back to the card they paid with.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 w-full">The rest, {cents(Math.max(0, dollarsToCents(amount) - dollarsToCents(credit)))}, {REST_TO[ret.order?.paidBy ?? 'card']}</p>
             </div>
           ) : (
             <div className="flex flex-wrap items-end gap-3">
@@ -206,6 +206,15 @@ function StartPanel({ onDone, onError }: { onDone: () => void; onError: (m: stri
       )}
     </details>
   )
+}
+
+// Where the money goes, by how the order was paid: a card payment goes back to the card; an order paid in person (cash, a check, the
+// shop's own terminal — New order) is the shop's to give back by hand, and only recorded here (store re-check 11/10).
+const BACK_TO: Record<string, string> = { card: 'to the card', in_person: 'to give back in person (paid in person)', gift_card: 'back onto their gift card' }
+const REST_TO: Record<string, string> = {
+  card: 'goes back to the card they paid with.',
+  in_person: 'is recorded here — they paid in person, so give it back the same way (cash, check or your own terminal).',
+  gift_card: 'goes back onto the gift card they paid with.',
 }
 
 export default function ReturnsPage() {

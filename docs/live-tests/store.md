@@ -48,9 +48,9 @@ You need two or three small product photos (any images).
 
 ## E. Orders and returns
 
-20. **Orders:** make an order by hand for the shopper (the CRM's "new order"), choose **Already paid in person › Cash**, fulfil it. **Expect:** the stock drops; when the T-shirt hits the alert level, one email is listed.
+20. **Orders:** make an order by hand for the shopper (the CRM's "new order"), choose **Already paid in person › Cash**, fulfil it. **Expect:** the stock drops; the T-shirt shows Running low at once, and it is in the next daily low-stock email (one summary a day from 8 am, not one per sale).
 21. **Returns and exchanges:** the shopper starts a return from their account; approve it; receive the goods back; refund (cash, or the polite not-connected note for a card). **Expect:** the stock comes back.
-22. **Post-purchase emails:** a first-order follow-up. **Expect:** saved and listed for the order.
+22. **Post-purchase emails:** a first-order follow-up. **Expect:** saved, and the fulfilled order is listed under **Coming up** with the day its email goes.
 
 ## F. Customers and marketing
 

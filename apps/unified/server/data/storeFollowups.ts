@@ -124,3 +124,34 @@ export async function followupsSent(db: any, companyId: string): Promise<Record<
   for (const r of rows) (out as any)[r.kind] = Number(r.n)
   return out
 }
+
+export interface ComingUp { orderId: string; orderNumber: string | null; customer: string; kind: 'store_first_order' | 'store_cross_sell'; sendOn: Date; arrivedMarked: boolean }
+
+/**
+ * What the post-purchase emails will send next, for the owner's screen (store re-check 11/10: the page said "0 sent so far" and named
+ * no order, so a fulfilled order waiting its days looked forgotten). Orders that count as reached (as the sweep reads them) whose send
+ * day is still ahead or inside the catch-up window, not sent yet; the soonest first. `arrivedMarked`: delivered or picked up was
+ * marked (else the day is a guess from when it went out).
+ */
+export async function followupsComingUp(db: any, companyId: string, now: Date, on: { firstOrderDays: number | null; crossSellDays: number | null }): Promise<ComingUp[]> {
+  const out: ComingUp[] = []
+  const kinds: Array<['store_first_order' | 'store_cross_sell', number | null, boolean]> = [['store_first_order', on.firstOrderDays, true], ['store_cross_sell', on.crossSellDays, false]]
+  for (const [kind, days, firstOnly] of kinds) {
+    if (days == null) continue
+    const conds = [
+      ...arrivedOrder(companyId),
+      sql`${arrival} > ${new Date(now.getTime() - (days + CATCH_UP_DAYS) * DAY)}`,
+      sql`not exists (select 1 from ${marketingAutomationSend} s where s.contact_id = ${storeOrder.contactId} and s.kind = ${kind} and s.marker = ${storeOrder.id})`,
+    ]
+    if (firstOnly) {
+      conds.push(sql`not exists (select 1 from ${storeOrder} e where e.company_id = ${storeOrder.companyId} and e.contact_id = ${storeOrder.contactId}
+        and e.id <> ${storeOrder.id} and e.created_at < ${storeOrder.createdAt} and e.status not in ('pending', 'cancelled') and e.source <> 'exchange')`)
+    }
+    const rows = await db.select({
+      orderId: storeOrder.id, orderNumber: storeOrder.orderNumber, name: contact.name, email: contact.email,
+      arrivedAt: sql<Date>`${arrival}`, delivered: storeOrder.deliveredAt,
+    }).from(storeOrder).innerJoin(contact, eq(contact.id, storeOrder.contactId)).where(and(...conds)).orderBy(sql`${arrival} asc`, storeOrder.id).limit(25)
+    for (const r of rows) out.push({ orderId: r.orderId, orderNumber: r.orderNumber, customer: r.name || r.email, kind, sendOn: new Date(new Date(r.arrivedAt).getTime() + days * DAY), arrivedMarked: !!r.delivered })
+  }
+  return out.sort((a, b) => a.sendOn.getTime() - b.sendOn.getTime()).slice(0, 25)
+}

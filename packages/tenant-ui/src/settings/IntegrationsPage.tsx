@@ -160,7 +160,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             // on the page. Say it first, and offer the remedy the 503 names. (Salon T27 N15)
             <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-orange-600 dark:text-orange-200 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
           ) : !status.quickbooks.connected ? (
-            <HowTo steps={['Click Connect QuickBooks and sign in to QuickBooks Online (QuickBooks Desktop is not supported).', 'Pick your company and allow the connection.', `Back here, press Sync Now, or turn on Auto-sync so each new invoice and ${w.customer.one} is sent across for you.`]} />
+            <HowTo steps={['Click Connect QuickBooks and sign in to QuickBooks Online (QuickBooks Desktop is not supported).', 'Pick your company and allow the connection.', `Back here, press Sync Now, or turn on Auto-sync so ${(copy as any).quickbooksSends || `each new invoice and ${w.customer.one}`} is sent across for you.`]} />
           ) : (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
