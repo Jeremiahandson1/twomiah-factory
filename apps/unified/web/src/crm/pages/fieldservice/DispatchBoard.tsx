@@ -127,6 +127,8 @@ export default function DispatchBoard() {
   const { user, hasFeature } = useAuth();
   // Tech Availability (not ready): who is off or away today, painted on their lane. Closed on the server unless it is on.
   const showAvailability = hasFeature('tech_availability');
+  // Days Off on: the business's closed day is asked for (and only then — the switch off, the board asks nothing new).
+  const daysOffOn = hasFeature('days_off');
   // …and, with it, each person's shifts as bars on a time axis (regular, on call and time off apart — ServiceTitan's board).
   const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string; bars: ShiftBar[] }>>({});
   // The business is closed this day (Settings › Days off — a holiday): said above the board; jobs can still be put on it.
@@ -161,7 +163,7 @@ export default function DispatchBoard() {
         // /assignable, NOT /api/team: GET /api/team ignores ?role, and roster-only crew are only on /assignable. (T42)
         maySeeRoster ? api.get('/api/team/assignable') : Promise.resolve({ data: [] }),
         showAvailability ? api.get(`/api/availability/day?date=${selectedDate}`) : Promise.resolve({ people: [] }),
-        api.get(`/api/days-off?from=${selectedDate}&to=${selectedDate}`),
+        daysOffOn ? api.get(`/api/days-off?from=${selectedDate}&to=${selectedDate}`) : Promise.resolve({ data: [] }),
       ]);
       // A day typed into the date box passes through other days on the way (each keystroke is a date), and their answers can
       // land after the last one: only the day still chosen is shown (basic live test 11/10: a typed date showed 0 jobs and
@@ -182,7 +184,7 @@ export default function DispatchBoard() {
     } finally {
       if (!quiet && latestDate.current === asked) setLoading(false);
     }
-  }, [selectedDate, maySeeRoster, showAvailability]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDate, maySeeRoster, showAvailability, daysOffOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void loadData(); }, [loadData]);
 
