@@ -101,6 +101,7 @@ const store: VerticalSettings = {
       '/crm/dashboard': '',
       '/crm/products': 'Shop',
       '/crm/orders': 'Shop',
+      '/crm/sell': 'Shop',
       '/crm/shipping': 'Shop',
       '/crm/suppliers': 'Shop',
       '/crm/customers': 'Customers',

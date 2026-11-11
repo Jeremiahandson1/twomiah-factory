@@ -28,6 +28,7 @@ import { createSalesReportRoutes } from './reports.ts'
 import { createStoreBooks } from '../books.ts'
 import { createStoreReturns } from '../returns/returns.ts'
 import { createReturnRoutes } from '../returns/routes.ts'
+import { createCounterSaleRoutes } from './counterSales.ts'
 
 /** What the checkout group's webhooks need of the orders (checkout/index.ts OrderHooks, matched structurally). */
 export interface OrderHooks {
@@ -70,6 +71,8 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     { path: '/api/admin/suppliers', access: 'user', router: createSupplierRoutes(d, core) },
     // 2026-10-24, the store upgrade: orders made for a customer (orders:create), chargebacks (orders:refund).
     { path: '/api/admin/draft-orders', access: 'user', router: createDraftOrderRoutes(d, core) },
+    // Parity tier 2 #12: a sale at the counter, paid in person (./counterSales.ts), behind store_counter (not ready).
+    { path: '/api/admin/counter-sales', access: 'user', feature: 'store_counter', router: createCounterSaleRoutes(d, core) },
     { path: '/api/admin/disputes', access: 'user', router: createDisputeRoutes(d) },
     // 2026-10-30, the store's gaps: sales reports (revenue:read), behind store_sales_reports (not ready).
     { path: '/api/admin/sales-reports', access: 'user', feature: 'store_sales_reports', router: createSalesReportRoutes(d) },
