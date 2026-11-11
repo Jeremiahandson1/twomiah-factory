@@ -54,7 +54,7 @@ service where they fit (`shared-backlog.md`).
 |---|---|---|
 | Skill matching when dispatching | team members carry `skills` (`tenant-backend/src/team/team.ts`); nothing uses them to pick a technician | partly |
 | Caller ID with the customer's record (screen pop) | none | not built |
-| Live "where's my tech" map for the customer | "on my way" texts (`tech/tech.ts`), no live map link | partly |
+| Live "where's my tech" map for the customer | built 11/10, hidden (`tech_tracking`): the "on my way" text carries a private link (`/on-the-way/<token>`, signed, 4 hours) to a map of the tech's newest position (from their phone, when they share location; 15 minutes at most old), refreshed every 30 seconds; "arrived" once they start, no position after (`server/crm/field/techTrack.ts`, `tests/parity-tech-tracking.test.ts`). Not done: a drive-time estimate on the page | yes (hidden) |
 | Chat-to-text website widget | none | not built |
 | Barcode / equipment scanning on the phone | the store's phone screens only (`apps/mobile/src/trades/store.ts`) | built elsewhere |
 | Spanish in the app | none (roofing's work orders only) | not built |
