@@ -4,9 +4,11 @@
 // trades' reports use (../../reportKit.tsx SavedReports).
 import { useState } from 'react'
 import { SavedReports } from '../../reportKit'
+import { MORE_REPORTS } from './StoreMoreReports'
 
 const TABS: Array<{ id: string; label: string }> = [
   { id: 'over_time', label: 'Sales over time' }, { id: 'products', label: 'By product' }, { id: 'variants', label: 'By option' }, { id: 'discounts', label: 'Discount codes' },
+  ...MORE_REPORTS,
 ]
 const PERIODS: Array<{ id: string; label: string }> = [
   { id: 'month', label: 'This month' }, { id: 'last_month', label: 'Last month' }, { id: '30', label: 'Last 30 days' }, { id: 'quarter', label: 'This quarter' }, { id: 'year', label: 'This year' }, { id: 'all', label: 'All time' },

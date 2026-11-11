@@ -41,7 +41,7 @@ check('Equipment is read only', !units?.actions && !units?.create && !(units?.de
 const unit = units?.rows({ id: 'e1', name: 'Furnace', serialNumber: 'SN-778', status: 'needs_repair', contact: { name: 'Hank' } }, {})
 check("a unit's row: whose, its serial, its state", unit?.title === 'Furnace' && unit?.subtitle === 'Hank · S/N SN-778' && unit?.badge === 'Needs repair' && unit?.tone === 'warning', unit)
 const install = units?.detail?.sections?.[0]?.fields?.find((f: any) => f.label === 'Installed')?.get({ purchaseDate: '2026-03-01T00:00:00.000Z' })
-check('its install day is the calendar day, whatever the phone's zone', install === 'Mar 1, 2026', install)
+check("its install day is the calendar day, whatever the phone's zone", install === 'Mar 1, 2026', install)
 check('the Equipment screen has a file', fs.existsSync(path.join(app, 'app/(details)/equipment/index.tsx')))
 
 console.log('More')
@@ -49,6 +49,9 @@ const seat = (features: string[]) => ({ role: 'owner', can: () => true, hasFeatu
 const inv = (features: string[]) => itemsFor('fieldservice', seat(features), false).find((i) => i.path === '/crm/inventory')
 check('switch off: Inventory opens the desktop page', inv(['inventory'])?.open.kind === 'web', inv(['inventory'])?.open)
 check('switch on: Inventory opens the phone\'s Stock', JSON.stringify(inv(['inventory', 'barcode_scanning'])?.open) === JSON.stringify({ kind: 'native', route: '/(details)/stock' }), inv(['inventory', 'barcode_scanning'])?.open)
+const eqp = (features: string[]) => itemsFor('fieldservice', seat(features), false).find((i) => i.path === '/crm/equipment')
+check('switch off: Equipment opens the desktop page', eqp(['equipment_tracking'])?.open.kind === 'web', eqp(['equipment_tracking'])?.open)
+check("switch on: Equipment opens the phone's Equipment", JSON.stringify(eqp(['equipment_tracking', 'barcode_scanning'])?.open) === JSON.stringify({ kind: 'native', route: '/(details)/equipment' }), eqp(['equipment_tracking', 'barcode_scanning'])?.open)
 
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed) process.exit(1)

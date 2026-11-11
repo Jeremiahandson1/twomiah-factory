@@ -7,6 +7,8 @@
 //
 //   Also cut by variant (size, colour…): units, net sales, cost and margin per option, beside the by-product view.
 //   GET /?from=YYYY-MM-DD&to=YYYY-MM-DD&bucket=day|week|month   (default: the last 30 days, bucket chosen from the length)
+//   GET /table?tab=customers|channels|places|taxes|refunds|inventory&from=&to=   one of the further reports (Shopify's report
+//       library — ./savedSalesReports.ts storeTableFor), where store_report_schedules is on; /export?report=<the same> as a CSV
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { companyRowTimeZone } from '@twomiah/tenant-backend'
@@ -15,6 +17,8 @@ import { salesOverTime, salesTotals, topProducts, salesByVariant, repeatCustomer
 import { escapeCsv } from '../../../core/sanitize.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one } from '../../../http/reply.ts'
+import { MORE_TABS, STORE_REPORT_SCHEDULES, storeTableFor, type StoreTab } from './savedSalesReports.ts'
+import { csvOf } from '../../field/reportTables.ts'
 import { canSeeWith, type CrmDeps } from '../../deps.ts'
 
 /** The longest window one report covers (a year of days, leap day included). */
@@ -79,12 +83,31 @@ export function createSalesReportRoutes(d: CrmDeps) {
     })
   })
 
+  /** One of the further reports, where the switch is on (null = not offered: 404). */
+  const moreTable = async (c: any, tab: string, w: { from: string; to: string; timeZone: string }, companyId: string) => {
+    if (!(MORE_TABS as string[]).includes(tab) || !(await d.features.isFeatureEnabled(companyId, STORE_REPORT_SCHEDULES))) return null
+    return storeTableFor(db, companyId, tab as StoreTab, w, { cost: await seesMargin(c) })
+  }
+  app.get('/table', async (c) => {
+    const win = await windowOf(c)
+    if (win instanceof Response) return win
+    const table = await moreTable(c, c.req.query('tab') || '', win.w, win.companyId)
+    if (!table) return fail(c, 404, 'That report is not here.')
+    return one(c, { from: win.w.from, to: win.w.to, ...table })
+  })
+
   // The same figures as a spreadsheet: ?report=sales (by day, week or month) | products | discounts. Opens in Excel and Sheets.
   app.get('/export', async (c) => {
     const win = await windowOf(c)
     if (win instanceof Response) return win
     const { w, bucket, companyId } = win
     const report = c.req.query('report') || 'sales'
+    if ((MORE_TABS as string[]).includes(report)) {
+      const table = await moreTable(c, report, w, companyId)
+      if (!table) return fail(c, 404, 'That report is not here.')
+      const body = '\ufeff' + csvOf(table, table.columns) + '\r\n'
+      return new Response(body, { headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${report}-${w.from}-to-${w.to}.csv"`, 'cache-control': 'no-store' } })
+    }
     if (!['sales', 'products', 'variants', 'discounts'].includes(report)) return fail(c, 400, 'Export sales, products, variants or discounts.', 'validation_failed', { report: 'Not sales, products, variants or discounts' })
     const margin = await seesMargin(c)
     let rows: unknown[][]

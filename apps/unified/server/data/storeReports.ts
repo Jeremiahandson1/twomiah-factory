@@ -6,7 +6,7 @@
 // Days are the SHOP's days: a created_at is stored in UTC (timestamp without zone) and every day, week and month here is
 // worked out on the company's own time zone, so an order at 9pm on the 3rd in Chicago is the 3rd, not the 4th.
 import { sql } from 'drizzle-orm'
-import { storeOrder, storeOrderItem } from '../db/schema/store.ts'
+import { storeOrder, storeOrderItem, storeProduct, storeProductVariant } from '../db/schema/store.ts'
 import { countedOrderCondition } from '../crm/store/tileConditions.ts'
 
 export type Bucket = 'day' | 'week' | 'month'
@@ -215,4 +215,90 @@ export async function discountCodes(db: any, companyId: string, w: Window): Prom
     .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${storeOrder.discountCode} is not null and ${storeOrder.discountCode} <> '' and ${inWindow(w)}`)
     .groupBy(sql`1`).orderBy(sql`3 desc`, sql`1 asc`)
   return rows.map((r: any) => ({ code: String(r.code), orders: Number(r.orders), discountCents: Number(r.discountCents), netCents: Number(r.netCents) }))
+}
+
+// ── More report types (parity tier 3, store — Shopify's report library: by customer, by channel, by place, taxes, refunds and
+// inventory value). The same counted orders and the same shop's days as everything above.
+
+export interface CustomerSales { customer: string; name: string | null; email: string | null; orders: number; grossCents: number; refundedCents: number; netCents: number; firstOrder: string }
+
+/** Sales by customer: a shopper is the contact on the order, else its email in lower case. Biggest spender first. */
+export async function salesByCustomer(db: any, companyId: string, w: Window, limit = 500): Promise<CustomerSales[]> {
+  const rows = await db.select({
+    customer: sql<string>`coalesce(${storeOrder.contactId}, lower(${storeOrder.customerEmail}), 'no-email')`,
+    name: sql<string | null>`max(${storeOrder.customerName})`,
+    email: sql<string | null>`max(lower(${storeOrder.customerEmail}))`,
+    orders: sql<number>`count(*)`,
+    grossCents: sql<number>`coalesce(sum(${storeOrder.totalCents}), 0)`,
+    refundedCents: sql<number>`coalesce(sum(${storeOrder.refundedCents}), 0)`,
+    firstOrder: sql<string>`to_char(min(${localAt(w.timeZone)}), 'YYYY-MM-DD')`,
+  }).from(storeOrder)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
+    .groupBy(sql`1`).orderBy(sql`coalesce(sum(${storeOrder.totalCents}), 0) - coalesce(sum(${storeOrder.refundedCents}), 0) desc`, sql`1 asc`).limit(limit)
+  return rows.map((r: any) => ({ customer: String(r.customer), name: r.name ?? null, email: r.email ?? null, orders: Number(r.orders), grossCents: Number(r.grossCents), refundedCents: Number(r.refundedCents), netCents: Number(r.grossCents) - Number(r.refundedCents), firstOrder: String(r.firstOrder) }))
+}
+
+export interface GroupSales { key: string; orders: number; grossCents: number; refundedCents: number; netCents: number; taxCents: number; shippingCents: number; discountCents: number }
+const grouped = async (db: any, companyId: string, w: Window, key: any): Promise<GroupSales[]> => {
+  const rows = await db.select({
+    key: sql<string>`${key}`,
+    orders: sql<number>`count(*)`,
+    grossCents: sql<number>`coalesce(sum(${storeOrder.totalCents}), 0)`,
+    refundedCents: sql<number>`coalesce(sum(${storeOrder.refundedCents}), 0)`,
+    taxCents: sql<number>`coalesce(sum(${storeOrder.taxCents}), 0)`,
+    shippingCents: sql<number>`coalesce(sum(${storeOrder.shippingCents}), 0)`,
+    discountCents: sql<number>`coalesce(sum(${storeOrder.discountCents}), 0)`,
+  }).from(storeOrder)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
+    .groupBy(sql`1`).orderBy(sql`coalesce(sum(${storeOrder.totalCents}), 0) desc`, sql`1 asc`)
+  return rows.map((r: any) => ({ key: String(r.key), orders: Number(r.orders), grossCents: Number(r.grossCents), refundedCents: Number(r.refundedCents), netCents: Number(r.grossCents) - Number(r.refundedCents), taxCents: Number(r.taxCents), shippingCents: Number(r.shippingCents), discountCents: Number(r.discountCents) }))
+}
+
+/** Sales by channel: the online store, the counter, or a draft order the owner sent (store_order.source). */
+export const salesByChannel = (db: any, companyId: string, w: Window) => grouped(db, companyId, w, sql`${storeOrder.source}`)
+
+/**
+ * Sales by place: a shipped order by the state (or province) and country it went to; a pickup or digital order is "in store" —
+ * the shop's own place. `key` is "US|WI", or "in_store".
+ */
+export const salesByPlace = (db: any, companyId: string, w: Window) => grouped(db, companyId, w,
+  sql`case when ${storeOrder.fulfillment} <> 'ship' then 'in_store' else upper(coalesce(nullif(${storeOrder.shippingAddress}->>'country', ''), '?')) || '|' || upper(coalesce(nullif(${storeOrder.shippingAddress}->>'state', ''), '?')) end`)
+
+/** Taxes by month: the tax the orders carried, beside what they sold (before tax and shipping) — what a tax return asks. */
+export async function taxesByMonth(db: any, companyId: string, w: Window) {
+  const rows = await db.select({
+    month: sql<string>`to_char(date_trunc('month', ${localAt(w.timeZone)}), 'YYYY-MM')`,
+    orders: sql<number>`count(*)`,
+    taxedOrders: sql<number>`count(*) filter (where coalesce(${storeOrder.taxCents}, 0) > 0)`,
+    salesCents: sql<number>`coalesce(sum(${storeOrder.subtotalCents} - coalesce(${storeOrder.discountCents}, 0)), 0)`,
+    taxCents: sql<number>`coalesce(sum(${storeOrder.taxCents}), 0)`,
+    automatic: sql<number>`count(*) filter (where ${storeOrder.taxAutomatic})`,
+  }).from(storeOrder)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
+    .groupBy(sql`1`).orderBy(sql`1`)
+  return rows.map((r: any) => ({ month: String(r.month), orders: Number(r.orders), taxedOrders: Number(r.taxedOrders), salesCents: Number(r.salesCents), taxCents: Number(r.taxCents), automatic: Number(r.automatic) }))
+}
+
+/** Refunds GIVEN in the window (by when the money went back, not when the order was placed), newest first. */
+export async function refundsGiven(db: any, companyId: string, w: Window, limit = 2000) {
+  const at = sql`((${storeOrder.refundedAt} at time zone 'UTC') at time zone ${w.timeZone})`
+  const rows = await db.select({
+    id: storeOrder.id, orderNumber: storeOrder.orderNumber, name: storeOrder.customerName, email: storeOrder.customerEmail,
+    on: sql<string>`to_char(${at}, 'YYYY-MM-DD')`, placed: sql<string>`to_char(${localAt(w.timeZone)}, 'YYYY-MM-DD')`,
+    totalCents: storeOrder.totalCents, refundedCents: storeOrder.refundedCents, status: storeOrder.status,
+  }).from(storeOrder)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${storeOrder.source} <> 'exchange' and coalesce(${storeOrder.refundedCents}, 0) > 0 and ${storeOrder.refundedAt} is not null and ${at} >= ${w.from}::date and ${at} < (${w.to}::date + 1)`)
+    .orderBy(sql`${storeOrder.refundedAt} desc`, sql`${storeOrder.id} asc`).limit(limit)
+  return rows.map((r: any) => ({ id: r.id, orderNumber: r.orderNumber, name: r.name ?? null, email: r.email ?? null, on: String(r.on), placed: String(r.placed), totalCents: Number(r.totalCents ?? 0), refundedCents: Number(r.refundedCents ?? 0), full: Number(r.refundedCents ?? 0) >= Number(r.totalCents ?? 0) }))
+}
+
+/** Inventory value NOW: every option whose stock is counted — on hand, at cost (where a cost is kept) and at its price. */
+export async function inventoryValue(db: any, companyId: string) {
+  const rows = await db.select({
+    product: storeProduct.name, option: storeProductVariant.name, sku: storeProductVariant.sku, status: storeProduct.status,
+    onHand: storeProductVariant.inventoryQty, costCents: storeProductVariant.costCents, priceCents: storeProductVariant.priceCents,
+  }).from(storeProductVariant).innerJoin(storeProduct, sql`${storeProduct.id} = ${storeProductVariant.productId}`)
+    .where(sql`${storeProduct.companyId} = ${companyId} and ${storeProductVariant.inventoryQty} is not null and ${storeProductVariant.inventoryQty} > 0`)
+    .orderBy(sql`${storeProductVariant.inventoryQty} * coalesce(${storeProductVariant.costCents}, ${storeProductVariant.priceCents}) desc`, sql`${storeProduct.name} asc`, sql`${storeProductVariant.name} asc`)
+  return rows.map((r: any) => ({ product: String(r.product), option: String(r.option), sku: String(r.sku), status: String(r.status ?? ''), onHand: Number(r.onHand), costCents: r.costCents == null ? null : Number(r.costCents), priceCents: Number(r.priceCents ?? 0) }))
 }

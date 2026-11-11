@@ -13,6 +13,7 @@ import { BarChart3, Download } from 'lucide-react'
 import { api } from '../../../../api'
 import { PageError, errorText, useAuth } from '../../../../shared'
 import { StoreScheduledReports } from './StoreScheduledReports'
+import { StoreMoreReports } from './StoreMoreReports'
 import { cents } from './lib'
 
 interface Point { period: string; orders: number; grossCents: number; refundedCents: number; netCents: number }
@@ -268,6 +269,7 @@ export default function SalesPage() {
           </section>
         </div>
       )}
+      {schedulesOn && data && <StoreMoreReports from={data.from} to={data.to} />}
       {schedulesOn && <StoreScheduledReports />}
     </div>
   )
