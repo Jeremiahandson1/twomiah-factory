@@ -50,6 +50,7 @@ import { createShopperAccounts } from '../accounts/shopperAccounts.ts'
 import { shopperOf } from '../accounts/routes.ts'
 import { pricingForContact } from '../catalog/groupPricing.ts'
 import { createPaymentNotices, type PaymentNotices } from './paymentNotices.ts'
+import { CARRIER_RATES } from './carrierRates.ts'
 
 export { computeShipping, computeTaxBps, checkoutImageUrl } from './placeOrder.ts'
 
@@ -78,7 +79,10 @@ const checkoutSchema = z.object({
   })).min(1).max(100),
   customerEmail: z.string().email().optional(),
   // Optional ship-to region (from the cart) → region shipping/tax. Falls back to flat rates when absent.
-  shipTo: z.object({ country: z.string().max(2), state: z.string().max(16) }).partial().optional(),
+  shipTo: z.object({ country: z.string().max(2), state: z.string().max(16), zip: z.string().trim().max(10) }).partial().optional(),
+  // A carrier rate the shopper picked from the preview (store_carrier_rates): only its name travels — the order asks the carrier
+  // again and prices it (placeOrder.ts), so the browser never says what shipping costs.
+  shippingRate: z.object({ carrier: z.string().max(60), service: z.string().max(80) }).optional().nullable(),
   discountCode: z.string().max(64).optional(),
   // A loyalty reward the shopper chose. Only an id travels — what it is worth is decided by the server against this
   // cart, exactly like the discount code above, because the client is not a trustworthy source of how much money to
@@ -194,6 +198,8 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       automaticTax: usesStripeTax(settings, provider),
       // Local pickup: offered at checkout, with where and when.
       pickup: settings.pickupEnabled ? { address: settings.pickupAddress || '', hours: settings.pickupHours || '' } : null,
+      // Carrier rates (store_carrier_rates): the cart asks for a ZIP and shows the carrier's options — where the switch is on and a carrier is connected.
+      carrierRates: (await d.features.isFeatureEnabled(s.co.id, CARRIER_RATES).catch(() => false)) && !!(await core.getActiveShipping(s.co.id).catch(() => null)),
     })
   })
 
