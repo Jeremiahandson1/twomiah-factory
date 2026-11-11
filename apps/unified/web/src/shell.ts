@@ -78,6 +78,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects', 'patient_records'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
+  // Leads and money per lead source against the spend (crm/pages/MarketingRoiPage.tsx; server crm/field/marketingRoi.ts). Not ready.
+  { to: '/crm/marketing-roi', icon: Target, label: 'Marketing ROI', features: ['marketing_roi'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   // Revenue per tech and quote conversion per person; service plans sold, due and ended. Both are reports:read on the server.
   { to: '/crm/team-revenue', icon: Users, label: 'Team Revenue', features: ['team_revenue_reports'], permission: 'reports:read' },

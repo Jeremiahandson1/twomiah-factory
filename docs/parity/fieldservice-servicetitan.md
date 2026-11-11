@@ -59,7 +59,7 @@ service where they fit (`shared-backlog.md`).
 | Barcode / equipment scanning on the phone | the store's phone screens only (`apps/mobile/src/trades/store.ts`) | built elsewhere |
 | Spanish in the app | none (roofing's work orders only) | not built |
 | Service zones | none | not built |
-| Marketing ROI scorecard, revenue heat map | call tracking counts calls; no ROI | not built |
+| Marketing ROI scorecard, revenue heat map | built 11/10, hidden (`marketing_roi`): per lead source — leads, customers, jobs, payments, against spend per source per month (the shared spend ledger): cost per lead, money back per dollar (`crm/field/marketingRoi.ts`, `tests/parity-marketing-roi.test.ts`). Not done: the revenue heat map; call-tracking numbers as sources | partly (hidden) |
 | Technician and CSR scorecards | team revenue only | partly |
 | Internal general ledger, accounting periods, three-way matching | none — the books are QuickBooks (synced) | not built |
 | Direct mail | none | not built |
