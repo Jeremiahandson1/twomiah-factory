@@ -90,6 +90,13 @@ export default function GanttChartsPage() {
   // The schedule baseline (schedule_baseline, not ready): plan against now, per project (ScheduleBaselinePanel.tsx).
   const baselineOn = useAuth().hasFeature('schedule_baseline');
   const [baselineFor, setBaselineFor] = useState<string | null>(null);
+  // Ghost bars: each task's newest baseline dates drawn faintly under its bar, while "Show baseline" is ticked.
+  const [showGhosts, setShowGhosts] = useState(true);
+  const [ghosts, setGhosts] = useState<Record<string, Record<string, { start: string | null; end: string | null }>>>({});
+  useEffect(() => {
+    if (!baselineOn || !projects.length) return;
+    api.get('/api/project-baselines/latest/plans', { projectIds: projects.map((p) => p.id).join(',') }).then((r: any) => setGhosts(r?.plans || {})).catch(() => setGhosts({}));
+  }, [baselineOn, projects, baselineFor]);
   const [linking, setLinking] = useState<GanttTask | null>(null);
   const [linkDraft, setLinkDraft] = useState({ predecessorId: '', type: 'finish_to_start', lagDays: '0' });
   /** A move answered with the tasks its links moved: say so, by name. */
@@ -249,6 +256,12 @@ export default function GanttChartsPage() {
           Timeline view of all projects — {projects.length} projects over {totalDays} days
           {mayPlan ? '. Drag a bar to move it; drag its right edge to change when it ends.' : ''}
         </p>
+        {baselineOn && Object.keys(ghosts).length > 0 && (
+          <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+            <input type="checkbox" checked={showGhosts} onChange={(e) => setShowGhosts(e.target.checked)} />
+            Show baseline (the grey line under each task is where it was planned)
+          </label>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
@@ -318,6 +331,12 @@ export default function GanttChartsPage() {
                     </div>
                     <div className="flex-1 relative" style={{ minWidth: '800px' }}>
                       {grid}
+                      {baselineOn && showGhosts && (() => {
+                        const g = ghosts[p.id]?.[t.id];
+                        const gs = dayStart(g?.start), ge = dayStart(g?.end);
+                        if (!g || Number.isNaN(gs) || Number.isNaN(ge)) return null;
+                        return <div className="absolute bottom-0.5 h-1.5 rounded bg-gray-400/70 dark:bg-slate-500/70" style={{ left: `${pct(gs)}%`, width: `${Math.max(((ge + DAY - gs) / totalSpan) * 100, 0.5)}%` }} title={`Planned: ${g.start} – ${g.end}`} aria-hidden="true" data-testid="ghost-bar" />;
+                      })()}
                       {!Number.isNaN(tStart) && !Number.isNaN(tEnd) && barBox('task', t.id, tStart, tEnd, TASK_COLOR, t.name, t.progress)}
                     </div>
                   </div>

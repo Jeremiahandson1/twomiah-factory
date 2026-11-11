@@ -62,6 +62,11 @@ test('moved, stretched, added and removed tasks against the plan', async () => {
   expect([r.body.planFinish, r.body.nowFinish, r.body.projectFinishSlip]).toEqual(['2026-12-14', '2026-12-16', 2])
 })
 
+test("the chart's ghost bars: each task's newest planned dates", async () => {
+  const r = await json(await call(`/api/project-baselines/latest/plans?projectIds=${proj}`))
+  expect(r.body.plans[proj][frame]).toEqual({ start: '2026-12-01', end: '2026-12-05' })
+})
+
 test("another company's project is not found; switched off, closed", async () => {
   expect((await call('/api/project-baselines/not-a-project/compare')).status).toBe(404)
   await t.db.update(t.schema.company).set({ enabledFeatures: ['projects', 'gantt_charts'] } as any).where(eq(t.schema.company.id, companyId))

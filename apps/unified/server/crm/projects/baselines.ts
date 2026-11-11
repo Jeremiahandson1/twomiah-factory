@@ -12,7 +12,7 @@
 //   DELETE /baseline/:id               projects:update
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { project, projectBaseline, projectTask } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, one } from '../../http/reply.ts'
@@ -71,6 +71,20 @@ export function createBaselineRoutes(d: CrmDeps) {
   const tasksNow = async (companyId: string, projectId: string): Promise<Snap[]> =>
     ((await db.select().from(projectTask).where(and(eq(projectTask.companyId, companyId), eq(projectTask.projectId, projectId))).orderBy(asc(projectTask.startDate), asc(projectTask.createdAt))) as any[])
       .map((t) => ({ taskId: t.id, name: t.name, startDate: t.startDate ? new Date(t.startDate).toISOString() : null, endDate: t.endDate ? new Date(t.endDate).toISOString() : null }))
+
+  // The Gantt chart's ghost bars: for each project asked about, its newest baseline's planned dates by task.
+  app.get('/latest/plans', requirePermission('projects:read'), async (c) => {
+    const companyId = c.get('user').companyId
+    const ids = String(c.req.query('projectIds') || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 200)
+    if (!ids.length) return one(c, { plans: {} })
+    const rows = await db.select().from(projectBaseline).where(and(eq(projectBaseline.companyId, companyId), inArray(projectBaseline.projectId, ids))).orderBy(desc(projectBaseline.createdAt), desc(projectBaseline.id))
+    const plans: Record<string, Record<string, { start: string | null; end: string | null }>> = {}
+    for (const b of rows as any[]) {
+      if (plans[b.projectId]) continue
+      plans[b.projectId] = Object.fromEntries(((b.taskSnapshots || []) as Snap[]).map((t) => [t.taskId, { start: iso(t.startDate), end: iso(t.endDate) }]))
+    }
+    return one(c, { plans })
+  })
 
   app.get('/:projectId', requirePermission('projects:read'), async (c) => {
     const companyId = c.get('user').companyId
