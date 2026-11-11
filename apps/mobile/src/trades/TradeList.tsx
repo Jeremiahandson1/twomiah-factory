@@ -12,6 +12,7 @@ import { FilterBanner } from '../home/FilterBanner'
 import { specFor } from './specs'
 import { mayUse, rowCache, fillDates, type Action } from './kit'
 import { ActionSheet } from './ActionSheet'
+import { BarcodeScanner } from '../scan/BarcodeScanner'
 
 export function TradeList({ spec: id, tab, params, banner, from }: { spec: string; tab?: boolean; params?: Record<string, string>; banner?: { label: string; onClear: () => void }; /** the tile's list: the chip with this query starts selected */ from?: Req }) {
   const router = useRouter()
@@ -22,6 +23,7 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<Action | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const url = useMemo(() => {
     if (!spec) return null
     const query = fillDates({ ...(spec.list.query || {}), ...(spec.chips?.find((c) => c.id === chip)?.query || {}), ...(params || {}) })
@@ -44,7 +46,7 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
       actions={spec.create && spec.create.any.some((p) => can(p)) ? [{ icon: 'add', label: spec.create.label, onPress: () => router.push(spec.create!.route as any) }] : undefined}>
       <View style={{ gap: space[3] }}>
         {banner ? <FilterBanner label={banner.label} count={total ?? (loading ? undefined : rows.length)} onClear={banner.onClear} /> : null}
-        {spec.search ? <SearchField value={q} onChangeText={setQ} placeholder={spec.search.placeholder} /> : null}
+        {spec.search ? <SearchField value={q} onChangeText={setQ} placeholder={spec.search.placeholder} onScan={spec.search.scan && hasFeature(spec.search.scan.feature) ? () => setScanning(true) : undefined} /> : null}
         {spec.chips ? <ChipRow>{spec.chips.map((c) => <Chip key={c.id} label={c.label} selected={chip === c.id} onPress={() => setChip(c.id)} />)}</ChipRow> : null}
         {loading ? <SkeletonRows count={5} /> : error ? <EmptyState icon="alert-circle" title="Could not load this list" body={error} action="Try again" onAction={refresh} />
           : items.length === 0 ? <EmptyState icon="checkmark-circle" title={spec.empty.title} body={spec.empty.body} />
@@ -58,6 +60,7 @@ export function TradeList({ spec: id, tab, params, banner, from }: { spec: strin
         {!loading && total != null && rows.length < total ? <Button label="Show more" variant="secondary" onPress={loadMore} /> : null}
       </View>
       <ActionSheet action={open} row={{}} onClose={() => setOpen(null)} onDone={refresh} />
+      {spec.search?.scan ? <BarcodeScanner visible={scanning} onClose={() => setScanning(false)} onScanned={(code) => { setScanning(false); setQ(code) }} /> : null}
     </Screen>
   )
 }

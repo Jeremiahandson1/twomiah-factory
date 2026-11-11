@@ -41,6 +41,8 @@ export const jobPhoto = pgTable('job_photo', {
   longitude: decimal('longitude', { precision: 10, scale: 7 }),
   // Shown to the homeowner in their portal (roofing's Photos & documents). Off until someone with portal:share turns it on.
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  /** When it was last shared with the customer (the weekly client update's "shared this week"); null for one shared before this was kept. */
+  sharedAt: timestamp('shared_at'),
   // A MARKED COPY (arrows, circles and text drawn on a photo; server/crm/roof/photoMarkup): the photo it was drawn on, and the
   // drawing itself (shapes in fractions of the picture) so it can be changed later. Both null on a photo as taken. The
   // original is never changed; one original has at most one marked copy, kept beside it.

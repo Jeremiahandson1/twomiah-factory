@@ -9,6 +9,7 @@ import { OFFICE } from './office'
 import { LANDSCAPING } from './landscaping'
 import { ROOF_CREW } from './roofCrew'
 import { CONTRACTOR } from './contractor'
+import { STOCK } from './stock'
 
-export const SPECS: ScreenSpec[] = [...SALON, ...EVENTS, ...BAR, ...STORE, ...VET, ...OFFICE, ...LANDSCAPING, ...ROOF_CREW, ...CONTRACTOR]
+export const SPECS: ScreenSpec[] = [...SALON, ...EVENTS, ...BAR, ...STORE, ...VET, ...OFFICE, ...LANDSCAPING, ...ROOF_CREW, ...CONTRACTOR, ...STOCK]
 export const specFor = (id: string) => SPECS.find((s) => s.id === id)

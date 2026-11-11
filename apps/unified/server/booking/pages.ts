@@ -69,6 +69,8 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   /** Framed on another website: the pages keep ?embed=1 among themselves; anything that leaves opens the whole window. */
   const embedded = (c: Context) => c.req.query('embed') === '1'
   const keep = (c: Context, sep: '?' | '&' = '?') => (embedded(c) ? sep + 'embed=1' : '')
+  /** Came from the customer's portal (?portal=<their link>, parity tier 2 #5): carried to the service chosen, whose script fills the form in. */
+  const fromPortal = (c: Context, sep: '?' | '&') => { const t = String(c.req.query('portal') || ''); return /^[A-Za-z0-9_-]{8,200}$/.test(t) ? `${sep}portal=${encodeURIComponent(t)}` : '' }
   const top = (c: Context) => (embedded(c) ? ' target="_top"' : '')
 
   /**
@@ -95,7 +97,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const body = !services.length
       ? '<section class="book-empty"><div class="container"><h1>Bookings opening soon</h1><p>Online booking is being set up. <a href="/contact">Get in touch</a> for now.</p></div></section>'
       : `<section class="book-services"><div class="container"><h1 class="book-services__title">${escHtml(s.settings.heroTitle || 'Book a service')}</h1>${s.settings.heroSubtitle ? `<p class="book-services__subtitle">${escHtml(s.settings.heroSubtitle)}</p>` : ''}<div class="book-services__grid">${services.map((x) => `
-          <a class="service-card" href="/book/${escHtml(x.slug)}${keep(c)}"><div class="service-card__body"><h2 class="service-card__name">${escHtml(x.name)}</h2>${x.description ? `<p class="service-card__desc">${escHtml(x.description)}</p>` : ''}<div class="service-card__meta"><span>${length(x.durationMinutes)}</span>${x.price != null ? `<span class="service-card__price">${servicePrice(x)}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`).join('')}</div></div></section>`
+          <a class="service-card" href="/book/${escHtml(x.slug)}${keep(c)}${fromPortal(c, keep(c) ? '&' : '?')}"><div class="service-card__body"><h2 class="service-card__name">${escHtml(x.name)}</h2>${x.description ? `<p class="service-card__desc">${escHtml(x.description)}</p>` : ''}<div class="service-card__meta"><span>${length(x.durationMinutes)}</span>${x.price != null ? `<span class="service-card__price">${servicePrice(x)}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`).join('')}</div></div></section>`
     return html(c, s.ctx, body, 'Book online', '/book')
   })
 

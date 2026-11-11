@@ -56,8 +56,10 @@ describe('campaigns: one form, one link, one embed each, tagged with a lead sour
     expect(html).toContain(`name="campaign" value="${token}"`)
     expect(html).toContain('name="eventDate"'); expect(html).toContain('action="/api/leads"')
     expect(res.headers.get('content-security-policy')).toMatch(/frame-ancestors[^;]*https:/)
-    // A price is never on a public page.
-    expect(html.includes('437') || html.includes('2113')).toBe(false)
+    // A price is never on a public page. The hidden "t" (when the form was opened, in ms) is the clock, not a price: it read
+    // 1794378… one night and held "437".
+    const shown = html.replace(/name="t" id="t" value="\d+"/, '')
+    expect(shown.includes('437') || shown.includes('2113')).toBe(false)
     expect((await k.t.app.request('/api/event-form/ffffffffffffffffffffffff', { headers: { host: 'bar.test' } })).status).toBe(404)
     expect((await k.t.app.request('/api/event-form/not-a-token', { headers: { host: 'bar.test' } })).status).toBe(404)
     const js = await k.t.app.request('/api/event-form/embed.js', { headers: { host: 'bar.test' } })

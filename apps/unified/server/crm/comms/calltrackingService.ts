@@ -145,6 +145,11 @@ export function createCalltrackingService(d: CrmDeps) {
         notes: `First call: ${new Date().toLocaleDateString()}`,
       })
     }
+    // Caller ID (caller_id, not ready — ./callerId.ts): the office's screens are told a call came in. Only the call's id travels;
+    // who it is and what they owe are read by each screen through a route that asks contacts:read.
+    if ((data.direction || 'inbound') === 'inbound' && logged?.id && (await d.features.isFeatureEnabled(companyId, 'caller_id').catch(() => false))) {
+      d.realtime.emitToCompany(companyId, 'call:incoming', { callId: logged.id })
+    }
     return logged
   }
 

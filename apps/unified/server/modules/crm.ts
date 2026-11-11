@@ -8,6 +8,8 @@
 // template mounted it; every other one is mounted for signed-in users, and the registry signs them in first.
 import { createCommissionDisclaimer } from '../crm/roof/commissionDisclaimer.ts'
 import { checkAvailability, closedCheck } from '../data/techAvailability.ts'
+import { skillCheck } from '../data/skills.ts'
+import { zoneLimitCheck } from '../data/zoneLimits.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
@@ -21,7 +23,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { and, asc, desc, eq, eq as eqCol } from 'drizzle-orm'
+import { and, asc, desc, eq, eq as eqCol, gte, inArray, notInArray } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -31,7 +33,7 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking, bookingService,
 } from '../db/schema/index.ts'
 import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
@@ -73,6 +75,7 @@ import { paymentToolMounts, paymentPlanMounts } from '../crm/billing/paymentTool
 import { createPaymentPlans } from '../crm/billing/paymentPlans.ts'
 import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
 import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
+import { createCreditMemoRoutes } from '../crm/billing/creditMemos.ts'
 import { surchargePctFor } from '../data/cardSurcharge.ts'
 import { createMarkupDefaultsRoutes } from '../crm/billing/markupDefaults.ts'
 import { createQuoteLineImageRoutes } from '../crm/billing/quoteLineImages.ts'
@@ -96,6 +99,7 @@ import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
 import { leadMounts } from '../crm/leads/index.ts'
+import { clientUpdateMounts } from '../crm/clientUpdates/index.ts'
 import { dashboardPanelMounts } from '../crm/dashboard/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
@@ -294,15 +298,21 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // photos in the store, served at /media/photos/… (the website's media route serves the same prefix)
       ...(v.jobs?.photos ? { storage: s.storage } : {}),
       // a job billed on its own: POST /api/jobs/:id/invoice
-      ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
+      // …and a job's approved change orders go on its invoice (change_order.job_id, 0108 — parity tier 2 #4).
+      ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays, changeOrders: true } } : {}),
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}), repeatPatterns: (companyId: string) => features.isFeatureEnabled(companyId, 'job_repeat_patterns'),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate, onPause: s.jobHooks.onPause, onResume: s.jobHooks.onResume,
       // The business's days off first, where Days Off is on (a holiday — server/data/daysOff.ts); then working hours and time off:
-      // a job given to someone who is off warns the office (server/data/techAvailability.ts), where Tech Availability is on.
-      availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>
-        ((await features.isFeatureEnabled(companyId, 'days_off')) ? await closedCheck(exec, companyId, date) : null) ?? ((await features.isFeatureEnabled(companyId, 'tech_availability')) ? checkAvailability(exec, companyId, people, date, time, hours) : null),
+      // a job given to someone who is off warns the office (server/data/techAvailability.ts), where Tech Availability is on; then
+      // the skills its kind of job needs (server/data/skills.ts), where Skill Matching is on. Each the same "check before you book".
+      availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any, job?: { jobType?: string | null; zip?: string | null; id?: string | null }) =>
+        ((await features.isFeatureEnabled(companyId, 'days_off')) ? await closedCheck(exec, companyId, date) : null)
+        ?? ((await features.isFeatureEnabled(companyId, 'tech_availability')) ? await checkAvailability(exec, companyId, people, date, time, hours) : null)
+        ?? ((await features.isFeatureEnabled(companyId, 'skill_matching')) ? await skillCheck(exec, companyId, people, job?.jobType) : null)
+        // …and a service zone's daily job limit (server/data/zoneLimits.ts), where Service Zones is on.
+        ?? ((await features.isFeatureEnabled(companyId, 'service_zones')) ? await zoneLimitCheck(exec, companyId, job?.zip, date, job?.id) : null),
     },
   } as any)
 
@@ -362,6 +372,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   // The salon's clock (the booking calendar's zone) and its clients' account ledger (CrmSettings.invoices).
   const salonClock = createSalonClock(db)
   const clientAccounts = createAccountBalanceStore(clientAccountEntry)
+  /** A client's balance is kept here: the salon always (its account balance), any other trade where credit_memos is on. */
+  const creditOn = async (companyId: string) => !!v.invoices?.accountBalance || (await features.isFeatureEnabled(companyId, 'credit_memos').catch(() => false))
 
   const invoices = createInvoiceRoutes({
     db, tables: { invoice, invoiceLineItem, payment, contact, project, quote, company }, authenticate, requirePermission, canSee, ...live,
@@ -404,23 +416,28 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The salon's retail product link survives a general invoice edit (crm/salon/retail.ts lineEdit).
       ...(v.invoices?.giftCardTender ? { lineEdit: s.lineEdit } : {}),
       ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
-      ...(v.invoices?.accountBalance ? { accountBalance: {
+      // Every other trade: the same ledger as CUSTOMER CREDIT (parity tier 2, credit memos — QuickBooks' and Buildertrend's), per business
+      // behind credit_memos (not ready): credit issued on the customer (crm/billing/creditMemos.ts), spent on an invoice by the
+      // account_balance method, a refund kept as credit. Off, nothing is offered (balanceOf null) and both doors refuse in words.
+      accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
         // inside the invoice's own transaction.
         async spend(tx: any, inv: any, amount: number) {
           const contactId = inv.contact_id ?? inv.contactId
+          if (!(await creditOn(inv.company_id ?? inv.companyId))) return 'Customer credit is not switched on for this business.'
           if (!contactId) return 'This invoice is not attached to a client, so there is no account to take it from.'
           const out = await clientAccounts.spend(tx, { companyId: inv.company_id ?? inv.companyId, contactId, amount, invoiceId: inv.id, reason: `Paid against ${inv.number}` })
           return out.ok ? null : out.error
         },
         async credit(tx: any, inv: any, amount: number) {
           const contactId = inv.contact_id ?? inv.contactId
+          if (!(await creditOn(inv.company_id ?? inv.companyId))) return 'Customer credit is not switched on for this business.'
           if (!contactId) return 'This invoice is not attached to a client, so there is no account to refund it to.'
           await clientAccounts.add(tx, { companyId: inv.company_id ?? inv.companyId, contactId, amount, source: 'refund_to_account', reason: `Refunded from ${inv.number} and kept on account`, invoiceId: inv.id })
           return null
         },
-        balanceOf: (companyId: string, contactId: string) => clientAccounts.balance(db, companyId, contactId),
-      } } : {}),
+        balanceOf: async (companyId: string, contactId: string) => ((await creditOn(companyId)) ? clientAccounts.balance(db, companyId, contactId) : null),
+      },
     },
   } as any)
 
@@ -471,6 +488,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Saved quotes to start the next from, and the automatic nudge to a customer who has not answered (crm/billing; both not ready).
     { path: '/api/quote-templates', access: 'user', feature: 'quote_templates', router: createQuoteTemplateRoutes(own) },
     { path: '/api/quote-followup', access: 'user', feature: 'quote_followup', router: createQuoteFollowUpRoutes(own, s.quoteFollowUp) },
+    // Credit memos: credit kept on a customer and spent on their invoices, on the shared client ledger (crm/billing/creditMemos.ts). Not ready.
+    { path: '/api/customer-credit', access: 'user', feature: 'credit_memos', router: createCreditMemoRoutes(own) },
     // The usual markup by kind of line, and a picture on a quote line (crm/billing; both not ready).
     { path: '/api/markup-defaults', access: 'user', feature: 'markup_defaults', router: createMarkupDefaultsRoutes(own) },
     { path: '/api/quote-line-images', access: 'user', feature: 'quote_line_images', router: createQuoteLineImageRoutes(own) },
@@ -635,6 +654,21 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
           },
         }
       })(),
+      // Book a visit online from the portal (parity tier 2 #5; portal_booking with online_booking — portal.ts SECTION_FEATURES): the
+      // booking pages with this customer's details filled in (/book?portal=<their portal link> — site scripts/book-flow.ts reads them
+      // through the portal), and their bookings still to come, each with its own page to move or cancel it. Not for the salon, whose
+      // portal books inside it (appointments).
+      ...(!v.portal?.appointments ? { bookOnline: {
+        bookUrl: (portalToken: string) => `${siteOrigin()}/book?portal=${encodeURIComponent(portalToken)}`,
+        list: async (companyId: string, contactId: string) => {
+          const rows = await db.select({ id: booking.id, startAt: booking.startAt, status: booking.status, token: booking.token, serviceId: booking.serviceId }).from(booking)
+            .where(and(eq(booking.companyId, companyId), eq(booking.contactId, contactId), gte(booking.startAt, new Date()), notInArray(booking.status, ['cancelled', 'declined'])))
+            .orderBy(asc(booking.startAt), asc(booking.id)).limit(20)
+          const ids = [...new Set(rows.map((r: any) => r.serviceId).filter(Boolean))] as string[]
+          const names = ids.length ? await db.select({ id: bookingService.id, name: bookingService.name }).from(bookingService).where(and(eq(bookingService.companyId, companyId), inArray(bookingService.id, ids))) : []
+          return rows.map((r: any) => ({ id: r.id, service: (names as any[]).find((n) => n.id === r.serviceId)?.name ?? null, startAt: r.startAt, status: r.status, manageUrl: r.token ? `${siteOrigin()}/booking/${r.token}` : null }))
+        },
+      } } : {}),
       // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       // The contractor's project page in the client portal (contractor parity row 10; client_portal_plus gates it).
@@ -683,6 +717,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ...storeMounts(own),
     // Lost with a reason, site visits and the pipeline strip (crm/leads; all not ready).
     ...leadMounts(own),
+    // The weekly email of what is new in each client's portal (crm/clientUpdates; not ready).
+    ...clientUpdateMounts(own),
     // The owner's "needs you today" panel and the crew's "my day" (crm/dashboard; both not ready).
     ...dashboardPanelMounts(own),
   ]

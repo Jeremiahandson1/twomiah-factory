@@ -32,6 +32,7 @@
 //   · every ink has its dark partner (the totals rows carried two competing dark: classes; the back link's hover, the
 //     line and rate prices had none), and the header and button rows wrap at phone width.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { OrderLocation } from './OrderLocation'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, X } from 'lucide-react'
 import { api } from '../../../../api'
@@ -385,6 +386,7 @@ export default function OrderDetailPage() {
       {/* Fulfillment */}
       <div className="card p-5 space-y-3">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Fulfillment</h2>
+        <OrderLocation orderId={order.id} />
         {/* Tracking only where there is a parcel (hasParcel). An order that never went out shows the boxes only while
             they hold something, so a value saved before the rule can still be cleared. */}
         {ships && (hasParcel(order) || order.trackingCarrier || order.trackingNumber) ? (

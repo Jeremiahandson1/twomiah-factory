@@ -243,11 +243,17 @@ const jOthers = await mkJob('JOB-00004', manager.id)
   check('parts: …but not what the company paid (no unitCost / totalCost below margin:read)', row && !('unitCost' in row) && !('totalCost' in row), row)
   const asOwner = await O('GET', `/api/inventory/job/${jConfirmed.id}`)
   check('parts: the owner sees the cost', Number(asOwner.json?.[0]?.unitCost) === 12 && Number(asOwner.json?.[0]?.totalCost) === 36, asOwner.json)
+  // The technician at the job puts a part from their van on it (inventory:use — ServiceTitan's materials from the truck, 11/11);
+  // taking stock in or counting it stays the office's (inventory:update).
   const fieldUse = await F('POST', '/api/inventory/use', { jobId: jConfirmed.id, itemId: item.id, locationId: wh.id, quantity: 1 })
-  check(`parts: recording stock is inventory:update — the field seat is refused (${fieldUse.status})`, fieldUse.status === 403)
+  check(`parts: the field seat records a part on the job (${fieldUse.status})`, fieldUse.status === 200 || fieldUse.status === 201, fieldUse.json)
+  const fieldAdjust = await F('POST', '/api/inventory/adjust', { itemId: item.id, locationId: wh.id, quantity: 5, reason: 'x' })
+  check(`parts: adjusting stock is inventory:update — the field seat is refused (${fieldAdjust.status})`, fieldAdjust.status === 403)
+  const otherJob = await F('POST', '/api/inventory/use', { jobId: 'not-a-job-of-ours', itemId: item.id, locationId: wh.id, quantity: 1 })
+  check(`parts: a job that is not this company's is not found (${otherJob.status})`, otherJob.status === 404)
   const ret = await M('POST', '/api/inventory/return', { usageId: row.id, returnQuantity: 1, locationId: wh.id })
   const [lvl] = await db.select().from(stockLevel).where(and(eq(stockLevel.itemId, item.id), eq(stockLevel.locationId, wh.id)))
-  check(`parts: one box returned to stock (shelf ${lvl?.quantity}, was 7)`, (ret.status === 200 || ret.status === 201) && lvl?.quantity === 8, ret.json)
+  check(`parts: one box returned to stock (shelf ${lvl?.quantity}, was 6)`, (ret.status === 200 || ret.status === 201) && lvl?.quantity === 7, ret.json)
 }
 
 // ─────────────────────────────── wiring ───────────────────────────────

@@ -29,6 +29,7 @@ import { ConfirmModal } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
 import { useMapCenter, US_VIEW, HOME_ZOOM } from '@twomiah/tenant-ui/src/maps/center'
 import { UNASSIGNED, crewOf, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, BOOK_ANYWAY_TITLE, personName, RouteOptimiser, type Lane } from '@twomiah/tenant-ui/src/schedule/crew'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 // What this vertical calls a job (VerticalSettings.screens.jobs.labels): 'Service Call' in field service, 'Job' in
 // landscaping (its copy of this board said "Job started", "Unnamed job" — T41).
@@ -84,6 +85,7 @@ interface DispatchJob {
   type?: string | null;
   serviceAgreementId?: string | null;
   address?: string | null;
+  zip?: string | null;
   scheduledTime?: string | null;
   estimatedHours?: string | number | null;
   lat?: number | null;
@@ -94,6 +96,8 @@ interface DispatchJob {
   assignees?: JobAssignee[];
   // The list joins the contact as { id, name } only.
   contact?: { id: string; name?: string | null } | null;
+  /** The kind of job (skill matching reads what it needs). */
+  jobType?: string | null;
 }
 
 /** A row of GET /api/team/assignable. */
@@ -129,6 +133,27 @@ export default function DispatchBoard() {
   const showAvailability = hasFeature('tech_availability');
   // Days Off on: the business's closed day is asked for (and only then — the switch off, the board asks nothing new).
   const daysOffOn = hasFeature('days_off');
+  // Service zones (service_zones, not ready): each job's zone by its ZIP, and one zone at a time (server crm/field/serviceZones.ts).
+  const zonesOn = hasFeature('service_zones');
+  const [zones, setZones] = useState<Array<{ id: string; name: string; zips: string[]; color: string; techIds?: string[] }>>([]);
+  const [zoneShown, setZoneShown] = useState('');
+  useEffect(() => { if (zonesOn) api.get('/api/service-zones').then((r: any) => setZones(r?.zones || [])).catch(() => setZones([])); }, [zonesOn]);
+  // Skill matching (skill_matching, not ready — ServiceTitan's recommended technicians): while a job is being moved, each lane
+  // says whether that person has the skills its kind needs, and the people who do are named first (server data/skills.ts).
+  const skillsOn = hasFeature('skill_matching');
+  const [skillData, setSkillData] = useState<{ people: Record<string, string[]>; needs: Record<string, string[]> } | null>(null);
+  const [skillJob, setSkillJob] = useState<DispatchJob | null>(null);
+  useEffect(() => {
+    if (!skillsOn) return;
+    const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, ' ');
+    api.get('/api/skills').then((r: any) => setSkillData({
+      people: Object.fromEntries((r?.people || []).map((p: any) => [p.personId, (p.skills || []).map(norm)])),
+      needs: Object.fromEntries((r?.jobTypes || []).map((t: any) => [norm(t.jobType), (t.skills || [])])),
+    })).catch(() => setSkillData(null));
+  }, [skillsOn]);
+  const neededFor = (j: DispatchJob | null) => (j?.jobType && skillData ? skillData.needs[j.jobType.trim().toLowerCase().replace(/\s+/g, ' ')] || [] : []);
+  const missingFor = (personId: string, needed: string[]) => needed.filter((n) => !(skillData?.people[personId] || []).includes(n.trim().toLowerCase().replace(/\s+/g, ' ')));
+  const zoneOf = (j: { zip?: string | null }) => { const k = String(j.zip ?? '').trim().toUpperCase().replace(/^(\d{5})-\d{4}$/, '$1'); return k ? zones.find((z) => z.zips.includes(k)) ?? null : null; };
   // …and, with it, each person's shifts as bars on a time axis (regular, on call and time off apart — ServiceTitan's board).
   const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string; bars: ShiftBar[] }>>({});
   // The business is closed this day (Settings › Days off — a holiday): said above the board; jobs can still be put on it.
@@ -212,7 +237,7 @@ export default function DispatchBoard() {
    * A PARTITION: completed, else in progress, else assigned (Scheduled), else not (Unassigned) — whatever the status.
    * A CANCELLED job is not work on the day — it is off the board altogether, so the tiles add up to the total.
    */
-  const onBoard = jobs.filter(j => j.status !== 'cancelled');
+  const onBoard = jobs.filter(j => j.status !== 'cancelled' && (!zoneShown || (zoneShown === 'none' ? !zoneOf(j) : zoneOf(j)?.id === zoneShown)));
   const completed = onBoard.filter(j => j.status === 'completed');
   const inProgress = onBoard.filter(j => j.status === 'in_progress');
   const scheduled = onBoard.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && crewIdsOf(j).length > 0);
@@ -220,7 +245,10 @@ export default function DispatchBoard() {
 
   // The lanes: Unassigned, then the roster (its order), then anyone a job names who is not on it (a seat without
   // team:read sees the people its own jobs name).
-  const lanes: Lane[] = [{ id: UNASSIGNED, name: 'Unassigned' }, ...lanesFor(techs.map(t => ({ id: t.id, name: t.name })), onBoard)];
+  // One zone shown, and it names its techs: their lanes only (anyone else a shown job names still gets one, from lanesFor).
+  const zoneTechs = zonesOn && zoneShown && zoneShown !== 'none' ? zones.find(z => z.id === zoneShown)?.techIds : undefined;
+  const laneTechs = zoneTechs && zoneTechs.length ? techs.filter(t => zoneTechs.includes(t.id)) : techs;
+  const lanes: Lane[] = [{ id: UNASSIGNED, name: 'Unassigned' }, ...lanesFor(laneTechs.map(t => ({ id: t.id, name: t.name })), onBoard)];
   const colourOf = (laneId: string) => laneId === UNASSIGNED ? UNASSIGNED_COLOUR : LANE_COLOURS[(lanes.findIndex(l => l.id === laneId) - 1 + LANE_COLOURS.length) % LANE_COLOURS.length];
   const jobsIn = (laneId: string) => onBoard.filter(j => laneId === UNASSIGNED ? crewIdsOf(j).length === 0 : crewIdsOf(j).includes(laneId)).sort(byTime);
   const laneName = (laneId: string) => lanes.find(l => l.id === laneId)?.name || 'Unassigned';
@@ -250,7 +278,7 @@ export default function DispatchBoard() {
    */
   const moveTo = async (to: string) => {
     const picked = dragging.current || moving;
-    dragging.current = null; setMoving(null); setOverLane(null);
+    dragging.current = null; setMoving(null); setOverLane(null); setSkillJob(null);
     if (!picked) return;
     const body: Record<string, unknown> | null = laneMoveBody(picked.job, picked.from, to);
     if (!body) return;
@@ -310,6 +338,13 @@ export default function DispatchBoard() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
+          {zonesOn && zones.length > 0 && (
+            <select aria-label="Zone" value={zoneShown} onChange={(e) => setZoneShown(e.target.value)} className="px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600">
+              <option value="">All zones</option>
+              {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              <option value="none">No zone</option>
+            </select>
+          )}
           <input
             type="date"
             aria-label="Day"
@@ -347,10 +382,22 @@ export default function DispatchBoard() {
         <StatCard icon={CheckCircle} label="Completed" value={completed.length} color="green" />
       </div>
 
+      {skillJob && neededFor(skillJob).length > 0 && (() => {
+        const needed = neededFor(skillJob);
+        const ranked = lanes.filter((l) => l.id !== UNASSIGNED).map((l) => ({ lane: l, missing: missingFor(l.id, needed), load: jobsIn(l.id).length }))
+          .sort((a, b) => a.missing.length - b.missing.length || a.load - b.load || a.lane.name.localeCompare(b.lane.name));
+        return (
+          <p data-testid="skill-ranking" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <span className="font-semibold">{codeLabel(skillJob.jobType)} needs {needed.join(', ')}.</span>{' '}
+            Best fit: {ranked.map((r, i) => <span key={r.lane.id}>{i ? ', ' : ''}{r.lane.name}{r.missing.length ? ` (missing ${r.missing.join(', ')})` : ' ✓'}</span>)}
+          </p>
+        );
+      })()}
+
       {moving && (
         <div role="status" data-testid="move-banner" className="sticky top-0 z-20 flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900 shadow-sm dark:border-orange-500/50 dark:bg-orange-950/60 dark:text-orange-100">
           <span className="min-w-0"><span className="font-semibold">Moving “{moving.job.contact?.name || moving.job.title}”</span> — tap a person's lane to put it there.</span>
-          <button type="button" onClick={() => setMoving(null)} className="shrink-0 inline-flex items-center gap-1 rounded border border-orange-300 px-2 py-1 text-orange-900 hover:bg-orange-100 dark:border-orange-500/50 dark:text-orange-100 dark:hover:bg-orange-900/40"><X className="w-3.5 h-3.5" />Cancel</button>
+          <button type="button" onClick={() => { setMoving(null); setSkillJob(null); }} className="shrink-0 inline-flex items-center gap-1 rounded border border-orange-300 px-2 py-1 text-orange-900 hover:bg-orange-100 dark:border-orange-500/50 dark:text-orange-100 dark:hover:bg-orange-900/40"><X className="w-3.5 h-3.5" />Cancel</button>
         </div>
       )}
 
@@ -375,6 +422,12 @@ export default function DispatchBoard() {
                       <h2 className="font-semibold text-gray-900 dark:text-white truncate">{lane.name}</h2>
                       <span className="ml-auto text-sm text-gray-600 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-300">{here.length}</span>
                     </div>
+                    {skillJob && lane.id !== UNASSIGNED && neededFor(skillJob).length > 0 && (() => {
+                      const missing = missingFor(lane.id, neededFor(skillJob));
+                      return missing.length
+                        ? <p data-skill="missing" className="mb-2 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Missing {missing.join(', ')}</p>
+                        : <p data-skill="has" className="mb-2 rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-900 dark:bg-green-900/40 dark:text-green-100">Has the skills</p>;
+                    })()}
                     {away[lane.id] && (
                       <p data-away={away[lane.id].state} className={`mb-2 rounded px-2 py-1 text-xs font-medium ${away[lane.id].state === 'off' ? 'bg-gray-200 text-gray-800 dark:bg-slate-700 dark:text-slate-100' : away[lane.id].state === 'part' ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100' : 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300'}`}>
                         {away[lane.id].state === 'hours' ? `Works ${away[lane.id].label}` : away[lane.id].label}
@@ -395,14 +448,15 @@ export default function DispatchBoard() {
                         <DispatchCard
                           key={job.id}
                           job={job}
+                          zone={zonesOn ? zoneOf(job) : null}
                           lane={lane.id}
                           mayUpdate={mayUpdate}
                           mayDispatch={mayDispatch}
                           moving={moving?.job.id === job.id}
                           picking={!!moving}
-                          onDragStart={() => { dragging.current = { job, from: lane.id }; }}
-                          onDragEnd={() => { dragging.current = null; setOverLane(null); }}
-                          onMove={() => setMoving({ job, from: lane.id })}
+                          onDragStart={() => { dragging.current = { job, from: lane.id }; if (skillsOn) setSkillJob(job); }}
+                          onDragEnd={() => { dragging.current = null; setOverLane(null); setSkillJob(null); }}
+                          onMove={() => { setMoving({ job, from: lane.id }); if (skillsOn) setSkillJob(job); }}
                           onStatusChange={handleStatusChange}
                         />
                       ))}
@@ -514,8 +568,10 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: { icon: LucideIc
   );
 }
 
-function DispatchCard({ job, lane, mayUpdate, mayDispatch, moving, picking, onDragStart, onDragEnd, onMove, onStatusChange }: {
+function DispatchCard({ job, zone, lane, mayUpdate, mayDispatch, moving, picking, onDragStart, onDragEnd, onMove, onStatusChange }: {
   job: DispatchJob;
+  /** The job's service zone (service_zones), shown as a coloured label. */
+  zone?: { name: string; color: string } | null;
   lane: string;
   mayUpdate: boolean;
   mayDispatch: boolean;
@@ -575,6 +631,7 @@ function DispatchCard({ job, lane, mayUpdate, mayDispatch, moving, picking, onDr
         <p className="text-xs font-medium text-gray-700 dark:text-slate-300">{job.status === 'completed' ? 'Completed' : 'In progress'}</p>
       ) : null}
 
+      {zone && <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-700 dark:text-slate-300"><span className="inline-block h-2 w-2 rounded-full" style={{ background: zone.color }} aria-hidden="true" />{zone.name}</p>}
       {/* Address */}
       {job.address && (
         <div className="flex items-start gap-1 mt-1">

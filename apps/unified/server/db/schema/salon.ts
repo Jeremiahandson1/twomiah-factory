@@ -18,8 +18,11 @@ export const clientAccountEntry = pgTable('client_account_entry', {
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+  /** A credit memo's number ("CM-0001", the company's own sequence — QuickBooks' credit memo no.); null on every other entry. */
+  number: text('number'),
 }, (t) => [
   index('client_account_entry_client_idx').on(t.companyId, t.contactId),
+  uniqueIndex('client_account_entry_number_unique').on(t.companyId, t.number),
   index('client_account_entry_invoice_idx').on(t.invoiceId),
 ])
 

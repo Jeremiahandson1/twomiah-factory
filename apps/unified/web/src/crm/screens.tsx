@@ -28,10 +28,12 @@ import { dashboard as roofDashboard, isRoofing } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
 import TextingPage from './pages/TextingPage'
 import { ContactBookings } from '../booking/ContactBookings'
+import { CustomerCreditPanel } from './pages/CustomerCreditPanel'
 import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 import { DocumentAside } from './invoiceAside'
 import { JobChecklistsPanel } from './checklistLife'
+import { JobChangeOrdersPanel } from './jobChangeOrders'
 import { QuickBooksSyncLog } from './quickbooksSyncLog'
 import { QuoteBillingPanel, JobBillingPanel } from './quoteBilling'
 import { ProposalPanel } from './proposalOptions'
@@ -96,7 +98,10 @@ export function ContactDetail() {
   const { hasFeature, can } = useAuth()
   // The contact's bookings, each in the name its booker typed (booking/ContactBookings.tsx) — where the business takes
   // bookings and the seat may read them, the same gates as the Bookings screen.
-  const panels = hasFeature('online_booking') && can('bookings:read') ? (contactId: string) => <ContactBookings contactId={contactId} /> : undefined
+  const bookings = hasFeature('online_booking') && can('bookings:read')
+  // Customer credit (credit memos, not ready): where credit_memos is on and the seat reads invoices.
+  const credit = hasFeature('credit_memos') && can('invoices:read')
+  const panels = bookings || credit ? (contactId: string) => <>{credit && <CustomerCreditPanel contactId={contactId} />}{bookings && <ContactBookings contactId={contactId} />}</> : undefined
   return <ContactDetailPage api={client} toast={useToast()} config={{ ...contactsFor(hasFeature, can), panels } as any} />
 }
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
@@ -104,22 +109,26 @@ export function ContactDetail() {
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
 // Find a time on the form follows Tech Availability (not ready): the slots come from people's shifts (/api/availability/find).
 const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking'), findTime: hasFeature('tech_availability') })
-/** The kinds of job the owner's checklists are written for (Job Checklists, NOT READY) — the job form's "Job type" box. */
-function useChecklistJobTypes(on: boolean): string[] | undefined {
+/**
+ * The kinds of job the job form's "Job type" box offers: those the owner's checklists are written for (Job Checklists, NOT READY)
+ * and those Settings › Skills says need skills (Skill Matching, NOT READY). Neither on: no box, and no call.
+ */
+function useJobTypes(checklists: boolean, skills: boolean): string[] | undefined {
   const [types, setTypes] = useState<string[] | undefined>()
   useEffect(() => {
-    if (!on) return
+    if (!checklists && !skills) return
     let live = true
-    client.get('/api/checklists/templates').then((r: any) => {
-      if (live) setTypes([...new Set<string>((r?.data || []).flatMap((x: any) => x.jobTypes || []))])
-    }).catch(() => { /* the box just stays away */ })
+    Promise.all([
+      checklists ? client.get('/api/checklists/templates').then((r: any) => (r?.data || []).flatMap((x: any) => x.jobTypes || [])).catch(() => []) : [],
+      skills ? client.get('/api/skills').then((r: any) => (r?.jobTypes || []).map((x: any) => x.jobType)).catch(() => []) : [],
+    ]).then(([a, b]) => { if (live) setTypes([...new Set<string>([...a, ...b])]) })
     return () => { live = false }
-  }, [on])
+  }, [checklists, skills])
   return types
 }
 export function Jobs() {
   const { hasFeature, can } = useAuth()
-  const jobTypes = useChecklistJobTypes(hasFeature('job_checklists'))
+  const jobTypes = useJobTypes(hasFeature('job_checklists'), hasFeature('skill_matching'))
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can, jobTypes } as any} />
 }
 export function JobDetail() {
@@ -128,12 +137,12 @@ export function JobDetail() {
   // the vertical has job photos, else in the photo library by job (/api/photos?jobId) — contractor's. Notes are the job's
   // comments (/api/comments, every vertical). Live test 2026-10-22: the page had neither an add nor a notes log.
   return <JobDetailPage api={client} toast={useToast()} config={{
-    ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
+    ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library', photoFolders: hasFeature('photo_folders'),
     notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
     // The billing of the job's approved quote: billed against remaining, progress invoices (crm/quoteBilling.tsx).
     // Drawing on a photo works on the job's own photos (job_photo), not the photo library's.
     photoActions: v().jobs.photos ? (photo: { id: string; url?: string; caption?: string }, reload: () => void) => <DrawOnPhoto photo={photo} reload={reload} /> : undefined,
-    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><CrewWorkPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobBillingPanel job={job} /></>,
+    aside: (job: Record<string, any>) => <><VisitRatingPanel jobId={job.id} /><CrewWorkPanel jobId={job.id} /><JobChecklistsPanel job={job} /><JobChangeOrdersPanel job={job} /><JobBillingPanel job={job} /></>,
   } as any} />
 }
 /**

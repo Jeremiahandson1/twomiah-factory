@@ -39,10 +39,10 @@ Shared ones are also in `shared-backlog.md`.
 |---|---|---|
 | Estimate templates | `quote_templates` — offered to the contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
 | Automatic quote follow-up | `quote_followup` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
-| Change orders | `change_orders` — contractor only, and tied to a **project** (`projectId` required); field service has no projects — change orders on a **job** are a build | not built for jobs |
+| Change orders | **built 11/10 (tier 2 #4), hidden** — `job_change_orders` (field service, landscaping): a job's change orders on its page, sent to the customer to sign in their portal (named by the job), approved, and billed as their own lines on the job's invoice, once (migration 0108: change_order.job_id, invoice_id). Raised by the office; techs raising them on site and basic (which bills from quotes) are follow-ups | built |
 | CRM pipeline, quotes awaiting a reply | `lead_pipeline` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
 | Owner / technician dashboards | `owner_dashboard`, `crew_dashboard` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
-| Customer self-scheduling in the portal | `portal_appointments` — the salon only, built on the salon's stylists and service menu (crm.ts portal hooks); field service's portal takes a service request. Opening it means adapting it to the general bookings — a build | partly |
+| Customer self-scheduling in the portal | **built 11/10 (tier 2 #5), hidden** — `portal_booking` (with online booking; field service, basic, landscaping): the portal's Book a Visit opens the business's booking pages with the customer's details filled in, and lists their bookings still to come with the page that moves or cancels each. The salon keeps its own (`portal_appointments`) | built |
 | A `route_optimization` switch | in the registry, offered to **no** trade; the dispatch board's optimiser works without it — find what it was for before opening it | to check |
 
 Each is opened by adding the trade to the feature's `templates` and trying it — shared first: landscaping and basic with field
@@ -52,15 +52,15 @@ service where they fit (`shared-backlog.md`).
 
 | ServiceTitan | Ours | Mark |
 |---|---|---|
-| Skill matching when dispatching | team members carry `skills` (`tenant-backend/src/team/team.ts`); nothing uses them to pick a technician | partly |
+| Skill matching when dispatching | built 11/10, hidden (`skill_matching`): each person's skills and each job type's needs on Settings › Skills; a job given to people who together lack a needed skill asks "check before you book"; Find a time offers only people with every needed skill (`server/data/skills.ts`, `tests/parity-skill-matching.test.ts`). Added 11/11: while a job is moved on the Dispatch Board, each lane says whether that person has the skills its kind needs, and the best fits are named first | yes (hidden) |
 | Caller ID with the customer's record (screen pop) | none | not built |
-| Live "where's my tech" map for the customer | "on my way" texts (`tech/tech.ts`), no live map link | partly |
+| Live "where's my tech" map for the customer | built 11/10, hidden (`tech_tracking`): the "on my way" text carries a private link (`/on-the-way/<token>`, signed, 4 hours) to a map of the tech's newest position (from their phone, when they share location; 15 minutes at most old), refreshed every 30 seconds; "arrived" once they start, no position after (`server/crm/field/techTrack.ts`, `tests/parity-tech-tracking.test.ts`). Added 11/11: "About N minutes away" — the schedule's own travel estimate (straight line at 30 mph) from the tech's position to the job; no paid map call | yes (hidden) |
 | Chat-to-text website widget | none | not built |
-| Barcode / equipment scanning on the phone | the store's phone screens only (`apps/mobile/src/trades/store.ts`) | built elsewhere |
+| Barcode / equipment scanning on the phone | built 11/10, hidden (`barcode_scanning`): scan a part's barcode on the phone's Stock list (search by name, SKU, barcode or supplier part #; read only), and a product's on the store's Stock (`apps/mobile/src/scan/`, `tests/mobile/barcode-scan.test.ts`, `tests/parity-barcode-search.test.ts`). Added 11/11: the phone's Equipment list, found by scanning the serial number on the data plate (whose unit, warranty, service history); a technician puts a part from the van on the job under way (Stock › Use on a job — inventory:use; the office keeps receiving and counting). Needs a check on a real phone (camera) | yes (hidden) |
 | Spanish in the app | none (roofing's work orders only) | not built |
-| Service zones | none | not built |
-| Marketing ROI scorecard, revenue heat map | call tracking counts calls; no ROI | not built |
-| Technician and CSR scorecards | team revenue only | partly |
+| Service zones | built 11/10, hidden (`service_zones`): Settings › Service zones — areas by ZIP (a ZIP in one zone); each job's zone by its ZIP on the Dispatch Board, and a zone filter (`crm/field/serviceZones.ts`, `tests/parity-service-zones.test.ts`). Added 11/11: each zone names its techs and a daily job limit — a job past it asks "check before you book"; Find a time offers the zone's techs and no time on a full day; the Dispatch Board's zone view shows their lanes | yes (hidden) |
+| Marketing ROI scorecard, revenue heat map | built 11/10, hidden (`marketing_roi`): per lead source — leads, customers, jobs, payments, against spend per source per month (the shared spend ledger): cost per lead, money back per dollar (`crm/field/marketingRoi.ts`, `tests/parity-marketing-roi.test.ts`). Added 11/11: tracking numbers are sources (their calls; a first-time caller is that source's lead and customer) and the heat map — the period's customers by ZIP, sized by what they paid, every source or one | yes (hidden) |
+| Technician and CSR scorecards | built 11/10, behind team revenue (`team_revenue_reports`, hidden): Tech scorecard — jobs completed, revenue, average ticket, quote win rate, on-time starts (within 15 min of the booked time), call-backs (another job for the customer within 30 days); Office scorecard — jobs booked per person, completed and cancelled (`data/scorecards.ts`, `tests/parity-scorecards.test.ts`). Saved and scheduled like the report's other tabs | yes (hidden) |
 | Internal general ledger, accounting periods, three-way matching | none — the books are QuickBooks (synced) | not built |
 | Direct mail | none | not built |
 | Progress billing, multi-party billing | progress billing is the contractor's (`drawSchedules`, AIA); no bill-to-a-third-party for a job | built elsewhere / not built |

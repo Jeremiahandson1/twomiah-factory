@@ -28,7 +28,7 @@ const awaitingClient = (status: string) => AWAITING_CLIENT.includes(status)
 interface ChangeOrderData {
   id: string; title?: string | null; number: string; status: string; amount: string | number; description?: string | null; reason?: string | null
   daysAdded?: number | null; signature?: string | null; signedBy?: string | null; approvedBy?: string | null; approvedDate?: string | null; approvedAt?: string | null
-  project?: { name: string; number?: string } | null; projectName?: string | null
+  project?: { name: string; number?: string } | null; projectName?: string | null; jobTitle?: string | null
   [key: string]: unknown
 }
 
@@ -56,7 +56,8 @@ export function PortalChangeOrders() {
 
 function ChangeOrderCard({ co, token, highlight }: { co: ChangeOrderData; token?: string; highlight?: boolean }) {
   const isAddition = Number(co.amount) > 0
-  const projectName = co.project?.name || co.projectName
+  // What it is on: the project, or the job (a service call's change order — parity tier 2 #4).
+  const projectName = co.project?.name || co.projectName || co.jobTitle
   return (
     <PLink to={`/portal/${token}/change-orders/${co.id}`} className={`block bg-white rounded-xl border p-4 hover:shadow-md transition-all dark:bg-slate-900 ${highlight ? 'border-orange-300 ring-2 ring-orange-100 dark:ring-orange-900/40' : 'border-gray-200 dark:border-slate-700'}`}>
       <div className="flex items-center justify-between gap-4">

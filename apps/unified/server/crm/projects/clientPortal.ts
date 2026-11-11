@@ -259,7 +259,7 @@ export function createClientPortal(d: CrmDeps) {
       const shared = !!(await c.req.json().catch(() => ({})))?.shared
       const [l] = await db.select().from(dailyLog).where(and(eq(dailyLog.id, c.req.param('id')), eq(dailyLog.companyId, me.companyId))).limit(1) as any[]
       if (!l) return fail(c, 404, 'Daily log not found')
-      await db.update(dailyLog).set({ sharedWithClient: shared }).where(eq(dailyLog.id, l.id))
+      await db.update(dailyLog).set({ sharedWithClient: shared, ...(shared && !l.sharedWithClient ? { sharedAt: new Date() } : {}) }).where(eq(dailyLog.id, l.id))
       const told = shared && !l.sharedWithClient ? await tellClient(me.companyId, l.projectId, 'dailyLogs', 'A new daily log is in your portal') : 'not-asked'
       return one(c, { id: l.id, sharedWithClient: shared, told })
     })
@@ -268,7 +268,7 @@ export function createClientPortal(d: CrmDeps) {
       const shared = !!(await c.req.json().catch(() => ({})))?.shared
       const [x] = await db.select().from(document).where(and(eq(document.id, c.req.param('id')), eq(document.companyId, me.companyId))).limit(1) as any[]
       if (!x || !x.projectId) return fail(c, 404, 'File not found on a project')
-      await db.update(document).set({ sharedWithCustomer: shared }).where(eq(document.id, x.id))
+      await db.update(document).set({ sharedWithCustomer: shared, ...(shared && !x.sharedWithCustomer ? { sharedAt: new Date() } : {}) }).where(eq(document.id, x.id))
       return one(c, { id: x.id, sharedWithCustomer: shared })
     })
 

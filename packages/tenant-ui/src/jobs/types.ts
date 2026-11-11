@@ -25,6 +25,8 @@ export interface JobsConfig {
    * 'job' = /api/jobs/:id/photos, 'library' = /api/photos by jobId. Absent: the view-only gallery above. (2026-10-22)
    */
   photoStore?: 'job' | 'library'
+  /** Photo folders on the job's photos (before / during / after …; feature photo_folders, parity tier 2 #2). */
+  photoFolders?: boolean
   /** The job's notes log on the detail page (JobNotesPanel, /api/comments/job/:id). Off unless the app mounts it. */
   notes?: boolean
   /** The business's zone, for when a note was written. */
@@ -100,6 +102,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     siteLabels: cfg.siteLabels?.singular ? cfg.siteLabels : DEFAULT_SITE_LABELS,
     photos: !!cfg.photos,
     photoStore: cfg.photoStore,
+    photoFolders: !!cfg.photoFolders,
     notes: !!cfg.notes,
     timeZone: cfg.timeZone,
     billing: !!cfg.billing,

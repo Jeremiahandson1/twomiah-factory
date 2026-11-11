@@ -33,6 +33,9 @@ import { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './dispatch'
 import { travelMinutes, type Place } from './travel'
 import { partialOf } from '../partialOf'
 
+
+/** The folders a job's photos are filed in (job_photo.photo_type); 'general' is none. Roofing's own five are among them. */
+export const JOB_PHOTO_KINDS = ['general', 'before', 'during', 'after', 'progress', 'damage', 'inspection', 'issue'] as const
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
   teamMember?: any
@@ -79,8 +82,9 @@ export interface JobOptions {
    * Is every person on this job free at this time (working hours, time off)? Called on a create and on a move, after the
    * overlap and travel checks. Returns a warning the office may book past — `{ code, message, ... }`, answered as a 409
    * with `canBookAnyway` exactly as a travel-time warning is — or null. Absent → no such check (every template, as before).
+   * `job` is what kind of job it is (its type), for a check of the skills that kind of job needs (unified skill_matching).
    */
-  availability?: (companyId: string, people: Array<{ userId: string | null; memberId: string | null }>, scheduledDate: unknown, scheduledTime: string | null | undefined, hours: unknown, exec: any) => Promise<{ code: string; message: string; [k: string]: unknown } | null>
+  availability?: (companyId: string, people: Array<{ userId: string | null; memberId: string | null }>, scheduledDate: unknown, scheduledTime: string | null | undefined, hours: unknown, exec: any, job?: { jobType?: string | null; zip?: string | null; id?: string | null }) => Promise<{ code: string; message: string; [k: string]: unknown } | null>
   numbering?: { prefix?: string; pad?: number }
   /**
    * A weekly repeat can name its days of the week (`repeat.weekdays`, 0 = Sunday … 6 = Saturday: Monday and Thursday is
@@ -141,6 +145,8 @@ export interface JobOptions {
     numbering?: { prefix?: string; pad?: number; seed?: number }
     /** Days until due, from today. Default 30. */
     termsDays?: number
+    /** The app keeps change orders on jobs (change_order.job_id / invoice_id): bill a job's approved, unbilled ones on its invoice. */
+    changeOrders?: boolean
   }
 }
 
@@ -838,7 +844,9 @@ export function createJobRoutes(deps: JobDeps) {
      * Before or after the work (Yardbook before/after photos; landscaping parity row 9): the photo's kind, where the table keeps one
      * (job_photo.photo_type). Anything else is an ordinary photo, as before.
      */
-    const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && (v === 'before' || v === 'after') ? { photoType: v } : {})
+    // …and the job's photo folders (parity tier 2 #2, 11/10 — Buildertrend's photo folders): the same kinds roofing's job page
+    // files under (before, during, after, damage) and progress, inspection, issue. 'general' is a photo in no folder.
+    const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && typeof v === 'string' && (JOB_PHOTO_KINDS as readonly string[]).includes(v) ? { photoType: v } : {})
 
     app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
@@ -898,6 +906,17 @@ export function createJobRoutes(deps: JobDeps) {
       const fresh = [...new Set(urls)].filter((u) => !have.has(u))
       const made = fresh.length ? await db.insert(t.jobPhoto).values(fresh.map((url) => ({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url, caption, ...photoKind(body?.kind) }))).returning() : []
       return c.json({ saved: made.length, photos: made }, made.length ? 201 : 200)
+    })
+
+    // Move a photo to another folder (or out of one: 'general').
+    app.patch('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const body = await c.req.json().catch(() => null) as { kind?: unknown } | null
+      const kind = photoKind(body?.kind)
+      if (!('photoType' in kind)) return c.json({ error: `Choose one of: ${JOB_PHOTO_KINDS.join(', ')}.`, code: 'validation_failed' }, 400)
+      const [moved] = await db.update(t.jobPhoto).set(kind).where(and(eq(t.jobPhoto.id, c.req.param('photoId')), eq(t.jobPhoto.jobId, c.req.param('id')), eq(t.jobPhoto.companyId, currentUser.companyId))).returning()
+      if (!moved) return c.json({ error: 'Photo not found' }, 404)
+      return c.json(moved)
     })
 
     app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {
@@ -1041,7 +1060,7 @@ export function createJobRoutes(deps: JobDeps) {
           // Each visit is checked against the person's hours and time off too (JobOptions.availability): a visit on a
           // day they are off is listed back, not made — unless the office said "book anyway", which is recorded.
           if (o.availability) {
-            const away = await o.availability(currentUser.companyId, everyone, day.date, data.scheduledTime, data.estimatedHours, tx)
+            const away = await o.availability(currentUser.companyId, everyone, day.date, data.scheduledTime, data.estimatedHours, tx, { jobType: (data as any).jobType ?? o.defaultJobType ?? null, zip: (data as any).zip ?? null })
             if (away && !bookAnyway) { skipped.push({ date: day.date, reason: String(away.short || away.message), code: away.code }); continue }
             if (away) travel = travel || away
           }
@@ -1059,7 +1078,7 @@ export function createJobRoutes(deps: JobDeps) {
       // Not an overlap, but no time to get there: a warning, booked past only when the office says so.
       travel = await travelWarning(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, { address: data.address ?? null }, undefined, tx)
       // …or a person who is off that day or outside their hours (JobOptions.availability): the same kind of warning.
-      if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, tx)
+      if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, tx, { jobType: (data as any).jobType ?? o.defaultJobType ?? null, zip: (data as any).zip ?? null })
       if (travel && !bookAnyway) return null
       const row = await insertOne(tx, data.scheduledDate)
       await writeOthers(tx, currentUser.companyId, row.id, crew.others)
@@ -1231,7 +1250,7 @@ export function createJobRoutes(deps: JobDeps) {
       const stillClosed = ['completed', 'cancelled'].includes(String(existing.status)) && (data.status === undefined || ['completed', 'cancelled'].includes(String(data.status)))
       if (movesSlot && !stillClosed) {
         travel = await travelWarning(currentUser.companyId, everyone, effDate, effTime, effHours, here, id, tx)
-        if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, effDate, effTime, effHours, tx)
+        if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, effDate, effTime, effHours, tx, { jobType: (data as any).jobType !== undefined ? (data as any).jobType : (existing as any).jobType ?? null, zip: (data as any).zip !== undefined ? (data as any).zip : (existing as any).zip ?? null, id })
         if (travel && !bookAnyway) return null
       }
       if (crewChanged) await writeOthers(tx, currentUser.companyId, id, crew.others)
@@ -1597,21 +1616,41 @@ export function createJobRoutes(deps: JobDeps) {
             quoteId = String(q.id)
           }
         }
+        /**
+         * THE JOB'S APPROVED CHANGE ORDERS (parity tier 2 #4, 11/10 — ServiceTitan's change orders on a call): each approved one not
+         * billed yet goes on as its own line ("Change order CO-002: Add a humidifier"), whatever else the invoice bills, and is
+         * marked billed by this invoice below — so it is billed once. Where the app keeps them (o.billing.changeOrders).
+         */
+        const changeOrders = o.billing?.changeOrders ? rowsOf(await tx.execute(
+          sql`SELECT id, number, title, amount FROM change_order
+               WHERE job_id = ${id} AND company_id = ${currentUser.companyId} AND status = 'approved' AND invoice_id IS NULL
+               ORDER BY created_at ASC, id ASC`,
+        )) : []
+        const changeLines = changeOrders.map((co: any) => ({ description: `Change order ${co.number}${co.title ? `: ${co.title}` : ''}`, quantity: 1, unitPrice: round2(Number(co.amount || 0)) }))
         if (!lines) {
           const amount = round2(Number(j.estimated_value || 0))
           if (!amount || amount <= 0) {
-            return { status: 400 as const, body: { error: 'This job has no price to bill. Set what it is worth in its Price box (Edit), then invoice it.' } }
+            // No price of its own: its approved change orders are the bill (below), else there is nothing to bill.
+            if (!changeLines.length) return { status: 400 as const, body: { error: 'This job has no price to bill. Set what it is worth in its Price box (Edit), then invoice it.' } }
+            lines = []
+          } else {
+            const settings = rowsOf(await tx.execute(
+              sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`,
+            ))[0]?.settings
+            taxRate = defaultTaxRateFrom((settings as any) || {})
+            lines = [{
+              description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(),
+              quantity: 1,
+              unitPrice: amount,
+            }]
           }
-          const settings = rowsOf(await tx.execute(
-            sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`,
-          ))[0]?.settings
-          taxRate = defaultTaxRateFrom((settings as any) || {})
-          lines = [{
-            description: j.title ? `${j.title}${j.number ? ` (${j.number})` : ''}` : `Service call ${j.number || ''}`.trim(),
-            quantity: 1,
-            unitPrice: amount,
-          }]
         }
+        if (!lines!.length) {
+          // Only change orders to bill: the company's own rate, as for an estimate.
+          const settings = rowsOf(await tx.execute(sql`SELECT settings FROM company WHERE id = ${currentUser.companyId} LIMIT 1`))[0]?.settings
+          taxRate = defaultTaxRateFrom((settings as any) || {})
+        }
+        lines = [...lines!, ...changeLines]
 
         const issueDate = new Date()
         const dueDate = new Date(issueDate.getTime() + termsDays * 86_400_000)
@@ -1629,6 +1668,10 @@ export function createJobRoutes(deps: JobDeps) {
           },
           lines as any,
         )
+        if (changeOrders.length) {
+          await tx.execute(sql`UPDATE change_order SET invoice_id = ${inv.id}, updated_at = NOW()
+                                 WHERE company_id = ${currentUser.companyId} AND id IN (${sql.join(changeOrders.map((co: any) => sql`${co.id}`), sql`, `)})`)
+        }
         return { status: 201 as const, body: inv }
       })
 

@@ -248,6 +248,25 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
   closing()
 }
 
+/**
+ * A CREDIT MEMO (QuickBooks' credit memo, credit_memos): its number and date, the customer, the reason as its line, the amount —
+ * then what it was issued against and the customer's credit now. The same page head as an invoice.
+ */
+export async function generateCreditMemoPDF(memo: { number: string; date: Date | string; amount: number; reason: string; invoiceNumber?: string | null; creditNow: number; contact: any }, company: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 72 })
+    const chunks: Buffer[] = []
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+    buildPDF('CREDIT MEMO', doc, { number: memo.number, date: memo.date, contact: memo.contact, lineItems: [{ description: memo.reason, quantity: 1, unitPrice: memo.amount, total: memo.amount }], total: memo.amount }, company)
+    doc.moveDown().fontSize(10)
+    if (memo.invoiceNumber) doc.text(`Issued against invoice ${memo.invoiceNumber}.`, { align: 'left' })
+    doc.text(`This credit is kept on your account and taken off a future invoice. Credit on your account now: ${money(memo.creditNow)}.`, { align: 'left' })
+    doc.end()
+  })
+}
+
 export async function generateInvoicePDF(invoice: any, company: any): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 72 })

@@ -12,6 +12,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { BarChart3, Plus, Trash2, Link2, X } from 'lucide-react'
 import { api } from '../../api'
 import { usePermissions, useToast, useConfirm, useAuth, PageLoading } from '../../shared'
+import { ScheduleBaselinePanel } from './ScheduleBaselinePanel'
+import { BaselineReport } from './BaselineReport'
 
 interface GanttTask {
   id: string;
@@ -86,6 +88,17 @@ export default function GanttChartsPage() {
   const { known, can } = usePermissions();
   const mayPlan = known && can('projects:update');
   const linksOn = useAuth().hasFeature('task_links');
+  // The schedule baseline (schedule_baseline, not ready): plan against now, per project (ScheduleBaselinePanel.tsx).
+  const baselineOn = useAuth().hasFeature('schedule_baseline');
+  const [baselineFor, setBaselineFor] = useState<string | null>(null);
+  // Ghost bars: each task's newest baseline dates drawn faintly under its bar, while "Show baseline" is ticked.
+  const [showGhosts, setShowGhosts] = useState(true);
+  const [showReport, setShowReport] = useState(false);
+  const [ghosts, setGhosts] = useState<Record<string, Record<string, { start: string | null; end: string | null }>>>({});
+  useEffect(() => {
+    if (!baselineOn || !projects.length) return;
+    api.get('/api/project-baselines/latest/plans', { projectIds: projects.map((p) => p.id).join(',') }).then((r: any) => setGhosts(r?.plans || {})).catch(() => setGhosts({}));
+  }, [baselineOn, projects, baselineFor]);
   const [linking, setLinking] = useState<GanttTask | null>(null);
   const [linkDraft, setLinkDraft] = useState({ predecessorId: '', type: 'finish_to_start', lagDays: '0' });
   /** A move answered with the tasks its links moved: say so, by name. */
@@ -245,6 +258,20 @@ export default function GanttChartsPage() {
           Timeline view of all projects — {projects.length} projects over {totalDays} days
           {mayPlan ? '. Drag a bar to move it; drag its right edge to change when it ends.' : ''}
         </p>
+        {baselineOn && Object.keys(ghosts).length > 0 && (
+          <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+            <input type="checkbox" checked={showGhosts} onChange={(e) => setShowGhosts(e.target.checked)} />
+            Show baseline (the grey line under each task is where it was planned)
+          </label>
+        )}
+        {baselineOn && (
+          <div className="mt-2">
+            <button type="button" aria-expanded={showReport} onClick={() => setShowReport(!showReport)} className="text-sm font-medium text-orange-700 underline dark:text-orange-300">
+              {showReport ? 'Hide' : 'Show'} every project against its baseline
+            </button>
+            {showReport && <BaselineReport />}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
@@ -269,6 +296,11 @@ export default function GanttChartsPage() {
                     <div className="font-medium text-sm truncate">{p.name}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
                   </div>
+                  {baselineOn && (
+                    <button type="button" onClick={() => setBaselineFor(baselineFor === p.id ? null : p.id)} className="shrink-0 inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700" aria-expanded={baselineFor === p.id} aria-label={`Baseline for ${p.name}`}>
+                      Baseline
+                    </button>
+                  )}
                   {mayPlan && (
                     <button type="button" onClick={() => openAdd(p)} className="shrink-0 inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Add a task to ${p.name}`}>
                       <Plus className="w-3 h-3" />Task
@@ -309,11 +341,19 @@ export default function GanttChartsPage() {
                     </div>
                     <div className="flex-1 relative" style={{ minWidth: '800px' }}>
                       {grid}
+                      {baselineOn && showGhosts && (() => {
+                        const g = ghosts[p.id]?.[t.id];
+                        const gs = dayStart(g?.start), ge = dayStart(g?.end);
+                        if (!g || Number.isNaN(gs) || Number.isNaN(ge)) return null;
+                        return <div className="absolute bottom-0.5 h-1.5 rounded bg-gray-400/70 dark:bg-slate-500/70" style={{ left: `${pct(gs)}%`, width: `${Math.max(((ge + DAY - gs) / totalSpan) * 100, 0.5)}%` }} title={`Planned: ${g.start} – ${g.end}`} aria-hidden="true" data-testid="ghost-bar" />;
+                      })()}
                       {!Number.isNaN(tStart) && !Number.isNaN(tEnd) && barBox('task', t.id, tStart, tEnd, TASK_COLOR, t.name, t.progress)}
                     </div>
                   </div>
                 );
               })}
+
+              {baselineOn && baselineFor === p.id && <ScheduleBaselinePanel projectId={p.id} projectName={p.name} mayPlan={mayPlan} />}
 
               {linking && linking.projectId === p.id && (
                 <form onSubmit={(e) => addLink(e, p.id)} className="flex flex-wrap items-end gap-3 border-b bg-gray-50 px-4 py-3 dark:bg-slate-800 dark:border-slate-700" aria-label={`Link ${linking.name}`}>

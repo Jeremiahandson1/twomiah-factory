@@ -24,9 +24,13 @@ import { createJobReminderRoutes } from './jobReminderRoutes.ts'
 import { createTeamReports } from './teamReportRoutes.ts'
 import { createPlanReports } from './planReportRoutes.ts'
 import { createAvailabilityRoutes } from './availabilityRoutes.ts'
+import { createServiceZoneRoutes } from './serviceZones.ts'
+import { createMarketingRoiRoutes } from './marketingRoi.ts'
+import { createSkillRoutes } from './skillRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
 import { createClockExtras } from './clockExtras.ts'
 import { createJobConfirm } from './jobConfirm.ts'
+import { createTechTrack } from './techTrack.ts'
 
 export { createSelectionsService, type SelectionsService } from './selectionsService.ts'
 
@@ -69,6 +73,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     // The reminder before a job the office booked: its settings (crm/field/jobReminders.ts runs the timed pass). Not ready.
     // The link in a reminder: public, the token is the key and opens one visit. It checks the Job Reminders feature itself.
     { path: '/api/visit-confirm', access: 'public', router: jobConfirm.routes },
+    // "Where's my tech": the page behind the link in the on-my-way text (techTrack.ts; it checks tech_tracking itself). Not ready.
+    { path: '/api/tech-track', access: 'public', router: createTechTrack(d).routes },
     { path: '/api/job-reminders', access: 'user', feature: 'job_reminders', router: createJobReminderRoutes(d) },
     // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
     { path: '/api/team-revenue/saved', access: 'user', feature: 'team_revenue_reports', router: teamReports.savedRoutes },
@@ -77,6 +83,12 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: planReports.routes },
     // When each tech works and is away (crm/field/availabilityRoutes.ts); jobs.ts warns when a job is given outside it. Not ready.
     { path: '/api/availability', access: 'user', feature: 'tech_availability', router: createAvailabilityRoutes(d) },
+    // The areas the business works in, by ZIP; the Dispatch Board shows and filters by them (./serviceZones.ts). Not ready.
+    { path: '/api/service-zones', access: 'user', feature: 'service_zones', router: createServiceZoneRoutes(d) },
+    // Leads, customers, jobs and money per lead source against the spend on it (./marketingRoi.ts). Not ready.
+    { path: '/api/marketing-roi', access: 'user', feature: 'marketing_roi', router: createMarketingRoiRoutes(d) },
+    // What each person can do and what each kind of job needs (crm/field/skillRoutes.ts); jobs.ts warns on a mismatch. Not ready.
+    { path: '/api/skills', access: 'user', feature: 'skill_matching', router: createSkillRoutes(d) },
     // The checklists a business builds per job type, filled in on the phone and signed on site (crm/field/checklistRoutes.ts). Not ready.
     { path: '/api/checklists', access: 'user', feature: 'job_checklists', router: createChecklistRoutes(d) },
     // Home care's /api/payroll is its own pay run (server/crm/homecare/payroll/payroll.ts), so this one stands aside there.

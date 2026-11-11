@@ -101,7 +101,7 @@ export const STORE: ScreenSpec[] = [
     id: 'store-stock', title: 'Stock', any: ['products:read'],
     list: { path: '/api/admin/products', query: { limit: '50' } },
     pick: (b) => (b?.data || []).flatMap((p: any) => (p.variants || []).map((v: any) => ({ ...v, productName: p.name }))),
-    search: { param: 'q', placeholder: 'Name, SKU or barcode' },
+    search: { param: 'q', placeholder: 'Name, SKU or barcode', scan: { feature: 'barcode_scanning' } },
     rows: (v) => ({ id: v.id, key: v.id, title: v.productName || 'Product', subtitle: join(v.name && v.name !== 'Default' ? v.name : undefined, v.sku), badge: v.inventoryQty == null ? 'Not tracked' : `${v.inventoryQty} in stock`, tone: v.inventoryQty == null ? 'neutral' : v.inventoryQty <= 0 ? 'danger' : 'success' }),
     empty: { title: 'Nothing found', body: 'Try the name, the SKU, or the whole barcode number.' },
     detail: {

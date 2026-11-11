@@ -28,7 +28,8 @@ import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne } from 'drizzle-o
 import { randomBytes } from 'node:crypto'
 import type { Context } from 'hono'
 import { productReview, storeOrder, storeOrderItem, storeProduct } from '../../../db/schema/store.ts'
-import { countDiscountUse, decrementStock } from '../../../data/storeCheckout.ts'
+import { countDiscountUse } from '../../../data/storeCheckout.ts'
+import { chooseOrderLocation, takeForOrder } from '../../../data/storeStock.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { emailItems, emailOrder } from '../emails.ts'
@@ -181,12 +182,14 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
     // block payment finalization; the sweep retries.
     void core.forwardOrderToSupplier(companyId, order.id).catch(() => { /* logged inside */ })
 
-    // The decrement happens IN the update (server/data/storeCheckout.ts). Untracked stock is left alone.
+    // The decrement happens IN the update (server/data/storeStock.ts takeForOrder). Untracked stock is left alone. Where stock is
+    // counted by location (store_locations) the order is filled from one location — the counter's own for a counter sale, else
+    // the first that has every line — and where each unit came off is kept on the order (so its location can be changed).
     const items: Array<typeof storeOrderItem.$inferSelect> = await db.select().from(storeOrderItem).where(eq(storeOrderItem.orderId, order.id))
-    for (const it of items) {
-      if (!it.variantId) continue
-      await decrementStock(db, it.variantId, it.quantity)
-    }
+    const lines = items.filter((it) => it.variantId).map((it) => ({ variantId: it.variantId as string, quantity: it.quantity }))
+    const at = (paid as any).locationId ?? (await chooseOrderLocation(db, companyId, lines))
+    const takes = await takeForOrder(db, companyId, lines, at)
+    if (at || Object.keys(takes).length) await db.update(storeOrder).set({ locationId: at, stockTakes: takes } as any).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId)))
 
     // Told to the shop's webhooks (store_webhooks): the order exists from here — a checkout nobody paid for is not an order and says
     // nothing — then its stock. Never blocks, never waits on the receiver.
