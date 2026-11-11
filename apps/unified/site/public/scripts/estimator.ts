@@ -194,6 +194,8 @@
     if (data.picture && data.picture.image && estimateId) openRoof(data.picture, data.quoted === false);
     var foot = '';
     if (data.quoted !== false) foot += '<div class="tw-est-disclaimer">' + esc(data.disclaimer || '') + '</div>';
+    // The lender's disclosure (financing/lender.ts DISCLOSURE), under the prices whenever an option shows an "as low as" monthly figure:
+    // the server sends it with every offer (crm/roof/reports/estimator.ts).
     if (data.financingDisclosure) foot += '<div class="tw-est-disclaimer">' + esc(data.financingDisclosure) + '</div>';
     if (data.companyPhone) foot += '<a class="tw-est-cta" href="tel:' + esc(data.companyPhone) + '">Call us: ' + esc(data.companyPhone) + '</a>';
     shadow.getElementById('tw-foot').innerHTML = foot;
