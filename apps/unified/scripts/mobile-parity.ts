@@ -482,6 +482,8 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/expenses'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], route: '/(details)/expenses' },
   // Parity tier 2 #10: Stock with barcode scanning (apps/mobile/src/trades/stock.ts) — only where barcode_scanning is on.
   { paths: ['/crm/inventory'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping'], route: '/(details)/stock', feature: 'barcode_scanning' },
+  // …and Equipment, found by scanning the serial number on the unit (the same file, same switch).
+  { paths: ['/crm/equipment'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping'], route: '/(details)/equipment', feature: 'barcode_scanning' },
   { paths: ['/crm/reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(details)/office-review-requests' },
   { paths: ['/crm/google-reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/office-google-reviews' },
   { paths: ['/crm/bookings', '/crm/bookings/calendar'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'vet'], route: '/(details)/office-bookings' },
