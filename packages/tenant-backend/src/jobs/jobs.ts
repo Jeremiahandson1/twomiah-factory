@@ -84,7 +84,7 @@ export interface JobOptions {
    * with `canBookAnyway` exactly as a travel-time warning is — or null. Absent → no such check (every template, as before).
    * `job` is what kind of job it is (its type), for a check of the skills that kind of job needs (unified skill_matching).
    */
-  availability?: (companyId: string, people: Array<{ userId: string | null; memberId: string | null }>, scheduledDate: unknown, scheduledTime: string | null | undefined, hours: unknown, exec: any, job?: { jobType?: string | null }) => Promise<{ code: string; message: string; [k: string]: unknown } | null>
+  availability?: (companyId: string, people: Array<{ userId: string | null; memberId: string | null }>, scheduledDate: unknown, scheduledTime: string | null | undefined, hours: unknown, exec: any, job?: { jobType?: string | null; zip?: string | null; id?: string | null }) => Promise<{ code: string; message: string; [k: string]: unknown } | null>
   numbering?: { prefix?: string; pad?: number }
   /**
    * A weekly repeat can name its days of the week (`repeat.weekdays`, 0 = Sunday … 6 = Saturday: Monday and Thursday is
@@ -1060,7 +1060,7 @@ export function createJobRoutes(deps: JobDeps) {
           // Each visit is checked against the person's hours and time off too (JobOptions.availability): a visit on a
           // day they are off is listed back, not made — unless the office said "book anyway", which is recorded.
           if (o.availability) {
-            const away = await o.availability(currentUser.companyId, everyone, day.date, data.scheduledTime, data.estimatedHours, tx, { jobType: (data as any).jobType ?? o.defaultJobType ?? null })
+            const away = await o.availability(currentUser.companyId, everyone, day.date, data.scheduledTime, data.estimatedHours, tx, { jobType: (data as any).jobType ?? o.defaultJobType ?? null, zip: (data as any).zip ?? null })
             if (away && !bookAnyway) { skipped.push({ date: day.date, reason: String(away.short || away.message), code: away.code }); continue }
             if (away) travel = travel || away
           }
@@ -1078,7 +1078,7 @@ export function createJobRoutes(deps: JobDeps) {
       // Not an overlap, but no time to get there: a warning, booked past only when the office says so.
       travel = await travelWarning(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, { address: data.address ?? null }, undefined, tx)
       // …or a person who is off that day or outside their hours (JobOptions.availability): the same kind of warning.
-      if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, tx, { jobType: (data as any).jobType ?? o.defaultJobType ?? null })
+      if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, data.scheduledDate, data.scheduledTime, data.estimatedHours, tx, { jobType: (data as any).jobType ?? o.defaultJobType ?? null, zip: (data as any).zip ?? null })
       if (travel && !bookAnyway) return null
       const row = await insertOne(tx, data.scheduledDate)
       await writeOthers(tx, currentUser.companyId, row.id, crew.others)
@@ -1250,7 +1250,7 @@ export function createJobRoutes(deps: JobDeps) {
       const stillClosed = ['completed', 'cancelled'].includes(String(existing.status)) && (data.status === undefined || ['completed', 'cancelled'].includes(String(data.status)))
       if (movesSlot && !stillClosed) {
         travel = await travelWarning(currentUser.companyId, everyone, effDate, effTime, effHours, here, id, tx)
-        if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, effDate, effTime, effHours, tx, { jobType: (data as any).jobType !== undefined ? (data as any).jobType : (existing as any).jobType ?? null })
+        if (!travel && o.availability) travel = await o.availability(currentUser.companyId, everyone, effDate, effTime, effHours, tx, { jobType: (data as any).jobType !== undefined ? (data as any).jobType : (existing as any).jobType ?? null, zip: (data as any).zip !== undefined ? (data as any).zip : (existing as any).zip ?? null, id })
         if (travel && !bookAnyway) return null
       }
       if (crewChanged) await writeOthers(tx, currentUser.companyId, id, crew.others)

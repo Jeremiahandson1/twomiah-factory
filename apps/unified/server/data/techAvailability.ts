@@ -141,7 +141,7 @@ async function nameOf(exec: any, companyId: string, p: PersonRef): Promise<strin
   return 'That person'
 }
 
-export interface Unavailable { code: 'unavailable'; message: string; short: string; personId: string; reason: 'time_off' | 'hours' | 'closed' | 'skills' }
+export interface Unavailable { code: 'unavailable'; message: string; short: string; personId: string; reason: 'time_off' | 'hours' | 'closed' | 'skills' | 'zone_full' }
 
 /**
  * The BUSINESS is closed that day (data/daysOff.ts — a holiday, parity tier 2): the same warning the office may book past, before
@@ -360,6 +360,8 @@ export interface FindTimeRequest {
   notBefore?: { date: string; minutes: number }
   /** Only people who have every one of these skills (skill matching, data/skills.ts — the kind of job's needs). */
   skills?: string[]
+  /** Days with no open slot, YYYY-MM-DD (a service zone already at its daily job limit — data/zoneLimits.ts). */
+  skipDays?: string[]
 }
 export interface OpenSlot {
   date: string; startsAt: string; endsAt: string
@@ -438,7 +440,7 @@ export async function findOpenSlots(exec: any, companyId: string, req: FindTimeR
     listed.push({ personId: p.id, kind: p.kind, name: p.name, source: entry.shifts.length ? 'shifts' : business ? 'business_hours' : 'none' })
   }
   // The business's days off (data/daysOff.ts), where Days Off is on (req.skipClosed): no open slot on one.
-  const closed = new Set(req.skipClosed ? (await daysOffBetween(exec, companyId, dayKey(first), dayKey(last))).map((d) => d.date) : [])
+  const closed = new Set([...(req.skipClosed ? (await daysOffBetween(exec, companyId, dayKey(first), dayKey(last))).map((d) => d.date) : []), ...(req.skipDays || [])])
   for (let i = 0; i < days; i++) {
     const day = new Date(first.getTime() + i * DAY_MS), key = dayKey(day)
     if (closed.has(key)) continue

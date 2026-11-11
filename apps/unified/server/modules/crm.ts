@@ -9,6 +9,7 @@
 import { createCommissionDisclaimer } from '../crm/roof/commissionDisclaimer.ts'
 import { checkAvailability, closedCheck } from '../data/techAvailability.ts'
 import { skillCheck } from '../data/skills.ts'
+import { zoneLimitCheck } from '../data/zoneLimits.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
@@ -306,10 +307,12 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The business's days off first, where Days Off is on (a holiday — server/data/daysOff.ts); then working hours and time off:
       // a job given to someone who is off warns the office (server/data/techAvailability.ts), where Tech Availability is on; then
       // the skills its kind of job needs (server/data/skills.ts), where Skill Matching is on. Each the same "check before you book".
-      availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any, job?: { jobType?: string | null }) =>
+      availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any, job?: { jobType?: string | null; zip?: string | null; id?: string | null }) =>
         ((await features.isFeatureEnabled(companyId, 'days_off')) ? await closedCheck(exec, companyId, date) : null)
         ?? ((await features.isFeatureEnabled(companyId, 'tech_availability')) ? await checkAvailability(exec, companyId, people, date, time, hours) : null)
-        ?? ((await features.isFeatureEnabled(companyId, 'skill_matching')) ? await skillCheck(exec, companyId, people, job?.jobType) : null),
+        ?? ((await features.isFeatureEnabled(companyId, 'skill_matching')) ? await skillCheck(exec, companyId, people, job?.jobType) : null)
+        // …and a service zone's daily job limit (server/data/zoneLimits.ts), where Service Zones is on.
+        ?? ((await features.isFeatureEnabled(companyId, 'service_zones')) ? await zoneLimitCheck(exec, companyId, job?.zip, date, job?.id) : null),
     },
   } as any)
 

@@ -564,7 +564,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
         <FindTime api={api} toast={toast}
           durationMinutes={form.estimatedHours && Number(form.estimatedHours) > 0 ? Math.round(Number(form.estimatedHours) * 60) : 60}
           personId={form.assignedToId} people={pickable.map((u) => ({ id: u.id, name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed' }))}
-          address={[form.address, form.city, form.state, form.zip].filter(Boolean).join(', ') || null} from={form.scheduledDate || null} jobType={form.jobType || null}
+          address={[form.address, form.city, form.state, form.zip].filter(Boolean).join(', ') || null} from={form.scheduledDate || null} jobType={form.jobType || null} zip={form.zip || null}
           onPick={(p) => { setForm((f) => ({ ...f, scheduledDate: p.date, scheduledTime: p.time, assignedToId: p.personId })); setOtherIds((ids) => ids.filter((id) => id !== p.personId)); setFindOpen(false) }}
           onClose={() => setFindOpen(false)} />
       )}

@@ -132,7 +132,7 @@ export default function DispatchBoard() {
   const daysOffOn = hasFeature('days_off');
   // Service zones (service_zones, not ready): each job's zone by its ZIP, and one zone at a time (server crm/field/serviceZones.ts).
   const zonesOn = hasFeature('service_zones');
-  const [zones, setZones] = useState<Array<{ id: string; name: string; zips: string[]; color: string }>>([]);
+  const [zones, setZones] = useState<Array<{ id: string; name: string; zips: string[]; color: string; techIds?: string[] }>>([]);
   const [zoneShown, setZoneShown] = useState('');
   useEffect(() => { if (zonesOn) api.get('/api/service-zones').then((r: any) => setZones(r?.zones || [])).catch(() => setZones([])); }, [zonesOn]);
   const zoneOf = (j: { zip?: string | null }) => { const k = String(j.zip ?? '').trim().toUpperCase().replace(/^(\d{5})-\d{4}$/, '$1'); return k ? zones.find((z) => z.zips.includes(k)) ?? null : null; };
@@ -227,7 +227,10 @@ export default function DispatchBoard() {
 
   // The lanes: Unassigned, then the roster (its order), then anyone a job names who is not on it (a seat without
   // team:read sees the people its own jobs name).
-  const lanes: Lane[] = [{ id: UNASSIGNED, name: 'Unassigned' }, ...lanesFor(techs.map(t => ({ id: t.id, name: t.name })), onBoard)];
+  // One zone shown, and it names its techs: their lanes only (anyone else a shown job names still gets one, from lanesFor).
+  const zoneTechs = zonesOn && zoneShown && zoneShown !== 'none' ? zones.find(z => z.id === zoneShown)?.techIds : undefined;
+  const laneTechs = zoneTechs && zoneTechs.length ? techs.filter(t => zoneTechs.includes(t.id)) : techs;
+  const lanes: Lane[] = [{ id: UNASSIGNED, name: 'Unassigned' }, ...lanesFor(laneTechs.map(t => ({ id: t.id, name: t.name })), onBoard)];
   const colourOf = (laneId: string) => laneId === UNASSIGNED ? UNASSIGNED_COLOUR : LANE_COLOURS[(lanes.findIndex(l => l.id === laneId) - 1 + LANE_COLOURS.length) % LANE_COLOURS.length];
   const jobsIn = (laneId: string) => onBoard.filter(j => laneId === UNASSIGNED ? crewIdsOf(j).length === 0 : crewIdsOf(j).includes(laneId)).sort(byTime);
   const laneName = (laneId: string) => lanes.find(l => l.id === laneId)?.name || 'Unassigned';

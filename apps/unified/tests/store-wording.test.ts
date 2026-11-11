@@ -5,7 +5,8 @@
 //   · Settings › Company: "Work week starts on … Overtime is hours over 40" — screens.tsx used to pass workWeek: true AFTER
 //     spreading the vertical's settings, so no vertical could turn it off; and the time-zone sentence that names timesheets,
 //     invoices, online bookings and the AI Receptionist (SettingsConfig.timeZoneHint);
-//   · Settings › Texting: a card with no feature gate though Two-Way Texting is not offered to a store;
+//   · Settings › Texting: a card with no feature gate — a store gets Two-Way Texting only by opting in (store texting, tier 2), so
+//     the card follows the switch;
 //   · the setup wizard's texting step, which sent a shop to that card.
 // Rendered in a real DOM from the store's own settings (loadVertical('store')) — the very objects the server hands the
 // screens — with the default config beside it as the control.
@@ -157,8 +158,8 @@ describe('Settings › Company has no pay week for a shop', () => {
 })
 
 describe('Settings › Texting and the wizard follow what the store is offered', () => {
-  test('Two-Way Texting is not offered to a store, so Settings lists no Texting card; a vertical that has it still does', async () => {
-    expect(offered('crm-store').has('two_way_texting')).toBe(false)
+  test('a store has Two-Way Texting only by opting in, and Settings lists the Texting card only once it is on', async () => {
+    expect(offered('crm-store').has('two_way_texting')).toBe(true)
     expect(offered('crm-salon').has('two_way_texting')).toBe(true)
     const link = (features: Set<string>) => async () => {
       document.body.innerHTML = ''
@@ -175,11 +176,14 @@ describe('Settings › Texting and the wizard follow what the store is offered',
       root.unmount()
       return labels
     }
-    const store = await link(offered('crm-store'))()
+    const off = new Set([...offered('crm-store')].filter((f) => f !== 'two_way_texting'))
+    const store = await link(off)()
+    const storeOn = await link(new Set([...off, 'two_way_texting']))()
     const salon = await link(offered('crm-salon'))()
     // The tabs are really there (Users, Integrations…), so the Texting one's absence is the gate and not an empty page.
     expect(store).toContain('Integrations')
     expect(store).not.toContain('Texting')
+    expect(storeOn).toContain('Texting')
     expect(salon).toContain('Texting')
   })
 
