@@ -129,7 +129,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
       {tabs.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Photo folders">
           {tabs.map(([k, words]) => (
-            <button key={k || 'all'} type="button" aria-pressed={folder === k} onClick={() => setFolder(k)} className={`rounded-full px-3 py-1 text-sm ${folder === k ? 'bg-gray-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200'}`}>{words}</button>
+            <button key={k || 'all'} type="button" aria-pressed={folder === k} onClick={() => setFolder(k)} className={`rounded-full px-3 py-1 text-sm ${folder === k ? 'bg-gray-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'}`}>{words}</button>
           ))}
         </div>
       )}
@@ -179,8 +179,8 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
           const shown = photos?.find((x) => x.id === p.id)
           const mover = folders && shown && (store === 'job' ? mayEditJob : mayAddDocument) ? (
             <select aria-label="Move to folder" value={shown.kind} onChange={(e) => void move(shown, e.target.value)} className="h-11 rounded-full bg-white/10 px-3 text-sm text-white">
-              <option value={UNFILED} className="text-gray-900">No folder</option>
-              {FOLDERS[store].map((k) => <option key={k} value={k} className="text-gray-900">{folderWord(k)}</option>)}
+              <option value={UNFILED} className="text-gray-900 dark:text-slate-100 dark:bg-slate-800">No folder</option>
+              {FOLDERS[store].map((k) => <option key={k} value={k} className="text-gray-900 dark:text-slate-100 dark:bg-slate-800">{folderWord(k)}</option>)}
             </select>
           ) : null
           if (!(mayRemove && shown)) return mover
