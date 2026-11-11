@@ -317,6 +317,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'crew_dashboard', name: 'Crew Dashboard', description: 'On the home screen for a crew member: my jobs today and next, my hours this week, my open tasks', category: 'Core', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'], hidden: true },
   { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
   { id: 'vendor_bills', name: 'Bills & Payables', description: 'Vendor bills with due dates, payments, and committed-vs-billed job rollups', category: 'Finance', core: false, templates: ['crm'] },
+  { id: 'bid_packages', name: 'Bid Packages', description: 'Send a scope of work to your subs to price in their portal, compare the bids line by line, and turn the winner into a purchase order', category: 'Projects', core: false, templates: ['crm'], hidden: true, words: ['bid packages', 'bid requests', 'bids to subs'] },
   { id: 'vendor_portal', name: 'Vendor Portal', description: 'Subs and suppliers acknowledge POs and submit invoices through a private link', category: 'Communication', core: false, templates: ['crm'] },
   // Consumer Financing — NOT ready (2026-10-23). The trades the pros offer it to (Jobber, Housecall Pro, ServiceTitan:
   // contractors, roofers, HVAC/field service, landscapers; and RV/powersports service) get the lender flow in the unified

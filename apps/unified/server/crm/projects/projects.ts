@@ -16,7 +16,7 @@ import { partialOf } from '@twomiah/tenant-backend'
  * WHO MAY SEE WHAT A PROJECT IS WORTH (T34): `invoices:read` is the line between the people who see money and
  * the people who do the work, so a project's money sits behind it — on the detail, the list and the roll-up.
  */
-const MONEY_PERMISSION = 'invoices:read'
+export const MONEY_PERMISSION = 'invoices:read'
 
 /**
  * The change-order rows every caller gets: the work, never the money or the signing record (T37 N6 / N9). An

@@ -15,6 +15,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import { escapeHtml } from '../../core/sanitize.ts'
+import { BID_PACKAGES, vendorBids } from '../projects/bidPackages.ts'
 
 interface VendorRow {
   id: string
@@ -117,6 +118,7 @@ export function createVendorPortalRoutes(d: CrmDeps) {
     return one(c, { ok: true, link })
   })
 
+  const bids = vendorBids(d)
   // ── Vendor side (the token is the sign-in) ──
   const vendorAuth = async (c: any, next: any) => {
     const token = c.req.param('token')
@@ -152,12 +154,26 @@ export function createVendorPortalRoutes(d: CrmDeps) {
     const bills = await db.select().from(vendorBill)
       .where(and(eq(vendorBill.companyId, vendor.companyId), eq(vendorBill.vendorId, vendor.id)))
       .orderBy(desc(vendorBill.createdAt)).limit(100)
+    // Bid requests (bid_packages, not ready): the packages this sub was asked to price, in the same answer, where the switch is on.
+    const bidsOn = await d.features.isFeatureEnabled(vendor.companyId, BID_PACKAGES).catch(() => false)
     return one(c, {
       vendor: { name: vendor.name || vendor.company, companyName: vendor.company },
       company: { name: vendor.coName, logo: vendor.coLogo, primaryColor: vendor.coPrimaryColor, email: vendor.coEmail, phone: vendor.coPhone },
       purchaseOrders: pos,
       bills,
+      ...(bidsOn ? { bidRequests: await bids.list(vendor) } : {}),
     })
+  })
+
+  // The sub prices a bid request, or declines it (../projects/bidPackages.ts vendorBids). Only where bid_packages is on.
+  const bidsGate = async (c: any, next: any) => ((await d.features.isFeatureEnabled(c.get('vendor').companyId, BID_PACKAGES).catch(() => false)) ? next() : fail(c, 404, 'Not found'))
+  app.post('/v/:token/bids/:inviteId', vendorAuth, bidsGate, async (c) => {
+    const r = await bids.submit(c.get('vendor'), c.req.param('inviteId'), await c.req.json().catch(() => null))
+    return r.ok ? one(c, r.bid) : fail(c, r.status as any, r.error)
+  })
+  app.post('/v/:token/bids/:inviteId/decline', vendorAuth, bidsGate, async (c) => {
+    const r = await bids.decline(c.get('vendor'), c.req.param('inviteId'), ((await c.req.json().catch(() => ({}))) as any)?.reason)
+    return r.ok ? one(c, { declined: true }) : fail(c, r.status as any, r.error)
   })
 
   app.get('/v/:token/pos/:id', vendorAuth, async (c) => {
