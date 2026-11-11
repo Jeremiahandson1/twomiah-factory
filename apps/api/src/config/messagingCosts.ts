@@ -21,6 +21,11 @@ const int = (envKey: string, fallback: number): number => {
 // Flat monthly enable fee (the margin-bearing line). Dollars → cents.
 export const MESSAGING_ENABLE_MONTHLY_CENTS = int('MESSAGING_ENABLE_MONTHLY_CENTS', 1000) // $10.00
 
+// A call tracking number (services/callTrackingNumbers.ts): $3 a month each, on its own subscription (one unit a number) —
+// Twilio's local number is $1.15 a month (our account's price, read 11/11); CallRail's extra number is about $3. The calls
+// themselves are Twilio's cost exactly, from the wallet (in + the forward to the business's line: 0.85¢ + 1.4¢ a minute).
+export const CALLTRACK_NUMBER_MONTHLY_CENTS = int('CALLTRACK_NUMBER_MONTHLY_CENTS', 300) // $3.00
+
 // At-cost Twilio A2P / carrier figures, in cents.
 export const TWILIO_COSTS = {
   // One-time registration = brand registration + campaign vetting.

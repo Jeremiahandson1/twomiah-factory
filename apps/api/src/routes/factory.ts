@@ -11,6 +11,7 @@ import { registerStatusRoutes } from './factory/status'
 import { registerAdminRoutes } from './factory/admin'
 import { registerRoofReviewRoutes } from './factory/roofReview'
 import { registerA2pRoutes } from './factory/a2p'
+import { registerCallTrackingRoutes } from './factory/callTracking'
 import { registerMessagingRoutes } from './factory/messaging'
 import { registerStripeOAuthRoutes } from './factory/stripeOAuth'
 import { registerWebPresenceRoutes } from './factory/webPresence'
@@ -102,6 +103,7 @@ registerStatusRoutes(factory)
 registerAdminRoutes(factory)
 registerRoofReviewRoutes(factory)
 registerA2pRoutes(factory)
+registerCallTrackingRoutes(factory)
 registerMessagingRoutes(factory)
 registerStripeOAuthRoutes(factory)
 registerWebPresenceRoutes(factory)

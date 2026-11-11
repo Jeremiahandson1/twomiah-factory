@@ -952,6 +952,43 @@ export async function createAiEnableCheckout(
   return { sessionId: session.id, url: session.url, stripeCustomerId }
 }
 
+// ── Call tracking numbers ($3/mo each) ───────────────────────────────────────
+// Their own subscription, one unit a number (services/callTrackingNumbers.ts keeps the count). The first number is bought
+// once this checkout is paid — the number asked for rides in the session's metadata until then (billing.ts webhook).
+export async function createCallTrackingCheckout(
+  factoryCustomer: { id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string },
+  unitCents: number,
+  pending: Record<string, string>,
+  urls: { successUrl: string; cancelUrl: string },
+): Promise<{ sessionId: string; url: string | null; stripeCustomerId: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  const stripeCustomerId = await ensureCustomer(factoryCustomer)
+  const session = await stripe.checkout.sessions.create({
+    customer: stripeCustomerId,
+    mode: 'subscription',
+    line_items: [{
+      price_data: { currency: 'usd', unit_amount: unitCents, recurring: { interval: 'month' }, product_data: { name: 'Call tracking number — monthly' } },
+      quantity: 1,
+    }],
+    subscription_data: { metadata: { addon: 'calltrack_numbers', tenant_id: factoryCustomer.id } },
+    success_url: urls.successUrl,
+    cancel_url: urls.cancelUrl,
+    metadata: { addon: 'calltrack_numbers', tenant_id: factoryCustomer.id, ...pending },
+  })
+  return { sessionId: session.id, url: session.url, stripeCustomerId }
+}
+
+/** The call tracking subscription's count of numbers (prorated by Stripe); none left → it ends now. */
+export async function setCallTrackingQuantity(subscriptionId: string, quantity: number): Promise<'updated' | 'cancelled'> {
+  if (!stripe) throw new Error('Stripe not configured')
+  if (quantity <= 0) { await stripe.subscriptions.cancel(subscriptionId, { prorate: true }); return 'cancelled' }
+  const sub = await stripe.subscriptions.retrieve(subscriptionId)
+  const item = sub.items.data[0]
+  if (!item) throw new Error('The call tracking subscription has no line')
+  if (item.quantity !== quantity) await stripe.subscriptions.update(subscriptionId, { items: [{ id: item.id, quantity }], proration_behavior: 'create_prorations' })
+  return 'updated'
+}
+
 export default {
   createSubscriptionCheckout,
   createMessagingEnableCheckout,

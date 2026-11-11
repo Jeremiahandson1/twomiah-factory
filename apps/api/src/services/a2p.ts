@@ -44,9 +44,9 @@ import { TWILIO_COSTS } from '../config/messagingCosts'
 
 const TRUSTHUB = 'https://trusthub.twilio.com/v1'
 const MESSAGING = 'https://messaging.twilio.com/v1'
-const API2010 = 'https://api.twilio.com/2010-04-01'
+export const API2010 = 'https://api.twilio.com/2010-04-01'
 
-function isvCreds(): { sid: string; token: string } {
+export function isvCreds(): { sid: string; token: string } {
   const sid = process.env.TWOMIAH_TWILIO_ACCOUNT_SID || ''
   const token = process.env.TWOMIAH_TWILIO_AUTH_TOKEN || ''
   if (!sid || !token) throw new Error('Twilio ISV credentials not set (TWOMIAH_TWILIO_ACCOUNT_SID / TWOMIAH_TWILIO_AUTH_TOKEN)')
@@ -148,7 +148,8 @@ export interface A2pStepResult { step: string; status: 'ok' | 'skipped' | 'error
 
 // ─── Twilio REST helper ─────────────────────────────────────────────────────
 
-async function twilio(base: string, path: string, method: 'GET' | 'POST' | 'DELETE', form?: Record<string, any>, headers: Record<string, string> = {}): Promise<any> {
+/** Twilio's REST API on the ISV account — also the call tracking numbers' (services/callTrackingNumbers.ts). */
+export async function twilio(base: string, path: string, method: 'GET' | 'POST' | 'DELETE', form?: Record<string, any>, headers: Record<string, string> = {}): Promise<any> {
   const { sid, token } = isvCreds()
   const init: RequestInit = { method, headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'), ...headers } }
   if (form) {
