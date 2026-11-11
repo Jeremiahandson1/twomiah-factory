@@ -160,7 +160,15 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: addr, city: city, state: state, zip: zip, name: name, phone: phone, email: email, smsConsent: smsConsent }),
       })
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          // Asked too many times in the hour (the estimator's limit a visitor): say how long, from the server's Retry-After
+          // (live test 11/11: "Too many requests, please try again later" told the visitor nothing).
+          if (r.status === 429) {
+            var mins = Math.max(1, Math.ceil(Number(r.headers.get('Retry-After') || 3600) / 60));
+            return { error: 'You have asked for a few estimates already. Please try again in ' + mins + (mins === 1 ? ' minute' : ' minutes') + ', or call us.' };
+          }
+          return r.json();
+        })
         .then(function (data) {
           btn.disabled = false;
           btn.innerHTML = 'Get My Estimate';

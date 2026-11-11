@@ -59,6 +59,8 @@ describe('the strip', () => {
     await ins(t.schema.payment, { invoiceId: late.id, amount: '30', method: 'cash', paidAt: new Date(week.getTime() - 60_000) })
     await ins(t.schema.payment, { invoiceId: late.id, amount: '7', method: 'cash', paidAt: new Date(month.getTime() - 60_000) })
     await ins(t.schema.payment, { invoiceId: late.id, amount: '3', method: 'cash', paidAt: new Date(now - 90 * DAY) })
+    // Paid from the customer's credit just now: no money came in, so not cash in (live test 11/11).
+    await ins(t.schema.payment, { invoiceId: late.id, amount: '50', method: 'account_balance', paidAt: new Date(now) })
     // Leads: two days old and new (counts), an hour old and new (too soon), two days old and answered (no), spam-named but contacted (no).
     await ins(t.schema.lead, { companyId, homeownerName: 'Waiting Wanda', sourcePlatform: 'website', status: 'new', receivedAt: new Date(now - 2 * DAY) })
     await ins(t.schema.lead, { companyId, homeownerName: 'Fresh Fred', sourcePlatform: 'website', status: 'new', receivedAt: new Date(now - 3_600_000) })

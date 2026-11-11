@@ -29,7 +29,7 @@ Before starting on each site, make two people so there is someone to dispatch: *
    a standard folder (Before) and back. With the Attic tab picked: **Rename**, then **Delete folder** → its photos stay, in no folder.
 6. **Change orders.** On a job: add a change order, then send it. The client signs it from the portal. → The approved amount is added to the job.
 7. **Online booking in the portal.** First, with NO bookable service: the customer portal has no "Book a Visit" card. Then Bookings › add a service
-   (e.g. "Furnace tune-up", 1 hr) with online booking on → the card appears. Book a time. → The booking (and its job) is on the schedule.
+   (e.g. "Furnace tune-up", 1 hr) with online booking on → the card appears. Book a time. → The booking is on Bookings and the Schedule; the office's **Convert to job** makes it a service call (ServiceTitan's online bookings wait for the office the same way).
 8. **Credit memos.** On a customer: Customer credit › $50 "Late arrival". → Listed as "Credit issued CM-0001" with a **PDF** button; the PDF opens.
    - Pay an invoice from it: Record payment › Account balance.
    - Reports: "collected" does NOT go up by the credit.

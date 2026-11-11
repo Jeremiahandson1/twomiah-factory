@@ -133,6 +133,14 @@ export default function AddressAutocomplete({
             containerRef.current.appendChild(el)
             elementRef.current = el
 
+            // What is typed reaches the form too, not only a picked suggestion: with no suggestion (none offered, or Google's
+            // Places refusing — live test 11/11: "Places API (New) … disabled") the typed street was dropped and the form said
+            // "Address … required" with every box filled. The input event crosses the widget's shadow root (it is composed).
+            el.addEventListener('input', (e: any) => {
+              const typed = e?.composedPath?.()[0]?.value
+              if (typeof typed === 'string') onChangeRef.current?.(typed)
+            })
+
             el.addEventListener('gmp-select', async (e: any) => {
               try {
                 const place = e.placePrediction.toPlace()

@@ -158,8 +158,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return null
   }
   /** Nav items the site adds when the owner's nav lacks them: the dealer's Inventory, the Visualizer, a store's Shop. */
-  function toolNav(ctx: SiteContext, visualizer: boolean, ordering = false, menu = false) {
+  function toolNav(ctx: SiteContext, visualizer: boolean, ordering = false, menu = false, estimate = false) {
     const items: Array<{ label: string; href: string }> = []
+    if (estimate) items.push({ label: 'Instant estimate', href: '/estimate' })
     if (menu) items.push({ label: 'Menu', href: '/menu' })
     if (ordering) items.push({ label: 'Order online', href: '/order' })
     if (feedUrlOk(ctx.settings.inventoryFeedUrl)) items.push({ label: 'Inventory', href: '/inventory' })
@@ -169,6 +170,16 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     // /careers was reachable only by typing it.
     if (vertical.id === 'homecare') items.push({ label: 'Careers', href: '/careers' })
     return items
+  }
+  /**
+   * The roofer's instant estimate page (/estimate — live test 11/11: the estimator was switched on and on no page of the site; the
+   * pros' estimator lives on the roofer's own website). There while the business has instant_estimator, has switched the
+   * estimator on (company.estimator_enabled) and has roof reports left to measure with — the same three things its widget's
+   * /api/estimator/config asks.
+   */
+  const estimatorOn = async (companyId: string) => {
+    const [co] = await db.select({ f: company.enabledFeatures, on: company.estimatorEnabled, left: company.reportCredits }).from(company).where(eq(company.id, companyId)).limit(1)
+    return !!co && Array.isArray(co.f) && (co.f as string[]).includes('instant_estimator') && !!co.on && Number(co.left) > 0
   }
   const visionOrigin = () => { try { const u = new URL(String(vertical.visionUrl?.() || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } }
   /**
@@ -231,7 +242,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       })
     }
     const f = pageFacts ?? await factsOf(ctx)
-    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), sizedPhotos: true, extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f)), facts: f }))
+    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), sizedPhotos: true, extraNav: toolNav(ctx, await visualizerOn(ctx.companyId), await orderingOffered(ctx.companyId), menuMade(f), await estimatorOn(ctx.companyId)), facts: f }))
   }
 
   // ── Assets ────────────────────────────────────────────────────────────────
@@ -528,6 +539,20 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
 
   // ── Exterior Visualizer ──────────────────────────────────────────────────
   // Embeds the business's Visualizer; this page alone allows that one origin to be framed.
+  // The instant estimate page: the estimator on its own page of the business's site. Off (any of the three above): to the
+  // contact page, as the roofer's Estimator settings say.
+  app.get('/estimate', async (c) => {
+    const ctx = await ctxOf()
+    if (!ctx) return c.notFound()
+    if (!(await estimatorOn(ctx.companyId))) return c.redirect('/contact', 302)
+    const name = ctx.settings.companyName
+    return page200(c, ctx, '/estimate', [
+      { type: 'hero', variant: 'centered-stats', data: { eyebrow: name, title: 'Your roof, priced in a minute', subtitle: 'Enter your address and we will measure your roof from the air and give you a price range — no visit needed to get started.' } },
+      { type: 'tools', variant: 'estimator', data: { slug: ctx.slug } },
+      contactCta(ctx),
+    ], { title: 'Instant estimate', metaDescription: 'Get an instant roof estimate from ' + name + '.' })
+  })
+
   app.get('/visualize', async (c, next) => {
     const origin = visionOrigin()
     const ctx = await ctxOf()

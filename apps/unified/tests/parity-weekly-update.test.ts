@@ -125,6 +125,17 @@ describe('contractor: projects', () => {
     expect((await t.call(`${link.slice(0, -2)}zz`)).status).toBe(404)
   })
 
+  test("live test 11/11: a send liked BEFORE a like marked it reads opened (from the like); a Field seat cannot read the log", async () => {
+    const { t, companyId, call } = b
+    const office = async () => (await (await call('/api/weekly-update')).json() as any).sent[0]
+    await (t.db as any).update(t.schema.reminderLog).set({ detail: null }).where(eq(t.schema.reminderLog.id, (await office()).id))
+    expect((await office()).openedAt).toBe((await office()).likedAt)
+    const hash = await Bun.password.hash('Field-pass-1', 'bcrypt')
+    await (t.db as any).insert(t.schema.user).values({ email: 'tech@builder.example', passwordHash: hash, firstName: 'Tia', lastName: 'Tech', role: 'field', companyId })
+    const tech = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'tech@builder.example', password: 'Field-pass-1' } })).json() as any).accessToken
+    expect((await t.call('/api/weekly-update', { headers: { Authorization: `Bearer ${tech}` } })).status).toBe(403)
+  })
+
   test('switching sharing on stamps when; switching it on again later does not move it', async () => {
     const { t, companyId, ownerId, ins, call } = b
     const [kitchen] = await (t.db as any).select().from(t.schema.project).where(eq(t.schema.project.name, 'Kitchen remodel'))

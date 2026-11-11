@@ -7,6 +7,7 @@
 // worked out on the company's own time zone, so an order at 9pm on the 3rd in Chicago is the 3rd, not the 4th.
 import { sql } from 'drizzle-orm'
 import { storeOrder, storeOrderItem, storeProduct, storeProductVariant } from '../db/schema/store.ts'
+import { contact } from '../db/schema/index.ts'
 import { countedOrderCondition } from '../crm/store/tileConditions.ts'
 
 export type Bucket = 'day' | 'week' | 'month'
@@ -138,7 +139,9 @@ export async function repeatCustomers(db: any, companyId: string, w: Window): Pr
   const who = sql`coalesce(${storeOrder.contactId}, lower(${storeOrder.customerEmail}))`
   const rows = await db.execute(sql`
     with counted as (
-      select ${who} as who, ${storeOrder.customerEmail} as email, ${storeOrder.customerName} as name,
+      select ${who} as who, ${storeOrder.customerEmail} as email,
+             -- the customer record's name over an order's own ("Walk-in" never wins over a real one — live test 11/11)
+             coalesce((select c.name from ${contact} c where c.id = ${storeOrder.contactId} and c.company_id = ${storeOrder.companyId}), nullif(${storeOrder.customerName}, 'Walk-in'), ${storeOrder.customerName}) as name,
              ${localAt(w.timeZone)} as at, ${storeOrder.totalCents} - ${storeOrder.refundedCents} as net
         from ${storeOrder}
        where ${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)}
@@ -226,13 +229,16 @@ export interface CustomerSales { customer: string; name: string | null; email: s
 export async function salesByCustomer(db: any, companyId: string, w: Window, limit = 500): Promise<CustomerSales[]> {
   const rows = await db.select({
     customer: sql<string>`coalesce(${storeOrder.contactId}, lower(${storeOrder.customerEmail}), 'no-email')`,
-    name: sql<string | null>`max(${storeOrder.customerName})`,
+    // The customer record's name; else any order's own name but "Walk-in" (live test 11/11: an old walk-in order of a customer
+    // later known by their email labelled the whole row "Walk-in").
+    name: sql<string | null>`coalesce(max(${contact.name}), max(nullif(${storeOrder.customerName}, 'Walk-in')), max(${storeOrder.customerName}))`,
     email: sql<string | null>`max(lower(${storeOrder.customerEmail}))`,
     orders: sql<number>`count(*)`,
     grossCents: sql<number>`coalesce(sum(${storeOrder.totalCents}), 0)`,
     refundedCents: sql<number>`coalesce(sum(${storeOrder.refundedCents}), 0)`,
     firstOrder: sql<string>`to_char(min(${localAt(w.timeZone)}), 'YYYY-MM-DD')`,
   }).from(storeOrder)
+    .leftJoin(contact, sql`${contact.id} = ${storeOrder.contactId} and ${contact.companyId} = ${storeOrder.companyId}`)
     .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
     .groupBy(sql`1`).orderBy(sql`coalesce(sum(${storeOrder.totalCents}), 0) - coalesce(sum(${storeOrder.refundedCents}), 0) desc`, sql`1 asc`).limit(limit)
   return rows.map((r: any) => ({ customer: String(r.customer), name: r.name ?? null, email: r.email ?? null, orders: Number(r.orders), grossCents: Number(r.grossCents), refundedCents: Number(r.refundedCents), netCents: Number(r.grossCents) - Number(r.refundedCents), firstOrder: String(r.firstOrder) }))
