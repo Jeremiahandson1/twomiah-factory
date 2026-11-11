@@ -224,7 +224,11 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         const mine = (await as('manager', '/api/availability')).body.people.find((p: any) => p.personId === id.tia)
         expect(mine.shifts.length).toBe(5)
         expect(mine.shifts[0]).toMatchObject({ weekday: 1, startsAt: '08:00', endsAt: '16:00', kind: 'regular', endsNextDay: false, from: null, to: null })
-        expect(mine.timeOff.some((o: any) => o.note === 'Dentist' && o.from === TUE_OFF && o.timesheet === false)).toBe(true)
+        // Still to come, with the note: a day off far ahead (TUE_OFF is a fixed date, and the page rightly drops it once the
+        // calendar passes it — it did on 11/11).
+        expect((await as('owner', '/api/availability/time-off', 'POST', { personId: id.tia, from: '2099-06-02', to: '2099-06-02', note: 'Surgery' })).status).toBe(201)
+        const after = (await as('manager', '/api/availability')).body.people.find((p: any) => p.personId === id.tia)
+        expect(after.timeOff.some((o: any) => o.note === 'Surgery' && o.from === '2099-06-02' && o.timesheet === false)).toBe(true)
       })
 
       test('clearing the hours puts a tech back to available any time', async () => {
