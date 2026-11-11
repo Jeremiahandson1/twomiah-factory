@@ -78,3 +78,23 @@ test("another job's folder is refused; another business's job has none to show",
   expect((await call(`/api/jobs/${jobId}/photo-folders/${theirs}`, { method: 'DELETE' })).status).toBe(404)
   expect((await call('/api/jobs/not-a-job/photo-folders')).status).toBe(404)
 })
+
+// The photo library (the contractor's job photos — /api/photos, the document table): the same named folders, at /api/photos/folders.
+test("the photo library's photos use the job's named folders too: made, a photo filed in and out, renamed, deleted", async () => {
+  const doc = ((await t.db.insert(t.schema.document).values({ companyId, jobId, name: 'Footings', type: 'progress', mimeType: 'image/jpeg', filename: 'f.jpg', originalName: 'f.jpg', size: 10, path: 'x/f.jpg', url: '/api/photos/f/file' } as any).returning()) as any[])[0]
+  const made = await json(await call('/api/photos/folders', { method: 'POST', json: { jobId, name: 'Basement' } }))
+  expect([made.status, made.body.name]).toEqual([201, 'Basement'])
+  expect((await json(await call(`/api/photos/folders?jobId=${jobId}`))).body.data.map((f: any) => f.name)).toContain('Basement')
+  // The job's own photo routes list the same folder (one list per job).
+  expect((await json(await call(`/api/jobs/${jobId}/photo-folders`))).body.data.map((f: any) => f.name)).toContain('Basement')
+  expect((await call('/api/photos/folders', { method: 'POST', json: { jobId, name: 'basement' } })).status).toBe(409)
+  expect((await call('/api/photos/folders', { method: 'POST', json: { jobId: 'not-a-job', name: 'X' } })).status).toBe(404)
+  const into = await json(await call(`/api/photos/${doc.id}`, { method: 'PUT', json: { folderId: made.body.id } }))
+  expect([into.status, into.body.photoFolderId, into.body.type]).toEqual([200, made.body.id, 'photo'])
+  const back = await json(await call(`/api/photos/${doc.id}`, { method: 'PUT', json: { category: 'after' } }))
+  expect([back.body.photoFolderId, back.body.type]).toEqual([null, 'after'])
+  await call(`/api/photos/${doc.id}`, { method: 'PUT', json: { folderId: made.body.id } })
+  expect((await json(await call(`/api/photos/folders/${made.body.id}`, { method: 'PATCH', json: { name: 'Crawlspace' } }))).body.name).toBe('Crawlspace')
+  expect((await call(`/api/photos/folders/${made.body.id}`, { method: 'DELETE' })).status).toBe(204)
+  expect((await json(await call(`/api/photos/${doc.id}`))).body.photoFolderId).toBeNull()
+})

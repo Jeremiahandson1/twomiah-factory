@@ -10,6 +10,7 @@
 //   - the edit form's null relations and decimal-string hours are accepted on every template
 //     (landscaping 400'd on both), search matches title / number / address everywhere (fieldservice
 //     ignored ?search=), and related rows are fetched by id instead of the whole company
+import { folderNameCheck, ownFolderOf, foldersOfJob } from '../files/photoFolders'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
@@ -854,21 +855,9 @@ export function createJobRoutes(deps: JobDeps) {
      * Buildertrend and CompanyCam let you). A photo is in a standard folder (photo_type) OR a named one (folder_id), never both.
      */
     const named = !!t.jobPhotoFolder && 'folderId' in (t.jobPhoto || {})
-    const ownFolder = async (jobId: string, companyId: string, folderId: unknown) => {
-      if (!named || typeof folderId !== 'string' || !folderId) return null
-      const [f] = await db.select().from(t.jobPhotoFolder).where(and(eq(t.jobPhotoFolder.id, folderId), eq(t.jobPhotoFolder.jobId, jobId), eq(t.jobPhotoFolder.companyId, companyId))).limit(1)
-      return f ?? null
-    }
-    /** A folder's name: 1–60 characters, not a standard folder's, not another of this job's (letter case aside). */
-    const folderName = async (jobId: string, companyId: string, v: unknown, except?: string): Promise<{ name: string } | { error: string; status: 400 | 409 }> => {
-      const name = typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : ''
-      if (!name || name.length > 60) return { error: 'Name the folder (up to 60 characters).', status: 400 }
-      const low = name.toLowerCase()
-      if ((JOB_PHOTO_KINDS as readonly string[]).includes(low) || low === 'issues' || low === 'no folder') return { error: `"${name}" is already one of the standard folders.`, status: 409 }
-      const others = await db.select({ id: t.jobPhotoFolder.id, name: t.jobPhotoFolder.name }).from(t.jobPhotoFolder).where(and(eq(t.jobPhotoFolder.jobId, jobId), eq(t.jobPhotoFolder.companyId, companyId)))
-      if ((others as any[]).some((f) => f.id !== except && String(f.name).toLowerCase() === low)) return { error: `This job already has a folder called "${name}".`, status: 409 }
-      return { name }
-    }
+    const ownFolder = async (jobId: string, companyId: string, folderId: unknown) => named ? ownFolderOf(db, t.jobPhotoFolder, jobId, companyId, folderId) : null
+    /** A folder's name: the rules both photo stores share (files/photoFolders.ts). */
+    const folderName = (jobId: string, companyId: string, v: unknown, except?: string) => folderNameCheck(db, t.jobPhotoFolder, jobId, companyId, v, except)
 
     app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
@@ -960,7 +949,7 @@ export function createJobRoutes(deps: JobDeps) {
         const currentUser = c.get('user') as any
         const id = c.req.param('id')
         if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
-        return c.json({ data: await db.select({ id: t.jobPhotoFolder.id, name: t.jobPhotoFolder.name }).from(t.jobPhotoFolder).where(and(eq(t.jobPhotoFolder.jobId, id), eq(t.jobPhotoFolder.companyId, currentUser.companyId))).orderBy(asc(t.jobPhotoFolder.createdAt), asc(t.jobPhotoFolder.id)) })
+        return c.json({ data: await foldersOfJob(db, t.jobPhotoFolder, id, currentUser.companyId) })
       })
       app.post('/:id/photo-folders', requirePermission('jobs:update'), async (c) => {
         const currentUser = c.get('user') as any

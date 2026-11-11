@@ -62,9 +62,13 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
   // The folder being looked at ('' = every photo), and the one a new photo goes in.
   const [folder, setFolder] = useState('')
   const [addTo, setAddTo] = useState(UNFILED)
-  // The job's own named folders (job photos only — live test 11/11: Buildertrend and CompanyCam let you make one), and the
+  // The job's own named folders (either store — live test 11/11: Buildertrend and CompanyCam let you make one), and the
   // name being typed for a new one or a rename.
-  const own = folders && store === 'job'
+  // Both stores (live test 11/11: the contractor's job photos are the library's): the job's photos at /api/jobs/:id/photo-folders,
+  // the library's at /api/photos/folders — the same folders either way (tenant-backend files/photoFolders.ts).
+  const own = folders
+  const mayEditFolders = store === 'job' ? mayEditJob : mayAddDocument
+  const folderPath = (id?: string) => (store === 'job' ? `/api/jobs/${jobId}/photo-folders${id ? `/${id}` : ''}` : `/api/photos/folders${id ? `/${id}` : ''}`)
   const [named, setNamed] = useState<Named[]>([])
   const [naming, setNaming] = useState<{ id: string | null; name: string } | null>(null)
   const folderWord = (k: string) => (k.startsWith(NAMED) ? named.find((f) => NAMED + f.id === k)?.name || 'Folder' : FOLDER_WORDS[k] || k)
@@ -76,8 +80,8 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
     try {
       const r = store === 'job' ? await api.get(`/api/jobs/${jobId}/photos`) : await api.get('/api/photos', { jobId, limit: 200 })
       const rows: any[] = Array.isArray(r) ? r : r?.data || []
-      setPhotos(rows.map((p) => ({ id: p.id, url: p.url, thumbnailUrl: p.thumbnailUrl, caption: p.caption ?? p.description ?? null, kind: own && p.folderId ? NAMED + p.folderId : kindOf(store, p) })))
-      if (own) setNamed(((await api.get(`/api/jobs/${jobId}/photo-folders`).catch(() => null)) as any)?.data || [])
+      setPhotos(rows.map((p) => ({ id: p.id, url: p.url, thumbnailUrl: p.thumbnailUrl, caption: p.caption ?? p.description ?? null, kind: own && (p.folderId || p.photoFolderId) ? NAMED + (p.folderId || p.photoFolderId) : kindOf(store, p) })))
+      if (own) setNamed(((await (store === 'job' ? api.get(folderPath()) : api.get(folderPath(), { jobId })).catch(() => null)) as any)?.data || [])
     } catch (err) { setPhotos([]); setFailed(errMsg(err, 'The photos could not be loaded')) }
   }, [jobId, store, own]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
@@ -110,7 +114,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
   const move = async (p: Shown, to: string) => {
     try {
       if (store === 'job') await send(`/api/jobs/${jobId}/photos/${p.id}`, { method: 'PATCH', body: JSON.stringify(to.startsWith(NAMED) ? { folderId: to.slice(NAMED.length) } : { kind: to === UNFILED ? 'general' : to }), headers: { 'Content-Type': 'application/json' } })
-      else await send(`/api/photos/${p.id}`, { method: 'PUT', body: JSON.stringify({ category: to === UNFILED ? 'photo' : to }), headers: { 'Content-Type': 'application/json' } })
+      else await send(`/api/photos/${p.id}`, { method: 'PUT', body: JSON.stringify(to.startsWith(NAMED) ? { folderId: to.slice(NAMED.length) } : { category: to === UNFILED ? 'photo' : to }), headers: { 'Content-Type': 'application/json' } })
       toast.success(to === UNFILED ? 'Photo taken out of its folder' : `Photo moved to ${folderWord(to)}`)
       setPhotos((list) => (list || []).map((x) => (x.id === p.id ? { ...x, kind: to } : x)))
     } catch (err) { toast.error(errMsg(err, 'The photo could not be moved')) }
@@ -121,7 +125,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
     const name = naming.name.trim()
     if (!name) { toast.error('Name the folder'); return }
     try {
-      const r: any = await send(naming.id ? `/api/jobs/${jobId}/photo-folders/${naming.id}` : `/api/jobs/${jobId}/photo-folders`, { method: naming.id ? 'PATCH' : 'POST', body: JSON.stringify({ name }), headers: { 'Content-Type': 'application/json' } })
+      const r: any = await send(naming.id ? folderPath(naming.id) : folderPath(), { method: naming.id ? 'PATCH' : 'POST', body: JSON.stringify(store === 'job' || naming.id ? { name } : { name, jobId }), headers: { 'Content-Type': 'application/json' } })
       const f: Named | null = r && typeof r.json === 'function' ? await r.json().catch(() => null) : r
       toast.success(naming.id ? 'Folder renamed' : `Folder "${name}" made`)
       setNaming(null)
@@ -133,7 +137,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
     const word = folderWord(key)
     if (!(await confirm(`Its photos stay on the ${label.toLowerCase()}, in no folder.`, { title: `Delete the folder "${word}"?`, confirmText: 'Delete folder' }))) return
     try {
-      await send(`/api/jobs/${jobId}/photo-folders/${key.slice(NAMED.length)}`, { method: 'DELETE' })
+      await send(folderPath(key.slice(NAMED.length)), { method: 'DELETE' })
       toast.success('Folder deleted'); setFolder(''); load()
     } catch (err) { toast.error(errMsg(err, 'The folder could not be deleted')) }
   }
@@ -168,7 +172,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
           ))}
         </div>
       )}
-      {own && mayEditJob && photos && (
+      {own && mayEditFolders && photos && (
         <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
           {naming ? (
             <>

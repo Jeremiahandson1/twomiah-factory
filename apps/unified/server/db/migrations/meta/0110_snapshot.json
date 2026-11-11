@@ -1,5 +1,5 @@
 {
-  "id": "2d32abde-d360-4c9a-ad90-0120e4bd0ab4",
+  "id": "525eb5e2-5dda-4921-8eed-9c93afbf4f15",
   "prevId": "3384c0f4-4773-4429-89f9-ec2303cd277f",
   "version": "7",
   "dialect": "postgresql",
@@ -3158,6 +3158,12 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "photo_folder_id": {
+          "name": "photo_folder_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -3307,6 +3313,19 @@
           "tableTo": "patient",
           "columnsFrom": [
             "patient_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "document_photo_folder_id_job_photo_folder_id_fk": {
+          "name": "document_photo_folder_id_job_photo_folder_id_fk",
+          "tableFrom": "document",
+          "tableTo": "job_photo_folder",
+          "columnsFrom": [
+            "photo_folder_id"
           ],
           "columnsTo": [
             "id"

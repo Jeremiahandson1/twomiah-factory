@@ -539,7 +539,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Tasks: a construction business's with projects (the base CRM's gate); a clinic's always (templates/crm-vet
     // mounted tasks ungated and put Tasks on every menu, and a clinic has no projects) — the union, on both sides.
     { path: '/api/tasks', access: 'user', feature: ['projects', 'patient_records'], router: createTasksRoutes({ service: s.tasks, authenticate, requirePermission } as any) },
-    { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
+    { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job, jobPhotoFolder }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: new Hono().use('/:id/complete-job', completionGate).route('/', createTechRoutes({
       // canSee: a job's money by the one rule (packages/tenant-backend jobs/jobMoney.ts); without it the module withholds all of it.
