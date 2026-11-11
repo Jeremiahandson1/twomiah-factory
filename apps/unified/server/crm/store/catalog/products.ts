@@ -47,6 +47,7 @@ import { formatCents } from '../lib/money.ts'
 import { productSearchCondition, lowStockProductCondition } from '../tileConditions.ts'
 import { changedKeys } from './audit.ts'
 import { partialOf } from '@twomiah/tenant-backend'
+import { reconcile } from '../../../data/storeStock.ts'
 
 function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -316,6 +317,8 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
       // (The template also sent the count as inventoryQty; the sentence names it.)
       return fail(c, 409, `The stock changed to ${stands} since this page loaded (a sale, or someone else's count), so nothing was saved. Check the count and save again.`, 'inventory_changed')
     }
+    // Stock by location (store_locations): a count typed here moves the difference onto the locations (data/storeStock.ts).
+    if (fields.inventoryQty !== undefined) await reconcile(db, u.companyId, updated.id)
     const from = guarded ? { ...before, inventoryQty: inventoryFrom } : before
     await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: updated.id, entityName: updated.sku, changes: changedKeys(from, updated, Object.keys(fields)), req: c })
     await core.events.product(u.companyId, updated.productId); if (fields.inventoryQty !== undefined) await core.events.stock(u.companyId, [updated.id])
