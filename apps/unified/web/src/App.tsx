@@ -83,6 +83,7 @@ const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventor
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
+const ServiceZonesPage = page(() => import('./crm/pages/ServiceZonesPage'))
 const DaysOffPage = page(() => import('./crm/pages/DaysOffPage'))
 const QuoteFollowUpPage = page(() => import('./crm/pages/QuoteFollowUpPage'))
 const MarkupDefaultsPage = page(() => import('./crm/pages/MarkupDefaultsPage'))
@@ -266,6 +267,7 @@ export default function App() {
                       <Route path="settings/email" element={<EmailAliases />} />
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
                       <Route path="settings/job-reminders" element={<JobRemindersPage />} />
+                      <Route path="settings/service-zones" element={<ServiceZonesPage />} />
                       <Route path="settings/days-off" element={<DaysOffPage />} />
                       <Route path="settings/quote-followup" element={<QuoteFollowUpPage />} />
                       <Route path="settings/markup-defaults" element={<MarkupDefaultsPage />} />

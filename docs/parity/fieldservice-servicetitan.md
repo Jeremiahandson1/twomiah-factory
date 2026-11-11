@@ -58,7 +58,7 @@ service where they fit (`shared-backlog.md`).
 | Chat-to-text website widget | none | not built |
 | Barcode / equipment scanning on the phone | the store's phone screens only (`apps/mobile/src/trades/store.ts`) | built elsewhere |
 | Spanish in the app | none (roofing's work orders only) | not built |
-| Service zones | none | not built |
+| Service zones | built 11/10, hidden (`service_zones`): Settings › Service zones — areas by ZIP (a ZIP in one zone); each job's zone by its ZIP on the Dispatch Board, and a zone filter (`crm/field/serviceZones.ts`, `tests/parity-service-zones.test.ts`). Not done: zone-based booking limits; techs' home zones | yes (hidden) |
 | Marketing ROI scorecard, revenue heat map | call tracking counts calls; no ROI | not built |
 | Technician and CSR scorecards | team revenue only | partly |
 | Internal general ledger, accounting periods, three-way matching | none — the books are QuickBooks (synced) | not built |
