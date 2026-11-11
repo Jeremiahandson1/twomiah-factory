@@ -9,6 +9,11 @@
 //   · more (a restock, a delivery, a count typed on the product): added to the first location.
 // Setting a location's count, or moving units between two, changes the rows and writes the total from them. A variant with no
 // rows is counted exactly as before; untracked stock (inventory_qty null) is never given rows.
+//
+// An ORDER is filled from one location (Shopify's fulfilment location): the first location, in order, that has every line in
+// stock, else the first; a counter sale from the counter's own. Its units come off that location first (then the others in order,
+// if it runs short), and where each unit came off is kept on the order, so moving the order to another location puts exactly
+// those units back and takes them there.
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { inventoryLocation, storeProductVariant, storeStockLevel } from '../db/schema/index.ts'
 
@@ -55,18 +60,25 @@ async function writeTotal(exec: any, companyId: string, variantId: string): Prom
  * first location). No rows, or untracked: nothing. Returns whether rows were touched. Never throws on a variant of another company:
  * it only reads that company's rows.
  */
-export async function reconcile(exec: any, companyId: string, variantId: string): Promise<boolean> {
+export async function reconcile(exec: any, companyId: string, variantId: string, prefer?: string | null): Promise<boolean> {
+  return (await reconcileTaking(exec, companyId, variantId, prefer)).touched
+}
+
+/** reconcile, taking from `prefer` first when units went out, and saying where they came off (location id → units). */
+async function reconcileTaking(exec: any, companyId: string, variantId: string, prefer?: string | null): Promise<{ touched: boolean; takes: Record<string, number> }> {
+  const takes: Record<string, number> = {}
   const rows: any[] = await exec.select().from(storeStockLevel).where(and(eq(storeStockLevel.companyId, companyId), eq(storeStockLevel.variantId, variantId)))
-  if (!rows.length) return false
+  if (!rows.length) return { touched: false, takes }
   const [v] = await exec.select({ qty: storeProductVariant.inventoryQty }).from(storeProductVariant).where(eq(storeProductVariant.id, variantId)).limit(1)
-  if (!v) return false
+  if (!v) return { touched: false, takes }
   // Switched to not counting (inventory_qty null): its location counts mean nothing any more.
-  if (v.qty == null) { await exec.delete(storeStockLevel).where(and(eq(storeStockLevel.companyId, companyId), eq(storeStockLevel.variantId, variantId))); return true }
+  if (v.qty == null) { await exec.delete(storeStockLevel).where(and(eq(storeStockLevel.companyId, companyId), eq(storeStockLevel.variantId, variantId))); return { touched: true, takes } }
   const sum = rows.reduce((n, r) => n + (Number(r.quantity) || 0), 0)
   let diff = Number(v.qty) - sum
-  if (diff === 0) return true
+  if (diff === 0) return { touched: true, takes }
   const order = (await storeLocations(exec, companyId)).map((l) => l.id)
-  const ranked = [...rows].sort((a, b) => (order.indexOf(a.locationId) + 1 || 1e9) - (order.indexOf(b.locationId) + 1 || 1e9))
+  const rank = (id: string) => (prefer && id === prefer ? -1 : order.indexOf(id) + 1 || 1e9)
+  const ranked = [...rows].sort((a, b) => rank(a.locationId) - rank(b.locationId))
   if (diff > 0) {
     await exec.update(storeStockLevel).set({ quantity: sql`${storeStockLevel.quantity} + ${diff}::int`, updatedAt: new Date() }).where(eq(storeStockLevel.id, ranked[0].id))
   } else {
@@ -76,11 +88,73 @@ export async function reconcile(exec: any, companyId: string, variantId: string)
       if (take > 0) {
         await exec.update(storeStockLevel).set({ quantity: sql`${storeStockLevel.quantity} - ${take}::int`, updatedAt: new Date() }).where(eq(storeStockLevel.id, r.id))
         diff += take
+        takes[r.locationId] = (takes[r.locationId] ?? 0) + take
       }
     }
   }
   await writeTotal(exec, companyId, variantId)
-  return true
+  return { touched: true, takes }
+}
+
+/** An order's lines' units off the stock, from `prefer` first: where they came off, by option (only options counted by location). */
+export async function takeForOrder(exec: any, companyId: string, lines: Array<{ variantId: string; quantity: number }>, prefer: string | null): Promise<Record<string, Record<string, number>>> {
+  const out: Record<string, Record<string, number>> = {}
+  for (const l of lines) {
+    await exec.update(storeProductVariant)
+      .set({ inventoryQty: sql`GREATEST(0, ${storeProductVariant.inventoryQty} - ${l.quantity}::int)`, updatedAt: new Date() } as any)
+      .where(and(eq(storeProductVariant.id, l.variantId), sql`${storeProductVariant.inventoryQty} IS NOT NULL`))
+    const r = await reconcileTaking(exec, companyId, l.variantId, prefer)
+    if (Object.keys(r.takes).length) {
+      const m = out[l.variantId] ?? {}
+      for (const [loc, n] of Object.entries(r.takes)) m[loc] = (m[loc] ?? 0) + n
+      out[l.variantId] = m
+    }
+  }
+  return out
+}
+
+/** Where an order is filled from: the first location, in order, with every counted line in stock there; else the first. */
+export async function chooseOrderLocation(exec: any, companyId: string, lines: Array<{ variantId: string; quantity: number }>): Promise<string | null> {
+  const locs = await storeLocations(exec, companyId)
+  if (!locs.length) return null
+  const levels = await levelsFor(exec, companyId, lines.map((l) => l.variantId))
+  const counted = lines.filter((l) => levels.has(l.variantId))
+  if (!counted.length) return null
+  const fits = locs.find((loc) => counted.every((l) => (levels.get(l.variantId)?.get(loc.id) ?? 0) >= l.quantity))
+  return (fits ?? locs[0]).id
+}
+
+/**
+ * Move an order to another location: the units it took go back where they came off, and the same number come off `to` (then the
+ * others in order, if `to` runs short). The options' totals do not change. Returns the new takes.
+ */
+export async function moveOrderTakes(exec: any, companyId: string, takes: Record<string, Record<string, number>>, to: string): Promise<Record<string, Record<string, number>>> {
+  const out: Record<string, Record<string, number>> = {}
+  for (const [variantId, byLoc] of Object.entries(takes || {})) {
+    let units = 0
+    for (const [loc, n] of Object.entries(byLoc)) {
+      units += n
+      await exec.insert(storeStockLevel).values({ companyId, variantId, locationId: loc, quantity: n })
+        .onConflictDoUpdate({ target: [storeStockLevel.variantId, storeStockLevel.locationId], set: { quantity: sql`${storeStockLevel.quantity} + ${n}::int`, updatedAt: new Date() } })
+    }
+    // The total is unchanged by putting back, so take the same units again, from `to` first.
+    const order = (await storeLocations(exec, companyId)).map((l) => l.id)
+    const rows: any[] = await exec.select().from(storeStockLevel).where(and(eq(storeStockLevel.companyId, companyId), eq(storeStockLevel.variantId, variantId)))
+    const rank = (id: string) => (id === to ? -1 : order.indexOf(id) + 1 || 1e9)
+    let left = units
+    const took: Record<string, number> = {}
+    for (const r of [...rows].sort((a, b) => rank(a.locationId) - rank(b.locationId))) {
+      if (left === 0) break
+      const take = Math.min(Number(r.quantity) || 0, left)
+      if (take > 0) {
+        await exec.update(storeStockLevel).set({ quantity: sql`${storeStockLevel.quantity} - ${take}::int`, updatedAt: new Date() }).where(eq(storeStockLevel.id, r.id))
+        took[r.locationId] = take; left -= take
+      }
+    }
+    await writeTotal(exec, companyId, variantId)
+    out[variantId] = took
+  }
+  return out
 }
 
 /** reconcile for each variant (an order's lines). */
@@ -115,7 +189,7 @@ export async function transfer(exec: any, companyId: string, variantId: string, 
 }
 
 /** reconcile by the variant alone (the stock doors that are handed only a variant): its rows name the company. */
-export async function reconcileVariant(exec: any, variantId: string): Promise<boolean> {
+export async function reconcileVariant(exec: any, variantId: string, prefer?: string | null): Promise<boolean> {
   const [r] = await exec.select({ companyId: storeStockLevel.companyId }).from(storeStockLevel).where(eq(storeStockLevel.variantId, variantId)).limit(1)
-  return r ? reconcile(exec, r.companyId, variantId) : false
+  return r ? reconcile(exec, r.companyId, variantId, prefer) : false
 }

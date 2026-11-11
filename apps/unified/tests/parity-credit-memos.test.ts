@@ -43,6 +43,22 @@ test('a credit is issued with a reason, and the history says so', async () => {
   expect(await credit(bob)).toBe(0)
 })
 
+test('each credit memo has the next number and a document; a taking-off has neither', async () => {
+  const second = await json(await call(`/api/customer-credit/${bob}`, { method: 'POST', json: { amount: 20, reason: 'Goodwill' } }))
+  const first = (await json(await call(`/api/customer-credit/${ann}`))).body.entries[0]
+  expect(first.number).toBe('CM-0001')
+  expect(second.body.entry.number).toBe('CM-0002')
+  const off = await json(await call(`/api/customer-credit/${bob}`, { method: 'POST', json: { amount: -20, reason: 'Issued by mistake' } }))
+  expect(off.body.entry.number ?? null).toBeNull()
+  const pdf = await call(`/api/customer-credit/${ann}/memo/${first.id}/pdf`)
+  expect(pdf.status).toBe(200)
+  expect(pdf.headers.get('content-type')).toBe('application/pdf')
+  expect(Buffer.from(await pdf.arrayBuffer()).subarray(0, 4).toString()).toBe('%PDF')
+  // Not this customer's memo, or not a memo at all: not found.
+  expect((await call(`/api/customer-credit/${bob}/memo/${first.id}/pdf`)).status).toBe(404)
+  expect((await call(`/api/customer-credit/${bob}/memo/${off.body.entry.id}/pdf`)).status).toBe(404)
+})
+
 test("an invoice is paid from the credit: no more than the credit, no more than owed; another customer's credit is not theirs", async () => {
   const inv = await invoiceFor(ann, 200)
   const detail = await json(await call(`/api/invoices/${inv}`))

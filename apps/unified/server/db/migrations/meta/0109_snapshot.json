@@ -1,5 +1,5 @@
 {
-  "id": "cb2667e7-8e3f-4ac8-aa9b-379be5497116",
+  "id": "3384c0f4-4773-4429-89f9-ec2303cd277f",
   "prevId": "a8108b2b-e1ac-4ada-a253-425bda162e41",
   "version": "7",
   "dialect": "postgresql",
@@ -36629,6 +36629,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -36649,6 +36655,27 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "client_account_entry_number_unique": {
+          "name": "client_account_entry_number_unique",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -94867,6 +94894,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'storefront'"
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stock_takes": {
+          "name": "stock_takes",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
         },
         "tax_automatic": {
           "name": "tax_automatic",

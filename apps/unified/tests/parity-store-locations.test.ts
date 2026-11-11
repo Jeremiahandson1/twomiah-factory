@@ -11,6 +11,7 @@ import { bootTenant, seedOwner } from './harness.ts'
 import { decrementStock } from '../server/data/storeCheckout.ts'
 import { restockVariant } from '../server/data/storeOrders.ts'
 import { writeStock } from '../server/data/storeApi.ts'
+import { chooseOrderLocation, takeForOrder } from '../server/data/storeStock.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = '', owner = '', mug = '', bowl = '', front = '', back = ''
@@ -86,6 +87,41 @@ test('a product not counted by location is counted as before', async () => {
   await decrementStock(t.db, bowl, 1)
   expect(await total(bowl)).toBe(3)
   expect((await at(bowl)).byLocation).toBeNull()
+})
+
+test("an order is filled from one location: the counter's own, else the first with everything; moving it moves exactly its units", async () => {
+  await t.db.update(t.schema.company).set({ enabledFeatures: [...FEATURES, 'store_counter'] } as any).where(eq(t.schema.company.id, companyId))
+  t.services.features.forgetFeatures()
+  // front 6, back 1. A sale at the back counter takes its unit there.
+  const sale = await json(await call('/api/admin/counter-sales', { method: 'POST', json: { items: [{ sku: 'MUG-1', quantity: 1 }], paidBy: 'cash', locationId: back } }))
+  expect(sale.status).toBeLessThan(300)
+  expect((await at(mug)).byLocation).toEqual({ [front]: 6, [back]: 0 })
+  const saleId = sale.body.order.id
+  const where = (await json(await call(`/api/admin/stock-locations/orders/${saleId}`))).body
+  expect(where).toMatchObject({ locationId: back, locationName: 'Back room', canChange: false })
+  expect((await call('/api/admin/counter-sales', { method: 'POST', json: { items: [{ sku: 'MUG-1', quantity: 1 }], paidBy: 'cash', locationId: 'not-ours' } })).status).toBe(400)
+
+  // The first location with every line: front has 6 (5 fits there); 7 fits nowhere, so the first.
+  expect(await chooseOrderLocation(t.db, companyId, [{ variantId: mug, quantity: 5 }])).toBe(front)
+  await call(`/api/admin/stock-locations/variants/${mug}/transfer`, { method: 'POST', json: { fromId: front, toId: back, quantity: 3 } })
+  expect(await chooseOrderLocation(t.db, companyId, [{ variantId: mug, quantity: 3 }])).toBe(front)
+  expect(await chooseOrderLocation(t.db, companyId, [{ variantId: mug, quantity: 7 }])).toBe(front)
+
+  // An online order filled from the front: 2 off the front (front 1, back 3); moved to the back, they go back and come off there.
+  const takes = await takeForOrder(t.db, companyId, [{ variantId: mug, quantity: 2 }], front)
+  expect(takes).toEqual({ [mug]: { [front]: 2 } })
+  const [o] = await (t.db as any).insert(t.schema.storeOrder).values({ companyId, orderNumber: 'ORD-LOC', provider: 'stripe', providerSessionId: 'loc1', status: 'paid', customerEmail: 'a@b.c', subtotalCents: 2000, totalCents: 2000, locationId: front, stockTakes: takes }).returning()
+  const moved = await json(await call(`/api/admin/stock-locations/orders/${o.id}`, { method: 'PUT', json: { locationId: back } }))
+  expect(moved.status).toBe(200)
+  expect((await at(mug)).byLocation).toEqual({ [front]: 3, [back]: 1 })
+  expect(await total(mug)).toBe(4)
+  // A refund's restock goes back to where the order was filled from.
+  await restockVariant(t.db, mug, 1, o.id)
+  expect((await at(mug)).byLocation).toEqual({ [front]: 3, [back]: 2 })
+  // Sent: the location stays.
+  await t.db.update(t.schema.storeOrder).set({ fulfilledAt: new Date() } as any).where(eq(t.schema.storeOrder.id, o.id))
+  const late = await json(await call(`/api/admin/stock-locations/orders/${o.id}`, { method: 'PUT', json: { locationId: front } }))
+  expect([late.status, late.body.error]).toEqual([400, 'The location cannot change now. It has been sent or collected already.'])
 })
 
 test('switched off: the page is closed', async () => {

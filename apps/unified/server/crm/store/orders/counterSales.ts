@@ -1,6 +1,7 @@
 // /api/admin/counter-sales — a sale at the counter (parity tier 2 #12, Shopify POS; feature store_counter, not ready).
 //
-//   POST /   orders:create   { items: [{ sku, quantity }], paidBy: 'cash' | 'card' | 'other', contactId?, email?, preview? }
+//   POST /   orders:create   { items: [{ sku, quantity }], paidBy: 'cash' | 'card' | 'other', contactId?, email?, locationId?, preview? }
+//   (locationId: where the counter is, with stock by location — the units come off there; one of the store's locations)
 //
 // The same order the store makes everywhere (../checkout/placeOrder.ts): the catalogue's prices, the store's tax, the stock taken
 // off (by location where store_locations counts it), points and the receipt — paid in person, so no payment provider is involved
@@ -23,6 +24,7 @@ import { pricingForContact } from '../catalog/groupPricing.ts'
 import { createCheckoutService, requestOrigin } from '../checkout/checkoutService.ts'
 import { createOrderStarter } from '../checkout/placeOrder.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { storeLocations } from '../../../data/storeStock.ts'
 
 const PAID_BY_WORDS = { cash: 'cash', card: 'card on the shop’s machine', other: 'other' } as const
 const saleSchema = z.object({
@@ -31,6 +33,7 @@ const saleSchema = z.object({
   contactId: z.string().min(1).optional().nullable(),
   email: z.string().trim().email('Enter a whole email address, or leave it empty').max(200).optional().nullable().or(z.literal('')),
   preview: z.boolean().optional(),
+  locationId: z.string().min(1).max(40).optional().nullable(),
 })
 
 export function createCounterSaleRoutes(d: CrmDeps, core: StoreCore) {
@@ -52,10 +55,12 @@ export function createCounterSaleRoutes(d: CrmDeps, core: StoreCore) {
       if (!who) return fail(c, 404, 'That customer was not found.')
     }
     const email = (parsed.data.email || '').trim() || who?.email || undefined
+    const locationId = parsed.data.locationId || null
+    if (locationId && !(await storeLocations(db, companyId)).some((l) => l.id === locationId)) return fail(c, 400, "That location is not one of the store's.")
     const pricing = who ? await pricingForContact(db, companyId, who.id) : null
     const r = await starter.start({
       companyId, items, customerEmail: email, delivery: 'pickup', origin: requestOrigin(c), preview: !!preview,
-      draft: { contactId: who?.id ?? null, customerName: who?.name ?? 'Walk-in', pricing, note: 'Sold at the counter', paidInPerson: paidBy, counter: true },
+      draft: { contactId: who?.id ?? null, customerName: who?.name ?? 'Walk-in', pricing, note: 'Sold at the counter', paidInPerson: paidBy, counter: true, locationId },
     })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
     if (preview) return one(c, { preview: (r as any).preview })

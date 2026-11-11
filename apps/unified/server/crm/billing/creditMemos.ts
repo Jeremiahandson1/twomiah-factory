@@ -10,12 +10,14 @@
 //
 //   GET  /:contactId    invoices:read      the customer's credit and its history
 //   POST /:contactId    payments:delete    { amount, reason, invoiceId? } — issue a credit memo (a negative amount takes credit off)
+//   GET  /:contactId/memo/:entryId/pdf  invoices:read  the credit memo as a document (its number CM-0001…, the company's sequence)
 // payments:delete is the right a refund already asks for: the owner's and the admin's.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import { balanceFrom, createAccountBalanceStore } from '@twomiah/tenant-backend'
-import { clientAccountEntry, contact, invoice } from '../../db/schema/index.ts'
+import { clientAccountEntry, company, contact, invoice } from '../../db/schema/index.ts'
+import { generateCreditMemoPDF } from '../pdf.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
@@ -28,6 +30,10 @@ const issueBody = z.object({
   reason: z.string({ error: 'Say why' }).trim().min(1, 'Say why — it is the customer\'s money and this is the record of it').max(500, 'At most 500 characters'),
   invoiceId: z.string().min(1).optional().nullable(),
 })
+
+/** "CM-0007" → 7; anything else → 0. */
+const seqOf = (n: unknown) => { const m = /^CM-(\d+)$/.exec(String(n ?? '')); return m ? Number(m[1]) : 0 }
+export const memoNumber = (n: number) => `CM-${String(n).padStart(4, '0')}`
 
 export function createCreditMemoRoutes(d: CrmDeps) {
   const { db, audit } = d
@@ -64,10 +70,34 @@ export function createCreditMemoRoutes(d: CrmDeps) {
       const [inv] = await db.select({ id: invoice.id }).from(invoice).where(and(eq(invoice.id, parsed.data.invoiceId), eq(invoice.companyId, me.companyId), eq(invoice.contactId, who.id))).limit(1)
       if (!inv) return fail(c, 400, 'That invoice is not this customer\'s.')
     }
-    const entry = await ledger.add(db, { companyId: me.companyId, contactId: who.id, amount, source: amount > 0 ? 'credit_memo' : 'manual', reason: parsed.data.reason, invoiceId: parsed.data.invoiceId ?? null, createdBy: me.userId })
+    let entry: any = await ledger.add(db, { companyId: me.companyId, contactId: who.id, amount, source: amount > 0 ? 'credit_memo' : 'manual', reason: parsed.data.reason, invoiceId: parsed.data.invoiceId ?? null, createdBy: me.userId })
+    // A credit memo gets the company's next number (a taking-off does not). Two at once: the unique index refuses one, which tries the next.
+    if (amount > 0) {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const taken = await db.select({ n: clientAccountEntry.number }).from(clientAccountEntry).where(and(eq(clientAccountEntry.companyId, me.companyId), isNotNull(clientAccountEntry.number)))
+        const next = memoNumber(Math.max(0, ...(taken as any[]).map((r) => seqOf(r.n))) + 1)
+        try {
+          ;[entry] = await db.update(clientAccountEntry).set({ number: next } as any).where(eq(clientAccountEntry.id, entry.id)).returning()
+          break
+        } catch (e: any) { if (attempt === 4 || !/unique|duplicate/i.test(String(e?.message))) throw e }
+      }
+    }
     const h = await history(me.companyId, who.id)
     await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'client_account_entry', entityId: entry.id, entityName: who.name, metadata: { amount, reason: parsed.data.reason, credit: h.credit }, req: c })
     return one(c, { entry: { ...entry, amount: Number(entry.amount) }, ...h }, 201)
+  })
+
+  app.get('/:contactId/memo/:entryId/pdf', requirePermission('invoices:read'), async (c) => {
+    const companyId = c.get('user').companyId
+    const [row] = await db.select({ e: clientAccountEntry, invoiceNumber: invoice.number }).from(clientAccountEntry).leftJoin(invoice, eq(invoice.id, clientAccountEntry.invoiceId))
+      .where(and(eq(clientAccountEntry.id, c.req.param('entryId')), eq(clientAccountEntry.companyId, companyId), eq(clientAccountEntry.contactId, c.req.param('contactId')), isNotNull(clientAccountEntry.number))).limit(1)
+    if (!row) return fail(c, 404, 'Credit memo not found')
+    const [ct] = await db.select().from(contact).where(and(eq(contact.id, row.e.contactId), eq(contact.companyId, companyId))).limit(1)
+    const [co] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
+    const h = await history(companyId, row.e.contactId)
+    const pdf = await generateCreditMemoPDF({ number: String(row.e.number), date: row.e.createdAt, amount: Number(row.e.amount), reason: row.e.reason, invoiceNumber: row.invoiceNumber ?? null, creditNow: h.credit,
+      contact: ct ? { name: ct.name, address: ct.address, city: ct.city, state: ct.state, zip: ct.zip, email: ct.email, phone: ct.phone } : null }, co)
+    return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="credit-memo-${row.e.number}.pdf"` } })
   })
 
   return app

@@ -58,7 +58,10 @@ ALTER TABLE "project" ADD COLUMN "square_feet" integer;--> statement-breakpoint
 ALTER TABLE "project" ADD COLUMN "builders_risk" json;--> statement-breakpoint
 ALTER TABLE "daily_log" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
 ALTER TABLE "job_photo" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
+ALTER TABLE "client_account_entry" ADD COLUMN "number" text;--> statement-breakpoint
 ALTER TABLE "inspection_report" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
+ALTER TABLE "orders" ADD COLUMN "location_id" text;--> statement-breakpoint
+ALTER TABLE "orders" ADD COLUMN "stock_takes" json;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "client_update_reaction" ADD CONSTRAINT "client_update_reaction_company_id_company_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."company"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
@@ -137,4 +140,5 @@ CREATE INDEX IF NOT EXISTS "bid_invite_vendor_idx" ON "bid_invite" USING btree (
 CREATE INDEX IF NOT EXISTS "bid_package_company_idx" ON "bid_package" USING btree ("company_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "bid_package_project_idx" ON "bid_package" USING btree ("project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "store_stock_level_variant_location_unique" ON "store_stock_level" USING btree ("variant_id","location_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "store_stock_level_company_idx" ON "store_stock_level" USING btree ("company_id");
+CREATE INDEX IF NOT EXISTS "store_stock_level_company_idx" ON "store_stock_level" USING btree ("company_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "client_account_entry_number_unique" ON "client_account_entry" USING btree ("company_id","number");

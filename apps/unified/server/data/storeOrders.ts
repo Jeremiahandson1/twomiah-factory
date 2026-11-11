@@ -91,14 +91,18 @@ export async function clearRefundStamp(tx: any, orderId: string, companyId: stri
   return row ?? null
 }
 
-/** Units back on the shelf, counted by the database. An untracked variant (inventory_qty null = unlimited) is skipped: false. */
-export async function restockVariant(tx: any, variantId: string, quantity: number): Promise<boolean> {
+/**
+ * Units back on the shelf, counted by the database. An untracked variant (inventory_qty null = unlimited) is skipped: false. With
+ * the order named, they go back to the location it was filled from (stock by location), else the first.
+ */
+export async function restockVariant(tx: any, variantId: string, quantity: number, orderId?: string | null): Promise<boolean> {
   const back = await tx.update(storeProductVariant)
     .set({ inventoryQty: sql`${storeProductVariant.inventoryQty} + ${quantity}`, updatedAt: new Date() } as any)
     .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} is not null`))
     .returning({ id: storeProductVariant.id })
-  // Stock by location (store_locations): back to the first location (data/storeStock.ts).
-  if (back.length) await reconcileVariant(tx, variantId)
+  // Stock by location (store_locations): back to the order's location, else the first (data/storeStock.ts).
+  const at = back.length && orderId ? ((await tx.select({ at: storeOrder.locationId }).from(storeOrder).where(eq(storeOrder.id, orderId)).limit(1)) as any[])[0]?.at ?? null : null
+  if (back.length) await reconcileVariant(tx, variantId, at)
   return back.length > 0
 }
 

@@ -44,6 +44,8 @@ export interface StartInput {
      * needs no customer, and the store's pickup setting does not apply (nothing is collected later). Recorded with source 'counter'.
      */
     counter?: boolean
+    /** The location a counter sale is made at (stock by location): its units come off there first. */
+    locationId?: string | null
     /**
      * Paid already, in person — cash, a check, a card on the shop's own terminal (Shopify's draft order "Mark as paid"; store live
      * test 11/10: a hand-made order needed a payment provider even for cash). The order is paid when it is made: no link, no
@@ -283,7 +285,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       subtotalCents, shippingCents, taxCents,
       discountCents: totalDiscountCents, discountCode: appliedCode, loyaltyRewardId, loyaltyDiscountCents,
       totalCents, currency, fulfillment, taxAutomatic: automaticTax,
-      source: input.draft?.counter ? 'counter' : input.draft ? 'draft' : 'storefront', customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
+      source: input.draft?.counter ? 'counter' : input.draft ? 'draft' : 'storefront', locationId: input.draft?.counter ? input.draft.locationId ?? null : null, customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
       internalNote: [input.draft?.note, inPerson ? `Paid in person: ${IN_PERSON_WORDS[inPerson]}` : null, shippingChoice ? `Shipping chosen at checkout: ${shippingChoice.carrier} ${shippingChoice.service}` : null].filter(Boolean).join('\n') || null,
       // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout) — not one
       // paid in person.

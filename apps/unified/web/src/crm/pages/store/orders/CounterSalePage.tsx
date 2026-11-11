@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Minus, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText, useMayWrite, useToast } from '../../../../shared'
+import { PageError, errorText, useAuth, useMayWrite, useToast } from '../../../../shared'
 import { cents, listOf } from './lib'
 
 interface Option { sku: string; barcode: string | null; label: string; priceCents: number; stock: number | null }
@@ -24,6 +24,20 @@ export default function CounterSalePage() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Stock by location (store_locations): which location this counter is — the sale's units come off there. Remembered on this
+  // device (the till stays where it is); a convenience only, so a blocked storage just asks again.
+  const locationsOn = useAuth().hasFeature('store_locations')
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([])
+  const [locationId, setLocationIdState] = useState(() => { try { return localStorage.getItem('counter-location') || '' } catch { return '' } })
+  const setLocationId = (id: string) => { setLocationIdState(id); try { localStorage.setItem('counter-location', id) } catch { /* not kept */ } }
+  useEffect(() => {
+    if (!locationsOn) return
+    api.get('/api/admin/stock-locations').then((r: any) => {
+      const list = (r?.locations || []) as Array<{ id: string; name: string }>
+      setLocations(list)
+      if (list.length && !list.some((l) => l.id === locationId)) setLocationId(list[0].id)
+    }).catch(() => setLocations([]))
+  }, [locationsOn]) // eslint-disable-line react-hooks/exhaustive-deps
   const [done, setDone] = useState<{ number: string; total: string; receiptTo: string | null } | null>(null)
 
   useEffect(() => {
@@ -65,7 +79,7 @@ export default function CounterSalePage() {
     if (!items.length) { setError('Add at least one item.'); return }
     setSaving(true)
     try {
-      const r = await api.post('/api/admin/counter-sales', { items, paidBy, email: email.trim() || null }) as { order: { orderNumber: string; totalCents: number; currency: string }; receiptTo: string | null }
+      const r = await api.post('/api/admin/counter-sales', { items, paidBy, email: email.trim() || null, ...(locationsOn && locationId ? { locationId } : {}) }) as { order: { orderNumber: string; totalCents: number; currency: string }; receiptTo: string | null }
       setDone({ number: r.order.orderNumber, total: cents(r.order.totalCents, r.order.currency), receiptTo: r.receiptTo })
       toast.success(`Sale recorded — ${cents(r.order.totalCents, r.order.currency)}`)
       setLines([]); setEmail(''); setPreview(null)
@@ -131,6 +145,11 @@ export default function CounterSalePage() {
             </dl>
           )}
 
+          {locationsOn && locations.length > 1 && (
+            <label className="block text-sm text-gray-800 dark:text-slate-200">Selling at{' '}
+              <select className="input ml-1 w-auto" value={locationId} onChange={(e) => setLocationId(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+            </label>
+          )}
           <fieldset className="space-y-1">
             <legend className="label">Paid by</legend>
             {(['cash', 'card', 'other'] as const).map((p) => (

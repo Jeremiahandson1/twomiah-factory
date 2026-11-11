@@ -147,6 +147,10 @@ export const storeOrder = pgTable('orders', {
   fulfillment: text('fulfillment').notNull().default('ship'),
   /** storefront | draft (made by the owner for a customer, paid from the emailed link). */
   source: text('source').notNull().default('storefront'),
+  /** The location it shipped from or was sold at (stock by location — store_locations); null where locations are not counted. */
+  locationId: text('location_id'),
+  /** Where each option's units came off: { variantId: { locationId: units } } — so changing the location moves exactly those. */
+  stockTakes: json('stock_takes'),
   /** Tax worked out by Stripe Tax at checkout (filled from the paid session), not the store's flat rate. */
   taxAutomatic: boolean('tax_automatic').notNull().default(false),
   /** A gift card the shopper paid part (or all) of this order with: what was taken off it, and what has gone back. */

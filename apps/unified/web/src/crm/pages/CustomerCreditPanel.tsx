@@ -8,11 +8,23 @@ import { money } from '@twomiah/tenant-ui/src/money'
 import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
 
-interface Entry { id: string; amount: number; source: string; reason: string | null; createdAt: string; invoiceNumber: string | null }
+interface Entry { id: string; amount: number; source: string; reason: string | null; createdAt: string; invoiceNumber: string | null; number?: string | null }
 const SOURCE: Record<string, string> = { credit_memo: 'Credit issued', spend: 'Used on an invoice', refund_to_account: 'Refund kept as credit', manual: 'Adjusted', payout: 'Paid out' }
 
 export function CustomerCreditPanel({ contactId }: { contactId: string }) {
   const toast = useToast()
+  // The credit memo as a document (its number, the reason, the amount and the credit now), to print or send.
+  const pdf = async (e: Entry) => {
+    try {
+      const res = await api.raw(`/api/customer-credit/${encodeURIComponent(contactId)}/memo/${encodeURIComponent(e.id)}/pdf`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url; a.download = `credit-memo-${e.number}.pdf`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch { toast.error('The credit memo could not be made.') }
+  }
   const { can, known } = usePermissions()
   const mayIssue = !known || can('payments:delete')
   const [data, setData] = useState<{ credit: number; entries: Entry[] } | null>(null)
@@ -50,7 +62,8 @@ export function CustomerCreditPanel({ contactId }: { contactId: string }) {
             <ul className="mt-3 divide-y divide-gray-200 text-sm dark:divide-slate-700">
               {data.entries.slice(0, 20).map((e) => (
                 <li key={e.id} className="flex justify-between gap-3 py-1.5 text-gray-900 dark:text-slate-100">
-                  <span>{SOURCE[e.source] || 'Adjusted'}{e.invoiceNumber ? ` · ${e.invoiceNumber}` : ''}{e.reason ? <span className="block text-xs text-gray-600 dark:text-slate-400">{e.reason}</span> : null}</span>
+                  <span>{SOURCE[e.source] || 'Adjusted'}{e.number ? ` ${e.number}` : ''}{e.invoiceNumber ? ` · ${e.invoiceNumber}` : ''}
+                    {e.number && <button type="button" onClick={() => void pdf(e)} className="ml-2 text-xs font-medium text-orange-700 underline dark:text-orange-300">PDF</button>}{e.reason ? <span className="block text-xs text-gray-600 dark:text-slate-400">{e.reason}</span> : null}</span>
                   <span className="whitespace-nowrap text-right">{e.amount > 0 ? '+' : ''}{money(e.amount)}<span className="block text-xs text-gray-600 dark:text-slate-400">{momentDate(e.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</span></span>
                 </li>
               ))}
