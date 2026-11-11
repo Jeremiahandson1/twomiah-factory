@@ -15,6 +15,8 @@ import { createCommentsRoutes } from './comments.ts'
 import { createSearchRoutes } from './search.ts'
 import { createSupportRoutes } from './support.ts'
 import { createPlatformSupportRoutes } from './platformSupport.ts'
+import { createCallerIdRoutes } from './callerId.ts'
+import { createChatToTextRoutes } from './chatToText.ts'
 
 export function commsMounts(d: CrmDeps): Mount[] {
   const callAnswering = createAiCallAnsweringService({ ...d, provider: twilioVoiceProvider })
@@ -22,6 +24,10 @@ export function commsMounts(d: CrmDeps): Mount[] {
     // Public doors inside (the providers' signed webhooks); each router signs people in and checks its feature
     // (call_tracking, ai_receptionist) itself after them, so calls are still logged with the module switched off.
     { path: '/api/calltracking', access: 'public', router: createCalltrackingRoutes(d) },
+    // The website's "Text us" box: a lead, and with the visitor's consent their message in the texting inbox (./chatToText.ts). Public; checks chat_to_text itself. Not ready.
+    { path: '/api/chat-to-text', access: 'public', router: createChatToTextRoutes(d) },
+    // Caller ID: who an incoming call is, for the office's screen pop (./callerId.ts). Not ready.
+    { path: '/api/caller-id', access: 'user', feature: 'caller_id', router: createCallerIdRoutes(d) },
     // The receptionist's voice webhook hands a call to the live assistant when it is answering (one service, one provider).
     { path: '/api/ai-receptionist', access: 'public', router: createAiReceptionistRoutes(d, { callAnswering, provider: twilioVoiceProvider }) },
     // Live AI call answering's turn webhooks (signed) and the owner's settings (ai_call_answering, checked inside).

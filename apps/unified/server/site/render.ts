@@ -134,6 +134,8 @@ async function wrap(ctx: SiteContext, body: string, settings: Record<string, any
     jsonLd,
     assetV: assetVersion(ctx),
     siteOptions: ctx.options,
+    // Website chat-to-text (chat_to_text with two_way_texting; crm/comms/chatToText.ts): the "Text us" box on every page.
+    chatToText: Array.isArray(ctx.features) && ctx.features.includes('chat_to_text') && ctx.features.includes('two_way_texting'),
     // A/B experiments (scripts/ab.js) are a CRM ads feature; they return with the ads module (CUTOVER_LEDGER).
     crmApiUrl: '',
   }) as string

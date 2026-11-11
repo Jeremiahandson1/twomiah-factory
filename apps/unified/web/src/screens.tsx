@@ -19,6 +19,7 @@ import { MessageSquare, BellRing, CalendarOff, FileArchive, MailCheck, Percent, 
 import { isHomecare } from './crm/verticals/homecare'
 import { ViewAsUserButton, roleWord } from './crm/viewAs'
 import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
+import { CallerIdPop } from './crm/CallerIdPop'
 /** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
 // Behind Two-Way Texting, as the server's texting routes are: a vertical that is not offered it (the store) has no card.
 const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read', feature: 'two_way_texting' }
@@ -65,7 +66,8 @@ const companyName = () => document.querySelector('meta[name="company-name"]')?.g
 export const Shell = () => {
   const auth = useAuth()
   const connected = useLiveConnection(!!auth.user)
-  return <AppShell api={api} auth={auth} connected={connected} config={SHELL_HERE} />
+  // Caller ID's screen pop (crm/CallerIdPop.tsx; caller_id, not ready): drawn over every screen while signed in.
+  return <><AppShell api={api} auth={auth} connected={connected} config={SHELL_HERE} />{auth.user ? <CallerIdPop /> : null}</>
 }
 
 /** The admin's front page: the CRM's dashboard where the business has one; else the website for those who look after it; else their account. */
