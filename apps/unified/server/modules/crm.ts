@@ -29,7 +29,7 @@ import {
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, projectWarranty, site, jobPhoto, jobSeries, jobAssignee, crewLogin,
+  documentShare, equipment, serviceAgreement, agreementVisit, projectWarranty, site, jobPhoto, jobPhotoFolder, jobSeries, jobAssignee, crewLogin,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -287,7 +287,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     db,
     tables: {
       job, project, contact, user, timeEntry, teamMember, location, jobSeries, jobAssignee, crewLogin,
-      ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
+      ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto, jobPhotoFolder } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
     // jobAssignee + crewLogin: a seat without jobs:read-all reads the jobs it leads, is on, sells or crews (onJob).
     authenticate, requirePermission, canSee, ...live, cleanText, cleanLines, audit,
@@ -660,6 +660,13 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // portal books inside it (appointments).
       ...(!v.portal?.appointments ? { bookOnline: {
         bookUrl: (portalToken: string) => `${siteOrigin()}/book?portal=${encodeURIComponent(portalToken)}`,
+        // Offered only once something can be booked — online booking on in the booking settings and a service to book, the
+        // test /book itself applies (booking/pages.ts). Before that the card led a customer to "Bookings opening soon" (live
+        // test 11/11); Housecall Pro and ServiceTitan show self-booking only once it is set up.
+        open: async (companyId: string) => {
+          const engine = s.bookingEngine.current // filled in when the booking module starts (app.ts); none, no booking pages
+          return !!engine && !!(await engine.settingsOf(companyId)).enabled && (await engine.listServices(companyId, { activeOnly: true })).length > 0
+        },
         list: async (companyId: string, contactId: string) => {
           const rows = await db.select({ id: booking.id, startAt: booking.startAt, status: booking.status, token: booking.token, serviceId: booking.serviceId }).from(booking)
             .where(and(eq(booking.companyId, companyId), eq(booking.contactId, contactId), gte(booking.startAt, new Date()), notInArray(booking.status, ['cancelled', 'declined'])))

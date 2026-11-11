@@ -44,3 +44,37 @@ test('an unknown folder is refused; a photo of another job or business is not fo
   const other = ((await t.db.insert(t.schema.job).values({ companyId, number: 'JOB-00972', title: 'Other', status: 'scheduled' } as any).returning()) as any[])[0].id
   expect((await call(`/api/jobs/${other}/photos/${photoId}`, { method: 'PATCH', json: { kind: 'after' } })).status).toBe(404)
 })
+
+// Live test 11/11: "I did not find a way to make a custom folder" — Buildertrend and CompanyCam let a job have its own.
+test("a job's own named folder: made, listed while empty, a photo filed in it and out, renamed, deleted (its photos stay)", async () => {
+  const made = await json(await call(`/api/jobs/${jobId}/photo-folders`, { method: 'POST', json: { name: '  Attic   insulation ' } }))
+  expect([made.status, made.body.name]).toEqual([201, 'Attic insulation'])
+  const fid = made.body.id
+  expect((await json(await call(`/api/jobs/${jobId}/photo-folders`))).body.data).toEqual([{ id: fid, name: 'Attic insulation' }])
+  // Not twice (letter case aside), not a standard folder's name, not blank.
+  expect((await call(`/api/jobs/${jobId}/photo-folders`, { method: 'POST', json: { name: 'ATTIC INSULATION' } })).status).toBe(409)
+  expect((await call(`/api/jobs/${jobId}/photo-folders`, { method: 'POST', json: { name: 'Before' } })).status).toBe(409)
+  expect((await call(`/api/jobs/${jobId}/photo-folders`, { method: 'POST', json: { name: ' ' } })).status).toBe(400)
+  const row = async () => (await json(await call(`/api/jobs/${jobId}/photos`))).body.find((p: any) => p.id === photoId)
+  // Into it (out of a standard one), then into a standard one (out of it).
+  await call(`/api/jobs/${jobId}/photos/${photoId}`, { method: 'PATCH', json: { kind: 'after' } })
+  expect((await call(`/api/jobs/${jobId}/photos/${photoId}`, { method: 'PATCH', json: { folderId: fid } })).status).toBe(200)
+  expect(await row()).toMatchObject({ folderId: fid, photoType: 'general' })
+  await call(`/api/jobs/${jobId}/photos/${photoId}`, { method: 'PATCH', json: { kind: 'damage' } })
+  expect(await row()).toMatchObject({ folderId: null, photoType: 'damage' })
+  await call(`/api/jobs/${jobId}/photos/${photoId}`, { method: 'PATCH', json: { folderId: fid } })
+  const renamed = await json(await call(`/api/jobs/${jobId}/photo-folders/${fid}`, { method: 'PATCH', json: { name: 'Attic' } }))
+  expect([renamed.status, renamed.body.name]).toEqual([200, 'Attic'])
+  expect((await call(`/api/jobs/${jobId}/photo-folders/${fid}`, { method: 'DELETE' })).status).toBe(204)
+  expect(await row()).toMatchObject({ folderId: null, photoType: 'general' })
+  expect((await json(await call(`/api/jobs/${jobId}/photo-folders`))).body.data).toEqual([])
+})
+
+test("another job's folder is refused; another business's job has none to show", async () => {
+  const other = ((await t.db.insert(t.schema.job).values({ companyId, number: 'JOB-00973', title: 'Elsewhere', status: 'scheduled' } as any).returning()) as any[])[0].id
+  const theirs = (await json(await call(`/api/jobs/${other}/photo-folders`, { method: 'POST', json: { name: 'Basement' } }))).body.id
+  const r = await json(await call(`/api/jobs/${jobId}/photos/${photoId}`, { method: 'PATCH', json: { folderId: theirs } }))
+  expect([r.status, r.body.code]).toEqual([400, 'validation_failed'])
+  expect((await call(`/api/jobs/${jobId}/photo-folders/${theirs}`, { method: 'DELETE' })).status).toBe(404)
+  expect((await call('/api/jobs/not-a-job/photo-folders')).status).toBe(404)
+})

@@ -68,3 +68,16 @@ test('without portal_booking (or without online booking) the section is closed',
   expect((await t.call(`/api/portal/p/${TOKEN}/book-online`)).status).toBeGreaterThanOrEqual(400)
   await features(ON)
 })
+
+test('nothing to book (booking off, or no service offered): no Book a Visit — not a page saying "opening soon" (live test 11/11)', async () => {
+  const sections = async () => (await json(await t.call(`/api/portal/p/${TOKEN}`))).body.sections
+  expect((await sections()).bookOnline).toBe(true)
+  expect((await call(`/api/booking/services/${serviceId}`, { method: 'PATCH', json: { active: false } })).status).toBe(200)
+  expect((await sections()).bookOnline).toBe(false)
+  expect((await t.call(`/api/portal/p/${TOKEN}/book-online`)).status).toBe(404)
+  expect((await call(`/api/booking/services/${serviceId}`, { method: 'PATCH', json: { active: true } })).status).toBe(200)
+  expect((await call('/api/booking/settings', { method: 'PATCH', json: { enabled: false } })).status).toBe(200)
+  expect((await sections()).bookOnline).toBe(false)
+  expect((await call('/api/booking/settings', { method: 'PATCH', json: { enabled: true } })).status).toBe(200)
+  expect((await sections()).bookOnline).toBe(true)
+})

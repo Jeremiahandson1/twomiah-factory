@@ -6,7 +6,7 @@
 //                                                (documents:read / create / delete)
 // Both are photo_capture's on the server, so the page shows this only with it on.
 import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
-import { Camera, Trash2 } from 'lucide-react'
+import { Camera, FolderPlus, Trash2 } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
 import type { JobsApi, JobsToast } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
@@ -34,7 +34,9 @@ const kindOf = (store: JobPhotoStore, p: any): string => {
   const k = store === 'job' ? p.photoType : p.type
   return typeof k === 'string' && FOLDERS[store].includes(k) ? k : UNFILED
 }
-const folderWord = (k: string) => FOLDER_WORDS[k] || k
+/** A folder the job's people named (GET /api/jobs/:id/photo-folders): its key in the panel is 'f:' + its id. */
+interface Named { id: string; name: string }
+const NAMED = 'f:'
 
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
 const MAX_BYTES = 10 * 1024 * 1024
@@ -60,6 +62,13 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
   // The folder being looked at ('' = every photo), and the one a new photo goes in.
   const [folder, setFolder] = useState('')
   const [addTo, setAddTo] = useState(UNFILED)
+  // The job's own named folders (job photos only — live test 11/11: Buildertrend and CompanyCam let you make one), and the
+  // name being typed for a new one or a rename.
+  const own = folders && store === 'job'
+  const [named, setNamed] = useState<Named[]>([])
+  const [naming, setNaming] = useState<{ id: string | null; name: string } | null>(null)
+  const folderWord = (k: string) => (k.startsWith(NAMED) ? named.find((f) => NAMED + f.id === k)?.name || 'Folder' : FOLDER_WORDS[k] || k)
+  const folderKeys = [...FOLDERS[store], ...named.map((f) => NAMED + f.id)]
   const send = (path: string, init: any) => (api.request ? api.request(path, init) : Promise.reject(new Error('Uploading is not available here')))
 
   const load = useCallback(async () => {
@@ -67,9 +76,10 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
     try {
       const r = store === 'job' ? await api.get(`/api/jobs/${jobId}/photos`) : await api.get('/api/photos', { jobId, limit: 200 })
       const rows: any[] = Array.isArray(r) ? r : r?.data || []
-      setPhotos(rows.map((p) => ({ id: p.id, url: p.url, thumbnailUrl: p.thumbnailUrl, caption: p.caption ?? p.description ?? null, kind: kindOf(store, p) })))
+      setPhotos(rows.map((p) => ({ id: p.id, url: p.url, thumbnailUrl: p.thumbnailUrl, caption: p.caption ?? p.description ?? null, kind: own && p.folderId ? NAMED + p.folderId : kindOf(store, p) })))
+      if (own) setNamed(((await api.get(`/api/jobs/${jobId}/photo-folders`).catch(() => null)) as any)?.data || [])
     } catch (err) { setPhotos([]); setFailed(errMsg(err, 'The photos could not be loaded')) }
-  }, [jobId, store]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jobId, store, own]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
   const pick = (e: ChangeEvent<HTMLInputElement>) => {
@@ -88,7 +98,8 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
       fd.append('photo', file)
       if (caption.trim()) fd.append('caption', caption.trim())
       if (store === 'library') fd.append('jobId', jobId)
-      if (folders && addTo !== UNFILED) fd.append(store === 'job' ? 'kind' : 'category', addTo)
+      if (folders && addTo.startsWith(NAMED)) fd.append('folderId', addTo.slice(NAMED.length))
+      else if (folders && addTo !== UNFILED) fd.append(store === 'job' ? 'kind' : 'category', addTo)
       await send(store === 'job' ? `/api/jobs/${jobId}/photos` : '/api/photos', { method: 'POST', body: fd })
       toast.success('Photo added')
       cancel()
@@ -98,11 +109,33 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
   /** File a photo in another folder (or none). */
   const move = async (p: Shown, to: string) => {
     try {
-      if (store === 'job') await send(`/api/jobs/${jobId}/photos/${p.id}`, { method: 'PATCH', body: JSON.stringify({ kind: to === UNFILED ? 'general' : to }), headers: { 'Content-Type': 'application/json' } })
+      if (store === 'job') await send(`/api/jobs/${jobId}/photos/${p.id}`, { method: 'PATCH', body: JSON.stringify(to.startsWith(NAMED) ? { folderId: to.slice(NAMED.length) } : { kind: to === UNFILED ? 'general' : to }), headers: { 'Content-Type': 'application/json' } })
       else await send(`/api/photos/${p.id}`, { method: 'PUT', body: JSON.stringify({ category: to === UNFILED ? 'photo' : to }), headers: { 'Content-Type': 'application/json' } })
       toast.success(to === UNFILED ? 'Photo taken out of its folder' : `Photo moved to ${folderWord(to)}`)
       setPhotos((list) => (list || []).map((x) => (x.id === p.id ? { ...x, kind: to } : x)))
     } catch (err) { toast.error(errMsg(err, 'The photo could not be moved')) }
+  }
+  /** Make a folder, or rename one (naming.id). */
+  const saveName = async () => {
+    if (!naming) return
+    const name = naming.name.trim()
+    if (!name) { toast.error('Name the folder'); return }
+    try {
+      const r: any = await send(naming.id ? `/api/jobs/${jobId}/photo-folders/${naming.id}` : `/api/jobs/${jobId}/photo-folders`, { method: naming.id ? 'PATCH' : 'POST', body: JSON.stringify({ name }), headers: { 'Content-Type': 'application/json' } })
+      const f: Named | null = r && typeof r.json === 'function' ? await r.json().catch(() => null) : r
+      toast.success(naming.id ? 'Folder renamed' : `Folder "${name}" made`)
+      setNaming(null)
+      await load()
+      if (!naming.id && f?.id) setFolder(NAMED + f.id)
+    } catch (err) { toast.error(errMsg(err, 'The folder could not be saved')) }
+  }
+  const removeFolder = async (key: string) => {
+    const word = folderWord(key)
+    if (!(await confirm(`Its photos stay on the ${label.toLowerCase()}, in no folder.`, { title: `Delete the folder "${word}"?`, confirmText: 'Delete folder' }))) return
+    try {
+      await send(`/api/jobs/${jobId}/photo-folders/${key.slice(NAMED.length)}`, { method: 'DELETE' })
+      toast.success('Folder deleted'); setFolder(''); load()
+    } catch (err) { toast.error(errMsg(err, 'The folder could not be deleted')) }
   }
   const remove = async (p: Shown) => {
     if (!(await confirm('The photo is removed from this job for everyone.', { title: 'Delete this photo?', confirmText: 'Delete photo' }))) return
@@ -114,9 +147,11 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
 
   const shownPhotos = (photos || []).filter((p) => !folders || !folder || p.kind === folder)
   const counted = (k: string) => (photos || []).filter((p) => p.kind === k).length
-  const tabs: Array<[string, string]> = !folders || !photos || !photos.length ? [] : [
+  const tabs: Array<[string, string]> = !folders || !photos || (!photos.length && !named.length) ? [] : [
     ['', `All (${photos.length})`],
     ...FOLDERS[store].filter((k) => counted(k) > 0).map((k): [string, string] => [k, `${folderWord(k)} (${counted(k)})`]),
+    // A named folder is listed even while empty (it was made to put photos in).
+    ...named.map((f): [string, string] => [NAMED + f.id, `${f.name} (${counted(NAMED + f.id)})`]),
     ...(counted(UNFILED) > 0 && counted(UNFILED) < photos.length ? [[UNFILED, `Not in a folder (${counted(UNFILED)})`] as [string, string]] : []),
   ]
 
@@ -131,6 +166,30 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
           {tabs.map(([k, words]) => (
             <button key={k || 'all'} type="button" aria-pressed={folder === k} onClick={() => setFolder(k)} className={`rounded-full px-3 py-1 text-sm ${folder === k ? 'bg-gray-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'}`}>{words}</button>
           ))}
+        </div>
+      )}
+      {own && mayEditJob && photos && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
+          {naming ? (
+            <>
+              <label htmlFor={`photo-folder-name-${jobId}`} className="sr-only">Folder name</label>
+              <input id={`photo-folder-name-${jobId}`} autoFocus value={naming.name} maxLength={60} placeholder="Folder name"
+                onChange={(e) => setNaming({ ...naming, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveName() } if (e.key === 'Escape') setNaming(null) }}
+                className="border border-gray-300 rounded-lg px-2 py-1 bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600" />
+              <Button type="button" onClick={saveName}>{naming.id ? 'Rename' : 'Make folder'}</Button>
+              <Button type="button" variant="secondary" onClick={() => setNaming(null)}>Cancel</Button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setNaming({ id: null, name: '' })} className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1 text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"><FolderPlus className="w-4 h-4" />New folder</button>
+              {folder.startsWith(NAMED) && (
+                <>
+                  <button type="button" onClick={() => setNaming({ id: folder.slice(NAMED.length), name: folderWord(folder) })} className="rounded-full border border-gray-300 px-3 py-1 text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Rename</button>
+                  <button type="button" onClick={() => removeFolder(folder)} className="rounded-full border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 dark:border-red-500/50 dark:text-red-300 dark:hover:bg-red-950/40">Delete folder</button>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
       {photos && photos.length > 0 && (
@@ -150,7 +209,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
             <label className="block text-sm text-gray-800 dark:text-slate-200">Folder
               <select className="ml-2 border border-gray-300 rounded-lg px-2 py-1 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600" value={addTo} onChange={(e) => setAddTo(e.target.value)}>
                 <option value={UNFILED}>No folder</option>
-                {FOLDERS[store].map((k) => <option key={k} value={k}>{folderWord(k)}</option>)}
+                {folderKeys.map((k) => <option key={k} value={k}>{folderWord(k)}</option>)}
               </select>
             </label>
           )}
@@ -180,7 +239,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
           const mover = folders && shown && (store === 'job' ? mayEditJob : mayAddDocument) ? (
             <select aria-label="Move to folder" value={shown.kind} onChange={(e) => void move(shown, e.target.value)} className="h-11 rounded-full bg-white/10 px-3 text-sm text-white">
               <option value={UNFILED} className="text-gray-900 dark:text-slate-100 dark:bg-slate-800">No folder</option>
-              {FOLDERS[store].map((k) => <option key={k} value={k} className="text-gray-900 dark:text-slate-100 dark:bg-slate-800">{folderWord(k)}</option>)}
+              {folderKeys.map((k) => <option key={k} value={k} className="text-gray-900 dark:text-slate-100 dark:bg-slate-800">{folderWord(k)}</option>)}
             </select>
           ) : null
           if (!(mayRemove && shown)) return mover
