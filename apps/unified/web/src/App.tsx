@@ -74,6 +74,7 @@ const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
 const CrewLinkPage = page(() => import('./crm/pages/roof/field/CrewLinkPage'))
 const VisitConfirmPage = page(() => import('./crm/pages/VisitConfirmPage'))
 const TechOnTheWayPage = page(() => import('./crm/pages/TechOnTheWayPage'))
+const LeadMapPage = page(() => import('./crm/pages/LeadMapPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 // Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
@@ -263,6 +264,7 @@ export default function App() {
                       <Route path="bookings/:id" element={<BookingDetailPage />} />
                       <Route path="leads" element={<LeadInbox />} />
                       <Route path="marketing-roi" element={<MarketingRoiPage />} />
+                      <Route path="lead-map" element={<LeadMapPage />} />
                       <Route path="new-leads" element={<NewLeads />} />
                       <Route path="audit" element={<AuditLog />} />
                       <Route path="account" element={<MyAccount />} />

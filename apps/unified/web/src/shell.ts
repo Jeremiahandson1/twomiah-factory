@@ -30,6 +30,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/contacts', icon: Users, label: 'Contacts', features: ['contacts'], permission: 'contacts:read' },
   // Next to Contacts, where an enquiry becomes one. It used to close the list, after Bookings, so it read as a Bookings page.
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'leads:read' },
+  // The same enquiries on a map (crm/pages/LeadMapPage.tsx; server crm/leads/leadMap.ts). Not ready.
+  { to: '/crm/lead-map', icon: MapPin, label: 'Lead Map', features: ['lead_map'], permission: 'leads:read' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', features: ['jobs'], permission: 'jobs:read' },
   { to: '/crm/tech', icon: Smartphone, label: 'Field View', features: ['tech_mobile_view'] },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', features: ['quotes'], permission: 'quotes:read' },

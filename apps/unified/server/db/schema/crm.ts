@@ -134,6 +134,11 @@ export const lead = pgTable('lead', {
   // Who works the enquiry (0102): a sales rep reads the leads assigned to them (no leads:read-all); one they add by hand is theirs.
   // Null: nobody's yet — the office's.
   assignedToId: text('assigned_to_id').references((): AnyPgColumn => user.id, { onDelete: 'set null' }),
+  // Where the enquiry is on the map (lead_map, crm/leads/leadMap.ts): its `location` looked up once with Google's geocoder.
+  // geocodedAt is set when it was looked up, found or not, so no lead is ever looked up twice.
+  lat: real('lat'),
+  lng: real('lng'),
+  geocodedAt: timestamp('geocoded_at'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
