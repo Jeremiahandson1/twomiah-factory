@@ -24,6 +24,7 @@ import { createJobReminderRoutes } from './jobReminderRoutes.ts'
 import { createTeamReports } from './teamReportRoutes.ts'
 import { createPlanReports } from './planReportRoutes.ts'
 import { createAvailabilityRoutes } from './availabilityRoutes.ts'
+import { createSkillRoutes } from './skillRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
 import { createClockExtras } from './clockExtras.ts'
 import { createJobConfirm } from './jobConfirm.ts'
@@ -77,6 +78,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/plan-reports', access: 'user', feature: 'plan_reports', router: planReports.routes },
     // When each tech works and is away (crm/field/availabilityRoutes.ts); jobs.ts warns when a job is given outside it. Not ready.
     { path: '/api/availability', access: 'user', feature: 'tech_availability', router: createAvailabilityRoutes(d) },
+    // What each person can do and what each kind of job needs (crm/field/skillRoutes.ts); jobs.ts warns on a mismatch. Not ready.
+    { path: '/api/skills', access: 'user', feature: 'skill_matching', router: createSkillRoutes(d) },
     // The checklists a business builds per job type, filled in on the phone and signed on site (crm/field/checklistRoutes.ts). Not ready.
     { path: '/api/checklists', access: 'user', feature: 'job_checklists', router: createChecklistRoutes(d) },
     // Home care's /api/payroll is its own pay run (server/crm/homecare/payroll/payroll.ts), so this one stands aside there.

@@ -13,6 +13,7 @@ import type { AppEnv } from '../../http/env.ts'
 import type { CrmDeps } from '../deps.ts'
 import { done, fail, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
+import { skillsNeeded } from '../../data/skills.ts'
 import { SHIFT_KINDS, addTimeOff, clearHours, copyHours, dayStatus, findOpenSlots, listAll, minutesOf, removeTimeOff, resolvePerson, setHours, type PersonRef } from '../../data/techAvailability.ts'
 
 const hhmm = z.string({ error: 'Enter a time' }).regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Enter a time like 08:00')
@@ -78,6 +79,8 @@ const findSchema = z.object({
   address: z.string().trim().max(300).optional(),
   step: z.coerce.number().int().min(5).max(120).default(30),
   limit: z.coerce.number().int().min(1).max(200).default(60),
+  // The kind of job (its type): with skill matching on, only people with the skills it needs are offered.
+  jobType: z.string().trim().max(100).optional(),
 })
 
 export function createAvailabilityRoutes(d: CrmDeps) {
@@ -112,8 +115,9 @@ export function createAvailabilityRoutes(d: CrmDeps) {
     const q = parsed.data, companyId = c.get('user').companyId
     const now = tzParts(new Date(), await companyTimeZone(db, companyId))
     const at = q.lat !== undefined && q.lng !== undefined ? { lat: q.lat, lng: q.lng, address: q.address ?? null } : q.address ? { address: q.address } : undefined
-    const found = await findOpenSlots(db, companyId, { from: q.from, days: q.days, durationMinutes: q.duration, personIds: q.personIds, at, stepMinutes: q.step, limit: q.limit, notBefore: { date: now.date, minutes: now.minutes }, skipClosed: await d.features.isFeatureEnabled(companyId, 'days_off') })
-    return one(c, found)
+    const skills = q.jobType && (await d.features.isFeatureEnabled(companyId, 'skill_matching')) ? await skillsNeeded(db, companyId, q.jobType) : []
+    const found = await findOpenSlots(db, companyId, { from: q.from, days: q.days, durationMinutes: q.duration, personIds: q.personIds, at, stepMinutes: q.step, limit: q.limit, notBefore: { date: now.date, minutes: now.minutes }, skipClosed: await d.features.isFeatureEnabled(companyId, 'days_off'), skills })
+    return one(c, skills.length ? { ...found, skillsNeeded: skills } : found)
   })
 
   // Replace one person's weekly shifts. An empty list clears them (the person is no longer restricted).

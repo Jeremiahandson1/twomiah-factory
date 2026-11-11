@@ -114,6 +114,8 @@ export const user = pgTable('user', {
   longitude: decimal('longitude', { precision: 11, scale: 8 }),
   certifications: json('certifications').default([]).notNull(),
   certificationsExpiry: json('certifications_expiry').default([]).notNull(),
+  // What this person can do, in the business's words (skill matching, server/data/skills.ts): ["Gas", "Install"].
+  skills: json('skills').default([]).notNull(),
   defaultPayRate: decimal('default_pay_rate', { precision: 8, scale: 2 }),
   hireDate: date('hire_date'),
   emergencyContactName: text('emergency_contact_name'),
