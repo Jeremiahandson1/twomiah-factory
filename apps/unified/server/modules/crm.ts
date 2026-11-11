@@ -21,7 +21,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { and, asc, desc, eq, eq as eqCol } from 'drizzle-orm'
+import { and, asc, desc, eq, eq as eqCol, gte, inArray, notInArray } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -31,7 +31,7 @@ import {
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
-  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking,
+  serviceRecord, membershipEnrollment, clientAccountEntry, quoteProposalOption, quoteProposalDocument, quoteProposalMark, pricebookItem, pricebookGoodBetterBest, serviceMenu, booking, bookingService,
 } from '../db/schema/index.ts'
 import { siteOrigin } from '../booking/happenings.ts'
 import { createSalonDashboard } from '../crm/salon/index.ts'
@@ -636,6 +636,21 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
           },
         }
       })(),
+      // Book a visit online from the portal (parity tier 2 #5; portal_booking with online_booking — portal.ts SECTION_FEATURES): the
+      // booking pages with this customer's details filled in (/book?portal=<their portal link> — site scripts/book-flow.ts reads them
+      // through the portal), and their bookings still to come, each with its own page to move or cancel it. Not for the salon, whose
+      // portal books inside it (appointments).
+      ...(!v.portal?.appointments ? { bookOnline: {
+        bookUrl: (portalToken: string) => `${siteOrigin()}/book?portal=${encodeURIComponent(portalToken)}`,
+        list: async (companyId: string, contactId: string) => {
+          const rows = await db.select({ id: booking.id, startAt: booking.startAt, status: booking.status, token: booking.token, serviceId: booking.serviceId }).from(booking)
+            .where(and(eq(booking.companyId, companyId), eq(booking.contactId, contactId), gte(booking.startAt, new Date()), notInArray(booking.status, ['cancelled', 'declined'])))
+            .orderBy(asc(booking.startAt), asc(booking.id)).limit(20)
+          const ids = [...new Set(rows.map((r: any) => r.serviceId).filter(Boolean))] as string[]
+          const names = ids.length ? await db.select({ id: bookingService.id, name: bookingService.name }).from(bookingService).where(and(eq(bookingService.companyId, companyId), inArray(bookingService.id, ids))) : []
+          return rows.map((r: any) => ({ id: r.id, service: (names as any[]).find((n) => n.id === r.serviceId)?.name ?? null, startAt: r.startAt, status: r.status, manageUrl: r.token ? `${siteOrigin()}/booking/${r.token}` : null }))
+        },
+      } } : {}),
       // Roofing: the photos and documents the roofer chose to show a homeowner (crm/roof/portalFiles).
       ...(v.roof ? { jobFiles: roofPortalJobFiles(own) } : {}),
       // The contractor's project page in the client portal (contractor parity row 10; client_portal_plus gates it).

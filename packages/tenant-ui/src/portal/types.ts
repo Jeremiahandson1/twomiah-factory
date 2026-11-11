@@ -16,6 +16,8 @@ export type PortalSection =
   | 'account'
   // field service, basic: the visits still to come, each with a Confirm button
   | 'upcomingVisits'
+  // field service, basic, landscaping: book a visit online, details filled in, and the bookings made (parity tier 2 #5)
+  | 'bookOnline'
 
 /** Contact types that get the collaborator (sub/vendor) portal instead of the customer one. */
 export const COLLABORATOR_TYPES = ['subcontractor', 'vendor', 'supplier']
@@ -49,7 +51,7 @@ export const DEFAULT_LABELS: Record<PortalSection, string> = {
   projects: 'Projects', quotes: 'Quotes', invoices: 'Invoices', paymentMethods: 'Payment Method', changeOrders: 'Change Orders',
   selections: 'Selections', messages: 'Messages', myJobs: 'My Jobs', lienWaivers: 'Lien Waivers', submittals: 'Submittals',
   rfis: 'RFIs', sharedDocuments: 'Documents', equipment: 'Equipment', agreements: 'Service Plans', serviceRequest: 'Request Service',
-  pets: 'My Pets', visits: 'Visits', jobFiles: 'Photos & Documents', appointments: 'Appointments', account: 'My Account', upcomingVisits: 'Upcoming Visits',
+  pets: 'My Pets', visits: 'Visits', jobFiles: 'Photos & Documents', appointments: 'Appointments', account: 'My Account', upcomingVisits: 'Upcoming Visits', bookOnline: 'Book a Visit',
 }
 
 /** URL path segment under /portal/:token for each section. */
@@ -57,11 +59,11 @@ export const SECTION_PATH: Record<PortalSection, string> = {
   projects: 'projects', quotes: 'quotes', invoices: 'invoices', paymentMethods: 'payment-methods', changeOrders: 'change-orders',
   selections: 'selections', messages: 'messages', myJobs: 'my-jobs', lienWaivers: 'lien-waivers', submittals: 'submittal-review',
   rfis: 'rfis-assigned', sharedDocuments: 'shared-documents', equipment: 'equipment', agreements: 'agreements', serviceRequest: 'service-request',
-  pets: 'pets', visits: 'visits', jobFiles: 'job-files', appointments: 'appointments', account: 'account', upcomingVisits: 'upcoming-visits',
+  pets: 'pets', visits: 'visits', jobFiles: 'job-files', appointments: 'appointments', account: 'account', upcomingVisits: 'upcoming-visits', bookOnline: 'book',
 }
 
 /** What the backend reports it mounted (GET /p/:token → sections). */
-export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets' | 'paymentMethods' | 'visits' | 'jobFiles' | 'appointments' | 'account' | 'upcomingVisits' | 'projectExtras' | 'vendorPortal', boolean>>
+export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets' | 'paymentMethods' | 'visits' | 'jobFiles' | 'appointments' | 'account' | 'upcomingVisits' | 'bookOnline' | 'projectExtras' | 'vendorPortal', boolean>>
 
 export const DEFAULT_ROLE_LABELS: Record<string, string> = {
   client: 'Customer Portal', customer: 'Customer Portal', lead: 'Customer Portal', owner: 'Customer Portal',

@@ -251,5 +251,26 @@
     }).catch(function (x) { showError(err, x.message); btn.disabled = false })
   })
 
+  // Came from the customer's portal ("Book a visit" — /book?portal=<their link>, parity tier 2 #5): their details are filled in from
+  // the portal, into the boxes still empty. The link is kept for this visit only (sessionStorage), as they pick a service and a time.
+  ;(function fillFromPortal() {
+    var key = 'twomiah:portal'
+    var asked = (new URLSearchParams(window.location.search).get('portal') || '').trim()
+    try { if (asked) sessionStorage.setItem(key, asked) } catch (e) { /* no storage: this page only */ }
+    var t = asked
+    try { t = t || sessionStorage.getItem(key) || '' } catch (e) { /* none */ }
+    if (!t || !form || !/^[A-Za-z0-9_-]{8,200}$/.test(t)) return
+    fetch('/api/portal/p/' + encodeURIComponent(t) + '/book-online/prefill', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (d) {
+        if (!d) return
+        ;['name', 'email', 'phone', 'address', 'city', 'state', 'zip'].forEach(function (k) {
+          var el = form.querySelector('[name="' + k + '"]')
+          if (el && !el.value && d[k]) el.value = d[k]
+        })
+      })
+      .catch(function () { /* the form works without it */ })
+  })()
+
   loadDates()
 })()
