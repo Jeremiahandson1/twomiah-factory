@@ -8,6 +8,7 @@ import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeOrderRefund, storeProductVariant } from '../db/schema/store.ts'
 import { toPackCondition, atSupplierCondition, countedOrderCondition } from '../crm/store/tileConditions.ts'
+import { reconcileVariant } from './storeStock.ts'
 
 type Order = typeof storeOrder.$inferSelect
 
@@ -96,6 +97,8 @@ export async function restockVariant(tx: any, variantId: string, quantity: numbe
     .set({ inventoryQty: sql`${storeProductVariant.inventoryQty} + ${quantity}`, updatedAt: new Date() } as any)
     .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} is not null`))
     .returning({ id: storeProductVariant.id })
+  // Stock by location (store_locations): back to the first location (data/storeStock.ts).
+  if (back.length) await reconcileVariant(tx, variantId)
   return back.length > 0
 }
 

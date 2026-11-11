@@ -26,7 +26,7 @@
 // The dashboard is not a route here: it is the store's home at /crm/dashboard (crm/screens.tsx HOMES, `dashboard`).
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { BarChart3, CreditCard, Filter, Home, MailCheck, Megaphone, Package, PackageCheck, Plug, ShieldAlert, ShoppingBag, Truck, Undo2, Users } from 'lucide-react'
+import { BarChart3, CreditCard, Filter, Home, MailCheck, MapPin, Megaphone, Package, PackageCheck, Plug, ShieldAlert, ShoppingBag, Truck, Undo2, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -43,6 +43,7 @@ const ReturnsPage = page(() => import('./ReturnsPage'))
 const SegmentsPage = page(() => import('./SegmentsPage'))
 const FollowupsPage = page(() => import('./FollowupsPage'))
 const ReordersPage = page(() => import('./ReordersPage'))
+const StockLocationsPage = page(() => import('./StockLocationsPage'))
 const AudiencesPage = page(() => import('./AudiencesPage'))
 const AppsPage = page(() => import('./AppsPage'))
 
@@ -63,6 +64,8 @@ export const routes: ReactElement[] = [
   <Route key="store-followups" path="followups" element={<FollowupsPage />} />,
   // Reorders (GET /api/admin/reorders: store_reorders + margin:read; gated below, in routeGates).
   <Route key="store-reorders" path="reorders" element={<ReordersPage />} />,
+  // Stock by location (GET /api/admin/stock-locations: store_locations + products:read; gated below, in routeGates).
+  <Route key="store-stock-locations" path="stock-locations" element={<StockLocationsPage />} />,
   // Audiences and purchase tags (GET /api/admin/audiences: store_audiences + marketing:update; gated below, in routeGates).
   <Route key="store-audiences" path="audiences" element={<AudiencesPage />} />,
   // Apps & integrations: the catalogue, Store API keys, webhooks (GET /api/admin/apps: store_apps + integrations:update; gated below, in routeGates).
@@ -88,6 +91,8 @@ export const nav: NavItem[] = [
   { to: '/crm/audiences', icon: Megaphone, label: 'Audiences', features: ['store_audiences'], permission: 'marketing:update' },
   // Supplier purchase orders drafted from what is low: behind store_reorders; costs are the shop's own, so the server asks margin:read.
   { to: '/crm/reorders', icon: PackageCheck, label: 'Reorders', features: ['store_reorders'], permission: 'margin:read' },
+  // Parity tier 2 #11: the stock counted where it is kept, behind store_locations (not ready).
+  { to: '/crm/stock-locations', icon: MapPin, label: 'Stock by location', features: ['store_locations'], permission: 'products:read' },
   // Sales reports: behind the store_sales_reports switch and the takings' permission (revenue:read), as the server asks both.
   { to: '/crm/sales', icon: BarChart3, label: 'Sales', features: ['store_sales_reports'], permission: 'revenue:read' },
   { to: '/crm/payments', icon: CreditCard, label: 'Payments', permission: 'payments:update' },
@@ -111,6 +116,7 @@ export const routePermissions: Record<string, string> = {
   '/crm/segments': 'marketing:read',
   '/crm/followups': 'marketing:read',
   '/crm/reorders': 'margin:read',
+  '/crm/stock-locations': 'products:read',
   '/crm/audiences': 'marketing:update',
   '/crm/apps': 'integrations:update',
   '/crm/payments': 'payments:update',
@@ -120,7 +126,7 @@ export const routePermissions: Record<string, string> = {
 }
 
 /** Addresses typed in: the feature each needs, as its menu row does (the shell's routeGates). */
-export const routeGates: Record<string, string[]> = { '/crm/sales': ['store_sales_reports'], '/crm/returns': ['store_returns'], '/crm/segments': ['store_segments'], '/crm/followups': ['store_followups'], '/crm/reorders': ['store_reorders'], '/crm/audiences': ['store_audiences'], '/crm/apps': ['store_apps'] }
+export const routeGates: Record<string, string[]> = { '/crm/sales': ['store_sales_reports'], '/crm/returns': ['store_returns'], '/crm/segments': ['store_segments'], '/crm/followups': ['store_followups'], '/crm/reorders': ['store_reorders'], '/crm/stock-locations': ['store_locations'], '/crm/audiences': ['store_audiences'], '/crm/apps': ['store_apps'] }
 
 /** The store's home at /crm/dashboard (its sales, orders to ship, set-up). */
 export const dashboard: import('react').ComponentType | null = page(() => import('./DashboardPage'))

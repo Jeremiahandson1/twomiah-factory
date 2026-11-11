@@ -6,6 +6,7 @@
 // "Draft a reorder" twice never orders the same shortfall twice.
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { storeProduct, storeProductVariant, storePurchaseOrder, storePurchaseOrderLine, storeSupplier } from '../db/schema/store.ts'
+import { reconcileVariant } from './storeStock.ts'
 
 export const OPEN_STATUSES = ['draft', 'sent', 'partly_received'] as const
 
@@ -75,6 +76,8 @@ export async function receiveAgainst(db: any, companyId: string, purchaseOrderId
       if (line.variantId) {
         await tx.update(storeProductVariant).set({ inventoryQty: sql`${storeProductVariant.inventoryQty} + ${r.quantity}`, updatedAt: new Date() })
           .where(and(eq(storeProductVariant.id, line.variantId), sql`${storeProductVariant.inventoryQty} is not null`))
+        // Stock by location (store_locations): the delivery goes to the first location (data/storeStock.ts).
+        await reconcileVariant(tx, line.variantId)
       }
     }
     const all = lines.every((l) => l.receivedQuantity >= l.quantity)

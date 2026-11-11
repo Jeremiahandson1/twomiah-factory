@@ -28,6 +28,7 @@ import { createStoreEvents, registerStoreEvents } from './apps/events.ts'
 import { createApiKeys } from './apps/apiKeys.ts'
 import { createStoreApi } from './apps/publicApi.ts'
 import { createApiKeyRoutes, createAppsRoutes, createWebhookRoutes } from './apps/routes.ts'
+import { createStockLocationRoutes } from './stock/locations.ts'
 
 /** One store core per app (keyed by its CRM services), shared by the routes and the website. */
 const cores = new WeakMap<object, StoreCore>()
@@ -60,6 +61,8 @@ export function storeMounts(d: CrmDeps): Mount[] {
     { path: '/api/admin/followups', access: 'user', feature: 'store_followups', router: createFollowupRoutes(d, followups) },
     // 2026-10-31, parity row 4: "Draft a reorder" — supplier purchase orders (margin:read, products:update), behind store_reorders (not ready).
     { path: '/api/admin/reorders', access: 'user', feature: 'store_reorders', router: createReorderRoutes(d, core) },
+    // Parity tier 2 #11: stock by location (products:read / products:update), behind store_locations (not ready).
+    { path: '/api/admin/stock-locations', access: 'user', feature: 'store_locations', router: createStockLocationRoutes(d, core) },
     // 2026-10-31, parity row 7: a segment as an ad audience (hashed file, direct push) and the purchase tags, behind store_audiences (not ready).
     { path: '/api/admin/audiences', access: 'user', feature: 'store_audiences', router: createAudienceRoutes(d) },
     // 2026-10-31, parity row 6: Apple Pay / Google Pay / Link buttons (quote, intent, keys), behind store_fast_checkout (not ready), 404 when off.

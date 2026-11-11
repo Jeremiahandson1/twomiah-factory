@@ -4,6 +4,7 @@
 // Every function returns camelCase.
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { discountCode, productReview, storeOrder, storeOrderItem, storeProductVariant } from '../db/schema/store.ts'
+import { reconcileVariant } from './storeStock.ts'
 
 /** One more use of a discount code, counted by the database (two orders paid at once both count). */
 export async function countDiscountUse(db: any, companyId: string, code: string): Promise<void> {
@@ -20,6 +21,8 @@ export async function decrementStock(db: any, variantId: string, quantity: numbe
   await db.update(storeProductVariant)
     .set({ inventoryQty: sql`GREATEST(0, ${storeProductVariant.inventoryQty} - ${quantity}::int)`, updatedAt: new Date() } as any)
     .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} IS NOT NULL`))
+  // Stock by location (store_locations): the units come off the locations in order (data/storeStock.ts).
+  await reconcileVariant(db, variantId)
 }
 
 /** Approved rating summary for a set of the company's products, keyed by product id. */
