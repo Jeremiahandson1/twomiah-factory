@@ -60,7 +60,7 @@ service where they fit (`shared-backlog.md`).
 | Spanish in the app | none (roofing's work orders only) | not built |
 | Service zones | none | not built |
 | Marketing ROI scorecard, revenue heat map | call tracking counts calls; no ROI | not built |
-| Technician and CSR scorecards | team revenue only | partly |
+| Technician and CSR scorecards | built 11/10, behind team revenue (`team_revenue_reports`, hidden): Tech scorecard — jobs completed, revenue, average ticket, quote win rate, on-time starts (within 15 min of the booked time), call-backs (another job for the customer within 30 days); Office scorecard — jobs booked per person, completed and cancelled (`data/scorecards.ts`, `tests/parity-scorecards.test.ts`). Saved and scheduled like the report's other tabs | yes (hidden) |
 | Internal general ledger, accounting periods, three-way matching | none — the books are QuickBooks (synced) | not built |
 | Direct mail | none | not built |
 | Progress billing, multi-party billing | progress billing is the contractor's (`drawSchedules`, AIA); no bill-to-a-third-party for a job | built elsewhere / not built |
