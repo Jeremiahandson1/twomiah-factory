@@ -25,6 +25,8 @@ const ORDER = [
   '/crm/discounts', '/crm/gift-cards', '/crm/store-loyalty',
   // Email marketing and review requests, offered to the store (opt-in: the owner switches them on in Settings › Features).
   '/crm/marketing', '/crm/reviews',
+  // Texting customers (parity tier 2 #12): offered to the store, off until switched on.
+  '/crm/messages',
   '/crm/suppliers', '/crm/shipping', '/crm/product-reviews', '/crm/google-reviews', '/crm/email', '/crm/domain',
   '/crm/store-settings', '/crm/audit',
 ]
