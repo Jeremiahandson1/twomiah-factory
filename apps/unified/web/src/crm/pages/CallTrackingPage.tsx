@@ -7,7 +7,8 @@ import {
   TrendingUp, Users, DollarSign, BarChart3, Settings as SettingsIcon
 } from 'lucide-react';
 import { api } from '../../api'
-import { CallTrackingSettings, usePermissions } from '../../shared'
+import { CallTrackingSettings, usePermissions, useAuth } from '../../shared'
+import TrackingLines from './TrackingLines'
 import type { LucideIcon } from 'lucide-react'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
@@ -90,6 +91,9 @@ export default function CallTrackingPage() {
   // The CallRail signing key is an integration credential: owner + admins (integrations:update), as the server asks.
   const { known, can } = usePermissions();
   const maySetUp = known && can('integrations:update');
+  // Tracking numbers from Twomiah (call_tracking_numbers, not ready): bought here, no CallRail account (./TrackingLines.tsx).
+  const { hasFeature } = useAuth();
+  const ownNumbers = hasFeature('call_tracking_numbers');
   const [calls, setCalls] = useState<Call[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -120,7 +124,7 @@ export default function CallTrackingPage() {
   }, [known, maySetUp]);
   const notConnected = !!setup && setup.numbers === 0 && setup.calls === 0 && !setup.keySet;
 
-  if (notConnected) return <CallTrackingSetup maySetUp={maySetUp} />;
+  if (notConnected) return <CallTrackingSetup maySetUp={maySetUp} ownNumbers={ownNumbers} />;
 
   const loadData = async () => {
     setLoading(true);
@@ -207,7 +211,10 @@ export default function CallTrackingPage() {
             <AttributionTab report={report} />
           )}
           {tab === 'numbers' && (
-            <TrackingNumbersTab />
+            <div className="space-y-6">
+              {ownNumbers && <TrackingLines />}
+              <TrackingNumbersTab />
+            </div>
           )}
           {tab === 'settings' && maySetUp && (
             <CallTrackingSettings />
@@ -223,7 +230,7 @@ export default function CallTrackingPage() {
  * The owner and admins (integrations:update, what the key's route asks) get the CallRail panel right here; everyone
  * else is told who can connect it.
  */
-function CallTrackingSetup({ maySetUp }: { maySetUp: boolean }) {
+function CallTrackingSetup({ maySetUp, ownNumbers }: { maySetUp: boolean; ownNumbers: boolean }) {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -237,7 +244,9 @@ function CallTrackingSetup({ maySetUp }: { maySetUp: boolean }) {
           and each call is logged here with where it came from, how long it lasted and whether it was missed — so you can
           see which marketing brings in callers. A first-time caller is added to your records.
         </p>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">How to connect CallRail</h3>
+        {/* Tracking numbers from us first (no CallRail account), then CallRail for those who have it. */}
+        {ownNumbers && <TrackingLines />}
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">{ownNumbers ? 'Already use CallRail? Connect it instead' : 'How to connect CallRail'}</h3>
         <ol className="list-decimal pl-5 space-y-1 text-sm text-gray-700 dark:text-slate-300">
           <li>In your CallRail account, create a tracking number for each place you advertise, forwarding to your business line.</li>
           <li>In CallRail’s webhook settings, add the webhook address shown below, so each finished call is sent here.</li>

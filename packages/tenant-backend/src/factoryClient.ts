@@ -37,6 +37,10 @@ interface FullFactoryApiClient extends FactoryApiClient {
   submitTextingRegistration(details: Record<string, unknown>): Promise<any>
   refreshTextingRegistration(): Promise<any>
   resendTextingConfirmation(): Promise<any>
+  // Call tracking numbers Twomiah sells (Factory services/callTrackingNumbers.ts): the business's numbers, a new one, one given back.
+  listTrackingLines(): Promise<{ monthlyCents: number; subscribed: boolean; lines: Array<{ sid: string; phoneNumber: string; label: string; forwardTo: string | null; boughtAt: string }> }>
+  buyTrackingLine(req: { label: string; forwardTo: string; areaCode?: string; voiceUrl: string; statusUrl: string; returnUrl: string }): Promise<{ line?: { sid: string; phoneNumber: string; label: string; forwardTo: string | null }; checkoutUrl?: string }>
+  releaseTrackingLine(sid: string): Promise<{ success: boolean }>
 }
 
 function env(name: string): string {
@@ -163,6 +167,15 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     },
     async resendTextingConfirmation() {
       return call('POST', '/api/v1/factory/internal/messaging/self/' + env('TENANT_ID') + '/registration/resend', {})
+    },
+    async listTrackingLines() {
+      return call('GET', '/api/v1/factory/internal/calltracking/self/' + env('TENANT_ID') + '/numbers')
+    },
+    async buyTrackingLine(req) {
+      return call('POST', '/api/v1/factory/internal/calltracking/self/' + env('TENANT_ID') + '/numbers', req)
+    },
+    async releaseTrackingLine(sid) {
+      return call('POST', '/api/v1/factory/internal/calltracking/self/' + env('TENANT_ID') + '/numbers/' + encodeURIComponent(sid) + '/release', {})
     },
   }
 }

@@ -66,6 +66,7 @@ import { createCompletionGate } from '../crm/field/checklistRoutes.ts'
 import { attachedChecklistFiles } from '../crm/field/checklistLife.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
+import { createTrackingLineRoutes } from '../crm/comms/trackingLines.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH, pictureToken } from '../crm/comms/smsMedia.ts'
 import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
@@ -589,6 +590,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/messaging-billing', access: 'user', router: messagingBilling },
     // Texting from the business's own registered number (crm/comms/texting.ts).
     { path: '/api/texting', access: 'user', router: createTextingRoutes(own, factoryApiClient) },
+    // Call tracking numbers Twomiah sells (crm/comms/trackingLines.ts; the Factory buys and bills them). Not ready.
+    { path: '/api/calltracking-lines', access: 'user', feature: 'call_tracking_numbers', router: createTrackingLineRoutes(own, factoryApiClient) },
     // Pictures in texts (crm/comms/smsMedia.ts): the signed-link door is public (the carrier has no sign-in); its router
     // signs everyone else in and asks Two-Way Texting itself. Scheduled texts are Two-Way Texting's (comms/scheduledTexts.ts).
     { path: SMS_MEDIA_PATH, access: 'public', router: createSmsMediaRoutes(own) },

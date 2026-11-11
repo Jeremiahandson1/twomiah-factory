@@ -19,7 +19,18 @@ export function fakeStore(seed: Record<string, Row[]> = {}) {
     const within: Array<[string, any[]]> = []
     const atLeast: Array<[string, any]> = []
     const below: Array<[string, any]> = []
+    const nulls: Array<[string, any]> = []
+    // .or('a.is.null,b.gte.X'): any one of them (the two forms the Factory uses)
+    const anyOf: Array<Array<(r: Row) => boolean>> = []
+    const cond = (part: string): ((r: Row) => boolean) => {
+      const [k, opName, ...rest] = part.split('.'); const v = rest.join('.')
+      if (opName === 'is' && v === 'null') return (r) => r[k] === null || r[k] === undefined
+      if (opName === 'gte') return (r) => r[k] != null && r[k] >= v
+      if (opName === 'eq') return (r) => String(r[k]) === v
+      throw new Error('fakeStore: or() does not know ' + part)
+    }
     const match = (r: Row) => where.every(([k, v]) => r[k] === v) && within.every(([k, vs]) => vs.includes(r[k])) && atLeast.every(([k, v]) => r[k] >= v) && below.every(([k, v]) => r[k] < v)
+      && nulls.every(([k, v]) => (r[k] ?? null) === v) && anyOf.every((g) => g.some((f) => f(r)))
     const run = (): { data: any; error: any } => {
       if (op === 'insert') return { data: inserted, error: null }
       if (op === 'delete') {
@@ -65,6 +76,8 @@ export function fakeStore(seed: Record<string, Row[]> = {}) {
       in: (k: string, vs: any[]) => { within.push([k, vs]); return q },
       gte: (k: string, v: any) => { atLeast.push([k, v]); return q },
       lt: (k: string, v: any) => { below.push([k, v]); return q },
+      is: (k: string, v: any) => { nulls.push([k, v]); return q },
+      or: (expr: string) => { anyOf.push(expr.split(',').map(cond)); return q },
       order: (k: string, o: { ascending?: boolean } = {}) => { order = [k, o.ascending !== false]; return q },
       limit: (x: number) => { limit = x; return q },
       single: async () => { const { data } = run(); const r = Array.isArray(data) ? data[0] : data; return r ? { data: { ...r }, error: null } : { data: null, error: { code: 'PGRST116', message: 'no row' } } },

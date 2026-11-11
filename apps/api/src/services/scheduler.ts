@@ -31,6 +31,8 @@ const JOBS: JobConfig[] = [
   { name: 'booking-review-requests', path: '/api/v1/factory/internal/booking-review-requests', schedule: { dailyAtUtcHour: 16 } },
   // A2P vetting advances over hours–days; poll hourly.
   { name: 'a2p-poll', path: '/api/v1/factory/internal/a2p/poll', schedule: 'hourly' },
+  // Each tracking number's finished calls, charged to the wallet at Twilio's price, once (services/callTrackingNumbers.ts).
+  { name: 'calltrack-bill', path: '/api/v1/factory/internal/calltracking/bill', schedule: 'hourly' },
   // Tenants' branded addresses onto Cloudflare once their domain is active (services/emailAliasSync.ts).
   { name: 'email-alias-sweep', path: '/api/v1/factory/internal/email-alias-sweep', schedule: 'hourly' },
   { name: 'messaging-low-balance-nudge', path: '/api/v1/factory/internal/messaging/low-balance-nudge', schedule: { dailyAtUtcHour: 15 } },
