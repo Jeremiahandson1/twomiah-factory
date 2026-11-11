@@ -212,7 +212,7 @@ describe('5. Call Tracking explains itself until something is connected', () => 
   test('with none of them, the page is the setup explanation and the CallRail panel, not an empty log', () => {
     const src = read('web/src/crm/pages/CallTrackingPage.tsx')
     expect(src).toContain('const notConnected = !!setup && setup.numbers === 0 && setup.calls === 0 && !setup.keySet;')
-    expect(src).toContain('if (notConnected) return <CallTrackingSetup maySetUp={maySetUp} />;')
+    expect(src).toContain('if (notConnected) return <CallTrackingSetup maySetUp={maySetUp} ownNumbers={ownNumbers} />;')
     expect(src).toMatch(/function CallTrackingSetup[\s\S]*?<CallTrackingSettings \/>/)
   })
 })
