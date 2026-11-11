@@ -153,7 +153,7 @@ export interface PortalDeps {
    * Book a visit online from the portal (parity tier 2 #5 — the unified app's online booking): the booking pages' address for this
    * customer (their details filled in from the portal), and the bookings they have coming. Optional: no such section without it.
    */
-  bookOnline?: { bookUrl: (portalToken: string) => string; list: (companyId: string, contactId: string) => Promise<unknown[]> }
+  bookOnline?: { bookUrl: (portalToken: string) => string; list: (companyId: string, contactId: string) => Promise<unknown[]>; open?: (companyId: string) => Promise<boolean> }
   authenticate: any
   requirePermission: (permission: string) => any
   /** emailService.send — templates: portalInvite, collaboratorAction. */
@@ -682,6 +682,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     }
     out.appointments = appointmentsConfigured && enabled.includes('portal_appointments')
     out.account = out.appointments && !!o.appointments?.salon?.account
+    // Book a visit: only once the business can be booked (deps.bookOnline.open — booking on, a service to book). A failed
+    // lookup keeps it, as a failed feature lookup does above.
+    if (out.bookOnline && deps.bookOnline?.open) out.bookOnline = await deps.bookOnline.open(companyId).catch(() => true)
     return out
   }
   /** Taking a module out of the nav has to close its endpoints too — hiding a module used to leave its API wide open (#167). */
