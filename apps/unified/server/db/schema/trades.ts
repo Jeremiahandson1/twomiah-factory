@@ -48,10 +48,28 @@ export const jobPhoto = pgTable('job_photo', {
   // original is never changed; one original has at most one marked copy, kept beside it.
   sourcePhotoId: text('source_photo_id'),
   markup: json('markup'),
+  /** A folder the job's people named (job_photo_folder); null when it is in a standard one (photo_type) or none. */
+  folderId: text('folder_id').references(() => jobPhotoFolder.id, { onDelete: 'set null' }),
 }, (t) => [
   index('job_photo_company_id_idx').on(t.companyId),
   index('job_photo_job_id_idx').on(t.jobId),
   uniqueIndex('job_photo_source_photo_id_uniq').on(t.sourcePhotoId),
+  index('job_photo_folder_id_idx').on(t.folderId),
+])
+
+/**
+ * A photo folder a job's people named themselves ("Attic", "Panel upgrade" — Buildertrend's and CompanyCam's own folders), beside
+ * the standard ones (job_photo.photo_type). It stays while empty; deleting it leaves its photos on the job, in no folder.
+ */
+export const jobPhotoFolder = pgTable('job_photo_folder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_photo_folder_company_id_idx').on(t.companyId),
+  uniqueIndex('job_photo_folder_job_name_uniq').on(t.jobId, t.name),
 ])
 
 export const portalSession = pgTable('portal_session', {

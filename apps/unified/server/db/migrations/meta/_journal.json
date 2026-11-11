@@ -771,6 +771,13 @@
       "when": 1794373448456,
       "tag": "0109_parity_tier2_3",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1794412620670,
+      "tag": "0110_job_photo_folders",
+      "breakpoints": true
     }
   ]
 }

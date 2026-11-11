@@ -38,6 +38,13 @@ export interface ScheduleConfig {
    * Day view, are drawn greyed — still droppable, just not where the business normally works. Absent: nothing is muted.
    */
   businessHours?: ScheduleBusinessHours | null
+  /**
+   * On the person lanes, while a job is moved: whether each person has the skills its kind needs, the best fits named first
+   * (skill_matching — ServiceTitan's recommended technicians; GET /api/skills). Off: nothing asked, nothing shown.
+   */
+  skills?: boolean
+  /** A zone picker: one service zone's jobs, and the lanes of the techs who work it (service_zones; GET /api/service-zones). */
+  zones?: boolean
 }
 /** One day of opening hours, as Settings › Company stores them (tenant-backend company/businessHours.ts). */
 export interface ScheduleDayHours { open?: string; close?: string; closed?: boolean }
@@ -65,6 +72,8 @@ export function resolveScheduleConfig(c?: ScheduleConfig) {
     routes: !!cfg.routes,
     meId: cfg.meId || null,
     businessHours: cfg.businessHours || null,
+    skills: !!cfg.skills,
+    zones: !!cfg.zones,
   }
 }
 
@@ -72,7 +81,7 @@ export interface SchedulePageProps { api: ScheduleApi; toast: ScheduleToast; con
 
 /** A person on a job, as GET /api/jobs joins them (tenant-backend jobs.ts withRelations): the lead first. */
 export interface ScheduleAssignee { id: string; name?: string | null; firstName?: string | null; lastName?: string | null; kind?: 'user' | 'member'; lead?: boolean }
-export interface ScheduleJob { id: string; title: string; status: string; scheduledDate?: string | null; scheduledTime?: string | null; contact?: { name: string } | null; number?: string | null; assignedToId?: string | null; assignedToMemberId?: string | null; assignees?: ScheduleAssignee[] }
+export interface ScheduleJob { id: string; title: string; status: string; scheduledDate?: string | null; scheduledTime?: string | null; contact?: { name: string } | null; number?: string | null; assignedToId?: string | null; assignedToMemberId?: string | null; assignees?: ScheduleAssignee[]; jobType?: string | null; zip?: string | null }
 /** One shape for both booking sources: the CRM's own online bookings (scheduledDate) and the premium website's (startAt). */
 /** `calendarId` is the job (or appointment) this booking became, when it became one — see below. */
 export interface ScheduleBooking { id: string; startAt: string; status: string; customerName: string; serviceName?: string | null; customerAddress?: string | null; calendarId?: string | null; source: 'crm' | 'website' }

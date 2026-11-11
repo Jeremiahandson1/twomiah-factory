@@ -218,7 +218,7 @@ export function Schedule() {
   // A lane per person and "Optimise route" where the jobs carry people (2026-10-24): every vertical with jobs but roofing,
   // whose work is booked to crews (assignedCrewId), not to people.
   const people = hasFeature('jobs') && !isRoofing
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => (woJobs.has(String(b.id)) ? `/crm/jobs/${woJobs.get(String(b.id))}` : `/crm/bookings/${b.id}`), events: !!v().schedule?.events || hasFeature('lead_site_visit'), eventTypes: !v().schedule?.events && hasFeature('lead_site_visit') ? SITE_VISIT_TYPES : undefined, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours }} />
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => (woJobs.has(String(b.id)) ? `/crm/jobs/${woJobs.get(String(b.id))}` : `/crm/bookings/${b.id}`), events: !!v().schedule?.events || hasFeature('lead_site_visit'), eventTypes: !v().schedule?.events && hasFeature('lead_site_visit') ? SITE_VISIT_TYPES : undefined, lanes: people, routes: people, meId: (user as any)?.id ?? null, businessHours, skills: hasFeature('skill_matching'), zones: hasFeature('service_zones') }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 // A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are
