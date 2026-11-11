@@ -12,6 +12,7 @@ interface View {
   techName: string
   state: 'on_the_way' | 'arrived' | 'over'
   tech: { lat: number; lng: number; minutesAgo: number } | null
+  etaMinutes?: number | null
   destination: { lat: number; lng: number } | null
 }
 type L = typeof Leaflet
@@ -92,6 +93,7 @@ export default function TechOnTheWayPage() {
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">{view.techName} is on the way</h1>
                 {view.tech
                   ? <>
+                      {view.etaMinutes != null && <p className="mt-1 text-lg font-medium text-gray-900 dark:text-slate-100">{view.etaMinutes <= 1 ? 'Almost there' : `About ${view.etaMinutes} minutes away`}</p>}
                       <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">Location updated {ago(view.tech.minutesAgo)}. This page updates by itself.</p>
                       <TechMap tech={view.tech} destination={view.destination} />
                     </>

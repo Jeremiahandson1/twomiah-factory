@@ -6,6 +6,8 @@
 //   · a task added since the baseline is "new", one removed since is "removed";
 //   · the project: the plan's last finish against today's last finish.
 //
+//   GET    /report                     projects:read     every project with a baseline, plan against now (the company-wide
+//                                                        baseline report): finish slip, tasks late / early / new / removed
 //   GET    /:projectId                 projects:read     the project's baselines, newest first
 //   POST   /:projectId                 projects:update   { name? } — save the schedule as it is now
 //   GET    /:projectId/compare         projects:read     ?baselineId= (default: the newest) — plan against now
@@ -84,6 +86,32 @@ export function createBaselineRoutes(d: CrmDeps) {
       plans[b.projectId] = Object.fromEntries(((b.taskSnapshots || []) as Snap[]).map((t) => [t.taskId, { start: iso(t.startDate), end: iso(t.endDate) }]))
     }
     return one(c, { plans })
+  })
+
+  // The company-wide report (Buildertrend's baseline report): each project's newest baseline against its schedule now.
+  app.get('/report', requirePermission('projects:read'), async (c) => {
+    const companyId = c.get('user').companyId
+    const bases = await db.select().from(projectBaseline).where(eq(projectBaseline.companyId, companyId)).orderBy(desc(projectBaseline.createdAt), desc(projectBaseline.id))
+    const newest = new Map<string, any>()
+    for (const b of bases as any[]) if (!newest.has(b.projectId)) newest.set(b.projectId, b)
+    const ids = [...newest.keys()]
+    if (!ids.length) return one(c, { projects: [] })
+    const projects = await db.select({ id: project.id, name: project.name, number: project.number, status: project.status }).from(project).where(and(eq(project.companyId, companyId), inArray(project.id, ids)))
+    const tasks = await db.select().from(projectTask).where(and(eq(projectTask.companyId, companyId), inArray(projectTask.projectId, ids))).orderBy(asc(projectTask.startDate), asc(projectTask.createdAt))
+    const rows = (projects as any[]).map((p) => {
+      const b = newest.get(p.id)
+      const now: Snap[] = (tasks as any[]).filter((t) => t.projectId === p.id).map((t) => ({ taskId: t.id, name: t.name, startDate: t.startDate ? new Date(t.startDate).toISOString() : null, endDate: t.endDate ? new Date(t.endDate).toISOString() : null }))
+      const cmp = compareSchedules(Array.isArray(b.taskSnapshots) ? b.taskSnapshots : [], now)
+      const kept = cmp.rows.filter((r) => r.state !== 'new' && r.state !== 'removed')
+      return {
+        projectId: p.id, name: p.name, number: p.number ?? null, status: p.status ?? null,
+        baseline: { id: b.id, name: b.name, createdAt: new Date(b.createdAt).toISOString() },
+        planFinish: cmp.planFinish, nowFinish: cmp.nowFinish, finishSlip: cmp.projectFinishSlip,
+        late: kept.filter((r) => (r.finishSlip ?? 0) > 0).length, early: kept.filter((r) => (r.finishSlip ?? 0) < 0).length,
+        added: cmp.rows.filter((r) => r.state === 'new').length, removed: cmp.rows.filter((r) => r.state === 'removed').length,
+      }
+    }).sort((a, b) => (b.finishSlip ?? 0) - (a.finishSlip ?? 0) || a.name.localeCompare(b.name))
+    return one(c, { projects: rows })
   })
 
   app.get('/:projectId', requirePermission('projects:read'), async (c) => {

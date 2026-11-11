@@ -6,10 +6,13 @@
 //   · The position is the newest the tech's phone sent (POST /api/geofencing/location — only when the tech switched on "Share my
 //     location while working") within FRESH_MINUTES; older, or none, and the page says they are on the way without a map. The lead
 //     on the job if they have a login, else the first person on the crew who does (a roster member has no phone to send one).
+//   · How far off they are: the drive from the tech's position to the job's map point, the same estimate the schedule uses for
+//     travel between jobs (tenant-backend jobs/travel.ts travelMinutes — straight line at 30 mph), shown as "about N minutes".
 // Public, no sign-in: the token is the key, and it opens one visit's arrival and nothing else of the customer's.
 import crypto from 'node:crypto'
 import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, isNotNull } from 'drizzle-orm'
+import { travelMinutes } from '@twomiah/tenant-backend'
 import { company, job, jobAssignee, locationLog, teamMember, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -52,6 +55,8 @@ export interface TrackView {
   tech: { lat: number; lng: number; minutesAgo: number } | null
   /** Where the job is, when it has a map point. */
   destination: { lat: number; lng: number } | null
+  /** About how many minutes' drive the tech is from the job (both on the map), else null. */
+  etaMinutes: number | null
 }
 
 export function createTechTrack(d: CrmDeps) {
@@ -93,7 +98,8 @@ export function createTechTrack(d: CrmDeps) {
       if (fix) tech = { lat: Number(fix.lat), lng: Number(fix.lng), minutesAgo: Math.max(0, Math.round((now.getTime() - new Date(fix.at).getTime()) / 60_000)) }
     }
     const destination = state !== 'over' && j.lat != null && j.lng != null ? { lat: Number(j.lat), lng: Number(j.lng) } : null
-    return { companyName: co?.name || '', techName: who.name, state, tech, destination }
+    const etaMinutes = tech && destination ? travelMinutes({ lat: tech.lat, lng: tech.lng }, { lat: destination.lat, lng: destination.lng }) : null
+    return { companyName: co?.name || '', techName: who.name, state, tech, destination, etaMinutes }
   }
 
   /** /api/tech-track/:token — the page's one call (it asks again every 30 seconds while the tech is on the way). */

@@ -95,6 +95,8 @@ interface DispatchJob {
   assignees?: JobAssignee[];
   // The list joins the contact as { id, name } only.
   contact?: { id: string; name?: string | null } | null;
+  /** The kind of job (skill matching reads what it needs). */
+  jobType?: string | null;
 }
 
 /** A row of GET /api/team/assignable. */
@@ -135,6 +137,21 @@ export default function DispatchBoard() {
   const [zones, setZones] = useState<Array<{ id: string; name: string; zips: string[]; color: string; techIds?: string[] }>>([]);
   const [zoneShown, setZoneShown] = useState('');
   useEffect(() => { if (zonesOn) api.get('/api/service-zones').then((r: any) => setZones(r?.zones || [])).catch(() => setZones([])); }, [zonesOn]);
+  // Skill matching (skill_matching, not ready — ServiceTitan's recommended technicians): while a job is being moved, each lane
+  // says whether that person has the skills its kind needs, and the people who do are named first (server data/skills.ts).
+  const skillsOn = hasFeature('skill_matching');
+  const [skillData, setSkillData] = useState<{ people: Record<string, string[]>; needs: Record<string, string[]> } | null>(null);
+  const [skillJob, setSkillJob] = useState<DispatchJob | null>(null);
+  useEffect(() => {
+    if (!skillsOn) return;
+    const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, ' ');
+    api.get('/api/skills').then((r: any) => setSkillData({
+      people: Object.fromEntries((r?.people || []).map((p: any) => [p.personId, (p.skills || []).map(norm)])),
+      needs: Object.fromEntries((r?.jobTypes || []).map((t: any) => [norm(t.jobType), (t.skills || [])])),
+    })).catch(() => setSkillData(null));
+  }, [skillsOn]);
+  const neededFor = (j: DispatchJob | null) => (j?.jobType && skillData ? skillData.needs[j.jobType.trim().toLowerCase().replace(/\s+/g, ' ')] || [] : []);
+  const missingFor = (personId: string, needed: string[]) => needed.filter((n) => !(skillData?.people[personId] || []).includes(n.trim().toLowerCase().replace(/\s+/g, ' ')));
   const zoneOf = (j: { zip?: string | null }) => { const k = String(j.zip ?? '').trim().toUpperCase().replace(/^(\d{5})-\d{4}$/, '$1'); return k ? zones.find((z) => z.zips.includes(k)) ?? null : null; };
   // …and, with it, each person's shifts as bars on a time axis (regular, on call and time off apart — ServiceTitan's board).
   const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string; bars: ShiftBar[] }>>({});
@@ -260,7 +277,7 @@ export default function DispatchBoard() {
    */
   const moveTo = async (to: string) => {
     const picked = dragging.current || moving;
-    dragging.current = null; setMoving(null); setOverLane(null);
+    dragging.current = null; setMoving(null); setOverLane(null); setSkillJob(null);
     if (!picked) return;
     const body: Record<string, unknown> | null = laneMoveBody(picked.job, picked.from, to);
     if (!body) return;
@@ -364,10 +381,22 @@ export default function DispatchBoard() {
         <StatCard icon={CheckCircle} label="Completed" value={completed.length} color="green" />
       </div>
 
+      {skillJob && neededFor(skillJob).length > 0 && (() => {
+        const needed = neededFor(skillJob);
+        const ranked = lanes.filter((l) => l.id !== UNASSIGNED).map((l) => ({ lane: l, missing: missingFor(l.id, needed), load: jobsIn(l.id).length }))
+          .sort((a, b) => a.missing.length - b.missing.length || a.load - b.load || a.lane.name.localeCompare(b.lane.name));
+        return (
+          <p data-testid="skill-ranking" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <span className="font-semibold">{skillJob.jobType} needs {needed.join(', ')}.</span>{' '}
+            Best fit: {ranked.map((r, i) => <span key={r.lane.id}>{i ? ', ' : ''}{r.lane.name}{r.missing.length ? ` (missing ${r.missing.join(', ')})` : ' ✓'}</span>)}
+          </p>
+        );
+      })()}
+
       {moving && (
         <div role="status" data-testid="move-banner" className="sticky top-0 z-20 flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900 shadow-sm dark:border-orange-500/50 dark:bg-orange-950/60 dark:text-orange-100">
           <span className="min-w-0"><span className="font-semibold">Moving “{moving.job.contact?.name || moving.job.title}”</span> — tap a person's lane to put it there.</span>
-          <button type="button" onClick={() => setMoving(null)} className="shrink-0 inline-flex items-center gap-1 rounded border border-orange-300 px-2 py-1 text-orange-900 hover:bg-orange-100 dark:border-orange-500/50 dark:text-orange-100 dark:hover:bg-orange-900/40"><X className="w-3.5 h-3.5" />Cancel</button>
+          <button type="button" onClick={() => { setMoving(null); setSkillJob(null); }} className="shrink-0 inline-flex items-center gap-1 rounded border border-orange-300 px-2 py-1 text-orange-900 hover:bg-orange-100 dark:border-orange-500/50 dark:text-orange-100 dark:hover:bg-orange-900/40"><X className="w-3.5 h-3.5" />Cancel</button>
         </div>
       )}
 
@@ -392,6 +421,12 @@ export default function DispatchBoard() {
                       <h2 className="font-semibold text-gray-900 dark:text-white truncate">{lane.name}</h2>
                       <span className="ml-auto text-sm text-gray-600 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-300">{here.length}</span>
                     </div>
+                    {skillJob && lane.id !== UNASSIGNED && neededFor(skillJob).length > 0 && (() => {
+                      const missing = missingFor(lane.id, neededFor(skillJob));
+                      return missing.length
+                        ? <p data-skill="missing" className="mb-2 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Missing {missing.join(', ')}</p>
+                        : <p data-skill="has" className="mb-2 rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-900 dark:bg-green-900/40 dark:text-green-100">Has the skills</p>;
+                    })()}
                     {away[lane.id] && (
                       <p data-away={away[lane.id].state} className={`mb-2 rounded px-2 py-1 text-xs font-medium ${away[lane.id].state === 'off' ? 'bg-gray-200 text-gray-800 dark:bg-slate-700 dark:text-slate-100' : away[lane.id].state === 'part' ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100' : 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300'}`}>
                         {away[lane.id].state === 'hours' ? `Works ${away[lane.id].label}` : away[lane.id].label}
@@ -418,9 +453,9 @@ export default function DispatchBoard() {
                           mayDispatch={mayDispatch}
                           moving={moving?.job.id === job.id}
                           picking={!!moving}
-                          onDragStart={() => { dragging.current = { job, from: lane.id }; }}
-                          onDragEnd={() => { dragging.current = null; setOverLane(null); }}
-                          onMove={() => setMoving({ job, from: lane.id })}
+                          onDragStart={() => { dragging.current = { job, from: lane.id }; if (skillsOn) setSkillJob(job); }}
+                          onDragEnd={() => { dragging.current = null; setOverLane(null); setSkillJob(null); }}
+                          onMove={() => { setMoving({ job, from: lane.id }); if (skillsOn) setSkillJob(job); }}
                           onStatusChange={handleStatusChange}
                         />
                       ))}

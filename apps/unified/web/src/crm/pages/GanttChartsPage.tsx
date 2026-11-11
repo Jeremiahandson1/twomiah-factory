@@ -13,6 +13,7 @@ import { BarChart3, Plus, Trash2, Link2, X } from 'lucide-react'
 import { api } from '../../api'
 import { usePermissions, useToast, useConfirm, useAuth, PageLoading } from '../../shared'
 import { ScheduleBaselinePanel } from './ScheduleBaselinePanel'
+import { BaselineReport } from './BaselineReport'
 
 interface GanttTask {
   id: string;
@@ -92,6 +93,7 @@ export default function GanttChartsPage() {
   const [baselineFor, setBaselineFor] = useState<string | null>(null);
   // Ghost bars: each task's newest baseline dates drawn faintly under its bar, while "Show baseline" is ticked.
   const [showGhosts, setShowGhosts] = useState(true);
+  const [showReport, setShowReport] = useState(false);
   const [ghosts, setGhosts] = useState<Record<string, Record<string, { start: string | null; end: string | null }>>>({});
   useEffect(() => {
     if (!baselineOn || !projects.length) return;
@@ -261,6 +263,14 @@ export default function GanttChartsPage() {
             <input type="checkbox" checked={showGhosts} onChange={(e) => setShowGhosts(e.target.checked)} />
             Show baseline (the grey line under each task is where it was planned)
           </label>
+        )}
+        {baselineOn && (
+          <div className="mt-2">
+            <button type="button" aria-expanded={showReport} onClick={() => setShowReport(!showReport)} className="text-sm font-medium text-orange-700 underline dark:text-orange-300">
+              {showReport ? 'Hide' : 'Show'} every project against its baseline
+            </button>
+            {showReport && <BaselineReport />}
+          </div>
         )}
       </div>
 

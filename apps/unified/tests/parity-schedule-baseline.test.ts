@@ -67,6 +67,20 @@ test("the chart's ghost bars: each task's newest planned dates", async () => {
   expect(r.body.plans[proj][frame]).toEqual({ start: '2026-12-01', end: '2026-12-05' })
 })
 
+test('the company-wide report: each project with a baseline, its finish slip and tasks late, early, added and taken out', async () => {
+  // A second project, on plan.
+  const deck = ((await (t.db as any).insert(t.schema.project).values({ companyId, number: 'PRJ-2', name: 'Deck' }).returning())[0]).id
+  await (t.db as any).insert(t.schema.projectTask).values({ companyId, projectId: deck, name: 'Posts', startDate: at('2026-12-01'), endDate: at('2026-12-02') })
+  await call(`/api/project-baselines/${deck}`, { method: 'POST', json: {} })
+  // A third with no baseline is not in it.
+  await (t.db as any).insert(t.schema.project).values({ companyId, number: 'PRJ-3', name: 'Porch' })
+  const r = await json(await call('/api/project-baselines/report'))
+  expect(r.status).toBe(200)
+  expect(r.body.projects.map((p: any) => p.name)).toEqual(['Kitchen', 'Deck'])
+  expect(r.body.projects[0]).toMatchObject({ finishSlip: 2, late: 2, early: 0, added: 1, removed: 1, planFinish: '2026-12-14', nowFinish: '2026-12-16' })
+  expect(r.body.projects[1]).toMatchObject({ finishSlip: 0, late: 0, added: 0, removed: 0 })
+})
+
 test("another company's project is not found; switched off, closed", async () => {
   expect((await call('/api/project-baselines/not-a-project/compare')).status).toBe(404)
   await t.db.update(t.schema.company).set({ enabledFeatures: ['projects', 'gantt_charts'] } as any).where(eq(t.schema.company.id, companyId))

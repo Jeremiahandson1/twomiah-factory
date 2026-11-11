@@ -82,6 +82,12 @@ test('on my way: the text carries the link; the page follows the tech, then says
   await ins(t.schema.locationLog, { companyId, userId: tia, lat: 43.07, lng: -89.4, timestamp: new Date(Date.now() - 2 * 60_000) })
   v = await page(token)
   expect(v.body.tech).toMatchObject({ lat: 43.07, lng: -89.4, minutesAgo: 2 })
+  expect(v.body.etaMinutes).toBeNull() // the job is not on the map: no estimate
+  // On the map ~8 km off: about 10 minutes at the schedule's 30 mph.
+  await t.db.update(t.schema.job).set({ lat: 43.07, lng: -89.3 } as any).where(eq(t.schema.job.id, j.id))
+  v = await page(token)
+  expect(v.body.etaMinutes).toBeGreaterThanOrEqual(9)
+  expect(v.body.etaMinutes).toBeLessThanOrEqual(11)
 
   // Started: arrived, and the position is no longer given.
   expect((await call('owner', `/api/jobs/${j.id}/start`, { method: 'POST', json: {} })).status).toBe(200)
