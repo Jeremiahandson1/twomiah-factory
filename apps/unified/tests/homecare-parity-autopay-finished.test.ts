@@ -407,7 +407,9 @@ describe('charges the office schedules for a later day, as a whole or in parts',
 
 describe('a warning before the card expires, and reminders after "the bank needs the owner"', () => {
   test('a card expiring within 30 days is warned about once, by email to the family and a notice to the office; one far off is not', async () => {
-    const soon = new Date(Date.now() + 20 * 86_400_000)
+    // A card that expires THIS month: its last day is always within the 30 days (the rule counts the expiry month's last day). "20 days
+    // from now" landed in next month after about the 10th, whose end is up to 50 days off, so the test failed on most days (11/11).
+    const soon = new Date()
     await t.db.update(t.schema.clientAutopay).set({ expMonth: soon.getUTCMonth() + 1, expYear: soon.getUTCFullYear(), expiryWarnedFor: null } as any).where(eq(t.schema.clientAutopay.clientId, clientId))
     sent.length = 0
     expect(await core().autopay.scanExpiringCards()).toBe(1)
