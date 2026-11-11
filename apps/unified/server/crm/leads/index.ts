@@ -8,11 +8,14 @@ import type { CrmDeps } from '../deps.ts'
 import { createLeadLostRoutes } from './leadLost.ts'
 import { createLeadSiteVisitRoutes } from './leadSiteVisit.ts'
 import { createLeadPipelineRoutes } from './leadPipeline.ts'
+import { createLeadMapRoutes } from './leadMap.ts'
 
 export function leadMounts(d: CrmDeps): Mount[] {
   return [
     { path: '/api/lead-lost', access: 'user', feature: 'lead_lost', router: createLeadLostRoutes(d) },
     { path: '/api/lead-site-visit', access: 'user', feature: 'lead_site_visit', router: createLeadSiteVisitRoutes(d) },
     { path: '/api/lead-pipeline', access: 'user', feature: 'lead_pipeline', router: createLeadPipelineRoutes(d) },
+    // The enquiries on a map, each place looked up once with Google's geocoder (./leadMap.ts).
+    { path: '/api/lead-map', access: 'user', feature: 'lead_map', router: createLeadMapRoutes(d) },
   ]
 }

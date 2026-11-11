@@ -32,7 +32,7 @@ export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports', '
 // and the storm leads under the field tools, where a roofer never looked (live test 2026-10-22).
 // Roofing's own items that are not the home go here too: an item of roofing's own left off this list was in no list at all, so
 // Card payments and Permits never reached the menu with their switches on (roofing live test 2026-11-07).
-const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/permits', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/card-payments', '/crm/adjusters', '/crm/insurance-follow-ups']
+const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/permits', '/crm/contacts', '/crm/leads', '/crm/lead-map', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/card-payments', '/crm/adjusters', '/crm/insurance-follow-ups']
 // …and its field tools under their own heading.
 // Territories and the Storm Map (where Check NOAA now and the hail swaths are) were on neither list, so they never reached the menu
 // (roofing live test 11/07: no NOAA button, no hail-swath control found).
