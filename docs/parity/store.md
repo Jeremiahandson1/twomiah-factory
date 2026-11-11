@@ -71,7 +71,7 @@ The owner's paste of Shopify's "Compare features across plans" (Basic / Grow / A
 | **Carrier rates at checkout** ("3rd-party calculated shipping rates", Advanced and Plus) | the owner sees live EasyPost rates when buying a label (`orders/shipping.ts` GET /orders/:id/rates); checkout charges the flat or zone rate | partly | the same EasyPost `getRates`, asked at checkout for the shopper's address |
 | **Sell globally**: prices in local currencies, translated storefront, duties | one currency per shop, English | not built | — (only for shops selling abroad) |
 | **Marketplace orders** (Amazon, eBay, Etsy imported) | none; Google and Meta product feeds exist (`checkout/feeds.ts`) | not built | each marketplace's seller approval — outside party first |
-| 200+ reports | the core reports (row 1 above): sales over time, by product, variant, discount code, profit, repeat customers, CSV | partly | the shared report builder (home care row 12) |
+| 200+ reports | the core reports (row 1 above): sales over time, by product, variant, discount code, profit, repeat customers, CSV; built 11/10, hidden (`store_report_schedules`): any of them saved by period name and emailed as a CSV weekly or monthly, on the shared saved-reports machinery (`crm/store/orders/savedSalesReports.ts`, `tests/parity-store-report-schedules.test.ts`) | partly |
 | Shopify Balance, Capital, Credit card, Bill Pay; Shop Pay network; Collective; Shopify Audiences | — | outside party | Shopify's own banking and network |
 
 Where we are ahead on the chart: no platform fee on the shop's payments (the store's code adds no application fee — the shop

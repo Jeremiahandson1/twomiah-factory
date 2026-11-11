@@ -25,6 +25,7 @@ import { mayMove } from './rules.ts'
 import { createDraftOrderRoutes } from './draftOrders.ts'
 import { createDisputeRoutes } from './disputes.ts'
 import { createSalesReportRoutes } from './reports.ts'
+import { createStoreSavedReports } from './savedSalesReports.ts'
 import { createStoreBooks } from '../books.ts'
 import { createStoreReturns } from '../returns/returns.ts'
 import { createReturnRoutes } from '../returns/routes.ts'
@@ -49,6 +50,10 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
   // 2026-10-30, gap 6: paid orders, refunds and Stripe payouts go to QuickBooks in the same sweep as the shared sync (the
   // sweep only runs for a company that has the quickbooks feature on and auto-sync, or a Sync Now).
   const books = createStoreBooks(d, core)
+  // Saved sales reports emailed on a schedule (./savedSalesReports.ts): the pass every 15 minutes, as the field trades' saved reports.
+  const storeSaved = createStoreSavedReports(d)
+  ;(d.services as any).eventJobs.storeSavedReportsPass = (now?: Date) => storeSaved.pass(now)
+  d.services.addJob(() => { setTimeout(() => { void storeSaved.pass() }, 150_000); setInterval(() => { void storeSaved.pass() }, 15 * 60_000) })
   d.services.quickbooksSync.addPass('store', books.pass)
   d.services.addJob(() => {
     const resume = () => refunds.resumePendingRefunds().catch((err: any) => d.logger.error('[orders] refund resume failed', { error: err?.message }))
@@ -72,6 +77,9 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     { path: '/api/admin/draft-orders', access: 'user', router: createDraftOrderRoutes(d, core) },
     { path: '/api/admin/disputes', access: 'user', router: createDisputeRoutes(d) },
     // 2026-10-30, the store's gaps: sales reports (revenue:read), behind store_sales_reports (not ready).
+    // Saved and scheduled sales reports, emailed as CSV (./savedSalesReports.ts), behind store_report_schedules (not ready). Before the
+    // reports' own mount, so /saved is never taken for one of their paths.
+    { path: '/api/admin/sales-reports/saved', access: 'user', feature: 'store_report_schedules', router: storeSaved.routesFor('store_sales') },
     { path: '/api/admin/sales-reports', access: 'user', feature: 'store_sales_reports', router: createSalesReportRoutes(d) },
     // The bank account Stripe's payouts are deposited to in QuickBooks: settings:update, behind quickbooks (opt-in).
     { path: '/api/admin/store-books', access: 'user', feature: 'quickbooks', router: books.routes() },

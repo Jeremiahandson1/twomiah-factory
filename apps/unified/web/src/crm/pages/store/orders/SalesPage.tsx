@@ -11,7 +11,8 @@
 import { useEffect, useState } from 'react'
 import { BarChart3, Download } from 'lucide-react'
 import { api } from '../../../../api'
-import { PageError, errorText } from '../../../../shared'
+import { PageError, errorText, useAuth } from '../../../../shared'
+import { StoreScheduledReports } from './StoreScheduledReports'
 import { cents } from './lib'
 
 interface Point { period: string; orders: number; grossCents: number; refundedCents: number; netCents: number }
@@ -45,6 +46,8 @@ const percent = (n: number) => `${Math.round(n * 100)}%`
 const EXPORTS = [{ report: 'sales', label: 'Sales by day' }, { report: 'products', label: 'Products' }, { report: 'variants', label: 'Variants' }, { report: 'discounts', label: 'Discount codes' }] as const
 
 export default function SalesPage() {
+  // Saved and emailed reports (store_report_schedules, not ready).
+  const schedulesOn = useAuth().hasFeature('store_report_schedules')
   const [range, setRange] = useState<{ from?: string; to?: string }>({})
   const [report, setReport] = useState<Report | null>(null)
   const data = report
@@ -265,6 +268,7 @@ export default function SalesPage() {
           </section>
         </div>
       )}
+      {schedulesOn && <StoreScheduledReports />}
     </div>
   )
 }
