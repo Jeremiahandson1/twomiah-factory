@@ -84,6 +84,7 @@ interface DispatchJob {
   type?: string | null;
   serviceAgreementId?: string | null;
   address?: string | null;
+  zip?: string | null;
   scheduledTime?: string | null;
   estimatedHours?: string | number | null;
   lat?: number | null;
@@ -129,6 +130,12 @@ export default function DispatchBoard() {
   const showAvailability = hasFeature('tech_availability');
   // Days Off on: the business's closed day is asked for (and only then — the switch off, the board asks nothing new).
   const daysOffOn = hasFeature('days_off');
+  // Service zones (service_zones, not ready): each job's zone by its ZIP, and one zone at a time (server crm/field/serviceZones.ts).
+  const zonesOn = hasFeature('service_zones');
+  const [zones, setZones] = useState<Array<{ id: string; name: string; zips: string[]; color: string }>>([]);
+  const [zoneShown, setZoneShown] = useState('');
+  useEffect(() => { if (zonesOn) api.get('/api/service-zones').then((r: any) => setZones(r?.zones || [])).catch(() => setZones([])); }, [zonesOn]);
+  const zoneOf = (j: { zip?: string | null }) => { const k = String(j.zip ?? '').trim().toUpperCase().replace(/^(\d{5})-\d{4}$/, '$1'); return k ? zones.find((z) => z.zips.includes(k)) ?? null : null; };
   // …and, with it, each person's shifts as bars on a time axis (regular, on call and time off apart — ServiceTitan's board).
   const [away, setAway] = useState<Record<string, { state: 'off' | 'part' | 'hours'; label: string; bars: ShiftBar[] }>>({});
   // The business is closed this day (Settings › Days off — a holiday): said above the board; jobs can still be put on it.
@@ -212,7 +219,7 @@ export default function DispatchBoard() {
    * A PARTITION: completed, else in progress, else assigned (Scheduled), else not (Unassigned) — whatever the status.
    * A CANCELLED job is not work on the day — it is off the board altogether, so the tiles add up to the total.
    */
-  const onBoard = jobs.filter(j => j.status !== 'cancelled');
+  const onBoard = jobs.filter(j => j.status !== 'cancelled' && (!zoneShown || (zoneShown === 'none' ? !zoneOf(j) : zoneOf(j)?.id === zoneShown)));
   const completed = onBoard.filter(j => j.status === 'completed');
   const inProgress = onBoard.filter(j => j.status === 'in_progress');
   const scheduled = onBoard.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && crewIdsOf(j).length > 0);
@@ -310,6 +317,13 @@ export default function DispatchBoard() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
+          {zonesOn && zones.length > 0 && (
+            <select aria-label="Zone" value={zoneShown} onChange={(e) => setZoneShown(e.target.value)} className="px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600">
+              <option value="">All zones</option>
+              {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              <option value="none">No zone</option>
+            </select>
+          )}
           <input
             type="date"
             aria-label="Day"
@@ -395,6 +409,7 @@ export default function DispatchBoard() {
                         <DispatchCard
                           key={job.id}
                           job={job}
+                          zone={zonesOn ? zoneOf(job) : null}
                           lane={lane.id}
                           mayUpdate={mayUpdate}
                           mayDispatch={mayDispatch}
@@ -514,8 +529,10 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: { icon: LucideIc
   );
 }
 
-function DispatchCard({ job, lane, mayUpdate, mayDispatch, moving, picking, onDragStart, onDragEnd, onMove, onStatusChange }: {
+function DispatchCard({ job, zone, lane, mayUpdate, mayDispatch, moving, picking, onDragStart, onDragEnd, onMove, onStatusChange }: {
   job: DispatchJob;
+  /** The job's service zone (service_zones), shown as a coloured label. */
+  zone?: { name: string; color: string } | null;
   lane: string;
   mayUpdate: boolean;
   mayDispatch: boolean;
@@ -575,6 +592,7 @@ function DispatchCard({ job, lane, mayUpdate, mayDispatch, moving, picking, onDr
         <p className="text-xs font-medium text-gray-700 dark:text-slate-300">{job.status === 'completed' ? 'Completed' : 'In progress'}</p>
       ) : null}
 
+      {zone && <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-700 dark:text-slate-300"><span className="inline-block h-2 w-2 rounded-full" style={{ background: zone.color }} aria-hidden="true" />{zone.name}</p>}
       {/* Address */}
       {job.address && (
         <div className="flex items-start gap-1 mt-1">
