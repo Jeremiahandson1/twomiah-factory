@@ -34,7 +34,12 @@ export interface StartInput {
   origin: string
   /** A draft order: made by the owner for this customer at their group's prices, paid from the emailed link. */
   draft?: {
-    contactId: string; customerName?: string | null; pricing: GroupPricing | null; note?: string | null
+    contactId: string | null; customerName?: string | null; pricing: GroupPricing | null; note?: string | null
+    /**
+     * A sale at the counter (parity tier 2 #12, Shopify POS; store_counter): paid in person, handed over there and then, a walk-in
+     * needs no customer, and the store's pickup setting does not apply (nothing is collected later). Recorded with source 'counter'.
+     */
+    counter?: boolean
     /**
      * Paid already, in person — cash, a check, a card on the shop's own terminal (Shopify's draft order "Mark as paid"; store live
      * test 11/10: a hand-made order needed a payment provider even for cash). The order is paid when it is made: no link, no
@@ -137,7 +142,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     const provider = await core.getActiveProvider(companyId)
     const settings = await core.settings(companyId)
     const currency = settings.currency ?? 'usd'
-    if (input.delivery === 'pickup' && !settings.pickupEnabled) return refuse(400, 'This store does not offer pickup.', 'no_pickup')
+    if (input.delivery === 'pickup' && !settings.pickupEnabled && !input.draft?.counter) return refuse(400, 'This store does not offer pickup.', 'no_pickup')
 
     // Accelerated checkout: only for a signed-in shopper, on Stripe, with the feature on (see StartInput.fast).
     const stripeFast = !input.draft && provider?.name === 'stripe' && await fast.enabled(companyId)
@@ -260,7 +265,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       subtotalCents, shippingCents, taxCents,
       discountCents: totalDiscountCents, discountCode: appliedCode, loyaltyRewardId, loyaltyDiscountCents,
       totalCents, currency, fulfillment, taxAutomatic: automaticTax,
-      source: input.draft ? 'draft' : 'storefront', customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
+      source: input.draft?.counter ? 'counter' : input.draft ? 'draft' : 'storefront', customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
       internalNote: [input.draft?.note, inPerson ? `Paid in person: ${IN_PERSON_WORDS[inPerson]}` : null].filter(Boolean).join('\n') || null,
       // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout) — not one
       // paid in person.
