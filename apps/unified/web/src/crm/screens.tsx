@@ -28,6 +28,7 @@ import { dashboard as roofDashboard, isRoofing } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
 import TextingPage from './pages/TextingPage'
 import { ContactBookings } from '../booking/ContactBookings'
+import { CustomerCreditPanel } from './pages/CustomerCreditPanel'
 import { scheduleBookingsOf } from '../booking/scheduleBookings'
 import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 import { DocumentAside } from './invoiceAside'
@@ -96,7 +97,10 @@ export function ContactDetail() {
   const { hasFeature, can } = useAuth()
   // The contact's bookings, each in the name its booker typed (booking/ContactBookings.tsx) — where the business takes
   // bookings and the seat may read them, the same gates as the Bookings screen.
-  const panels = hasFeature('online_booking') && can('bookings:read') ? (contactId: string) => <ContactBookings contactId={contactId} /> : undefined
+  const bookings = hasFeature('online_booking') && can('bookings:read')
+  // Customer credit (credit memos, not ready): where credit_memos is on and the seat reads invoices.
+  const credit = hasFeature('credit_memos') && can('invoices:read')
+  const panels = bookings || credit ? (contactId: string) => <>{credit && <CustomerCreditPanel contactId={contactId} />}{bookings && <ContactBookings contactId={contactId} />}</> : undefined
   return <ContactDetailPage api={client} toast={useToast()} config={{ ...contactsFor(hasFeature, can), panels } as any} />
 }
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
