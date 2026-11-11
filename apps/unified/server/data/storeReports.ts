@@ -265,7 +265,8 @@ export const salesByPlace = (db: any, companyId: string, w: Window) => grouped(d
   sql`case when ${storeOrder.fulfillment} <> 'ship' then 'in_store' else upper(coalesce(nullif(${storeOrder.shippingAddress}->>'country', ''), '?')) || '|' || upper(coalesce(nullif(${storeOrder.shippingAddress}->>'state', ''), '?')) end`)
 
 /** Taxes by month: the tax the orders carried, beside what they sold (before tax and shipping) — what a tax return asks. */
-export async function taxesByMonth(db: any, companyId: string, w: Window) {
+export interface TaxMonth { month: string; orders: number; taxedOrders: number; salesCents: number; taxCents: number; automatic: number }
+export async function taxesByMonth(db: any, companyId: string, w: Window): Promise<TaxMonth[]> {
   const rows = await db.select({
     month: sql<string>`to_char(date_trunc('month', ${localAt(w.timeZone)}), 'YYYY-MM')`,
     orders: sql<number>`count(*)`,
@@ -280,7 +281,8 @@ export async function taxesByMonth(db: any, companyId: string, w: Window) {
 }
 
 /** Refunds GIVEN in the window (by when the money went back, not when the order was placed), newest first. */
-export async function refundsGiven(db: any, companyId: string, w: Window, limit = 2000) {
+export interface RefundGiven { id: string; orderNumber: string | null; name: string | null; email: string | null; on: string; placed: string; totalCents: number; refundedCents: number; full: boolean }
+export async function refundsGiven(db: any, companyId: string, w: Window, limit = 2000): Promise<RefundGiven[]> {
   const at = sql`((${storeOrder.refundedAt} at time zone 'UTC') at time zone ${w.timeZone})`
   const rows = await db.select({
     id: storeOrder.id, orderNumber: storeOrder.orderNumber, name: storeOrder.customerName, email: storeOrder.customerEmail,
@@ -293,7 +295,8 @@ export async function refundsGiven(db: any, companyId: string, w: Window, limit 
 }
 
 /** Inventory value NOW: every option whose stock is counted — on hand, at cost (where a cost is kept) and at its price. */
-export async function inventoryValue(db: any, companyId: string) {
+export interface StockValue { product: string; option: string; sku: string; status: string; onHand: number; costCents: number | null; priceCents: number }
+export async function inventoryValue(db: any, companyId: string): Promise<StockValue[]> {
   const rows = await db.select({
     product: storeProduct.name, option: storeProductVariant.name, sku: storeProductVariant.sku, status: storeProduct.status,
     onHand: storeProductVariant.inventoryQty, costCents: storeProductVariant.costCents, priceCents: storeProductVariant.priceCents,
