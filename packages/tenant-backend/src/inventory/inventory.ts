@@ -199,6 +199,9 @@ async function getItems(companyId: string, {
       ilike(inventoryItem.name, `%${search}%`),
       ilike(inventoryItem.sku, `%${search}%`),
       ilike(inventoryItem.description, `%${search}%`),
+      // A scanned barcode (parity tier 2 #10) or the supplier's part number finds the part too.
+      ...(inventoryItem.barcode ? [ilike(inventoryItem.barcode, `%${search}%`)] : []),
+      ...(inventoryItem.vendorPartNumber ? [ilike(inventoryItem.vendorPartNumber, `%${search}%`)] : []),
     )!)
   }
 

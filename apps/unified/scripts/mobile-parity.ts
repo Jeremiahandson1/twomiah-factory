@@ -425,9 +425,10 @@ export const moreIconOf = (path: string) => ICON_BY_PATH[path] || 'ellipse'
 
 /**
  * Where a More row opens ON THE PHONE when a screen exists: the expo-router path. `for` limits it to the field seat (the
- * caregiver's own screens) or the office seats. A row with no entry opens the real desktop page inside the app.
+ * caregiver's own screens) or the office seats. `feature`: only while that business switch is on (a not-ready phone screen);
+ * off, the row opens the desktop page as before. A row with no entry opens the real desktop page inside the app.
  */
-export interface PhoneRoute { paths: string[]; trades?: string[]; for?: 'field' | 'office'; route: string }
+export interface PhoneRoute { paths: string[]; trades?: string[]; for?: 'field' | 'office'; route: string; feature?: string }
 const JOBS_TRADES = ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing']
 export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/recurring-routes'], trades: ['landscaping'], route: '/(tabs)/land-route' },
@@ -479,6 +480,8 @@ export const PHONE_ROUTES: PhoneRoute[] = [
   { paths: ['/crm/time'], trades: ['contractor', 'landscaping', 'salon', 'bar'], route: '/(details)/office-time' },
   { paths: ['/crm/time'], trades: ['basic', 'fieldservice'], route: '/(details)/clock' },
   { paths: ['/crm/expenses'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'bar'], route: '/(details)/expenses' },
+  // Parity tier 2 #10: Stock with barcode scanning (apps/mobile/src/trades/stock.ts) — only where barcode_scanning is on.
+  { paths: ['/crm/inventory'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping'], route: '/(details)/stock', feature: 'barcode_scanning' },
   { paths: ['/crm/reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'salon', 'restaurant', 'bar', 'vet'], route: '/(details)/office-review-requests' },
   { paths: ['/crm/google-reviews'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'roofing', 'rv', 'homecare', 'salon', 'restaurant', 'bar', 'store', 'vet'], route: '/(details)/office-google-reviews' },
   { paths: ['/crm/bookings', '/crm/bookings/calendar'], trades: ['contractor', 'basic', 'fieldservice', 'landscaping', 'salon', 'vet'], route: '/(details)/office-bookings' },
@@ -895,7 +898,7 @@ export function appMenu(maps: TradeMap[]): string {
     for (const r of m.rows) {
       const routes = PHONE_ROUTES.filter((x) => x.paths.includes(r.path) && matchesTrade(x, m.trade.phone)).map((x) => {
         if (!routeFile(x.route)) fail(`PHONE_ROUTES: ${x.route} has no screen file under apps/mobile/app`)
-        return { for: x.for, route: x.route }
+        return { for: x.for, route: x.route, feature: x.feature }
       })
       const row: Record<string, unknown> = {
         label: r.label, path: r.path, group: moreGroupOf(m.trade.phone, r.section, r.path), icon: moreIconOf(r.path),

@@ -20,7 +20,7 @@ Started 11/10 from the Buildertrend inventory (`contractor.md`, "Buildertrend in
 | **Booking from the customer portal** | field service, landscaping, basic | `portal_appointments` (the salon only) | open it to the trades with online booking |
 | **Skill matching** — the right person for the job | field service, landscaping, basic, roofing | `skills` already on team members (`tenant-backend/src/team/team.ts`); home care's matching (row 14) | one rule the dispatch board and the schedule both use |
 | **"Where's my tech" link** in the on-my-way text | field service, landscaping, basic, roofing | GPS (`gps_tracking`) and the on-my-way text (`tech/tech.ts`) | a live link in the text |
-| **Barcode scanning on the phone** | field service (equipment, parts), store | the store's scanner (`apps/mobile/src/trades/store.ts`) | one scanner the trades share |
+| **Barcode scanning on the phone** | **built 11/10, hidden (`barcode_scanning`)** — field service, basic, landscaping, contractor (parts), store (products) | there was no scanner (the store's phone list only took a typed barcode); expo-camera was already in the app | `apps/mobile/src/scan/` (the camera), a scan button on a list's search (`search.scan`); the phone's new Stock list (`src/trades/stock.ts`, More › Inventory with the switch on); the inventory search matches barcode and supplier part # |
 
 Contractor-only for now (they ride on things only the contractor has): bid packages to subs (on `vendor_portal` and
 `purchase_orders` — opens to roofing and landscaping with the vendor portal, not as a second build), the schedule baseline

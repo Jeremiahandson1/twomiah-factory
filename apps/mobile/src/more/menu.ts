@@ -14,7 +14,8 @@ export interface MenuRow {
   label: string; path: string; group: string; icon: string
   minRole?: string; permission?: string | string[]; routeRole?: string; routePermission?: string | string[]
   features?: string[]
-  native?: { for?: 'field' | 'office'; route: string }[]
+  /** `feature`: the phone screen only while that switch is on; off, the desktop page. */
+  native?: { for?: 'field' | 'office'; route: string; feature?: string }[]
 }
 
 /** The desktop's rank order (packages/tenant-ui shell/types.ts ROLE_RANK); `user` and `staff` are the field rung. */
@@ -47,7 +48,7 @@ const GROUP_ORDER = ['Home', 'Sell', 'Work', 'Projects', 'Clients & care', 'Sche
 /** The seat's rows, flat, in the desktop's order. */
 export function itemsFor(vertical: string, seat: Seat, field: boolean): Shown[] {
   return (MENU[vertical] || []).filter((r) => mayOpenRow(r, seat)).map((r) => {
-    const n = (r.native || []).find((x) => !x.for || x.for === (field ? 'field' : 'office'))
+    const n = (r.native || []).find((x) => (!x.for || x.for === (field ? 'field' : 'office')) && (!x.feature || seat.hasFeature(x.feature)))
     return { ...r, open: n ? { kind: 'native' as const, route: n.route } : { kind: 'web' as const, path: r.path } }
   })
 }

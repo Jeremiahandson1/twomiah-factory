@@ -357,6 +357,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
 
   // Advanced
+  { id: 'barcode_scanning', name: 'Barcode Scanning', description: "Scan a part's or product's barcode with the phone's camera to find it — Stock on the phone, and the store's stock list", category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-store'], hidden: true, words: ['barcode scanning', 'barcode'] },
   { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
   // crm-dispensary was added in T18: it had shipped a complete, authenticated /api/documents for a
   // long time with no page, no route and no nav entry in front of it, so the only way to reach it was
