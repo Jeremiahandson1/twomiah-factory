@@ -259,8 +259,12 @@ button{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;backg
     const f: Record<string, unknown> = await c.req.parseBody().catch(() => ({}))
     const { row } = v
     const toActivity = (action: string, description: string) => db.insert(activity).values({ companyId: row.companyId, userId: null, entityType: 'contact', entityId: row.subjectId, action, description, metadata: { reminderLogId: row.id } })
+    // A like or a reply is a person who read it: "Opened" says so, if the email's own button never did (live test 11/11: liked and
+    // replied, still "Not yet"). Only on these — a plain GET of the page is what a mail scanner does too, so it records nothing.
+    const opened = async () => { if (!/^opened /.test(String(row.detail || ''))) await db.update(reminderLog).set({ detail: `opened ${new Date().toISOString()}`, updatedAt: new Date() }).where(eq(reminderLog.id, row.id)) }
     if (String(f.like || '') === '1') {
       if (!v.liked) {
+        await opened()
         await db.insert(clientUpdateReaction).values({ companyId: row.companyId, logId: row.id, contactId: row.subjectId, kind: 'like' })
         await toActivity('weekly_update_liked', `Liked the weekly update of ${row.step}.`)
       }
@@ -270,6 +274,7 @@ button{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;backg
     if (!text) return c.html(formOf(v, '', 'Write your message first.'), 400)
     if (text.length > MAX_REPLY) return c.html(formOf(v, '', `At most ${MAX_REPLY.toLocaleString('en-US')} characters.`), 400)
     if (v.replies >= MAX_REPLIES) return c.html(formOf(v, '', 'That is a lot of messages on one update. Please call or email them instead.'), 429)
+    await opened()
     await db.insert(clientUpdateReaction).values({ companyId: row.companyId, logId: row.id, contactId: row.subjectId, kind: 'reply', body: text })
     await toActivity('weekly_update_reply', `Replied to the weekly update: ${text.slice(0, 500)}`)
     return c.html(formOf(v, `Sent to ${v.companyName}. They will get back to you.`))
