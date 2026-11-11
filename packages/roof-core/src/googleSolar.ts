@@ -206,14 +206,14 @@ export interface DataLayersResponse {
  * Fetch data layers (aerial RGB + roof mask) from Google Solar API.
  * Uses IMAGERY_LAYERS view — returns DSM, RGB, and mask only (smallest payload).
  */
-export async function getDataLayers(lat: number, lng: number, radiusMeters = 75): Promise<DataLayersResponse> {
+export async function getDataLayers(lat: number, lng: number, radiusMeters = 75, pixelSizeMeters = 0.25): Promise<DataLayersResponse> {
   const params = new URLSearchParams({
     'location.latitude': String(lat),
     'location.longitude': String(lng),
     radiusMeters: String(radiusMeters),
     view: 'IMAGERY_LAYERS',
     requiredQuality: 'HIGH',
-    pixelSizeMeters: '0.25',
+    pixelSizeMeters: String(pixelSizeMeters),
     key: getApiKey(),
   })
   let res = await fetch(`${DATA_LAYERS_URL}?${params}`)

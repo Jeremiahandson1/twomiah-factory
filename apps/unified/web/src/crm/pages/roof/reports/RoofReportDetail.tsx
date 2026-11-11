@@ -10,6 +10,8 @@ import { api } from '../../../../api'
 import { formatDate } from '../../../date'
 import type { Segment as ViewerSegment, Edge as ViewerEdge } from './Roof3DViewer'
 
+import ReportMaterials, { type MaterialSettings } from './ReportMaterials'
+
 const Roof3DViewer = lazy(() => import('./Roof3DViewer'))
 
 /** A segment as roof_report.segments stores it (server roofReportService.ts). */
@@ -40,6 +42,10 @@ interface RoofReport {
     wasteFactor?: number
     squaresWithWaste?: number
     iceWaterShieldSqft?: number
+    flashLF?: number
+    stepFlashLF?: number
+    /** Each building's own total, when more than one was drawn (server drawnReport.ts). */
+    buildings?: Array<{ name: string; sections: number; areaSqft: number; squares: number; squaresWithWaste: number }>
   } | null
   userEdited?: boolean
   createdAt: string
@@ -60,6 +66,8 @@ export default function RoofReportDetail() {
   const [report, setReport] = useState<RoofReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [viewTab, setViewTab] = useState<'2d' | '3d'>('2d')
+  /** The materials list's settings as the screen shows them, so the print page works the same list. */
+  const [materialSettings, setMaterialSettings] = useState<MaterialSettings | null>(null)
 
   useEffect(() => {
     loadReport()
@@ -81,7 +89,8 @@ export default function RoofReportDetail() {
 
   // The print-ready report (GET /api/roof-reports/:id/pdf answers HTML) in a new tab; the browser's Print saves the PDF.
   const handlePrint = () => {
-    window.open(`${base}/api/roof-reports/${id}/pdf`, '_blank', 'noopener')
+    const query = materialSettings ? `?${new URLSearchParams(Object.entries(materialSettings).map(([k, v]) => [k, String(v)])).toString()}` : ''
+    window.open(`${base}/api/roof-reports/${id}/pdf${query}`, '_blank', 'noopener')
   }
 
   const handleViewHtml = () => {
@@ -126,6 +135,9 @@ export default function RoofReportDetail() {
     { label: 'Rake', value: m.rakeLF, unit: 'LF' },
     { label: 'Eave', value: m.eaveLF, unit: 'LF' },
     { label: 'Total Perimeter', value: m.totalPerimeterLF, unit: 'LF' },
+    // Where roof meets wall: only a drawn report measures these (server drawnReport.ts).
+    ...(Number(m.flashLF) > 0 ? [{ label: 'Wall flashing', value: m.flashLF, unit: 'LF' }] : []),
+    ...(Number(m.stepFlashLF) > 0 ? [{ label: 'Step flashing', value: m.stepFlashLF, unit: 'LF' }] : []),
     { label: 'Ice & Water Shield', value: m.iceWaterShieldSqft, unit: 'sqft' },
   ]
 
@@ -274,6 +286,35 @@ export default function RoofReportDetail() {
         </div>
       )}
 
+      {/* Buildings: a house and a detached garage drawn on one report */}
+      {(m.buildings?.length ?? 0) > 1 && (
+        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
+          <div className="px-4 py-3 border-b bg-gray-50 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">Buildings ({m.buildings!.length})</h2>
+          </div>
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Building</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Area (sqft)</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Squares</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">With waste</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+              {m.buildings!.map((b, i) => (
+                <tr key={i}>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{b.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{Number(b.areaSqft).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{b.squares}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{b.squaresWithWaste}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Measurements Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-x-auto dark:bg-slate-900">
         <div className="px-4 py-3 border-b bg-gray-50 dark:bg-slate-900">
@@ -298,6 +339,8 @@ export default function RoofReportDetail() {
           </tbody>
         </table>
       </div>
+
+      <ReportMaterials reportId={id!} onSettings={setMaterialSettings} />
 
       {/* Segments Table */}
       {segments.length > 0 && (

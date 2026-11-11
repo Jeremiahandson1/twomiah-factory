@@ -56,6 +56,8 @@ export interface RoofReportData {
   treeOverhangPct?: number | null     // 0-100%
   imagerySource?: string | null       // nearmap, google_solar
   elevationSource?: string | null     // nearmap_dsm, usgs_3dep, google_dsm
+  /** What to order for the roof, when the caller worked it out; printed as its own table. */
+  materialList?: { wastePercent: number; lines: Array<{ description: string; qty: number; unit: string; basis: string }>; warnings?: string[] } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +70,12 @@ const EDGE_COLORS: Record<EdgeType, string> = {
   hip: '#38A169',
   rake: '#DD6B20',
   eave: '#805AD5',
+}
+
+/** Lines only a drawn report has (apps/unified drawnReport.ts): where roof meets wall. */
+const WALL_LINES: Record<string, { color: string; label: string }> = {
+  flash: { color: '#0891B2', label: 'Wall flashing' },
+  stepflash: { color: '#CA8A04', label: 'Step flashing' },
 }
 
 const EDGE_WIDTHS: Record<EdgeType, number> = {
@@ -99,6 +107,13 @@ const SEGMENT_FILL_COLORS = [
 
 export const MAP_WIDTH = 800
 export const MAP_HEIGHT = 600
+// Google Static Maps returns at most 640 pixels a side however many are asked for (800x600 comes back 640x600, which
+// the page then stretched to its 800-wide frame, so every line sat inside the roof it was drawn on). The report's
+// picture is therefore asked for at 640x480, doubled for sharpness, and its lines are placed on that 640x480 ground and
+// scaled up with it to the frame.
+const SAT_WIDTH = 640
+const SAT_HEIGHT = 480
+const SAT_SHOWN = MAP_WIDTH / SAT_WIDTH
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -189,7 +204,7 @@ export function computeOptimalZoom(
 // Geo / pixel helpers
 // ---------------------------------------------------------------------------
 
-function latLngToPixel(
+function satPixel(
   lat: number, lng: number,
   centerLat: number, centerLng: number,
   zoom: number, imgWidth: number, imgHeight: number,
@@ -214,6 +229,7 @@ export async function fetchSatelliteImageBase64(
   lng: number,
   zoom: number,
   nearmapImageBase64?: string | null,
+  size: { width: number; height: number; scale: 1 | 2 } = { width: MAP_WIDTH, height: MAP_HEIGHT, scale: 1 },
 ): Promise<string> {
   // Use Nearmap imagery if provided (higher resolution)
   if (nearmapImageBase64) {
@@ -221,7 +237,7 @@ export async function fetchSatelliteImageBase64(
   }
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&maptype=satellite&key=${getApiKey()}`
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${size.width}x${size.height}&scale=${size.scale}&maptype=satellite&key=${getApiKey()}`
     const res = await fetch(url)
     if (!res.ok) {
       console.error(`[RoofReport] Satellite image fetch failed: ${res.status} ${res.statusText}`)
@@ -302,6 +318,11 @@ function buildSvgOverlay(
   zoom: number,
 ): string {
   const svgParts: string[] = []
+  // Where a point falls on the picture as shown: on the 640x480 the picture covers, scaled up to the frame with it.
+  const latLngToPixel = (lat: number, lng: number, cLat: number, cLng: number, z: number, _w: number, _h: number) => {
+    const p = satPixel(lat, lng, cLat, cLng, z, SAT_WIDTH, SAT_HEIGHT)
+    return { x: p.x * SAT_SHOWN, y: p.y * SAT_SHOWN }
+  }
 
   // Draw segment polygons with subtle fill
   segments.forEach((seg, i) => {
@@ -318,7 +339,7 @@ function buildSvgOverlay(
   edges.forEach(edge => {
     const start = latLngToPixel(edge.startLat, edge.startLng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
     const end = latLngToPixel(edge.endLat, edge.endLng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
-    const color = EDGE_COLORS[edge.type] || '#FFFFFF'
+    const color = EDGE_COLORS[edge.type] || WALL_LINES[edge.type as string]?.color || '#FFFFFF'
     const width = EDGE_WIDTHS[edge.type] || 2
     // Dark outline for contrast
     svgParts.push(
@@ -375,7 +396,17 @@ function buildReportBody(
       <span style="display:inline-block;width:24px;height:4px;background:${EDGE_COLORS[type]};border-radius:2px;margin-right:6px;"></span>
       ${EDGE_LABELS[type]}
     </span>`
+  ).join('') + Object.entries(WALL_LINES).filter(([type]) => report.edges.some((e) => (e.type as string) === type)).map(([, w]) =>
+    `<span style="display:inline-flex;align-items:center;margin-right:18px;">
+      <span style="display:inline-block;width:24px;height:4px;background:${w.color};border-radius:2px;margin-right:6px;"></span>
+      ${w.label}
+    </span>`
   ).join('')
+  const drawnByHand = (measurements as any).source === 'drawn'
+  // A house and a detached garage drawn on one report: each building's own total (server drawnReport.ts).
+  const buildingRows: any[] = Array.isArray((measurements as any).buildings) ? (measurements as any).buildings : []
+  const severalBuildings = buildingRows.length > 1
+  const wallRow = (label: string, v: unknown) => (typeof v === 'number' && v > 0 ? `<tr><td>${label}</td><td>${fmt(v)} LF</td></tr>` : '')
 
   // Imagery source badge
   const imagerySource = report.imagerySource === 'nearmap'
@@ -474,8 +505,21 @@ function buildReportBody(
       </div>
     </div>` : ''}
 
+    ${severalBuildings ? `
+    <!-- Buildings -->
+    <div class="section-title">Buildings</div>
+    <table class="detail-table">
+      <thead>
+        <tr><th>Building</th><th>Area (sqft)</th><th>Squares</th><th>Squares with waste</th></tr>
+      </thead>
+      <tbody>
+        ${buildingRows.map((b) => `
+        <tr><td>${escapeHtml(String(b.name))}</td><td>${fmt(Number(b.areaSqft))}</td><td>${fmt(Number(b.squares), 2)}</td><td>${fmt(Number(b.squaresWithWaste), 2)}</td></tr>`).join('')}
+      </tbody>
+    </table>` : ''}
+
     <!-- Summary Table -->
-    <div class="section-title">Measurement Summary</div>
+    <div class="section-title">Measurement Summary${severalBuildings ? ' (all buildings together)' : ''}</div>
     <table class="summary-table">
       <thead>
         <tr><th>Measurement</th><th>Value</th></tr>
@@ -491,6 +535,8 @@ function buildReportBody(
         <tr><td>Rake</td><td>${fmt(measurements.rakeLF)} LF</td></tr>
         <tr><td>Eave</td><td>${fmt(measurements.eaveLF)} LF</td></tr>
         <tr><td>Total Perimeter</td><td>${fmt(measurements.totalPerimeterLF)} LF</td></tr>
+        ${wallRow('Wall flashing', (measurements as any).flashLF)}
+        ${wallRow('Step flashing', (measurements as any).stepFlashLF)}
         <tr><td>Waste Factor</td><td>${measurements.wasteFactor}%</td></tr>
         <tr class="total-row"><td>Squares with Waste</td><td>${fmt(measurements.squaresWithWaste, 2)}</td></tr>
         ${measurements.iceWaterShieldSqft > 0
@@ -511,16 +557,31 @@ function buildReportBody(
           <td><span class="seg-dot" style="background:${SEGMENT_FILL_COLORS[i % SEGMENT_FILL_COLORS.length].replace('0.18', '0.8')}"></span>${escapeHtml(seg.name)}</td>
           <td>${fmt(seg.area)}</td>
           <td>${escapeHtml(seg.pitch)}</td>
-          <td>${seg.azimuthDegrees}&deg;</td>
-          <td>${azimuthToCardinal(seg.azimuthDegrees)}</td>
+          <td>${Number.isFinite(seg.azimuthDegrees) && seg.azimuthDegrees !== null ? `${seg.azimuthDegrees}&deg;` : '&mdash;'}</td>
+          <td>${Number.isFinite(seg.azimuthDegrees) && seg.azimuthDegrees !== null ? azimuthToCardinal(seg.azimuthDegrees) : '&mdash;'}</td>
         </tr>`).join('')}
       </tbody>
     </table>
 
+    ${report.materialList && report.materialList.lines.length ? `
+    <!-- Materials list -->
+    <div class="section-title">Materials List (${report.materialList.wastePercent}% waste included)</div>
+    <table class="detail-table materials-table">
+      <thead>
+        <tr><th>Material</th><th>Order</th><th>How it was worked out</th></tr>
+      </thead>
+      <tbody>
+        ${report.materialList.lines.map((l) => `
+        <tr><td>${escapeHtml(l.description)}</td><td><strong>${fmt(l.qty)}</strong> ${escapeHtml(l.qty === 1 ? l.unit : plural(l.unit))}</td><td style="font-size:11px;color:#718096;">${escapeHtml(l.basis)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    ${(report.materialList.warnings || []).map((w) => `<div class="season-warning">${escapeHtml(w)}</div>`).join('')}` : ''}
+
     <!-- Disclaimer -->
     <div class="disclaimer">
-      <strong>Disclaimer:</strong> This roof measurement report is generated using aerial imagery and
-      automated analysis from the Google Solar API. Measurements are approximate and should be verified
+      <strong>Disclaimer:</strong> ${drawnByHand
+        ? 'This roof measurement report was drawn by hand over aerial imagery from the Google Solar API; each section&rsquo;s pitch is read from the same aerial data unless the roofer set it. Measurements are approximate'
+        : 'This roof measurement report is generated using aerial imagery and automated analysis from the Google Solar API. Measurements are approximate'} and should be verified
       by an on-site inspection before being used for material ordering, bidding, or construction purposes.
       Actual roof conditions, including hidden damage, structural issues, and complex architectural details,
       may not be fully captured by aerial imagery. The generating company assumes no liability for
@@ -528,9 +589,11 @@ function buildReportBody(
     </div>
 
     <div class="footer">
-      Powered by Twomiah Factory &middot; ${report.imagerySource === 'nearmap' ? 'Imagery by Nearmap' : 'Satellite analysis by Google Solar API'}${report.roofCondition != null ? ' &middot; AI analysis by Nearmap' : ''}
+      Powered by Twomiah Factory &middot; ${report.imagerySource === 'nearmap' ? 'Imagery by Nearmap' : drawnByHand ? 'Aerial imagery by Google' : 'Satellite analysis by Google Solar API'}${report.roofCondition != null ? ' &middot; AI analysis by Nearmap' : ''}
     </div>`
 }
+
+const plural = (unit: string) => (unit === 'box' ? 'boxes' : unit === 'each' ? 'each' : `${unit}s`)
 
 function azimuthToCardinal(deg: number): string {
   const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
@@ -600,7 +663,7 @@ export async function generateReportHTML(
   const { center, segments, edges } = report
 
   // Compute optimal zoom to fit all segments AND edges
-  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT, edges)
+  const zoom = computeOptimalZoom(segments, SAT_WIDTH, SAT_HEIGHT, edges)
 
   // Compute center from edges if segments don't have polygons (user-drawn reports)
   let reportCenter = center
@@ -619,7 +682,7 @@ export async function generateReportHTML(
   }
 
   // Fetch satellite image at the computed zoom centered on the edges
-  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom)
+  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom, null, { width: SAT_WIDTH, height: SAT_HEIGHT, scale: 2 })
 
   // Build SVG overlay using the same center/zoom as the satellite image
   const svgContent = buildSvgOverlay(segments, edges, reportCenter.lat, reportCenter.lng, zoom)
@@ -658,7 +721,7 @@ export async function generateReportPDF(
   const { center, segments, edges } = report
 
   // Compute optimal zoom to fit all segments AND edges
-  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT, edges)
+  const zoom = computeOptimalZoom(segments, SAT_WIDTH, SAT_HEIGHT, edges)
 
   // Center on edges if available (user-drawn reports)
   let reportCenter = center
@@ -672,7 +735,7 @@ export async function generateReportPDF(
   }
 
   // Always use Google Static Maps at the computed zoom for overlay alignment
-  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom)
+  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom, null, { width: SAT_WIDTH, height: SAT_HEIGHT, scale: 2 })
 
   // Build SVG overlay
   const svgContent = buildSvgOverlay(segments, edges, reportCenter.lat, reportCenter.lng, zoom)
@@ -745,7 +808,7 @@ export async function generatePdfReadyHTML(
 ): Promise<string> {
   const { center, segments, edges } = report
 
-  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT, edges)
+  const zoom = computeOptimalZoom(segments, SAT_WIDTH, SAT_HEIGHT, edges)
 
   // Center on edges if available (user-drawn reports)
   let reportCenter = center
@@ -758,7 +821,7 @@ export async function generatePdfReadyHTML(
     if (count > 0) reportCenter = { lat: sumLat / count, lng: sumLng / count }
   }
 
-  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom)
+  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom, null, { width: SAT_WIDTH, height: SAT_HEIGHT, scale: 2 })
   const svgContent = buildSvgOverlay(segments, edges, reportCenter.lat, reportCenter.lng, zoom)
   const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)
 

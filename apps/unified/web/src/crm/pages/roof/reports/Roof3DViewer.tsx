@@ -1,10 +1,12 @@
-// Moved from templates/crm-roof/frontend/src/pages/roofReports/Roof3DViewer.tsx.
-import { useState, useEffect, useRef, useCallback } from 'react'
+// Moved from templates/crm-roof/frontend/src/pages/roofReports/Roof3DViewer.tsx. Changed: the roof's heights come from
+// the sections themselves (roofHeights.ts) — the server grid it used to load had cells 11 metres across, so every roof
+// was drawn flat — and it opens at true scale rather than doubled.
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { buildRoofMeshes, buildEdgeLines, buildDsmHeightmap } from './Roof3DMesh'
+import { buildRoofMeshes, buildEdgeLines } from './Roof3DMesh'
+import { solveRoofHeights } from './roofHeights'
 import { RotateCcw } from 'lucide-react'
-import { api } from '../../../../api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,29 +28,19 @@ export interface Edge {
   lengthFt: number
 }
 
-interface DsmGrid {
-  data: number[]
-  width: number
-  height: number
-  originLat: number
-  originLng: number
-  pixelSizeLat: number
-  pixelSizeLng: number
-}
-
 interface Props {
   segments: Segment[]
   edges: Edge[]
   centerLat: number
   centerLng: number
-  reportId: string
+  reportId?: string
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function Roof3DViewer({ segments, edges, centerLat, centerLng, reportId }: Props) {
+export default function Roof3DViewer({ segments, edges, centerLat, centerLng }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -56,28 +48,10 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
   const controlsRef = useRef<OrbitControls | null>(null)
   const animFrameRef = useRef<number>(0)
 
-  const [exaggeration, setExaggeration] = useState(2.0)
-  const [dsmGrid, setDsmGrid] = useState<DsmGrid | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  // ---------------------------------------------------------------------------
-  // Load DSM grid from backend
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    async function loadDsm() {
-      try {
-        // The grid itself (GET /api/roof-reports/:id/dsm-grid); a 404 (no segments) leaves the flat planes.
-        const data: DsmGrid = await api.request(`/api/roof-reports/${reportId}/dsm-grid`, { timeoutMs: 300000 })
-        setDsmGrid(data)
-      } catch {
-        // DSM grid not available — 3D viewer will still work with flat planes
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadDsm()
-  }, [reportId])
+  const [exaggeration, setExaggeration] = useState(1.0)
+  const loading = false
+  // How high each corner stands, from the sections' pitch and facing.
+  const heights = useMemo(() => solveRoofHeights(segments, edges, { lat: centerLat, lng: centerLng }), [segments, edges, centerLat, centerLng])
 
   // ---------------------------------------------------------------------------
   // Initialize Three.js scene
@@ -178,27 +152,16 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
     if (oldGroup) scene.remove(oldGroup)
     const oldEdges = scene.getObjectByName('edge-group')
     if (oldEdges) scene.remove(oldEdges)
-    const oldHeightmap = scene.getObjectByName('dsm-heightmap')
-    if (oldHeightmap) scene.remove(oldHeightmap)
 
     // Build segment meshes
-    const roofGroup = buildRoofMeshes(segments, dsmGrid, centerLat, centerLng, exaggeration)
+    const roofGroup = buildRoofMeshes(segments, null, centerLat, centerLng, exaggeration, heights.heightAt)
     roofGroup.name = 'roof-group'
     scene.add(roofGroup)
 
     // Build edge lines
-    const edgeGroup = buildEdgeLines(edges, dsmGrid, centerLat, centerLng, exaggeration)
+    const edgeGroup = buildEdgeLines(edges, null, centerLat, centerLng, exaggeration, heights.heightAt)
     edgeGroup.name = 'edge-group'
     scene.add(edgeGroup)
-
-    // Build DSM heightmap (semi-transparent ground surface)
-    if (dsmGrid) {
-      const heightmap = buildDsmHeightmap(dsmGrid, centerLat, centerLng, exaggeration)
-      if (heightmap) {
-        heightmap.name = 'dsm-heightmap'
-        scene.add(heightmap)
-      }
-    }
 
     // Auto-fit camera to roof bounds
     const box = new THREE.Box3().setFromObject(roofGroup)
@@ -219,7 +182,7 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
         )
       }
     }
-  }, [segments, edges, dsmGrid, exaggeration, loading, centerLat, centerLng])
+  }, [segments, edges, heights, exaggeration, loading, centerLat, centerLng])
 
   // ---------------------------------------------------------------------------
   // Controls

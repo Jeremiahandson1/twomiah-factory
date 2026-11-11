@@ -40,6 +40,14 @@ import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { createRoofReportService, imageKeyFor, imageryPrefix, REPORT_PRICE_CENTS } from './roofReportService.ts'
+import { createDrawnReportService, drawnInputProblem, measureDrawing } from './drawnReport.ts'
+import { cleanMaterialOptions, reportMaterialList } from './reportMaterials.ts'
+import { addReportCredits, grantReportPack, reportCreditsLeft, spendReportCredit } from '../../../data/roofReports.ts'
+
+/** Roof reports are bought in packs and spent one a roof: $15 buys 100. A roof is spent when its aerial picture loads. */
+export const REPORT_PACK = { roofs: 100, priceCents: 1500 }
+/** At or under this many left, the screen says to top up. */
+export const REPORT_PACK_LOW_AT = 10
 
 const PRICE = (REPORT_PRICE_CENTS / 100).toFixed(2)
 
@@ -71,6 +79,7 @@ export function createRoofReportRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const canSee = canSeeWith(d.permissions)
   const reports = createRoofReportService(d)
+  const drawn = createDrawnReportService(d)
   const app = new Hono<AppEnv>()
 
   const frontendUrl = () => String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
@@ -282,6 +291,101 @@ export function createRoofReportRoutes(d: CrmDeps) {
     }
   })
 
+  // ── Roof reports left, and buying a pack (Twomiah's own Stripe account, as the professional report was) ──
+
+  // GET /credits — how many roofs are left, what a pack is, and when the screen should say to top up.
+  app.get('/credits', async (c) => one(c, { credits: await reportCreditsLeft(db, c.get('user').companyId), pack: REPORT_PACK, lowAt: REPORT_PACK_LOW_AT }))
+
+  // POST /credits/checkout — a Stripe Checkout page for one pack; the roofs are added by /credits/confirm once it is paid.
+  app.post('/credits/checkout', requirePermission('roof-reports:purchase'), async (c) => {
+    const me = c.get('user')
+    const stripe = d.services.stripe
+    if (!stripe) return fail(c, 503, 'Card payments for roof reports are not set up on this account. Contact Twomiah support.')
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{
+        price_data: { currency: 'usd', unit_amount: REPORT_PACK.priceCents, product_data: { name: `${REPORT_PACK.roofs} roof reports`, description: 'One is used each time the aerial picture for a roof is loaded.' } },
+        quantity: 1,
+      }],
+      metadata: { type: 'roof_report_pack', companyId: me.companyId, roofs: String(REPORT_PACK.roofs) },
+      success_url: `${frontendUrl()}/crm/roof-reports?pack_session={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl()}/crm/roof-reports?pack_cancelled=true`,
+    })
+    return one(c, { checkoutUrl: session.url, sessionId: session.id })
+  })
+
+  // POST /credits/confirm — after Stripe's return: a paid pack is added to the balance, once.
+  app.post('/credits/confirm', requirePermission('roof-reports:purchase'), async (c) => {
+    const me = c.get('user')
+    const { sessionId } = (await c.req.json().catch(() => ({}))) as any
+    if (!sessionId || typeof sessionId !== 'string') return fail(c, 400, 'Session ID required')
+    const stripe = d.services.stripe
+    if (!stripe) return fail(c, 503, 'Card payments for roof reports are not set up on this account. Contact Twomiah support.')
+    const session = await stripe.checkout.sessions.retrieve(sessionId).catch(() => null)
+    const meta: Record<string, string> = ((session as any)?.metadata || {}) as any
+    if (!session || meta.type !== 'roof_report_pack') return fail(c, 404, 'That payment was not found.')
+    if (meta.companyId !== me.companyId) return fail(c, 403, 'That payment belongs to another company.')
+    if (session.payment_status !== 'paid') return fail(c, 402, 'The payment has not gone through yet, so no roof reports were added.')
+    const roofs = Number(meta.roofs) || REPORT_PACK.roofs
+    const paid = ((session.amount_total ?? REPORT_PACK.priceCents) / 100).toFixed(2)
+    const got = await grantReportPack(db, { companyId: me.companyId, sessionId, roofs, paid, userId: me.userId, userEmail: (me as any).email ?? null })
+    return one(c, { credits: got.credits, added: got.added ? roofs : 0 })
+  })
+
+  // POST /draw-backdrop — the draw-it-yourself report, step 1: the aerial picture for an address, where it sits on the
+  // earth, and the roof's slope under it (drawnReport.ts). ONE ROOF REPORT IS SPENT HERE, because this is the call that
+  // costs (Google's data layers): it is taken before the picture is asked for, only where one is left, and given back
+  // if no picture came. Saving the drawing afterwards costs nothing more.
+  app.post('/draw-backdrop', requirePermission('roof-reports:create'), async (c) => {
+    const me = c.get('user')
+    const { address, city, state, zip, contactId } = ((await c.req.json().catch(() => ({}))) || {}) as any
+    if (!address || !city || !state || !zip) return fail(c, 400, 'Address, city, state, and zip are required')
+    if (contactId && !(await ownContact(me.companyId, contactId))) return fail(c, 404, 'Contact not found')
+    if (!(await spendReportCredit(db, me.companyId))) return fail(c, 402, 'You have no roof reports left. Buy a pack to draw another roof.', 'no_credits')
+    try {
+      const backdrop = await drawn.backdropFor(me.companyId, String(address), String(city), String(state), String(zip))
+      return one(c, { ...backdrop, address, city, state, zip, contactId: contactId || null, creditsLeft: await reportCreditsLeft(db, me.companyId) })
+    } catch (err: any) {
+      await addReportCredits(db, me.companyId, 1).catch((e: any) => logger.error('Drawn roof report: the roof report spent could not be given back', { companyId: me.companyId, error: e?.message }))
+      logger.error('Drawn roof report: backdrop failed', { error: err?.message })
+      if (/Address not found/i.test(String(err?.message))) return fail(c, 404, 'That address was not found. Check it and try again.')
+      return fail(c, 502, 'The aerial picture for that address could not be loaded. Try again in a moment.')
+    }
+  })
+
+  // POST /finalize-drawn — step 2: the roofer's lines and pitches, measured here and saved. The area, squares and
+  // lengths on the report are the server's arithmetic on the lines; nothing was bought.
+  app.post('/finalize-drawn', requirePermission('roof-reports:create'), async (c) => {
+    const me = c.get('user')
+    const body = ((await c.req.json().catch(() => ({}))) || {}) as any
+    const { address, city, state, zip } = body
+    if (!address || !city || !state || !zip) return fail(c, 400, 'Address, city, state, and zip are required')
+    const lat = Number(body.geo?.lat), lng = Number(body.geo?.lng)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return fail(c, 400, 'The report has no location. Start the drawing again from the address.')
+    const problem = drawnInputProblem(body)
+    if (problem) return fail(c, 400, problem)
+    const contactId = body.contactId || null
+    if (contactId && !(await ownContact(me.companyId, contactId))) return fail(c, 404, 'Contact not found')
+    try {
+      const m = measureDrawing(body, { lat, lng })
+      if (m.roof.faces.length === 0) return fail(c, 400, 'The lines do not close into any roof section yet, so there is no area to report. Finish the outline so every section is closed.')
+      const report = await reports.saveReportToDb({
+        geo: { lat, lng }, quality: ['HIGH', 'MEDIUM', 'LOW'].includes(body.quality) ? body.quality : 'MEDIUM',
+        imageryDate: typeof body.imageryDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.imageryDate) ? body.imageryDate : null,
+        aerialImagePath: body.aerialImagePath ?? null, roofMaskPath: null,
+        segments: m.segments, totalAreaSqft: m.measurements.totalAreaSqft, totalSquares: m.measurements.totalSquares,
+        rawSolarData: null, imagerySource: 'google_solar', elevationSource: 'google_dsm',
+      } as any, {
+        companyId: me.companyId, address: String(address), city: String(city), state: String(state), zip: String(zip),
+        edges: m.edges, measurements: m.measurements, contactId, stripePaymentIntentId: null, amountCharged: '0.00',
+      })
+      return one(c, { report: await shaped(c, report) }, 201)
+    } catch (err: any) {
+      logger.error('Drawn roof report: save failed', { error: err?.message })
+      return fail(c, 500, 'Failed to save report')
+    }
+  })
+
   // POST /sam-segment — AI roof detection: Nearmap AI first, SAM 2 (Replicate) where Nearmap has none.
   app.post('/sam-segment', requirePermission('roof-reports:create'), async (c) => {
     const { imageBase64, clickPoints, labels, imageWidth, imageHeight, centerLat, centerLng, zoom } = (await c.req.json().catch(() => ({}))) as any
@@ -355,12 +459,23 @@ export function createRoofReportRoutes(d: CrmDeps) {
       if (!report) return fail(c, 404, 'Report not found')
       const [companyRecord] = await db.select().from(company).where(eq(company.id, report.companyId)).limit(1)
       const fullAddress = escapeHtml(`${report.address}, ${report.city}, ${report.state} ${report.zip}`)
-      const html = await generateReportPDF(await reports.renderData(report), escapeRow(companyRecord as any), fullAddress)
+      // The print page carries the materials list, worked with the settings the screen sent (reportMaterials.ts).
+      const list = reportMaterialList(report, cleanMaterialOptions(c.req.query()))
+      const materialList = list.lines.length ? { wastePercent: list.settings.wastePercent, lines: list.lines, warnings: list.warnings } : null
+      const html = await generateReportPDF({ ...(await reports.renderData(report)), materialList }, escapeRow(companyRecord as any), fullAddress)
       return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': `inline; filename="roof-report-${id}.html"` })
     } catch (err: any) {
       logger.error('Roof report PDF generation failed', { id, error: err?.message })
       return fail(c, 500, 'Failed to generate report PDF')
     }
+  })
+
+  // GET /:id/materials — what to order for the roof as measured (reportMaterials.ts); ?wastePercent, ?ventType,
+  // ?pipeBoots, ?iceWaterEaveRows, ?iceWaterValleyRows change what it is worked from. Nothing is stored.
+  app.get('/:id/materials', async (c) => {
+    const report = await reports.ownReport(c.get('user').companyId, c.req.param('id'))
+    if (!report) return fail(c, 404, 'Report not found')
+    return one(c, reportMaterialList(report, cleanMaterialOptions(c.req.query())))
   })
 
   app.delete('/:id', requirePermission('roof-reports:delete'), async (c) => {

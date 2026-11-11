@@ -13,6 +13,9 @@ import { formatDate } from '../../../date'
 import AddressAutocomplete from '../lib/AddressAutocomplete'
 import RoofEdgeEditor from './MapEdgeEditor'
 import type { ApiEdge, EditorMeasurements, Segment } from './MapEdgeEditor'
+import DrawRoofEditor from './DrawRoofEditor'
+import type { DrawnPayload } from './DrawRoofEditor'
+import type { DrawBackdrop } from '@twomiah/roof-core/src/v2/drawBackdrop'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /** A row of GET /api/roof-reports (no money on the list). */
@@ -56,6 +59,21 @@ interface Preview {
   mapHeight?: number
 }
 
+/** POST /api/roof-reports/draw-backdrop: the picture the roofer draws on, and what goes back with the drawing. */
+interface Drawing {
+  address: string
+  city: string
+  state: string
+  zip: string
+  contactId: string | null
+  geo: { lat: number; lng: number }
+  quality: string
+  imageryDate: string | null
+  aerialImagePath: string | null
+  aerialImage: string
+  backdrop: DrawBackdrop
+}
+
 interface PurchaseReply {
   preview?: Preview
   free?: boolean
@@ -86,14 +104,13 @@ function confirmFailure(err: unknown): string {
 }
 
 export default function RoofReportsPage() {
-  // The two buttons in this form are not the same act and no longer the same permission: DIY
-  // Measurement draws a preview by hand and costs nothing, Professional Report is $9.99 through
-  // Stripe. They both posted /purchase, which was gated roof-reports:purchase, so a MANAGER was
-  // refused the free drawing tool — measured live, 403. routes/roofReports.ts now asks
-  // roof-reports:create for the manual mode, and the screen offers each button to whoever can
-  // actually use it. (T42)
+  // A roof report is DRAWN: the roofer traces the roof over the aerial picture and the report is measured from the
+  // lines (roof-reports:create). The automatic "Professional Report" ($9.99 through Stripe, roof-reports:purchase) is
+  // no longer offered on this screen — its measuring was not accurate enough to sell; its routes are still on the
+  // server, unused from here.
   const mayDrawReport = useMayWrite('roof-reports:create')
-  const mayBuyReport = useMayWrite('roof-reports:purchase')
+  // Roof reports are bought in packs ($15 for 100) and one is used each time a roof's aerial picture is loaded.
+  const mayBuyPack = useMayWrite('roof-reports:purchase')
   const mayRemoveReport = useMayWrite('roof-reports:delete')
   const toast = useToast()
   const confirm = useConfirm()
@@ -110,15 +127,54 @@ export default function RoofReportsPage() {
   const [form, setForm] = useState({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: '12' })
   const [preview, setPreview] = useState<Preview | null>(null)
   const [finalizing, setFinalizing] = useState(false)
+  // The draw-it-yourself report in progress: the picture for the address, drawn on until Done.
+  const [drawing, setDrawing] = useState<Drawing | null>(null)
+  // Roof reports left, the pack on sale and when to say "top up" (GET /api/roof-reports/credits).
+  const [balance, setBalance] = useState<{ credits: number; pack: { roofs: number; priceCents: number }; lowAt: number } | null>(null)
+  const [buying, setBuying] = useState(false)
+  const confirmedPack = useRef<string | null>(null)
   // The lines as drawn in the editor, which "Create Report" saves.
   const drawn = useRef<{ edges: ApiEdge[]; measurements: EditorMeasurements } | null>(null)
   // A Stripe session is confirmed once, however often this page mounts or its effect re-runs.
   const confirmedSession = useRef<string | null>(null)
 
+  const loadBalance = async () => {
+    try { setBalance(await api.get('/api/roof-reports/credits')) } catch { /* the screen works without the count */ }
+  }
+
   useEffect(() => {
     loadReports()
     loadContacts()
+    loadBalance()
   }, [])
+
+  // Back from Stripe after buying a pack (server: success_url ?pack_session=…, cancel_url ?pack_cancelled=true).
+  useEffect(() => {
+    const session = searchParams.get('pack_session')
+    const cancelled = searchParams.get('pack_cancelled') === 'true'
+    if (!session && !cancelled) return
+    const clear = () => { const next = new URLSearchParams(searchParams); next.delete('pack_session'); next.delete('pack_cancelled'); setSearchParams(next, { replace: true }) }
+    if (cancelled) { toast.error('The purchase was cancelled. No roof reports were added.'); clear(); return }
+    if (!session || confirmedPack.current === session) return
+    confirmedPack.current = session
+    api.post('/api/roof-reports/credits/confirm', { sessionId: session })
+      .then((r: any) => { toast.success(r?.added ? `${r.added} roof reports added. You have ${r.credits}.` : `Those roof reports were already added. You have ${r?.credits}.`) })
+      .catch((err: unknown) => toast.error(errorText(err, 'The roof reports could not be added after payment. Contact Twomiah support.')))
+      .finally(() => { loadBalance(); clear() })
+  }, [searchParams])
+
+  const buyPack = async () => {
+    setBuying(true)
+    try {
+      const r: { checkoutUrl?: string } = await api.post('/api/roof-reports/credits/checkout', {})
+      if (r?.checkoutUrl) window.location.href = r.checkoutUrl
+      else toast.error('The payment page could not be opened. Try again.')
+    } catch (err) {
+      toast.error(errorText(err, 'The payment page could not be opened. Try again.'))
+    } finally {
+      setBuying(false)
+    }
+  }
 
   // Stripe's return (server: success_url /crm/roof-reports?purchased=true&session_id=…, cancel_url ?cancelled=true).
   useEffect(() => {
@@ -186,6 +242,17 @@ export default function RoofReportsPage() {
     }
     setPurchasing(true)
     try {
+      // Draw it yourself: the aerial picture for the address, then the drawing screen. Nothing is bought.
+      if (mode === 'manual') {
+        const picture: Drawing = await api.post('/api/roof-reports/draw-backdrop', {
+          address: form.address, city: form.city, state: form.state, zip: form.zip,
+          ...(form.contactId && { contactId: form.contactId }),
+        })
+        setDrawing(picture)
+        setShowForm(false)
+        loadBalance()
+        return
+      }
       const result: PurchaseReply = await api.post('/api/roof-reports/purchase', {
         address: form.address,
         city: form.city,
@@ -210,7 +277,8 @@ export default function RoofReportsPage() {
         window.location.href = result.checkoutUrl
       }
     } catch (err) {
-      toast.error(errorText(err, 'Failed to generate'))
+      toast.error(errorText(err, 'The aerial picture could not be loaded. Try again.'))
+      loadBalance()
     } finally {
       setPurchasing(false)
     }
@@ -277,6 +345,50 @@ export default function RoofReportsPage() {
     }
   }
 
+  // --- Done on the drawing screen: the lines and pitches are measured and saved by the server ---
+  const handleDrawn = async (drawn: DrawnPayload) => {
+    if (!drawing) return
+    setFinalizing(true)
+    try {
+      await api.post('/api/roof-reports/finalize-drawn', {
+        address: drawing.address, city: drawing.city, state: drawing.state, zip: drawing.zip,
+        ...(drawing.contactId && { contactId: drawing.contactId }),
+        geo: drawing.geo, quality: drawing.quality, imageryDate: drawing.imageryDate, aerialImagePath: drawing.aerialImagePath,
+        ...drawn,
+      })
+      toast.success('Roof report created!')
+      setDrawing(null)
+      setForm({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: '12' })
+      loadReports()
+    } catch (err) {
+      toast.error(errorText(err, 'Failed to create report'))
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  // --- The drawing screen ---
+  if (drawing) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+        <button
+          onClick={() => setDrawing(null)}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Draw the roof</h1>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
+            {drawing.address}, {drawing.city}, {drawing.state} {drawing.zip} — pick a line type, click dot to dot, and press Done.
+            {drawing.imageryDate ? ` Aerial picture taken ${formatDate(drawing.imageryDate)}.` : ''}
+          </p>
+        </div>
+        <DrawRoofEditor aerialImage={drawing.aerialImage} backdrop={drawing.backdrop} busy={finalizing} onDone={handleDrawn} />
+      </div>
+    )
+  }
+
   // --- Preview/Editor view ---
   if (preview) {
     const aerialUrl = preview.satelliteImageBase64 || `/api/roof-reports/preview-aerial/${(preview.aerialImagePath?.split('/').pop() || '')}`
@@ -337,9 +449,9 @@ export default function RoofReportsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Roof Reports</h1>
-          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Professional satellite-based roof measurement reports</p>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Draw a roof over its aerial picture and get its measurements and materials list</p>
         </div>
-        {(mayDrawReport || mayBuyReport) && (<button
+        {mayDrawReport && (<button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
         >
@@ -348,11 +460,39 @@ export default function RoofReportsPage() {
         </button>)}
       </div>
 
+      {/* Roof reports left, and buying a pack */}
+      {balance && (() => {
+        const price = `$${(balance.pack.priceCents / 100).toFixed(balance.pack.priceCents % 100 ? 2 : 0)}`
+        const out = balance.credits <= 0, low = !out && balance.credits <= balance.lowAt
+        return (
+          <div role="status" className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 ${out ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40' : low ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-900'}`}>
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                {out ? 'You have no roof reports left' : `${balance.credits.toLocaleString()} roof ${balance.credits === 1 ? 'report' : 'reports'} left`}
+                {low && <span className="ml-2 text-amber-800 dark:text-amber-300">— running low</span>}
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5 dark:text-slate-400">
+                One is used each time you load the aerial picture for a roof. A pack of {balance.pack.roofs} is {price}.
+                {!mayBuyPack && (out || low) ? ' Ask an owner or admin to buy more.' : ''}
+              </p>
+            </div>
+            {mayBuyPack && (
+              <button type="button" onClick={buyPack} disabled={buying}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg disabled:opacity-50 transition-colors ${out || low ? 'bg-orange-600 text-white hover:bg-orange-700' : 'border text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}>
+                {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Buy {balance.pack.roofs} for {price}
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
       {/* New Report Form */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Generate Roof Report</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">New roof report</h2>
+            <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Enter the address. The aerial picture opens and you draw the roof on it.</p>
           </div>
           <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
             <div>
@@ -372,7 +512,6 @@ export default function RoofReportsPage() {
                   value={form.city}
                   onChange={(e) => setForm({ ...form, city: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="Dallas"
                   required
                 />
               </div>
@@ -383,7 +522,6 @@ export default function RoofReportsPage() {
                   value={form.state}
                   onChange={(e) => setForm({ ...form, state: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="TX"
                   required
                 />
               </div>
@@ -394,7 +532,6 @@ export default function RoofReportsPage() {
                   value={form.zip}
                   onChange={(e) => setForm({ ...form, zip: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="75201"
                   required
                 />
               </div>
@@ -414,53 +551,11 @@ export default function RoofReportsPage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Eave Overhang Offset</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min={0}
-                  max={36}
-                  value={form.eaveOverhangInches}
-                  onChange={(e) => setForm({ ...form, eaveOverhangInches: e.target.value })}
-                  className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-                <span className="text-sm text-gray-500 dark:text-slate-400">inches (expands roof segments outward to account for eave overhang)</span>
-              </div>
-            </div>
             <div className="pt-4 border-t space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                {mayDrawReport && (<button
-                  type="button"
-                  onClick={() => handleGenerate('manual')}
-                  disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-gray-200 bg-gray-50 rounded-xl hover:border-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
-                >
-                  <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">DIY Measurement</span>
-                  <span className="text-xs text-gray-500 dark:text-slate-400">Draw lines on satellite image yourself</span>
-                  <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase dark:text-green-300 dark:bg-green-950/40">Free</span>
-                </button>)}
-                {mayBuyReport && (<button
-                  type="button"
-                  onClick={() => handleGenerate('auto')}
-                  disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-orange-200 bg-orange-50 rounded-xl hover:border-orange-400 hover:bg-orange-100 transition-colors disabled:opacity-50 dark:bg-orange-950/40 dark:border-orange-900 dark:hover:bg-orange-950/60"
-                >
-                  <span className="text-sm font-semibold text-orange-700 dark:text-orange-200">Professional Report</span>
-                  <span className="text-xs text-orange-700 dark:text-orange-200">Verified measurements, delivered fast</span>
-                  <span className="mt-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full uppercase dark:text-orange-200 dark:bg-orange-950/40">$9.99</span>
-                </button>)}
-              </div>
-              {purchasing && (
-                <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-500 dark:text-slate-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Fetching satellite imagery...
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Satellite imagery, pitch detection, ridge/valley/hip/eave measurements, waste factor, and a print-ready report to save as PDF.
-                </p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                You pick a line type (eave, rake, ridge, hip, valley, flashing) and click dot to dot. The report gives the area and squares, the pitch of each section, every line's length, a materials list, and a page to print or save as a PDF.
+              </p>
+              <div className="flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
@@ -468,6 +563,17 @@ export default function RoofReportsPage() {
                 >
                   Cancel
                 </button>
+                <span className="text-xs text-gray-500 dark:text-slate-400">Uses 1 roof report</span>
+                {mayDrawReport && (<button
+                  type="button"
+                  onClick={() => handleGenerate('manual')}
+                  disabled={purchasing || (balance != null && balance.credits <= 0)}
+                  title={balance != null && balance.credits <= 0 ? 'You have no roof reports left. Buy a pack to draw another roof.' : undefined}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+                >
+                  {purchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {purchasing ? 'Loading the aerial picture…' : 'Draw the roof'}
+                </button>)}
               </div>
             </div>
           </form>
@@ -483,14 +589,14 @@ export default function RoofReportsPage() {
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center dark:bg-slate-900">
           <FileBarChart className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <h3 className="text-lg font-medium text-gray-900 mb-1 dark:text-slate-100">No roof reports yet</h3>
-          <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Professional satellite-based roof measurements for $9.99/report.</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Ridges, valleys, hips, rakes, eaves, waste factor, ice & water shield — all computed from satellite data.</p>
-          {(mayDrawReport || mayBuyReport) && (<button
+          <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Enter an address, draw the roof over its aerial picture, and the report is measured from your lines.</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Area and squares, pitch by section, eaves, rakes, ridges, hips, valleys and flashing, and a materials list.</p>
+          {mayDrawReport && (<button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Generate First Report
+            Draw your first report
           </button>)}
         </div>
       ) : (
