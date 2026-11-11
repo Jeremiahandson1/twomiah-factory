@@ -1,5 +1,6 @@
 // @twomiah/roof-core — shared roof estimator services
-// Used by both the standalone roof-estimator app and the crm-roof template.
+// Used by the roofing CRM (apps/unified) and the crm-roof template. The standalone roof-estimator app that also used it
+// was removed: the drawn report in the roofing CRM is the one roof report product.
 
 export * from './googleSolar.ts'
 export * from './dsmProcessor.ts'
