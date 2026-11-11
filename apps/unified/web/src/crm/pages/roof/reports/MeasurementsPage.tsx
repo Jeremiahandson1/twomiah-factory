@@ -162,6 +162,8 @@ export default function MeasurementsPage() {
     }
   };
 
+  // Credits are bought in packs on the Roof Reports page now; the free top-up this screen had is closed on the server.
+  const goBuy = () => { window.location.assign('/crm/roof-reports') }
   const purchaseCredits = async () => {
     setBuying(true);
     try {
@@ -188,7 +190,8 @@ export default function MeasurementsPage() {
             {/* Credits badge */}
             {credits !== null && (
               mayBuyCredits && (<button
-                onClick={() => setBuyOpen(true)}
+                onClick={goBuy}
+                title="Buy more on the Roof Reports page"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-900"
               >
                 <CreditCard className="w-4 h-4 text-gray-400" />
@@ -304,7 +307,7 @@ export default function MeasurementsPage() {
             {credits !== null && credits <= 0 && (
               <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>No credits remaining. {mayBuyCredits && (<button onClick={() => { setOrderOpen(false); setBuyOpen(true); }} className="underline font-medium">Purchase credits</button>)} to order reports.</span>
+                <span>No credits remaining. {mayBuyCredits && (<button onClick={() => { setOrderOpen(false); goBuy(); }} className="underline font-medium">Purchase credits</button>)} to order reports.</span>
               </div>
             )}
             <div className="space-y-3">

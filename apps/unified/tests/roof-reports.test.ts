@@ -201,8 +201,11 @@ describe('measurements', () => {
     expect(Number(j.totalSquares)).toBe(30)
     expect((await as('crew')(`/api/measurements/${ids.measurement}/manual`, { method: 'POST', json: { totalSquares: 30 } })).status).toBe(403)
     expect((await as('manager')('/api/measurements/credits/purchase', { method: 'POST', json: { quantity: 5 } })).status).toBe(403)
+    // The free top-up is closed: roof reports are bought in packs (roof-drawn-report.test.ts), and nothing is added here.
+    const before = (await json(await as('admin')('/api/measurements/credits/info'))).body.credits
     const bought = await json(await as('admin')('/api/measurements/credits/purchase', { method: 'POST', json: { quantity: 5 } }))
-    expect(bought).toEqual({ status: 200, body: { credits: 8, message: '5 credits added' } })
+    expect(bought).toEqual({ status: 410, body: { error: 'Roof reports are bought in packs on the Roof Reports page.' } })
+    expect((await json(await as('admin')('/api/measurements/credits/info'))).body.credits).toBe(before)
   })
 
   test('without a session every measurements path is refused', async () => {
