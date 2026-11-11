@@ -1188,3 +1188,51 @@ export const projectSignRequest = pgTable('project_sign_request', {
 }, (t) => [
   index('project_sign_request_project_id_idx').on(t.projectId),
 ])
+
+/**
+ * A BID PACKAGE (parity tier 3, contractor — Buildertrend's bids to subs; feature bid_packages, not ready): a scope of work on a
+ * project, sent to subcontractors (vendor contacts) to price through their vendor portal. `lines` are the items to price:
+ * [{ id, description, quantity, unit }]. status: draft | open (sent) | awarded | closed. Awarding makes the winner's purchase
+ * order (job_purchase_order, ../crm/projects/bidPackages.ts).
+ */
+export const bidPackage = pgTable('bid_package', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  scope: text('scope'),
+  dueDate: timestamp('due_date'),
+  lines: json('lines').default([]).notNull(),
+  status: text('status').default('draft').notNull(),
+  awardedInviteId: text('awarded_invite_id'),
+  purchaseOrderId: text('purchase_order_id').references(() => jobPurchaseOrder.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('bid_package_company_idx').on(t.companyId),
+  index('bid_package_project_idx').on(t.projectId),
+])
+
+/**
+ * One subcontractor asked to bid on a package, and their answer. status: invited | viewed | submitted | declined | awarded | lost.
+ * `prices` is [{ lineId, unitPrice }], `total` their figure for the whole package.
+ */
+export const bidInvite = pgTable('bid_invite', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  packageId: text('package_id').notNull().references(() => bidPackage.id, { onDelete: 'cascade' }),
+  vendorId: text('vendor_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  status: text('status').default('invited').notNull(),
+  prices: json('prices').default([]).notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }),
+  notes: text('notes'),
+  declinedReason: text('declined_reason'),
+  viewedAt: timestamp('viewed_at'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('bid_invite_package_vendor_unique').on(t.packageId, t.vendorId),
+  index('bid_invite_vendor_idx').on(t.vendorId),
+])
