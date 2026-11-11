@@ -4,16 +4,23 @@
 // uses (event_marketing_spend — a source, a month, an amount), not a second one.
 //
 //   GET /api/marketing-roi?from=YYYY-MM-DD&to=YYYY-MM-DD    reports:read; the money only for a seat with invoices:read
+//   GET /api/marketing-roi/map?from=&to=[&source=]           reports:read — the heat map: customers, jobs and (invoices:read) paid
+//                                                            by the customers' ZIP, every customer or one source's
 //   GET /api/marketing-roi/spend?from=YYYY-MM&to=YYYY-MM     invoices:read
 //   PUT /api/marketing-roi/spend                             invoices:update { source, month, amountCents } (0 takes it away)
 //
 // Attribution, said plainly on the page: a lead's source is the platform it came from (lead.source_platform); its customer is the
 // contact it was converted to; that customer's jobs made in the period and the payments on their invoices in the period count to the
 // source. Spend counts for the months the period touches.
+//
+// CALL TRACKING (ServiceTitan's campaign phone numbers): each tracking number names its source, so an inbound call on it counts to
+// that source (the Calls column). A first-time caller is that source's lead: the Lead Inbox's "phone" lead from the call is moved to
+// the number's source (matched by the caller's number), and where the inbox is off the caller is the contact the call made (found
+// by number), a customer once they have a job in the period.
 import { Hono } from 'hono'
 import { and, asc, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
 import { companyTimeZone, storeDayStart } from '@twomiah/tenant-backend'
-import { eventMarketingSpend, invoice, job, lead, payment } from '../../db/schema/index.ts'
+import { callLog, contact, eventMarketingSpend, invoice, job, lead, payment, trackingNumber } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -23,8 +30,12 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 const MAX_SPEND_CENTS = 100_000_000
 export const sourceWords = (s: string) => s.replace(/_/g, ' ').replace(/^./, (ch) => ch.toUpperCase())
+/** A source as the spend ledger keys it ("Google Ads" → "google_ads"). */
+export const sourceKey = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, '_').slice(0, 60)
+/** A phone number's last ten digits, to match a lead or contact to a call. */
+const digits = (p: unknown) => String(p ?? '').replace(/\D/g, '').slice(-10)
 
-export interface RoiRow { source: string; label: string; leads: number; customers: number; jobs: number; revenue?: number; spend?: number; costPerLead?: number | null; returnPerDollar?: number | null }
+export interface RoiRow { source: string; label: string; calls: number; leads: number; customers: number; jobs: number; revenue?: number; spend?: number; costPerLead?: number | null; returnPerDollar?: number | null }
 
 export function createMarketingRoiRoutes(d: CrmDeps) {
   const { db, audit } = d
@@ -32,23 +43,64 @@ export function createMarketingRoiRoutes(d: CrmDeps) {
   const mayWith = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
 
-  app.get('/', requirePermission('reports:read'), async (c) => {
-    const me = c.get('user')
-    const from = c.req.query('from') || '', to = c.req.query('to') || ''
-    if (!DAY_RE.test(from) || !DAY_RE.test(to) || to < from) return fail(c, 400, 'Choose the period: from and to as dates, from first.')
-    const money = !!(await mayWith(me.role, 'invoices:read', me.userId).catch(() => false))
-    const tz = await companyTimeZone(db, me.companyId)
-    const start = storeDayStart(from, tz), end = new Date(storeDayStart(to, tz).getTime() + 86_400_000)
-    const leads = await db.select({ source: lead.sourcePlatform, contactId: lead.convertedContactId }).from(lead)
-      .where(and(eq(lead.companyId, me.companyId), gte(lead.receivedAt, start), lte(lead.receivedAt, end)))
-    const bySource = new Map<string, { leads: number; contacts: Set<string> }>()
+  /** Who each source brought in [start, end): its leads, calls and the customers they became (see the attribution above). */
+  async function attribution(companyId: string, start: Date, end: Date) {
+    const bySource = new Map<string, { leads: number; calls: number; contacts: Set<string> }>()
+    const of = (k: string) => { const s = bySource.get(k) ?? { leads: 0, calls: 0, contacts: new Set<string>() }; bySource.set(k, s); return s }
+    // Tracked calls: the number's source (or the call's own, from the provider).
+    const calls = await db.select({ source: callLog.source, numberSource: trackingNumber.source, first: callLog.firstTimeCaller, from: callLog.callerNumber, contactId: callLog.contactId })
+      .from(callLog).leftJoin(trackingNumber, eq(trackingNumber.id, callLog.trackingNumberId))
+      .where(and(eq(callLog.companyId, companyId), eq(callLog.direction, 'inbound'), gte(callLog.createdAt, start), lte(callLog.createdAt, end)))
+    const callSourceOf = new Map<string, string>()   // caller's digits → source, first-time callers only
+    for (const cl of calls as any[]) {
+      const k = sourceKey(cl.numberSource || cl.source)
+      if (!k) continue
+      of(k).calls++
+      const n = digits(cl.from)
+      if (cl.first && n && !callSourceOf.has(n)) callSourceOf.set(n, k)
+    }
+    const leads = await db.select({ source: lead.sourcePlatform, contactId: lead.convertedContactId, phone: lead.phone }).from(lead)
+      .where(and(eq(lead.companyId, companyId), gte(lead.receivedAt, start), lte(lead.receivedAt, end)))
+    const ledByCall = new Set<string>()
     for (const l of leads as any[]) {
-      const k = String(l.source || 'unknown')
-      const s = bySource.get(k) ?? { leads: 0, contacts: new Set<string>() }
+      const n = digits(l.phone)
+      const viaCall = l.source === 'phone' && n ? callSourceOf.get(n) : undefined
+      if (viaCall) ledByCall.add(n)
+      const s = of(viaCall ?? String(l.source || 'unknown'))
       s.leads++
       if (l.contactId) s.contacts.add(l.contactId)
-      bySource.set(k, s)
     }
+    // First-time callers with no inbox lead (the inbox off): the lead is the call; the customer is the contact it made, with a job.
+    const unled = [...callSourceOf].filter(([n]) => !ledByCall.has(n))
+    if (unled.length) {
+      const people = await db.select({ id: contact.id, phone: contact.phone }).from(contact).where(and(eq(contact.companyId, companyId), isNotNull(contact.phone)))
+      const byNumber = new Map((people as any[]).map((p) => [digits(p.phone), p.id as string]))
+      const ids = unled.map(([n]) => byNumber.get(n)).filter(Boolean) as string[]
+      const withJobs = new Set(ids.length ? ((await db.select({ contactId: job.contactId }).from(job).where(and(eq(job.companyId, companyId), inArray(job.contactId, ids), gte(job.createdAt, start), lte(job.createdAt, end)))) as any[]).map((j) => j.contactId) : [])
+      for (const [n, k] of unled) {
+        const s = of(k)
+        s.leads++
+        const id = byNumber.get(n)
+        if (id && withJobs.has(id)) s.contacts.add(id)
+      }
+    }
+    return bySource
+  }
+
+  const period = async (c: any) => {
+    const from = c.req.query('from') || '', to = c.req.query('to') || ''
+    if (!DAY_RE.test(from) || !DAY_RE.test(to) || to < from) return null
+    const tz = await companyTimeZone(db, c.get('user').companyId)
+    return { from, to, start: storeDayStart(from, tz), end: new Date(storeDayStart(to, tz).getTime() + 86_400_000) }
+  }
+
+  app.get('/', requirePermission('reports:read'), async (c) => {
+    const me = c.get('user')
+    const p = await period(c)
+    if (!p) return fail(c, 400, 'Choose the period: from and to as dates, from first.')
+    const { from, to, start, end } = p
+    const money = !!(await mayWith(me.role, 'invoices:read', me.userId).catch(() => false))
+    const bySource = await attribution(me.companyId, start, end)
     const allContacts = [...new Set([...bySource.values()].flatMap((s) => [...s.contacts]))]
     const jobs = allContacts.length ? await db.select({ contactId: job.contactId }).from(job).where(and(eq(job.companyId, me.companyId), inArray(job.contactId, allContacts), gte(job.createdAt, start), lte(job.createdAt, end))) : []
     const paid = money && allContacts.length ? await db.select({ contactId: invoice.contactId, amount: payment.amount }).from(payment).innerJoin(invoice, eq(invoice.id, payment.invoiceId))
@@ -59,8 +111,8 @@ export function createMarketingRoiRoutes(d: CrmDeps) {
     for (const r of spendRows as any[]) spend.set(r.source, (spend.get(r.source) ?? 0) + Number(r.cents))
     const sources = [...new Set([...bySource.keys(), ...spend.keys()])]
     const rows: RoiRow[] = sources.map((k) => {
-      const s = bySource.get(k) ?? { leads: 0, contacts: new Set<string>() }
-      const row: RoiRow = { source: k, label: sourceWords(k), leads: s.leads, customers: s.contacts.size, jobs: (jobs as any[]).filter((j) => s.contacts.has(j.contactId)).length }
+      const s = bySource.get(k) ?? { leads: 0, calls: 0, contacts: new Set<string>() }
+      const row: RoiRow = { source: k, label: sourceWords(k), calls: s.calls, leads: s.leads, customers: s.contacts.size, jobs: (jobs as any[]).filter((j) => s.contacts.has(j.contactId)).length }
       if (money) {
         const revenueCents = Math.round((paid as any[]).filter((p) => s.contacts.has(p.contactId)).reduce((n, p) => n + Number(p.amount) * 100, 0))
         const spentCents = spend.get(k) ?? 0
@@ -70,8 +122,53 @@ export function createMarketingRoiRoutes(d: CrmDeps) {
         row.returnPerDollar = spentCents ? Math.round((revenueCents / spentCents) * 100) / 100 : null
       }
       return row
-    }).sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0) || b.leads - a.leads || a.label.localeCompare(b.label))
+    }).sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0) || b.leads - a.leads || b.calls - a.calls || a.label.localeCompare(b.label))
     return one(c, { from, to, money, rows })
+  })
+
+  /**
+   * The heat map (ServiceTitan's revenue map): the period's customers by their ZIP — how many, their jobs made in the period and
+   * (invoices:read) what they paid in it — every paying or booked customer, or only one source's (?source=, the attribution above).
+   * Each ZIP is placed at the middle of its customers' map points (else its jobs'); a ZIP with no point is counted as unplaced.
+   */
+  app.get('/map', requirePermission('reports:read'), async (c) => {
+    const me = c.get('user')
+    const p = await period(c)
+    if (!p) return fail(c, 400, 'Choose the period: from and to as dates, from first.')
+    const money = !!(await mayWith(me.role, 'invoices:read', me.userId).catch(() => false))
+    const source = sourceKey(c.req.query('source'))
+    const only = source ? [...((await attribution(me.companyId, p.start, p.end)).get(source)?.contacts ?? [])] : null
+    if (only && !only.length) return one(c, { from: p.from, to: p.to, source: source || null, money, zips: [], unplaced: 0 })
+    const jobs = await db.select({ contactId: job.contactId, zip: job.zip, lat: job.lat, lng: job.lng }).from(job)
+      .where(and(eq(job.companyId, me.companyId), isNotNull(job.contactId), gte(job.createdAt, p.start), lte(job.createdAt, p.end), only ? inArray(job.contactId, only) : undefined))
+    const paid = money ? await db.select({ contactId: invoice.contactId, amount: payment.amount }).from(payment).innerJoin(invoice, eq(invoice.id, payment.invoiceId))
+      .where(and(eq(invoice.companyId, me.companyId), isNotNull(payment.paidAt), ne(payment.method, 'account_balance'), gte(payment.paidAt, p.start), lte(payment.paidAt, p.end), only ? inArray(invoice.contactId, only) : undefined)) : []
+    const ids = [...new Set([...(jobs as any[]).map((j) => j.contactId), ...(paid as any[]).map((x) => x.contactId)].filter(Boolean))] as string[]
+    const people = ids.length ? await db.select({ id: contact.id, zip: contact.zip, lat: contact.lat, lng: contact.lng }).from(contact).where(and(eq(contact.companyId, me.companyId), inArray(contact.id, ids))) : []
+    const person = new Map((people as any[]).map((x) => [x.id, x]))
+    const zip5 = (z: unknown) => String(z ?? '').trim().replace(/^(\d{5})-\d{4}$/, '$1')
+    type Cell = { zip: string; customers: Set<string>; jobs: number; cents: number; pts: Array<[number, number]>; jobPts: Array<[number, number]> }
+    const cells = new Map<string, Cell>()
+    const cellOf = (z: string) => { const x = cells.get(z) ?? { zip: z, customers: new Set<string>(), jobs: 0, cents: 0, pts: [], jobPts: [] }; cells.set(z, x); return x }
+    const zipOfPerson = (id: string, fallback?: unknown) => zip5(person.get(id)?.zip) || zip5(fallback)
+    for (const j of jobs as any[]) {
+      const z = zipOfPerson(j.contactId, j.zip); if (!z) continue
+      const x = cellOf(z); x.jobs++; x.customers.add(j.contactId)
+      if (j.lat != null && j.lng != null) x.jobPts.push([Number(j.lat), Number(j.lng)])
+    }
+    for (const r of paid as any[]) {
+      const z = zipOfPerson(r.contactId); if (!z) continue
+      const x = cellOf(z); x.cents += Math.round(Number(r.amount) * 100); x.customers.add(r.contactId)
+    }
+    for (const x of cells.values()) for (const id of x.customers) { const q = person.get(id); if (q?.lat != null && q?.lng != null) x.pts.push([Number(q.lat), Number(q.lng)]) }
+    const mid = (pts: Array<[number, number]>) => pts.length ? [pts.reduce((n, q) => n + q[0], 0) / pts.length, pts.reduce((n, q) => n + q[1], 0) / pts.length] : null
+    let unplaced = 0
+    const zips = [...cells.values()].map((x) => {
+      const at = mid(x.pts) ?? mid(x.jobPts)
+      if (!at) unplaced++
+      return { zip: x.zip, customers: x.customers.size, jobs: x.jobs, ...(money ? { revenue: x.cents / 100 } : {}), lat: at ? Math.round(at[0] * 1e5) / 1e5 : null, lng: at ? Math.round(at[1] * 1e5) / 1e5 : null }
+    }).sort((a: any, b: any) => (b.revenue ?? 0) - (a.revenue ?? 0) || b.jobs - a.jobs || a.zip.localeCompare(b.zip))
+    return one(c, { from: p.from, to: p.to, source: source || null, money, zips, unplaced })
   })
 
   app.get('/spend', requirePermission('invoices:read'), async (c) => {
