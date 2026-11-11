@@ -86,6 +86,7 @@ const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
 const WeeklyUpdatePage = page(() => import('./crm/pages/WeeklyUpdatePage'))
 const ServiceZonesPage = page(() => import('./crm/pages/ServiceZonesPage'))
+const MarketingRoiPage = page(() => import('./crm/pages/MarketingRoiPage'))
 const DaysOffPage = page(() => import('./crm/pages/DaysOffPage'))
 const QuoteFollowUpPage = page(() => import('./crm/pages/QuoteFollowUpPage'))
 const MarkupDefaultsPage = page(() => import('./crm/pages/MarkupDefaultsPage'))
@@ -260,6 +261,7 @@ export default function App() {
                       <Route path="bookings/series/:id" element={<BookingSeriesPage />} />
                       <Route path="bookings/:id" element={<BookingDetailPage />} />
                       <Route path="leads" element={<LeadInbox />} />
+                      <Route path="marketing-roi" element={<MarketingRoiPage />} />
                       <Route path="new-leads" element={<NewLeads />} />
                       <Route path="audit" element={<AuditLog />} />
                       <Route path="account" element={<MyAccount />} />
