@@ -29,6 +29,7 @@ import { ConfirmModal } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { addMapTiles } from '@twomiah/tenant-ui/src/maps/tiles'
 import { useMapCenter, US_VIEW, HOME_ZOOM } from '@twomiah/tenant-ui/src/maps/center'
 import { UNASSIGNED, crewOf, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, BOOK_ANYWAY_TITLE, personName, RouteOptimiser, type Lane } from '@twomiah/tenant-ui/src/schedule/crew'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 // What this vertical calls a job (VerticalSettings.screens.jobs.labels): 'Service Call' in field service, 'Job' in
 // landscaping (its copy of this board said "Job started", "Unnamed job" — T41).
@@ -387,7 +388,7 @@ export default function DispatchBoard() {
           .sort((a, b) => a.missing.length - b.missing.length || a.load - b.load || a.lane.name.localeCompare(b.lane.name));
         return (
           <p data-testid="skill-ranking" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-            <span className="font-semibold">{skillJob.jobType} needs {needed.join(', ')}.</span>{' '}
+            <span className="font-semibold">{codeLabel(skillJob.jobType)} needs {needed.join(', ')}.</span>{' '}
             Best fit: {ranked.map((r, i) => <span key={r.lane.id}>{i ? ', ' : ''}{r.lane.name}{r.missing.length ? ` (missing ${r.missing.join(', ')})` : ' ✓'}</span>)}
           </p>
         );

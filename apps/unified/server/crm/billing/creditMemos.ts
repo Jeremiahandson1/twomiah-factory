@@ -97,7 +97,7 @@ export function createCreditMemoRoutes(d: CrmDeps) {
     const h = await history(companyId, row.e.contactId)
     const pdf = await generateCreditMemoPDF({ number: String(row.e.number), date: row.e.createdAt, amount: Number(row.e.amount), reason: row.e.reason, invoiceNumber: row.invoiceNumber ?? null, creditNow: h.credit,
       contact: ct ? { name: ct.name, address: ct.address, city: ct.city, state: ct.state, zip: ct.zip, email: ct.email, phone: ct.phone } : null }, co)
-    return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="credit-memo-${row.e.number}.pdf"` } })
+    return new Response(new Uint8Array(pdf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="credit-memo-${row.e.number}.pdf"` } })
   })
 
   return app
