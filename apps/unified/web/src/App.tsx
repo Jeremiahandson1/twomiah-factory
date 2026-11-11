@@ -73,6 +73,7 @@ const HelpPage = page(() => import('./crm/pages/HelpPage'))
 const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
 const CrewLinkPage = page(() => import('./crm/pages/roof/field/CrewLinkPage'))
 const VisitConfirmPage = page(() => import('./crm/pages/VisitConfirmPage'))
+const TechOnTheWayPage = page(() => import('./crm/pages/TechOnTheWayPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 // Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
@@ -300,6 +301,7 @@ export default function App() {
 
                     {/* The link in a visit reminder: one visit and a Confirm button (no sign-in, no shell). */}
                     <Route path="/confirm-visit/:token" element={<VisitConfirmPage />} />
+                    <Route path="/on-the-way/:token" element={<TechOnTheWayPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

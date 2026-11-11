@@ -27,6 +27,7 @@ import { createAvailabilityRoutes } from './availabilityRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
 import { createClockExtras } from './clockExtras.ts'
 import { createJobConfirm } from './jobConfirm.ts'
+import { createTechTrack } from './techTrack.ts'
 
 export { createSelectionsService, type SelectionsService } from './selectionsService.ts'
 
@@ -69,6 +70,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     // The reminder before a job the office booked: its settings (crm/field/jobReminders.ts runs the timed pass). Not ready.
     // The link in a reminder: public, the token is the key and opens one visit. It checks the Job Reminders feature itself.
     { path: '/api/visit-confirm', access: 'public', router: jobConfirm.routes },
+    // "Where's my tech": the page behind the link in the on-my-way text (techTrack.ts; it checks tech_tracking itself). Not ready.
+    { path: '/api/tech-track', access: 'public', router: createTechTrack(d).routes },
     { path: '/api/job-reminders', access: 'user', feature: 'job_reminders', router: createJobReminderRoutes(d) },
     // Revenue and quote conversion by person, and the service-plan reports (server/data/teamReports.ts). Not ready.
     { path: '/api/team-revenue/saved', access: 'user', feature: 'team_revenue_reports', router: teamReports.savedRoutes },
