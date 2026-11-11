@@ -12,7 +12,7 @@
 //   · a face against open air: the edge's direction is read from the outline itself. Running level across the slope →
 //     EAVE; running up the slope → RAKE.
 //
-// Not wired into the product: nothing imports this but the scoreboard (packages/roof-core/bench).
+// Used by the roofing CRM's instant estimator (apps/unified/server/crm/roof/reports/estimator.ts), through measureRoof, and by the scoreboard (packages/roof-core/bench).
 import type { RoofFaces } from './roofFaces.ts'
 
 const M_TO_FT = 3.28084

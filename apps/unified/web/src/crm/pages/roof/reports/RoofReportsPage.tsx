@@ -17,6 +17,7 @@ import DrawRoofEditor from './DrawRoofEditor'
 import type { DrawnPayload } from './DrawRoofEditor'
 import type { DrawBackdrop } from '@twomiah/roof-core/src/v2/drawBackdrop'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** A row of GET /api/roof-reports (no money on the list). */
 interface RoofReport {
@@ -462,7 +463,7 @@ export default function RoofReportsPage() {
 
       {/* Roof reports left, and buying a pack */}
       {balance && (() => {
-        const price = `$${(balance.pack.priceCents / 100).toFixed(balance.pack.priceCents % 100 ? 2 : 0)}`
+        const price = money(balance.pack.priceCents / 100, balance.pack.priceCents % 100 ? 2 : 0)
         const out = balance.credits <= 0, low = !out && balance.credits <= balance.lowAt
         return (
           <div role="status" className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 ${out ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40' : low ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-900'}`}>
@@ -472,7 +473,7 @@ export default function RoofReportsPage() {
                 {low && <span className="ml-2 text-amber-800 dark:text-amber-300">— running low</span>}
               </p>
               <p className="text-xs text-gray-600 mt-0.5 dark:text-slate-400">
-                One is used each time you load the aerial picture for a roof. A pack of {balance.pack.roofs} is {price}.
+                One is used each time you load the aerial picture for a roof, and for each new house your website's instant estimator measures. A pack of {balance.pack.roofs} is {price}.
                 {!mayBuyPack && (out || low) ? ' Ask an owner or admin to buy more.' : ''}
               </p>
             </div>

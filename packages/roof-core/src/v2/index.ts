@@ -1,7 +1,7 @@
 // Roof engine v2: one roof, measured from Google's height map and roof mask — area on the slope, pitches, the lines a
 // roofer orders by (ridge, hip, valley, eave, rake, wall flashing), and an honest grade of how far to trust it.
 //
-// Not wired into the product yet: nothing imports this but the scoreboard (packages/roof-core/bench).
+// Used by the roofing CRM's instant estimator (apps/unified/server/crm/roof/reports/estimator.ts), through measureRoof, and by the scoreboard (packages/roof-core/bench).
 import { measureRoofFaces, type RoofFaces, type FaceOptions } from './roofFaces.ts'
 import { measureRoofLines, type RoofLines, type LineOptions } from './roofLines.ts'
 
@@ -60,6 +60,12 @@ export async function measureRoof(
   const outline = detail.lengths.eave + detail.lengths.rake + detail.unknownEdgeFt
   const rebuilt = detail.squaredEdgeFt + detail.unknownEdgeFt
   if (outline > 0 && rebuilt / outline > 0.15) yellow.push(`${Math.round(rebuilt)} ft of the roof's edge was hidden or slanted and was rebuilt as square corners — check the outline`)
+  if (faces.hiddenSlopeSqft > 0) {
+    const text = `${faces.hiddenSlopeSqft} sq ft at a corner of the roof is hidden (a tree over it) and was filled in as a square corner`
+    // A fifth of the roof or more unseen is not a measurement.
+    if (faces.hiddenPlanSqft > faces.planSqft * 0.2) red.push(`${text} — too much of the roof is hidden to measure it from the air`)
+    else yellow.push(`${text} — check it`)
+  }
   if (detail.inferredStripFt > 0) yellow.push(`${Math.round(detail.inferredStripFt)} ft of hip and of valley was inferred where two sections step past each other, not seen — check it`)
   if (imagery.quality && imagery.quality !== 'HIGH') yellow.push(`the aerial data here is ${imagery.quality.toLowerCase()} quality`)
   if (imagery.date && imagery.today) {

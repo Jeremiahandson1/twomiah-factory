@@ -10,8 +10,9 @@
 //      neighbouring face whose plane passes closest to that pixel's height, so two faces meet where their planes cross.
 //   4. merge — touching regions that turn out to be the same plane become one face.
 //
-// Not wired into the product: nothing imports this but the scoreboard (packages/roof-core/bench).
+// Used by the roofing CRM's instant estimator (apps/unified/server/crm/roof/reports/estimator.ts), through measureRoof, and by the scoreboard (packages/roof-core/bench).
 import { readRaster, pickRoof, patchSlopes, type Raster } from './roofSurface.ts'
+import { findHiddenCorners, type HiddenCornerOptions } from './hiddenCorners.ts'
 
 const SQM_TO_SQFT = 10.7639
 
@@ -43,9 +44,17 @@ export interface RoofFaces {
   slopeSqft: number
   /** Share of the roof's flat area that no face explains (0–1). */
   unexplainedShare: number
+  /** Roof the mask left out under a tree across a corner, filled in as the square corner (hiddenCorners.ts): per pixel
+   *  1 where filled, and its area. `slopeSqft` includes it; `planSqft` and `labels` do not. */
+  hidden: Uint8Array
+  hiddenPlanSqft: number
+  hiddenSlopeSqft: number
 }
 
 export interface FaceOptions {
+  /** Fill in roof hidden under a tree across a corner (default true), and the fill's own settings. */
+  fillHidden?: boolean
+  hiddenCorners?: HiddenCornerOptions
   /** Two neighbouring pixels belong together when their slopes differ by less than this (rise per run; 0.083 = 1/12). */
   growTolerance?: number
   /** A region smaller than this (m²) is not allowed to become a face on its own. */
@@ -94,7 +103,8 @@ export function findFaces(dsm: Raster, roof: Uint8Array, slopeX: Float32Array, s
   const east = (i: number) => (i % w) * px
   const north = (i: number) => -((i / w) | 0) * px
   const NB = [1, -1, w, -w]
-  const inRow = (i: number, j: number) => (Math.abs(j - i) === 1 ? ((i / w) | 0) === ((j / w) | 0) : j >= 0 && j < n)
+  // (j ≥ 0 for the sideways step too: from the raster's first pixel, −1 would otherwise count as "the same row".)
+  const inRow = (i: number, j: number) => j >= 0 && j < n && (Math.abs(j - i) !== 1 || ((i / w) | 0) === ((j / w) | 0))
 
   // 1. grow: connected regions of like slope. A pixel must agree with its neighbour AND with the region's running
   //    average slope, so a region cannot drift from one pitch into another through a chain of small steps.
@@ -431,10 +441,16 @@ export async function measureRoofFaces(dsmBuffer: Buffer, maskBuffer: Buffer, op
   const explainedSlope = best.faces.reduce((s, f) => s + f.slopeSqft, 0)
   // Roof no face explains is counted at the roof's overall slope factor rather than left out.
   const factor = best.explainedPlan > 0 ? explainedSlope / best.explainedPlan : 1
+  // Roof under a tree across a corner, which the mask left out, at the same overall slope factor.
+  const hidden = options.fillHidden === false
+    ? { mask: new Uint8Array(dsm.width * dsm.height), pixels: 0 }
+    : findHiddenCorners(best.labels, best.faces, dsm.width, dsm.height, dsm.px, dsm.data, options.hiddenCorners)
+  const hiddenPlan = hidden.pixels * pixelSqft
   return {
     pinOnRoof: picked.pinOnRoof, pinDistanceM: Math.round(picked.pinDistanceM * 10) / 10,
     width: dsm.width, height: dsm.height, px: dsm.px, labels: best.labels, faces: best.faces,
-    planSqft, slopeSqft: Math.round(explainedSlope + Math.max(0, planSqft - best.explainedPlan) * factor),
+    planSqft, slopeSqft: Math.round(explainedSlope + (Math.max(0, planSqft - best.explainedPlan) + hiddenPlan) * factor),
     unexplainedShare: best.unexplainedShare,
+    hidden: hidden.mask, hiddenPlanSqft: Math.round(hiddenPlan), hiddenSlopeSqft: Math.round(hiddenPlan * factor),
   }
 }

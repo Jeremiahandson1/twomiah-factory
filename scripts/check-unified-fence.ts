@@ -22,11 +22,23 @@ export interface FenceViolation { path: string; detail: string }
  * places, not new ones. The templates and the rest of the Factory keep their own rule below.
  */
 const UNIFIED_OWN = [/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//]
+/**
+ * The roof engine's scoreboard (packages/roof-core/bench): scripts that score the shared roof-measuring code against
+ * professionally measured roofs. Run by hand, imported by nothing, shipped to no tenant — the measuring engine's own
+ * test bench, kept beside the code it scores (owner's yes, 2026-11-11). Added, changed and deleted freely.
+ */
+const ROOF_BENCH = /^packages\/roof-core\/bench\//
+/**
+ * The old standalone roof estimator (apps/roof-estimator): its own app with its own Render service, used by nothing
+ * else in the repo and replaced by the roofing CRM's drawn roof report (owner, 2026-11-10: "nothing should be using
+ * the old one, this is the only one I want"; fence yes 2026-11-11). It may be deleted — and only deleted.
+ */
+const OLD_ROOF_ESTIMATOR = /^apps\/roof-estimator\//
 /** Existing files that may be deleted: the phone app's (owner, 2026-10-19 — it has no users yet) and the unified app's own. */
-const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN]
+const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN, ROOF_BENCH, OLD_ROOF_ESTIMATOR]
 // The Factory's checked photo library (apps/api/assets/hero-library) — NEW photos only, each one looked at before it is kept
 // (photo variety step 3, owner's yes 10/30–31); an existing photo stays fenced, since live sites point at it by name.
-const ADD_ALLOWED = [/^apps\/api\/assets\/hero-library\/[a-z]+\/[a-z]+-\d{2}\.jpg$/, /^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
+const ADD_ALLOWED = [ROOF_BENCH, /^apps\/api\/assets\/hero-library\/[a-z]+\/[a-z]+-\d{2}\.jpg$/, /^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
 // apps/mobile (and its tests, tests/mobile): the phone app has no users yet, so it is changed with the unified app instead of waiting (owner, 2026-10-19).
 // The four registry/shared-default guards: a change to the shared code they check must update them in the same push, or
@@ -61,7 +73,7 @@ const SUITE_TESTS = /^tests\/(bar|basic|crm|dispensary|fieldservice|homecare|lan
 // check-roof-validation.ts (2026-10-28, security round 2): its edit-route check also accepts partialOf(aiRuleFields), the
 // zod-4-safe form of the same plain-object partial — the check is widened to the new shape, not weakened.
 // security-scan.yml: runs on engine too, so a release waits for the scan before merging (2026-10-26).
-const MODIFY_ALLOWED = [SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs|dashboard-counts|money-and-labels|agreements|audience-quotes-leads-time|business-day|calendar-day-dates|salon-dark-surfaces|roof-validation|job-quote-rules|light-card-dark-text|retest-t24|contact-related-lists|contact-relations-ask|write-controls-ask-permission|refusals-render-on-the-page|sms-send-contract)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, /^\.github\/workflows\/security-scan\.yml$/, /^scripts\/check-no-native-dialogs\.ts$/, /^scripts\/check-write-routes-authorise\.ts$/, ...UNIFIED_OWN]
+const MODIFY_ALLOWED = [ROOF_BENCH, SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs|dashboard-counts|money-and-labels|agreements|audience-quotes-leads-time|business-day|calendar-day-dates|salon-dark-surfaces|roof-validation|job-quote-rules|light-card-dark-text|retest-t24|contact-related-lists|contact-relations-ask|write-controls-ask-permission|refusals-render-on-the-page|sms-send-contract)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, /^\.github\/workflows\/security-scan\.yml$/, /^scripts\/check-no-native-dialogs\.ts$/, /^scripts\/check-write-routes-authorise\.ts$/, ...UNIFIED_OWN]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {
