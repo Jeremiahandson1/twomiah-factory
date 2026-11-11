@@ -10,6 +10,7 @@
 //   - the edit form's null relations and decimal-string hours are accepted on every template
 //     (landscaping 400'd on both), search matches title / number / address everywhere (fieldservice
 //     ignored ?search=), and related rows are fetched by id instead of the whole company
+import { folderNameCheck, ownFolderOf, foldersOfJob } from '../files/photoFolders'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
@@ -37,6 +38,8 @@ import { partialOf } from '../partialOf'
 /** The folders a job's photos are filed in (job_photo.photo_type); 'general' is none. Roofing's own five are among them. */
 export const JOB_PHOTO_KINDS = ['general', 'before', 'during', 'after', 'progress', 'damage', 'inspection', 'issue'] as const
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
+  /** The folders a job's people named (live test 11/11 — Buildertrend's and CompanyCam's own folders); with jobPhoto.folderId. */
+  jobPhotoFolder?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
   teamMember?: any
   /** Billing a job needs these two plus options.billing; see POST /:id/invoice. (T41) */
@@ -847,6 +850,14 @@ export function createJobRoutes(deps: JobDeps) {
     // …and the job's photo folders (parity tier 2 #2, 11/10 — Buildertrend's photo folders): the same kinds roofing's job page
     // files under (before, during, after, damage) and progress, inspection, issue. 'general' is a photo in no folder.
     const photoKind = (v: unknown) => (('photoType' in (t.jobPhoto || {})) && typeof v === 'string' && (JOB_PHOTO_KINDS as readonly string[]).includes(v) ? { photoType: v } : {})
+    /**
+     * …and the folders the job's people name themselves (live test 11/11: "I did not find a way to make a custom folder" —
+     * Buildertrend and CompanyCam let you). A photo is in a standard folder (photo_type) OR a named one (folder_id), never both.
+     */
+    const named = !!t.jobPhotoFolder && 'folderId' in (t.jobPhoto || {})
+    const ownFolder = async (jobId: string, companyId: string, folderId: unknown) => named ? ownFolderOf(db, t.jobPhotoFolder, jobId, companyId, folderId) : null
+    /** A folder's name: the rules both photo stores share (files/photoFolders.ts). */
+    const folderName = (jobId: string, companyId: string, v: unknown, except?: string) => folderNameCheck(db, t.jobPhotoFolder, jobId, companyId, v, except)
 
     app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
@@ -867,7 +878,10 @@ export function createJobRoutes(deps: JobDeps) {
       const key = `photos/${currentUser.companyId}/${id}/${crypto.randomUUID().replace(/-/g, '')}.${PHOTO_EXT[type]}`
       await storage.put(key, buffer, type)
       const caption = (form!.get('caption') as string) || null
-      const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption, ...photoKind(form!.get('kind')) }).returning()
+      const asked = form!.get('folderId')
+      const into = asked ? await ownFolder(id, currentUser.companyId, asked) : null
+      if (asked && !into) return c.json({ error: 'That folder is not on this job.', code: 'validation_failed' }, 400)
+      const [photo] = await db.insert(t.jobPhoto).values({ companyId: currentUser.companyId, jobId: id, uploadedById: currentUser.userId, url: mediaPrefix + key, caption, ...(into ? { folderId: into.id } : photoKind(form!.get('kind'))) }).returning()
       return c.json(photo, 201)
     })
 
@@ -911,8 +925,11 @@ export function createJobRoutes(deps: JobDeps) {
     // Move a photo to another folder (or out of one: 'general').
     app.patch('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
-      const body = await c.req.json().catch(() => null) as { kind?: unknown } | null
-      const kind = photoKind(body?.kind)
+      const body = await c.req.json().catch(() => null) as { kind?: unknown; folderId?: unknown } | null
+      // Into a named folder (folderId), or a standard one / none (kind) — which takes it out of any named one.
+      const into = body?.folderId ? await ownFolder(c.req.param('id'), currentUser.companyId, body.folderId) : null
+      if (body?.folderId && !into) return c.json({ error: 'That folder is not on this job.', code: 'validation_failed' }, 400)
+      const kind: Record<string, unknown> = into ? { photoType: 'general', folderId: into.id } : { ...photoKind(body?.kind), ...(named ? { folderId: null } : {}) }
       if (!('photoType' in kind)) return c.json({ error: `Choose one of: ${JOB_PHOTO_KINDS.join(', ')}.`, code: 'validation_failed' }, 400)
       const [moved] = await db.update(t.jobPhoto).set(kind).where(and(eq(t.jobPhoto.id, c.req.param('photoId')), eq(t.jobPhoto.jobId, c.req.param('id')), eq(t.jobPhoto.companyId, currentUser.companyId))).returning()
       if (!moved) return c.json({ error: 'Photo not found' }, 404)
@@ -925,6 +942,46 @@ export function createJobRoutes(deps: JobDeps) {
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
       return c.json(await db.select().from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId))).orderBy(desc(t.jobPhoto.createdAt), asc(t.jobPhoto.id)))
     })
+
+    if (named) {
+      // The job's named folders, oldest first (the order they were made).
+      app.get('/:id/photo-folders', requirePermission('jobs:read'), async (c) => {
+        const currentUser = c.get('user') as any
+        const id = c.req.param('id')
+        if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+        return c.json({ data: await foldersOfJob(db, t.jobPhotoFolder, id, currentUser.companyId) })
+      })
+      app.post('/:id/photo-folders', requirePermission('jobs:update'), async (c) => {
+        const currentUser = c.get('user') as any
+        const id = c.req.param('id')
+        if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+        const body = await c.req.json().catch(() => null) as { name?: unknown } | null
+        const n = await folderName(id, currentUser.companyId, body?.name)
+        if ('error' in n) return c.json({ error: n.error, code: 'validation_failed' }, n.status)
+        const [made] = await db.insert(t.jobPhotoFolder).values({ companyId: currentUser.companyId, jobId: id, name: n.name }).returning({ id: t.jobPhotoFolder.id, name: t.jobPhotoFolder.name })
+        return c.json(made, 201)
+      })
+      app.patch('/:id/photo-folders/:folderId', requirePermission('jobs:update'), async (c) => {
+        const currentUser = c.get('user') as any
+        const id = c.req.param('id')
+        const f = await ownFolder(id, currentUser.companyId, c.req.param('folderId'))
+        if (!f) return c.json({ error: 'Folder not found' }, 404)
+        const body = await c.req.json().catch(() => null) as { name?: unknown } | null
+        const n = await folderName(id, currentUser.companyId, body?.name, f.id)
+        if ('error' in n) return c.json({ error: n.error, code: 'validation_failed' }, n.status)
+        const [renamed] = await db.update(t.jobPhotoFolder).set({ name: n.name }).where(eq(t.jobPhotoFolder.id, f.id)).returning({ id: t.jobPhotoFolder.id, name: t.jobPhotoFolder.name })
+        return c.json(renamed)
+      })
+      // Its photos stay on the job, in no folder.
+      app.delete('/:id/photo-folders/:folderId', requirePermission('jobs:update'), async (c) => {
+        const currentUser = c.get('user') as any
+        const f = await ownFolder(c.req.param('id'), currentUser.companyId, c.req.param('folderId'))
+        if (!f) return c.json({ error: 'Folder not found' }, 404)
+        await db.update(t.jobPhoto).set({ folderId: null }).where(and(eq(t.jobPhoto.folderId, f.id), eq(t.jobPhoto.companyId, currentUser.companyId)))
+        await db.delete(t.jobPhotoFolder).where(eq(t.jobPhotoFolder.id, f.id))
+        return c.body(null, 204)
+      })
+    }
 
     app.delete('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any

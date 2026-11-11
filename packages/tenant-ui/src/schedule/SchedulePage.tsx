@@ -15,6 +15,7 @@ import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext'
 import { UNASSIGNED, crewIdsOf, lanesFor, laneMoveBody, isTravelWarning, BOOK_ANYWAY_TITLE, RouteOptimiser, type Lane } from './crew'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
+import { useDispatchFit, ZonePicker, SkillRanking, LaneSkill } from './dispatchFit'
 import { whenTime, companyTodayKey, companyDayKey, companyMinutes, companyDayStart, companyMoment, companyHHMM } from '../time/companyClock'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -88,7 +89,10 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   // day, a day off from the jobs it holds. Noon, so the calendar maths below never crosses a midnight.
   const companyToday = () => new Date(`${companyTodayKey()}T12:00:00`)
   const [currentDate, setCurrentDate] = useState(companyToday)
-  const [jobs, setJobs] = useState<ScheduleJob[]>([])
+  const [allJobs, setJobs] = useState<ScheduleJob[]>([])
+  // Skills and zones (dispatchFit.tsx): one zone picked shows its jobs only; a job being moved says who fits it.
+  const fit = useDispatchFit(api, { skills: cfg.lanes && cfg.skills, zones: cfg.zones })
+  const jobs = allJobs.filter(fit.inZoneShown)
   const [bookings, setBookings] = useState<ScheduleBooking[]>([])
   const [events, setEvents] = useState<ScheduleEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -256,7 +260,11 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     await move(job, { ...(sameDay ? {} : { scheduledDate: day }), scheduledTime: hhmm }, hhmm ? `Moved to ${hourLabel(Number(hhmm.slice(0, 2)))}` : 'Time taken off — no time set')
   }
   // ── Lanes ────────────────────────────────────────────────────────────────────────────────────────────
-  const lanes: Lane[] = cfg.lanes ? [...lanesFor(roster, jobs), { id: UNASSIGNED, name: 'Unassigned' }] : []
+  // One zone picked that names its techs: their lanes (anyone else a shown job names still gets one, from lanesFor).
+  const laneRoster = fit.zoneTechs ? roster.filter((p) => fit.zoneTechs!.includes(p.id)) : roster
+  const lanes: Lane[] = cfg.lanes ? [...lanesFor(laneRoster, jobs), { id: UNASSIGNED, name: 'Unassigned' }] : []
+  /** The job being moved (tap) or dragged: the one the lanes' skill notes are about. */
+  const fitJob = moving || dragJob
   const jobsIn = (list: ScheduleJob[], lane: string) => list.filter((j) => { const ids = crewIdsOf(j); return lane === UNASSIGNED ? ids.length === 0 : ids.includes(lane) })
   const laneName = (lane: string) => lanes.find((l) => l.id === lane)?.name || 'Unassigned'
   /** Optimise route on a lane: anyone's with jobs:read-all, else only the signed-in person's own (the server's rule). */
@@ -490,6 +498,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                 <div key={l.id || 'unassigned'} data-lane-head={l.id} className="border-b border-l dark:border-slate-800 px-2 py-2 min-w-0">
                   <p className="text-sm font-semibold truncate text-gray-900 dark:text-slate-100">{l.name}</p>
                   <p className="text-[11px] text-gray-600 dark:text-slate-400">{n} {cfg.jobLabel.toLowerCase()}{n === 1 ? '' : 's'}</p>
+                  {l.id !== UNASSIGNED && <LaneSkill fit={fit} job={fitJob} personId={l.id} />}
                   {mayRoute(l.id) && n > 1 && (
                     <button type="button" data-route-lane={l.id} onClick={() => setRouteFor(l)} className="mt-1 inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] font-medium text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
                       <Route className="w-3 h-3" />Optimise route
@@ -534,7 +543,10 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         ))}
         {lanes.map((l) => (
           <Fragment key={l.id || 'unassigned'}>
-            <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-2 text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">{l.name}</div>
+            <div className="sticky left-0 z-10 bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-2 text-sm font-semibold text-gray-900 dark:text-slate-100">
+              <span className="block truncate">{l.name}</span>
+              {l.id !== UNASSIGNED && <LaneSkill fit={fit} job={fitJob} personId={l.id} />}
+            </div>
             {days.map((day) => {
               const k = cellKey(l.id, localKey(day))
               return (
@@ -594,6 +606,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {cfg.events && mayBook && <Button onClick={() => setNewFor(companyToday())}><Plus className="w-4 h-4 inline mr-1" />New Appointment</Button>}
+          {cfg.zones && <ZonePicker fit={fit} />}
           {cfg.lanes && view === 'week' && (
             <button type="button" aria-pressed={byPerson} onClick={() => setByPerson(!byPerson)} data-testid="by-person"
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${byPerson ? 'border-orange-600 bg-orange-600 text-white' : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'}`}>
@@ -619,6 +632,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         {cfg.businessHours && <span className="inline-flex items-center gap-1.5" data-testid="closed-legend"><span className={`w-3 h-3 rounded border border-gray-300 dark:border-slate-600 ${MUTED}`} />Outside business hours</span>}
       </div>
 
+      {lanesShowing && <SkillRanking fit={fit} job={fitJob} people={lanes.filter((l) => l.id !== UNASSIGNED)} load={(id) => jobsIn(jobs, id).length} />}
       {moving && (
         <div role="status" data-testid="move-banner" className="sticky top-0 z-20 mb-3 flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900 shadow-sm dark:border-orange-500/50 dark:bg-orange-950/60 dark:text-orange-100">
           <span className="min-w-0"><span className="font-semibold">Moving “{moving.title}”</span> — tap {view === 'day' ? (lanesShowing ? 'a person’s hour' : 'an hour') : lanesShowing ? 'a person’s day' : 'a day'} to put it there{view === 'day' ? ' (or "No time set")' : ''}.</span>

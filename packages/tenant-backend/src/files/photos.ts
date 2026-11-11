@@ -2,13 +2,16 @@
 // every CRM: photos are re-encoded to web-sized JPEG + a thumbnail, stored PRIVATE in the tenant's R2
 // bucket, and served back only through the authenticated, company-scoped routes here. Rows live in the
 // document table (type = category, mimeType image/jpeg) — the schema has no dedicated photo table in use.
+import { folderNameCheck, ownFolderOf, foldersOfJob } from './photoFolders'
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import sharp from 'sharp'
 import { eq, and, desc, count, asc } from 'drizzle-orm'
 import type { FileStorage } from './storage'
 
-export interface PhotoTables { document: any; user: any; project: any; job: any }
+export interface PhotoTables { document: any; user: any; project: any; job: any
+  /** A job's own named folders (files/photoFolders.ts) — with document.photoFolderId; absent, the standard categories only. */
+  jobPhotoFolder?: any }
 export interface PhotoDeps {
   db: any
   tables: PhotoTables
@@ -47,7 +50,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
   }
 
   /** Re-encode + store one photo (main + thumbnail). Throws a plain Error for a caller mistake. */
-  async function processPhoto(file: File, o: { companyId: string; userId: string; projectId?: string | null; jobId?: string | null; caption?: string | null; category?: string | null }) {
+  async function processPhoto(file: File, o: { companyId: string; userId: string; projectId?: string | null; jobId?: string | null; caption?: string | null; category?: string | null; folderId?: string | null }) {
     if (file.size > MAX_PHOTO_BYTES) throw new Error(`Photo too large. Max size: ${MAX_PHOTO_BYTES / 1024 / 1024}MB`)
     const input = Buffer.from(await file.arrayBuffer())
     let main: Buffer, thumb: Buffer
@@ -77,6 +80,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
       projectId: o.projectId || null,
       jobId: o.jobId || null,
       uploadedById: o.userId,
+      ...(o.folderId ? { photoFolderId: o.folderId } : {}),
     }).returning()
     return photo
   }
@@ -120,6 +124,57 @@ export function createPhotoRoutes(deps: PhotoDeps) {
   // Registered before /:id so "meta" is never read as an id.
   app.get('/meta/categories', async (c) => c.json(PHOTO_CATEGORIES))
 
+  // ── A job's own named folders, for the photos filed under it here (live test 11/11: the contractor's job photos are this
+  //    library's, and only had the standard categories — Buildertrend and CompanyCam let you name your own). The same folders as
+  //    the job's own photos use (files/photoFolders.ts). Registered before /:id.
+  const named = !!t.jobPhotoFolder && 'photoFolderId' in t.document
+  const ownJob = async (companyId: string, jobId: unknown) => {
+    if (typeof jobId !== 'string' || !jobId) return null
+    const [j] = await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, jobId), eq(t.job.companyId, companyId))).limit(1)
+    return j ?? null
+  }
+  const folderById = async (companyId: string, id: string) => {
+    const [f] = await db.select().from(t.jobPhotoFolder).where(and(eq(t.jobPhotoFolder.id, id), eq(t.jobPhotoFolder.companyId, companyId))).limit(1)
+    return f ?? null
+  }
+  if (named) {
+    app.get('/folders', requirePermission('documents:read'), async (c) => {
+      const { companyId } = actor(c)
+      const job = await ownJob(companyId, c.req.query('jobId'))
+      if (!job) return c.json({ error: 'Job not found' }, 404)
+      return c.json({ data: await foldersOfJob(db, t.jobPhotoFolder, job.id, companyId) })
+    })
+    app.post('/folders', requirePermission('documents:create'), async (c) => {
+      const { companyId } = actor(c)
+      const body = (await c.req.json().catch(() => null)) ?? {}
+      const job = await ownJob(companyId, body.jobId)
+      if (!job) return c.json({ error: 'Job not found' }, 404)
+      const n = await folderNameCheck(db, t.jobPhotoFolder, job.id, companyId, body.name)
+      if ('error' in n) return c.json({ error: n.error, code: 'validation_failed' }, n.status)
+      const [made] = await db.insert(t.jobPhotoFolder).values({ companyId, jobId: job.id, name: n.name }).returning({ id: t.jobPhotoFolder.id, name: t.jobPhotoFolder.name })
+      return c.json(made, 201)
+    })
+    app.patch('/folders/:folderId', requirePermission('documents:update'), async (c) => {
+      const { companyId } = actor(c)
+      const f = await folderById(companyId, c.req.param('folderId'))
+      if (!f) return c.json({ error: 'Folder not found' }, 404)
+      const body = (await c.req.json().catch(() => null)) ?? {}
+      const n = await folderNameCheck(db, t.jobPhotoFolder, f.jobId, companyId, body.name, f.id)
+      if ('error' in n) return c.json({ error: n.error, code: 'validation_failed' }, n.status)
+      const [renamed] = await db.update(t.jobPhotoFolder).set({ name: n.name }).where(eq(t.jobPhotoFolder.id, f.id)).returning({ id: t.jobPhotoFolder.id, name: t.jobPhotoFolder.name })
+      return c.json(renamed)
+    })
+    // Its photos stay, in no folder.
+    app.delete('/folders/:folderId', requirePermission('documents:update'), async (c) => {
+      const { companyId } = actor(c)
+      const f = await folderById(companyId, c.req.param('folderId'))
+      if (!f) return c.json({ error: 'Folder not found' }, 404)
+      await db.update(t.document).set({ photoFolderId: null }).where(and(eq(t.document.photoFolderId, f.id), eq(t.document.companyId, companyId)))
+      await db.delete(t.jobPhotoFolder).where(eq(t.jobPhotoFolder.id, f.id))
+      return c.body(null, 204)
+    })
+  }
+
   app.get('/:id', requirePermission('documents:read'), async (c) => {
     const photo = await getPhoto(c.req.param('id'), actor(c).companyId)
     return photo ? c.json(photo) : c.json({ error: 'Photo not found' }, 404)
@@ -148,7 +203,11 @@ export function createPhotoRoutes(deps: PhotoDeps) {
     if (!(file instanceof File)) return c.json({ error: 'No photo uploaded' }, 400)
     let photo
     try {
-      photo = await processPhoto(file, { companyId, userId, projectId: fd!.get('projectId') as string | null, jobId: fd!.get('jobId') as string | null, caption: fd!.get('caption') as string | null, category: fd!.get('category') as string | null })
+      const jobId = fd!.get('jobId') as string | null
+      const askedFolder = named ? (fd!.get('folderId') as string | null) : null
+      const folder = askedFolder ? await ownFolderOf(db, t.jobPhotoFolder, jobId, companyId, askedFolder) : null
+      if (askedFolder && !folder) return c.json({ error: 'That folder is not on this job.', code: 'validation_failed' }, 400)
+      photo = await processPhoto(file, { companyId, userId, projectId: fd!.get('projectId') as string | null, jobId, caption: fd!.get('caption') as string | null, category: folder ? null : fd!.get('category') as string | null, folderId: folder?.id ?? null })
     } catch (err: any) { return c.json({ error: err.message }, 400) }
     audit('photo_upload', { userId, companyId }, { photoId: photo.id, filename: photo.originalName })
     return c.json(photo, 201)
@@ -177,6 +236,12 @@ export function createPhotoRoutes(deps: PhotoDeps) {
     const u: Record<string, unknown> = { updatedAt: new Date() }
     if (body.caption !== undefined) { u.description = body.caption || null; if (body.caption) u.name = String(body.caption).slice(0, 200) }
     if (body.category !== undefined) u.type = PHOTO_CATEGORIES.includes(body.category) ? body.category : 'photo'
+    // Into one of its job's named folders (out of any category), or — a category given — out of any named folder.
+    if (named && body.folderId) {
+      const folder = await ownFolderOf(db, t.jobPhotoFolder, photo.jobId, companyId, body.folderId)
+      if (!folder) return c.json({ error: 'That folder is not on this photo\'s job.', code: 'validation_failed' }, 400)
+      u.photoFolderId = folder.id; u.type = 'photo'
+    } else if (named && body.category !== undefined) u.photoFolderId = null
     if (body.projectId !== undefined) u.projectId = body.projectId || null
     if (body.jobId !== undefined) u.jobId = body.jobId || null
     const [updated] = await db.update(t.document).set(u).where(eq(t.document.id, photo.id)).returning()

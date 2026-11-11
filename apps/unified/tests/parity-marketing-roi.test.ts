@@ -88,6 +88,28 @@ test('the heat map: customers by ZIP, placed at their points or their jobs, ever
   expect((await json(await call('/api/marketing-roi/map?from=2026-10-01&to=2026-10-31&source=yelp'))).body.zips).toEqual([])
 })
 
+test("a ZIP with no customer or job on the map is placed at the ZIP itself (live test 11/11); no Maps key: unplaced", async () => {
+  const hand = await ins(t.schema.contact, { companyId, name: 'Casey', type: 'client', zip: '53714' })
+  await ins(t.schema.job, { companyId, number: 'JOB-9', title: 'Tune-up', contactId: hand.id, createdAt: at('2026-10-20T15:00:00Z') })
+  const realFetch = globalThis.fetch, asked: string[] = []
+  delete process.env.GOOGLE_MAPS_API_KEY
+  const before = await json(await call('/api/marketing-roi/map?from=2026-10-01&to=2026-10-31'))
+  expect(before.body.zips.find((z: any) => z.zip === '53714')).toMatchObject({ customers: 1, lat: null, lng: null })
+  process.env.GOOGLE_MAPS_API_KEY = 'test-key'
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input?.url ?? input)
+    if (!url.startsWith('https://maps.googleapis.com/maps/api/geocode/json')) return realFetch(input, init)
+    asked.push(decodeURIComponent(/address=([^&]+)/.exec(url)?.[1] || ''))
+    return new Response(JSON.stringify({ status: 'OK', results: [{ geometry: { location: { lat: 43.1, lng: -89.31 } }, formatted_address: 'Madison, WI 53714', types: ['postal_code'] }] }), { headers: { 'content-type': 'application/json' } })
+  }) as typeof fetch
+  try {
+    const after = await json(await call('/api/marketing-roi/map?from=2026-10-01&to=2026-10-31'))
+    expect(after.body.zips.find((z: any) => z.zip === '53714')).toMatchObject({ customers: 1, lat: 43.1, lng: -89.31 })
+    expect(asked).toEqual(['53714, USA']) // only the ZIP with no point is looked up
+    expect(after.body.unplaced).toBe(before.body.unplaced - 1)
+  } finally { globalThis.fetch = realFetch; delete process.env.GOOGLE_MAPS_API_KEY }
+})
+
 test('switched off: closed', async () => {
   await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'invoices'] } as any).where(eq(t.schema.company.id, companyId))
   t.services.features.forgetFeatures()

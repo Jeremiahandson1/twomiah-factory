@@ -60,3 +60,52 @@ test('the photo library (the contractor) reads its folders from the category', a
   const el = await render({ api: fakeApi([{ id: 'd1', url: '/m/d1.jpg', description: 'Footings', type: 'progress' }, { id: 'd2', url: '/m/d2.jpg', description: 'Permit card', type: 'permit' }]), store: 'library', folders: true })
   expect(tabs(el)).toEqual(['All (2)', 'Progress (1)', 'Permits (1)'])
 })
+
+// Live test 11/11: a job's own named folders (Buildertrend, CompanyCam) — a tab even while empty, offered when moving a photo, and
+// "New folder" making one through the job's route.
+test("a job's named folders: a tab each (empty too), in the move list, and New folder makes one", async () => {
+  const rows = [...PHOTOS, { id: 'p5', url: '/m/5.jpg', caption: 'Joists', photoType: 'general', folderId: 'fa' }]
+  const calls: Array<{ method: string; path: string; body?: any }> = []
+  const api = {
+    get: async (path: string) => (path.endsWith('/photo-folders') ? { data: [{ id: 'fa', name: 'Attic' }, { id: 'fb', name: 'Crawlspace' }] } : rows),
+    request: async (path: string, init: any) => { calls.push({ method: init.method, path, body: init.body }); return { id: 'fc', name: 'Garage' } },
+  }
+  const el = await render({ api, store: 'job', folders: true })
+  expect(tabs(el)).toEqual(['All (5)', 'Before (1)', 'After (2)', 'Attic (1)', 'Crawlspace (0)', 'Not in a folder (1)'])
+  const btn = (words: string) => [...el.querySelectorAll('button')].find((b: any) => b.textContent.trim() === words) as any
+  await act(async () => { btn('New folder').dispatchEvent(new win.MouseEvent('click', { bubbles: true })) })
+  await settle()
+  const input = el.querySelector('input[placeholder="Folder name"]') as any
+  expect(input).toBeTruthy()
+  await act(async () => {
+    const set = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')!.set!
+    set.call(input, 'Garage'); input.dispatchEvent(new win.Event('input', { bubbles: true }))
+  })
+  await act(async () => { btn('Make folder').dispatchEvent(new win.MouseEvent('click', { bubbles: true })) })
+  await settle()
+  expect(calls.find((c) => c.path === '/api/jobs/job-1/photo-folders')).toMatchObject({ method: 'POST', body: JSON.stringify({ name: 'Garage' }) })
+})
+
+test("the photo library (the contractor): its job's named folders too — a tab, the move list, and New folder through /api/photos/folders", async () => {
+  const rows = [{ id: 'd1', url: '/m/d1.jpg', description: 'Footings', type: 'progress' }, { id: 'd2', url: '/m/d2.jpg', description: 'Sill', type: 'photo', photoFolderId: 'fb' }]
+  const calls: Array<{ method: string; path: string; body?: any }> = []
+  const gets: Array<{ path: string; params?: any }> = []
+  const api = {
+    get: async (path: string, params?: any) => { gets.push({ path, params }); return path === '/api/photos/folders' ? { data: [{ id: 'fb', name: 'Basement' }] } : rows },
+    request: async (path: string, init: any) => { calls.push({ method: init.method, path, body: init.body }); return { id: 'fc', name: 'Garage' } },
+  }
+  const el = await render({ api, store: 'library', folders: true })
+  expect(tabs(el)).toEqual(['All (2)', 'Progress (1)', 'Basement (1)'])
+  expect(gets.find((g) => g.path === '/api/photos/folders')?.params).toEqual({ jobId: 'job-1' })
+  const btn = (words: string) => [...el.querySelectorAll('button')].find((b: any) => b.textContent.trim() === words) as any
+  await act(async () => { btn('New folder').dispatchEvent(new win.MouseEvent('click', { bubbles: true })) })
+  await settle()
+  const input = el.querySelector('input[placeholder="Folder name"]') as any
+  await act(async () => {
+    const set = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')!.set!
+    set.call(input, 'Garage'); input.dispatchEvent(new win.Event('input', { bubbles: true }))
+  })
+  await act(async () => { btn('Make folder').dispatchEvent(new win.MouseEvent('click', { bubbles: true })) })
+  await settle()
+  expect(calls.find((c) => c.path === '/api/photos/folders')).toMatchObject({ method: 'POST', body: JSON.stringify({ name: 'Garage', jobId: 'job-1' }) })
+})
