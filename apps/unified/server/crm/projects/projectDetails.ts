@@ -16,6 +16,10 @@ import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
 import { MONEY_PERMISSION } from './projects.ts'
+import { createJobCostingService } from '../field/jobCostingService.ts'
+import { projectOnlyCost } from '../../data/jobCosting.ts'
+import { inArray } from 'drizzle-orm'
+import { job } from '../../db/schema/index.ts'
 
 const DAY = 86_400_000
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-12-31')
@@ -47,20 +51,47 @@ export function createProjectDetailRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const mayWith = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
+  const costing = createJobCostingService(d)
+
+  /** Cost to date per project: its jobs' cost (the work, before commissions) and what was filed on it with no job — the WIP report's arithmetic. */
+  async function costToDate(companyId: string, projectIds: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    if (!projectIds.length) return out
+    const jobs = await db.select({ id: job.id, projectId: job.projectId }).from(job).where(and(eq(job.companyId, companyId), inArray(job.projectId, projectIds)))
+    const costs = await costing.costsByJob(companyId, (jobs as any[]).map((j) => j.id), { beforeCommissions: true })
+    for (const j of jobs as any[]) out.set(j.projectId, Math.round(((out.get(j.projectId) || 0) + (costs.get(j.id)?.totalCost || 0)) * 100) / 100)
+    for (const [pid, cost] of await projectOnlyCost(db, companyId, projectIds)) out.set(pid, Math.round(((out.get(pid) || 0) + cost) * 100) / 100)
+    return out
+  }
 
   const view = async (c: any, p: any) => {
     const me = c.get('user')
     const money = await mayWith(me.role, MONEY_PERMISSION, me.userId).catch(() => false)
     const open = !['completed', 'cancelled'].includes(String(p.status))
+    const actual = money ? (await costToDate(p.companyId, [p.id])).get(p.id) ?? 0 : null
     return {
       squareFeet: p.squareFeet ?? null,
       buildersRisk: p.buildersRisk ?? null,
       policyStanding: policyStanding(p.buildersRisk, open),
-      perSquareFoot: money ? { price: per(p.estimatedValue, p.squareFeet), budget: per(p.budget, p.squareFeet) } : null,
+      costToDate: actual,
+      perSquareFoot: money ? { price: per(p.estimatedValue, p.squareFeet), budget: per(p.budget, p.squareFeet), actual: per(actual, p.squareFeet) } : null,
     }
   }
   const projectOf = async (companyId: string, id: string) =>
     (await db.select().from(project).where(and(eq(project.id, id), eq(project.companyId, companyId))).limit(1))[0] ?? null
+
+  // The projects list's columns: square feet and, for a seat that sees project money, price, budget and cost to date per square foot.
+  app.get('/list/figures', requirePermission('projects:read'), async (c) => {
+    const me = c.get('user')
+    const ids = String(c.req.query('ids') || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 200)
+    if (!ids.length) return one(c, { figures: {} })
+    const rows = await db.select().from(project).where(and(eq(project.companyId, me.companyId), inArray(project.id, ids)))
+    const money = await mayWith(me.role, MONEY_PERMISSION, me.userId).catch(() => false)
+    const cost = money ? await costToDate(me.companyId, (rows as any[]).map((r) => r.id)) : new Map<string, number>()
+    const figures: Record<string, any> = {}
+    for (const r of rows as any[]) figures[r.id] = { squareFeet: r.squareFeet ?? null, ...(money ? { price: per(r.estimatedValue, r.squareFeet), budget: per(r.budget, r.squareFeet), actual: per(cost.get(r.id) ?? 0, r.squareFeet) } : {}) }
+    return one(c, { figures })
+  })
 
   app.get('/:projectId', requirePermission('projects:read'), async (c) => {
     const p = await projectOf(c.get('user').companyId, c.req.param('projectId'))

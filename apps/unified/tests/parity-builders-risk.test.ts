@@ -38,6 +38,15 @@ test('square feet gives price and budget per square foot', async () => {
   expect(r.body).toMatchObject({ squareFeet: 3000, perSquareFoot: { price: 150, budget: 120 }, buildersRisk: null })
 })
 
+test('cost so far per square foot, and the list columns', async () => {
+  await (t.db as any).insert(t.schema.expense).values({ companyId, projectId: proj, category: 'materials', amount: '90000', description: 'Lumber', date: new Date('2026-11-01T12:00:00Z') })
+  const d = await json(await call(`/api/project-details/${proj}`))
+  expect(d.body.costToDate).toBe(90000)
+  expect(d.body.perSquareFoot.actual).toBe(30)
+  const list = await json(await call(`/api/project-details/list/figures?ids=${proj}`))
+  expect(list.body.figures[proj]).toMatchObject({ squareFeet: 3000, price: 150, budget: 120, actual: 30 })
+})
+
 test("the builder's risk policy: validated, saved, cleared", async () => {
   expect((await call(`/api/project-details/${proj}`, { method: 'PUT', json: { buildersRisk: { carrier: 'Acme Mutual', startsOn: '2027-01-10', endsOn: '2027-01-01' } } })).status).toBe(400)
   const r = await json(await call(`/api/project-details/${proj}`, { method: 'PUT', json: { buildersRisk: { carrier: 'Acme Mutual', policyNumber: 'BR-889', coverage: 450000, startsOn: '2026-10-01', endsOn: '2099-12-31' } } }))

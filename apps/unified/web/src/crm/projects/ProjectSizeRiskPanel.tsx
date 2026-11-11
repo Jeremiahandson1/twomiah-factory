@@ -8,7 +8,7 @@ import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
 
 interface Policy { carrier: string; policyNumber?: string | null; coverage?: number | null; startsOn?: string | null; endsOn?: string | null }
-interface Details { squareFeet: number | null; buildersRisk: Policy | null; policyStanding: 'ok' | 'ending_soon' | 'ended' | null; perSquareFoot: { price: number | null; budget: number | null } | null }
+interface Details { squareFeet: number | null; buildersRisk: Policy | null; policyStanding: 'ok' | 'ending_soon' | 'ended' | null; costToDate: number | null; perSquareFoot: { price: number | null; budget: number | null; actual: number | null } | null }
 
 const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
 const label = 'block text-xs font-medium text-gray-700 dark:text-slate-200'
@@ -55,6 +55,7 @@ export function ProjectSizeRiskPanel({ projectId }: { projectId: string }) {
           <dt className="text-gray-600 dark:text-slate-400">Square feet</dt><dd>{d.squareFeet ? d.squareFeet.toLocaleString('en-US') : 'Not set'}</dd>
           {d.perSquareFoot?.price != null && <><dt className="text-gray-600 dark:text-slate-400">Price per sq ft</dt><dd>{money(d.perSquareFoot.price)}</dd></>}
           {d.perSquareFoot?.budget != null && <><dt className="text-gray-600 dark:text-slate-400">Budget per sq ft</dt><dd>{money(d.perSquareFoot.budget)}</dd></>}
+          {d.perSquareFoot?.actual != null && <><dt className="text-gray-600 dark:text-slate-400">Cost so far per sq ft</dt><dd>{money(d.perSquareFoot.actual)}{d.costToDate != null ? <span className="block text-xs text-gray-600 dark:text-slate-400">{money(d.costToDate)} spent so far</span> : null}</dd></>}
           <dt className="text-gray-600 dark:text-slate-400">Builder&rsquo;s risk</dt>
           <dd>{p ? <>{p.carrier}{p.policyNumber ? ` · ${p.policyNumber}` : ''}{p.coverage != null ? ` · ${money(p.coverage)} cover` : ''}{p.endsOn ? <span className="block text-xs text-gray-600 dark:text-slate-400">{p.startsOn ? `${day(p.startsOn)} – ` : 'Until '}{day(p.endsOn)}</span> : null}</> : 'No policy recorded'}</dd>
           {d.policyStanding === 'ending_soon' && <dd className="col-span-2 text-sm font-medium text-amber-800 dark:text-amber-200">The policy ends within 30 days.</dd>}
