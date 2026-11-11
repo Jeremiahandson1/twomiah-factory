@@ -69,7 +69,8 @@ export interface ScreenSpec {
   /** One record, no list: the screen is the detail itself (Tonight). `detail.path` ignores the id. */
   single?: boolean
   chips?: Chip[]
-  search?: { param: string; placeholder: string }
+  /** `scan`: a barcode button in the box that fills it from the camera, where the business has that switch on (barcode_scanning). */
+  search?: { param: string; placeholder: string; scan?: { feature: string } }
   empty: { title: string; body: string }
   detail?: {
     /** The request for one row; null: the list's own row is the record (it is kept in rowCache). */

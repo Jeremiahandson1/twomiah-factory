@@ -56,7 +56,7 @@ service where they fit (`shared-backlog.md`).
 | Caller ID with the customer's record (screen pop) | none | not built |
 | Live "where's my tech" map for the customer | built 11/10, hidden (`tech_tracking`): the "on my way" text carries a private link (`/on-the-way/<token>`, signed, 4 hours) to a map of the tech's newest position (from their phone, when they share location; 15 minutes at most old), refreshed every 30 seconds; "arrived" once they start, no position after (`server/crm/field/techTrack.ts`, `tests/parity-tech-tracking.test.ts`). Not done: a drive-time estimate on the page | yes (hidden) |
 | Chat-to-text website widget | none | not built |
-| Barcode / equipment scanning on the phone | the store's phone screens only (`apps/mobile/src/trades/store.ts`) | built elsewhere |
+| Barcode / equipment scanning on the phone | built 11/10, hidden (`barcode_scanning`): scan a part's barcode on the phone's Stock list (search by name, SKU, barcode or supplier part #; read only), and a product's on the store's Stock (`apps/mobile/src/scan/`, `tests/mobile/barcode-scan.test.ts`, `tests/parity-barcode-search.test.ts`). Not done: scanning an equipment serial; using a part on a job from the phone. Needs a check on a real phone (camera) | yes (hidden) |
 | Spanish in the app | none (roofing's work orders only) | not built |
 | Service zones | none | not built |
 | Marketing ROI scorecard, revenue heat map | call tracking counts calls; no ROI | not built |
