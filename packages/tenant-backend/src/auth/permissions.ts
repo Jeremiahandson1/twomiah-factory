@@ -381,6 +381,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // bar:register works the register and the grill (ring, send, pay, split, bump). Voiding what was sent,
     // voiding a payment and closing the night are bar:manage (managers' bar:*), or a manager's till PIN.
     'bar:read', 'bar:console', 'bar:register',
+    // inventory:use — the technician puts a part from their van on the job they are at (POST /api/inventory/use; ServiceTitan's
+    // materials from the truck). Taking stock in, moving it and counting it stay the office's (inventory:update).
+    'inventory:use',
   ],
   viewer: [
     // prices:read — the price list's sale prices (GET /pricebook/items, /search). Every seat had them; a role that must not

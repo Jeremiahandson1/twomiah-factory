@@ -1,8 +1,9 @@
 /**
  * Stock on the phone (parity tier 2 #10, with barcode scanning — feature barcode_scanning, not ready): the shared inventory's parts
  * (packages/tenant-backend inventory, GET /api/inventory/items — the desktop's Inventory page, which asks no permission beyond a
- * session), found by name, SKU, barcode or the supplier's part number, or by scanning the barcode on the box. Read only: receiving,
- * moving and counting stay on the desktop. What a part cost is the server's to hide (margin:read), never this screen's.
+ * session), found by name, SKU, barcode or the supplier's part number, or by scanning the barcode on the box. "Use on a job" puts the part on a
+ * job that is under way, off the location it was taken from (POST /api/inventory/use — inventory:use, the technician's; ServiceTitan's
+ * materials from the truck). Receiving, moving and counting stay on the desktop. What a part cost is the server's to hide (margin:read), never this screen's.
  *
  * Equipment on the phone (the same barcode scanning — ServiceTitan's equipment serial scan): the customers' units (packages/
  * tenant-backend equipment, GET /api/equipment — the desktop's Equipment page, which asks no permission beyond a session), found by
@@ -36,6 +37,16 @@ export const STOCK: ScreenSpec[] = [
         ] },
         { title: 'Where it is', rows: (d) => (d.stockLevels || []).map((l: any) => ({ key: l.id, title: l.location?.name || 'A location', meta: String(l.quantity ?? 0) })), empty: 'Not stocked anywhere yet.' },
       ],
+      actions: [{
+        id: 'use-on-job', label: 'Use on a job', icon: 'add-circle', any: ['inventory:use'], when: (d) => Number(d.totalStock) > 0,
+        inputs: [
+          { id: 'job', label: 'Which job', required: true, options: { path: () => '/api/jobs?status=in_progress&limit=50', label: (j: any) => (join(j.number, j.title, j.contact?.name) || 'Job').slice(0, 70), value: (j: any) => j.id, none: 'No job is under way. Start the job first, then add the part.', loading: 'Getting the jobs under way…' } },
+          { id: 'from', label: 'Taken from', required: true, options: { path: () => '/api/inventory/locations', pick: (_b: any, row: any) => (row.stockLevels || []).filter((l: any) => Number(l.quantity) > 0), label: (l: any) => `${l.location?.name || 'A location'} (${l.quantity} there)`, value: (l: any) => l.locationId, none: 'None of it is on hand anywhere.', loading: 'Getting where it is…' } },
+          { id: 'qty', label: 'How many', kind: 'number', required: true, initial: () => '1' },
+        ],
+        request: (d, v) => ({ method: 'POST', path: '/api/inventory/use', body: { jobId: v.job, itemId: d.id, locationId: v.from, quantity: Math.max(1, Math.floor(Number(v.qty) || 1)) } }),
+        done: 'Added to the job',
+      }],
     },
   },
   {
