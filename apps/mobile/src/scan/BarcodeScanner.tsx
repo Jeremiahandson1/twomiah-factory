@@ -8,6 +8,7 @@ import { Modal, View, Text, Linking } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { Button, useDesign, space } from '../design'
 import { BARCODE_TYPES, cleanCode } from './codes'
+import { OVERLAY_INK } from '../theme/actions'
 
 export function BarcodeScanner({ visible, onScanned, onClose }: { visible: boolean; onScanned: (code: string) => void; onClose: () => void }) {
   const { c } = useDesign()
@@ -40,7 +41,7 @@ export function BarcodeScanner({ visible, onScanned, onClose }: { visible: boole
           </View>
         )}
         <View style={{ position: 'absolute', left: space[4], right: space[4], bottom: space[6] }}>
-          {perm?.granted ? <Text style={{ color: '#fff', fontSize: 16, textAlign: 'center', marginBottom: space[3] }}>Point the camera at the barcode</Text> : null}
+          {perm?.granted ? <Text style={{ color: OVERLAY_INK, fontSize: 16, textAlign: 'center', marginBottom: space[3] }}>Point the camera at the barcode</Text> : null}
           <Button label="Close" variant="secondary" onPress={onClose} fullWidth />
         </View>
       </View>

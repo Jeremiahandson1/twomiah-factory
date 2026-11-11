@@ -10,7 +10,8 @@ const onHand = (n: unknown) => (n == null ? undefined : `${Number(n)} on hand`)
 
 export const STOCK: ScreenSpec[] = [
   {
-    id: 'stock-parts', title: 'Stock', any: [], feature: 'inventory',
+    // jobs:read — every seat that works jobs looks parts up (the desktop Inventory page asks no more than a session).
+    id: 'stock-parts', title: 'Stock', any: ['jobs:read'], feature: 'inventory',
     list: { path: '/api/inventory/items', query: { limit: '50' } },
     search: { param: 'search', placeholder: 'Name, SKU or barcode', scan: { feature: 'barcode_scanning' } },
     rows: (i) => ({ id: i.id, key: i.id, title: i.name || 'Part', subtitle: join(i.sku, i.barcode && i.barcode !== i.sku ? i.barcode : undefined),
