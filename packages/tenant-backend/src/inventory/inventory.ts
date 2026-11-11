@@ -199,6 +199,9 @@ async function getItems(companyId: string, {
       ilike(inventoryItem.name, `%${search}%`),
       ilike(inventoryItem.sku, `%${search}%`),
       ilike(inventoryItem.description, `%${search}%`),
+      // A scanned barcode (parity tier 2 #10) or the supplier's part number finds the part too.
+      ...(inventoryItem.barcode ? [ilike(inventoryItem.barcode, `%${search}%`)] : []),
+      ...(inventoryItem.vendorPartNumber ? [ilike(inventoryItem.vendorPartNumber, `%${search}%`)] : []),
     )!)
   }
 
@@ -612,6 +615,10 @@ async function useOnJob(companyId: string, {
   const { usage, newQuantity } = await db.transaction(async (tx: any) => {
     const item = await ownItem(tx, companyId, itemId)
     const location = await ownLocation(tx, companyId, locationId)
+    // The job is this company's: another company's job id was taken as it came (the usage row would have named it).
+    if (typeof jobIdParam !== 'string' || !jobIdParam) throw new InventoryError('Job is required', 400)
+    const [ownJob] = await tx.select({ id: job.id }).from(job).where(and(eq(job.id, jobIdParam), eq(job.companyId, companyId))).limit(1)
+    if (!ownJob) throw new InventoryError('Job not found', 404)
 
     const itemUnitCost = Number(item.unitCost)
     const itemUnitPrice = Number(item.unitPrice)
@@ -1281,8 +1288,9 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   // JOB USAGE
   // ============================================
 
-  // Use on job
-  app.post('/use', requirePermission('inventory:update'), async (c) => {
+  // Use on job — inventory:use: the office (inventory:*) and the technician at the job, who takes the part off their van
+  // (ServiceTitan's materials from the truck; the phone's Stock › "Use on a job").
+  app.post('/use', requirePermission('inventory:use'), async (c) => {
     const user = c.get('user') as any
     const { jobId, itemId, locationId, quantity, unitPrice } = await c.req.json()
 

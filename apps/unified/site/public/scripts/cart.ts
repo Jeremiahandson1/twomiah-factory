@@ -352,6 +352,13 @@
           (quote && quoteKey === keyOf(cart)
             ? (quote.discountCents ? '<div class="cart-summary__row"><span>Discount' + (quote.discountCode ? ' (' + esc(quote.discountCode) + ')' : '') + '</span><span>−' + formatMoney(quote.discountCents) + '</span></div>' : '') +
               '<div class="cart-summary__row"><span>Shipping</span><span>' + (deliveryChoice === 'pickup' ? 'Free' : formatMoney(quote.shippingCents)) + '</span></div>' +
+              (deliveryChoice !== 'pickup' && quote.shippingOptions && quote.shippingOptions.length
+                ? '<div class="cart-summary__choice" role="radiogroup" aria-label="Shipping option">' + quote.shippingOptions.map(function (o) {
+                    var on = quote.shippingChoice && quote.shippingChoice.carrier === o.carrier && quote.shippingChoice.service === o.service;
+                    return '<label><input type="radio" name="cart-ship-rate" data-ship-rate data-carrier="' + esc(o.carrier) + '" data-service="' + esc(o.service) + '"' + (on ? ' checked' : '') + ' /> ' +
+                      esc(o.carrier) + ' ' + esc(o.service) + ' — ' + formatMoney(o.amountCents) + (o.estimatedDays ? ' (' + o.estimatedDays + ' day' + (o.estimatedDays === 1 ? '' : 's') + ')' : '') + '</label>';
+                  }).join('') + '</div>'
+                : '') +
               '<div class="cart-summary__row"><span>Tax</span><span>' + (quote.taxAtCheckout ? 'At checkout' : formatMoney(quote.taxCents)) + '</span></div>' +
               '<div class="cart-summary__row cart-summary__row--total"><strong>Total</strong><strong>' + formatMoney(quote.totalCents) + '</strong></div>'
             : '') +
@@ -386,6 +393,7 @@
             : '<div class="cart-summary__field cart-summary__ship">' +
                 '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" aria-label="Country" value="' + esc(shipCountry) + '" />' +
                 '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" aria-label="State" value="' + esc(shipState) + '" />' +
+                (shopSettings && shopSettings.carrierRates ? '<input type="text" data-ship-zip placeholder="ZIP" maxlength="10" class="cart-summary__input" autocomplete="postal-code" aria-label="ZIP code" value="' + esc(shipZip) + '" />' : '') +
               '</div>') +
           '<p class="cart-summary__note">' + (shopSettings && shopSettings.automaticTax
             ? (deliveryChoice === 'pickup' ? 'Sales tax is worked out at checkout from your billing address.' : 'Shipping is worked out from your region; sales tax at checkout, from your address.')
@@ -449,10 +457,13 @@
       if (e.target.closest('[data-discount-code]')) { discountCode = e.target.value.trim(); return; }
       if (e.target.closest('[data-ship-country]')) { shipCountry = e.target.value.trim(); return; }
       if (e.target.closest('[data-ship-state]')) { shipState = e.target.value.trim(); return; }
+      if (e.target.closest('[data-ship-zip]')) { shipZip = e.target.value.trim(); shipRate = null; return; }
     });
 
     root.addEventListener('change', function (e) {
       if (e.target.closest('[data-save-card]')) { saveCardChoice = !!e.target.closest('[data-save-card]').checked; return; }
+      var rate = e.target.closest('[data-ship-rate]');
+      if (rate) { shipRate = { carrier: rate.getAttribute('data-carrier') || '', service: rate.getAttribute('data-service') || '' }; applyDiscount(); return; }
       var choice = e.target.closest('[data-delivery]');
       if (choice) { deliveryChoice = choice.value === 'pickup' ? 'pickup' : 'ship'; renderCartPage(); return; }
       var qtyInput = e.target.closest('[data-line-qty]');
@@ -566,6 +577,9 @@
   var discountCode = '';
   var shipCountry = '';
   var shipState = '';
+  // Carrier rates (store_carrier_rates): the ZIP the live rates are for, and the option picked — only its name goes to the server.
+  var shipZip = '';
+  var shipRate = null;
   // The cart's totals from the server (POST /api/public/checkout/preview — the order's own pricing), for this exact cart,
   // code, region and delivery; any change makes them stale until Apply is pressed again.
   var quote = null;
@@ -580,7 +594,8 @@
   function cartBody(cart) {
     var body = { items: cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }) };
     if (discountCode) body.discountCode = discountCode;
-    if (shipCountry || shipState) body.shipTo = { country: shipCountry, state: shipState };
+    if (shipCountry || shipState || shipZip) body.shipTo = { country: shipCountry, state: shipState, zip: shipZip };
+    if (shipRate) body.shippingRate = shipRate;
     if (deliveryChoice === 'pickup') body.delivery = 'pickup';
     return body;
   }

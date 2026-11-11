@@ -47,6 +47,7 @@ import { stampVisitStart, recordVisitTime } from '../data/routeVisits.ts'
 import { addSurchargeLine } from '../data/cardSurcharge.ts'
 import { sendVisitReport, visitSendDeps, getReport, saveReport } from '../data/visitReports.ts'
 import { visitSharesOf } from '../data/visitInvoiceShares.ts'
+import { trackUrlFor } from './field/techTrack.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -273,7 +274,11 @@ export function createCrmServices(deps: CrmServiceDeps) {
     onPause: async (ctx) => { await afterJobMoment('paused', ctx) },
     onResume: async (ctx) => { await afterJobMoment('resumed', ctx) },
     onDispatch: async (ctx) => {
-      if (textArrival && stillCurrent(ctx.tappedAt)) sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way', { etaMinutes: ctx.etaMinutes ?? null }).catch(() => {})
+      // With "where's my tech" on (crm/field/techTrack.ts), the text carries the private link to where they are.
+      if (textArrival && stillCurrent(ctx.tappedAt)) {
+        const trackUrl = (await isFeatureEnabled(ctx.companyId, 'tech_tracking').catch(() => false)) ? trackUrlFor(ctx.job.id) : ''
+        sms.sendJobUpdate(ctx.companyId, ctx.job.id, 'on_my_way', { etaMinutes: ctx.etaMinutes ?? null, trackUrl: trackUrl || null }).catch(() => {})
+      }
       await afterJobMoment('dispatched', ctx)
     },
     // Start on a route visit keeps the time (data/routeVisits.ts); where the vertical texts arrivals it also says "on site".

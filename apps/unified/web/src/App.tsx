@@ -73,6 +73,8 @@ const HelpPage = page(() => import('./crm/pages/HelpPage'))
 const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
 const CrewLinkPage = page(() => import('./crm/pages/roof/field/CrewLinkPage'))
 const VisitConfirmPage = page(() => import('./crm/pages/VisitConfirmPage'))
+const TechOnTheWayPage = page(() => import('./crm/pages/TechOnTheWayPage'))
+const LeadMapPage = page(() => import('./crm/pages/LeadMapPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 // Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
@@ -83,7 +85,11 @@ const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventor
 const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 const InvoiceRemindersPage = page(() => import('./crm/pages/InvoiceRemindersPage'))
 const JobRemindersPage = page(() => import('./crm/pages/JobRemindersPage'))
+const WeeklyUpdatePage = page(() => import('./crm/pages/WeeklyUpdatePage'))
+const ServiceZonesPage = page(() => import('./crm/pages/ServiceZonesPage'))
+const MarketingRoiPage = page(() => import('./crm/pages/MarketingRoiPage'))
 const DaysOffPage = page(() => import('./crm/pages/DaysOffPage'))
+const SkillsPage = page(() => import('./crm/pages/SkillsPage'))
 const QuoteFollowUpPage = page(() => import('./crm/pages/QuoteFollowUpPage'))
 const MarkupDefaultsPage = page(() => import('./crm/pages/MarkupDefaultsPage'))
 const TimeClockSettingsPage = page(() => import('./crm/pages/TimeClockSettingsPage'))
@@ -257,6 +263,8 @@ export default function App() {
                       <Route path="bookings/series/:id" element={<BookingSeriesPage />} />
                       <Route path="bookings/:id" element={<BookingDetailPage />} />
                       <Route path="leads" element={<LeadInbox />} />
+                      <Route path="marketing-roi" element={<MarketingRoiPage />} />
+                      <Route path="lead-map" element={<LeadMapPage />} />
                       <Route path="new-leads" element={<NewLeads />} />
                       <Route path="audit" element={<AuditLog />} />
                       <Route path="account" element={<MyAccount />} />
@@ -266,7 +274,10 @@ export default function App() {
                       <Route path="settings/email" element={<EmailAliases />} />
                       <Route path="settings/invoice-reminders" element={<InvoiceRemindersPage />} />
                       <Route path="settings/job-reminders" element={<JobRemindersPage />} />
+                      <Route path="settings/weekly-update" element={<WeeklyUpdatePage />} />
+                      <Route path="settings/service-zones" element={<ServiceZonesPage />} />
                       <Route path="settings/days-off" element={<DaysOffPage />} />
+                      <Route path="settings/skills" element={<SkillsPage />} />
                       <Route path="settings/quote-followup" element={<QuoteFollowUpPage />} />
                       <Route path="settings/markup-defaults" element={<MarkupDefaultsPage />} />
                       <Route path="settings/time-clock" element={<TimeClockSettingsPage />} />
@@ -300,6 +311,7 @@ export default function App() {
 
                     {/* The link in a visit reminder: one visit and a Confirm button (no sign-in, no shell). */}
                     <Route path="/confirm-visit/:token" element={<VisitConfirmPage />} />
+                    <Route path="/on-the-way/:token" element={<TechOnTheWayPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

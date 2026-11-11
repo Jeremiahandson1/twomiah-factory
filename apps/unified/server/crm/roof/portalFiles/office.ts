@@ -142,10 +142,17 @@ export function createJobFilesRoutes(d: CrmDeps) {
     if (!items.length) return fail(c, 400, 'Pick the files to share.')
     const ids = (k: string) => items.filter((x) => x.kind === k).map((x) => x.id)
     const scope = (t: any, k: string) => and(eq(t.companyId, me.companyId), eq(t.jobId, jobId), inArray(t.id, ids(k).length ? ids(k) : ['']))
+    // When each was shared (the weekly client update's "shared this week"): stamped on the ones not shared before.
+    const fresh = (t: any, k: string) => and(scope(t, k), eq(t.sharedWithCustomer, false))
+    const now = new Date()
+    await db.update(jobPhoto).set({ sharedAt: now } as any).where(fresh(jobPhoto, 'photos'))
     const a = await db.update(jobPhoto).set({ sharedWithCustomer: true } as any).where(scope(jobPhoto, 'photos')).returning({ id: jobPhoto.id })
     const docOk = await canSee(me.role, 'documents:read', me.userId).catch(() => false)
+    if (docOk) await db.update(document).set({ sharedAt: now } as any).where(fresh(document, 'documents'))
     const bdocs = docOk ? await db.update(document).set({ sharedWithCustomer: true, updatedAt: new Date() } as any).where(scope(document, 'documents')).returning({ id: document.id }) : []
-    const rep = (await d.features.isFeatureEnabled(me.companyId, 'inspection_reports')) ? await db.update(inspectionReport).set({ sharedWithCustomer: true, updatedAt: new Date() } as any).where(scope(inspectionReport, 'reports')).returning({ id: inspectionReport.id }) : []
+    const repOk = await d.features.isFeatureEnabled(me.companyId, 'inspection_reports')
+    if (repOk) await db.update(inspectionReport).set({ sharedAt: now } as any).where(fresh(inspectionReport, 'reports'))
+    const rep = repOk ? await db.update(inspectionReport).set({ sharedWithCustomer: true, updatedAt: new Date() } as any).where(scope(inspectionReport, 'reports')).returning({ id: inspectionReport.id }) : []
     return one(c, { shared: a.length + bdocs.length + rep.length })
   })
   // The company's own documents (no job, no customer) and whether every homeowner's portal shows each.
@@ -172,7 +179,7 @@ export function createJobFilesRoutes(d: CrmDeps) {
     if (!parsed.success) return invalid(c, parsed.error)
     const [row] = await db.select().from(jobPhoto).where(and(eq(jobPhoto.id, c.req.param('id')), eq(jobPhoto.companyId, me.companyId))).limit(1)
     if (!row || !(await jobFor(c, row.jobId))) return fail(c, 404, 'Photo not found')
-    await db.update(jobPhoto).set({ sharedWithCustomer: parsed.data.shared } as any).where(and(eq(jobPhoto.id, row.id), eq(jobPhoto.companyId, me.companyId)))
+    await db.update(jobPhoto).set({ sharedWithCustomer: parsed.data.shared, ...(parsed.data.shared && !row.sharedWithCustomer ? { sharedAt: new Date() } : {}) } as any).where(and(eq(jobPhoto.id, row.id), eq(jobPhoto.companyId, me.companyId)))
     return one(c, { id: row.id, shared: parsed.data.shared })
   })
 
@@ -184,7 +191,7 @@ export function createJobFilesRoutes(d: CrmDeps) {
     if (!(await canSee(me.role, 'documents:read', me.userId).catch(() => false))) return fail(c, 403, 'Permission denied', 'permission_denied')
     const [row] = await db.select().from(document).where(and(eq(document.id, c.req.param('id')), eq(document.companyId, me.companyId))).limit(1)
     if (!row || !row.jobId || !(await jobFor(c, row.jobId))) return fail(c, 404, 'Document not found')
-    await db.update(document).set({ sharedWithCustomer: parsed.data.shared, updatedAt: new Date() } as any).where(and(eq(document.id, row.id), eq(document.companyId, me.companyId)))
+    await db.update(document).set({ sharedWithCustomer: parsed.data.shared, ...(parsed.data.shared && !row.sharedWithCustomer ? { sharedAt: new Date() } : {}), updatedAt: new Date() } as any).where(and(eq(document.id, row.id), eq(document.companyId, me.companyId)))
     return one(c, { id: row.id, shared: parsed.data.shared })
   })
 
@@ -195,7 +202,7 @@ export function createJobFilesRoutes(d: CrmDeps) {
     if (!(await d.features.isFeatureEnabled(me.companyId, 'inspection_reports'))) return fail(c, 404, 'Not found')
     const [row] = await db.select().from(inspectionReport).where(and(eq(inspectionReport.id, c.req.param('id')), eq(inspectionReport.companyId, me.companyId))).limit(1)
     if (!row || !(await jobFor(c, row.jobId))) return fail(c, 404, 'Report not found')
-    await db.update(inspectionReport).set({ sharedWithCustomer: parsed.data.shared, updatedAt: new Date() } as any).where(and(eq(inspectionReport.id, row.id), eq(inspectionReport.companyId, me.companyId)))
+    await db.update(inspectionReport).set({ sharedWithCustomer: parsed.data.shared, ...(parsed.data.shared && !row.sharedWithCustomer ? { sharedAt: new Date() } : {}), updatedAt: new Date() } as any).where(and(eq(inspectionReport.id, row.id), eq(inspectionReport.companyId, me.companyId)))
     return one(c, { id: row.id, shared: parsed.data.shared })
   })
 

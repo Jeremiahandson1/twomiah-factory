@@ -4,6 +4,7 @@
 import { and, asc, eq, gt, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeProduct, storeProductVariant } from '../db/schema/store.ts'
+import { reconcile } from './storeStock.ts'
 
 export interface Paged<T> { rows: T[]; next: string | null }
 const page = <T extends { id: string }>(rows: T[], limit: number): Paged<T> => ({ rows: rows.slice(0, limit), next: rows.length > limit ? rows[limit - 1].id : null })
@@ -84,5 +85,7 @@ export async function writeStock(db: any, companyId: string, variantId: string, 
     const [now] = await db.select({ q: storeProductVariant.inventoryQty }).from(storeProductVariant).where(eq(storeProductVariant.id, variantId)).limit(1)
     return { ok: false, reason: 'changed', now: now?.q ?? null }
   }
+  // Stock by location (store_locations): the difference moves onto the locations (data/storeStock.ts).
+  await reconcile(db, companyId, variantId)
   return { ok: true, id: variantId, sku: v.v.sku, productName: v.productName, before: v.v.inventoryQty, after: row.q }
 }

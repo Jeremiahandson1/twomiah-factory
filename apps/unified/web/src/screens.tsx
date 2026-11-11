@@ -15,10 +15,11 @@ import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import { SETTINGS_EXTRA as SALON_SETTINGS_EXTRA } from './crm/verticals/salon'
 import { useLiveConnection, subscribeLive } from './live'
-import { MessageSquare, BellRing, CalendarOff, FileArchive, MailCheck, Percent, Clock } from 'lucide-react'
+import { MessageSquare, BellRing, CalendarOff, FileArchive, MailCheck, Percent, Clock, Newspaper, MapPinned, Wrench } from 'lucide-react'
 import { isHomecare } from './crm/verticals/homecare'
 import { ViewAsUserButton, roleWord } from './crm/viewAs'
 import { DEFAULT_ROLES } from '@twomiah/tenant-ui/src/shell/types'
+import { CallerIdPop } from './crm/CallerIdPop'
 /** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
 // Behind Two-Way Texting, as the server's texting routes are: a vertical that is not offered it (the store) has no card.
 const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read', feature: 'two_way_texting' }
@@ -40,6 +41,15 @@ const JOB_REMINDER_SETTINGS = { to: '/crm/settings/job-reminders', label: 'Job R
 /** Settings › Days off (crm/pages/DaysOffPage.tsx; server crm/field/daysOffRoutes.ts): the business's holidays (feature days_off, not ready). */
 const DAYS_OFF_SETTINGS = { to: '/crm/settings/days-off', label: 'Days off', icon: CalendarOff, permission: 'jobs:read', feature: 'days_off' }
 
+/** Settings › Weekly Client Update (crm/pages/WeeklyUpdatePage.tsx; server crm/clientUpdates/weeklyUpdate.ts): the owner and admins, where it is on. */
+const WEEKLY_UPDATE_SETTINGS = { to: '/crm/settings/weekly-update', label: 'Weekly Client Update', icon: Newspaper, permission: 'company:update', feature: 'weekly_client_update' }
+
+/** Settings › Service zones (crm/pages/ServiceZonesPage.tsx; server crm/field/serviceZones.ts): the owner and admins, where Service Zones is on. */
+const SERVICE_ZONES_SETTINGS = { to: '/crm/settings/service-zones', label: 'Service zones', icon: MapPinned, permission: 'company:update', feature: 'service_zones' }
+
+/** Settings › Skills (crm/pages/SkillsPage.tsx; server crm/field/skillRoutes.ts): whoever schedules work, where Skill Matching is on. */
+const SKILLS_SETTINGS = { to: '/crm/settings/skills', label: 'Skills', icon: Wrench, permission: 'jobs:dispatch', feature: 'skill_matching' }
+
 /** Settings › Time Clock (crm/pages/TimeClockSettingsPage.tsx; server crm/field/clockExtras.ts): the owner and admins, where Time Tracking is on. */
 const TIME_CLOCK_SETTINGS = { to: '/crm/settings/time-clock', label: 'Time Clock', icon: Clock, permission: 'company:update', feature: 'time_tracking' }
 
@@ -56,7 +66,8 @@ const companyName = () => document.querySelector('meta[name="company-name"]')?.g
 export const Shell = () => {
   const auth = useAuth()
   const connected = useLiveConnection(!!auth.user)
-  return <AppShell api={api} auth={auth} connected={connected} config={SHELL_HERE} />
+  // Caller ID's screen pop (crm/CallerIdPop.tsx; caller_id, not ready): drawn over every screen while signed in.
+  return <><AppShell api={api} auth={auth} connected={connected} config={SHELL_HERE} />{auth.user ? <CallerIdPop /> : null}</>
 }
 
 /** The admin's front page: the CRM's dashboard where the business has one; else the website for those who look after it; else their account. */
@@ -92,7 +103,7 @@ export function Settings() {
   // workWeek: on for every vertical unless its settings say `workWeek: false` (the store runs no pay week). It used to be
   // passed as `true` after the vertical's own settings were spread, so no vertical could turn it off.
   const own = verticalScreens().settings as { workWeek?: boolean }
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, QUOTE_FOLLOWUP_SETTINGS, MARKUP_DEFAULTS_SETTINGS, JOB_REMINDER_SETTINGS, DAYS_OFF_SETTINGS, TIME_CLOCK_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, roles: settingsRoles(), subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, INVOICE_REMINDER_SETTINGS, QUOTE_FOLLOWUP_SETTINGS, MARKUP_DEFAULTS_SETTINGS, JOB_REMINDER_SETTINGS, DAYS_OFF_SETTINGS, WEEKLY_UPDATE_SETTINGS, SERVICE_ZONES_SETTINGS, SKILLS_SETTINGS, TIME_CLOCK_SETTINGS, EXPORT_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA, ...SALON_SETTINGS_EXTRA], timeZone: true, workWeek: own.workWeek !== false, userActions: (u: any) => <ViewAsUserButton person={u} /> }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

@@ -230,7 +230,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           </div>
 
           {cfg.photos && cfg.photoStore && (
-            <JobPhotosPanel api={api} toast={toast} jobId={id} store={cfg.photoStore} label={cfg.labels.singular} />
+            <JobPhotosPanel api={api} toast={toast} jobId={id} store={cfg.photoStore} label={cfg.labels.singular} folders={cfg.photoFolders} />
           )}
           {cfg.photos && !cfg.photoStore && photos.length > 0 && (
             <div className={card}>

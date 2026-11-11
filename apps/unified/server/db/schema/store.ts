@@ -14,6 +14,7 @@ import { pgTable, text, integer, boolean, timestamp, json, index, uniqueIndex } 
 import { createId } from '@paralleldrive/cuid2'
 import { company } from './core.ts'
 import { contact } from './crm.ts'
+import { inventoryLocation } from './field.ts'
 
 export type StoreAddress = { line1: string; line2?: string; city: string; state: string; postalCode: string; country: string }
 /** A ship-to region's rate: matches when the buyer's country (and state, if listed) is covered; first match wins. */
@@ -146,6 +147,10 @@ export const storeOrder = pgTable('orders', {
   fulfillment: text('fulfillment').notNull().default('ship'),
   /** storefront | draft (made by the owner for a customer, paid from the emailed link). */
   source: text('source').notNull().default('storefront'),
+  /** The location it shipped from or was sold at (stock by location — store_locations); null where locations are not counted. */
+  locationId: text('location_id'),
+  /** Where each option's units came off: { variantId: { locationId: units } } — so changing the location moves exactly those. */
+  stockTakes: json('stock_takes'),
   /** Tax worked out by Stripe Tax at checkout (filled from the paid session), not the store's flat rate. */
   taxAutomatic: boolean('tax_automatic').notNull().default(false),
   /** A gift card the shopper paid part (or all) of this order with: what was taken off it, and what has gone back. */
@@ -776,3 +781,21 @@ export const storeApiKey = pgTable('store_api_keys', {
   revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [index('store_api_keys_company_idx').on(t.companyId)])
+
+/**
+ * A variant's count at one of the store's locations (parity tier 2 #11, Shopify's inventory locations; feature store_locations,
+ * not ready). The locations are the shared inventory's (inventory_location, type 'store'). The variant's own inventory_qty stays
+ * the number everything reads — checkout, the storefront, feeds — and equals the sum of these rows whenever a variant has any
+ * (server/data/storeStock.ts reconcile). A variant with none is counted as before.
+ */
+export const storeStockLevel = pgTable('store_stock_level', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  variantId: text('variant_id').notNull().references(() => storeProductVariant.id, { onDelete: 'cascade' }),
+  locationId: text('location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+  quantity: integer('quantity').notNull().default(0),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('store_stock_level_variant_location_unique').on(t.variantId, t.locationId),
+  index('store_stock_level_company_idx').on(t.companyId),
+])

@@ -121,7 +121,7 @@ export async function revenueSlices(db: any, companyId: string, range: Range, f:
   const payments = rowsOf(await db.execute(sql`
     SELECT p.id AS payment_id, p.amount, i.id AS id, i.number, i.contact_id, i.created_at, i.total, ${INVOICE_JOB} AS job_id, c.name AS contact_name, c.company AS contact_company
     FROM payment p JOIN invoice i ON i.id = p.invoice_id LEFT JOIN contact c ON c.id = i.contact_id
-    WHERE i.company_id = ${companyId} ${contact} ${between(sql.raw('p.paid_at'), range)}`))
+    WHERE i.company_id = ${companyId} AND COALESCE(p.method, '') <> 'account_balance' ${contact} ${between(sql.raw('p.paid_at'), range)}`))
   const jobIds = [...new Set([...invoices, ...payments].map((r) => r.job_id).filter(Boolean))] as string[]
   const jobs = await jobSharesFor(db, companyId, jobIds)
   const jobNumbers = jobs

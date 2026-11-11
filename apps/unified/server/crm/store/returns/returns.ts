@@ -275,7 +275,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       if (a.restock) {
         for (const l of row.items) {
           const [it] = await tx.select({ variantId: storeOrderItem.variantId }).from(storeOrderItem).where(and(eq(storeOrderItem.id, l.orderItemId), eq(storeOrderItem.orderId, row.orderId))).limit(1)
-          if (it?.variantId && (await restockVariant(tx, it.variantId, l.quantity))) { restocked += l.quantity; restockedVariants.push(it.variantId) }
+          if (it?.variantId && (await restockVariant(tx, it.variantId, l.quantity, row.orderId))) { restocked += l.quantity; restockedVariants.push(it.variantId) }
         }
       }
       return row

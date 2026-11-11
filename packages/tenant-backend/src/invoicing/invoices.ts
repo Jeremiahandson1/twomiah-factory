@@ -116,8 +116,8 @@ export interface InvoiceOptions {
     spend: (tx: any, invoice: any, amount: number) => Promise<string | null>
     /** Put `amount` onto the invoice's client. A returned message refuses the refund. */
     credit: (tx: any, invoice: any, amount: number) => Promise<string | null>
-    /** What this client has on account, for the screen to decide whether to offer it. */
-    balanceOf: (companyId: string, contactId: string) => Promise<number>
+    /** What this client has on account, for the screen to decide whether to offer it. null: this business keeps no balances (a switch off). */
+    balanceOf: (companyId: string, contactId: string) => Promise<number | null>
   }
 }
 

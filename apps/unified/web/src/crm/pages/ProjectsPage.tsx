@@ -45,6 +45,9 @@ export default function ProjectsPage() {
   // Every write on this page asks projects:create|update|delete on the server (routes/projects.ts); the
   // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
   const { can, hasFeature } = useAuth();
+  // Square feet and per-square-foot figures as columns (builders_risk, not ready; server crm/projects/projectDetails.ts).
+  const sizeOn = hasFeature('builders_risk');
+  const [figures, setFigures] = useState<Record<string, { squareFeet: number | null; price?: number | null; budget?: number | null; actual?: number | null }>>({});
   // Project templates (feature project_templates): start from one, save a project as one. Both gated server-side the same way.
   const templatesOn = hasFeature('project_templates') && can('projects:read');
   // Row 7b (template_parts): the budget, selections and task links ride along, each part ticked on saving and on starting.
@@ -175,12 +178,23 @@ export default function ProjectsPage() {
     catch (err) { toast.error((err as Error).message); }
   };
 
+  useEffect(() => {
+    if (!sizeOn || !data.length) return;
+    api.get('/api/project-details/list/figures', { ids: data.map((r) => r.id as string).join(',') }).then((r: any) => setFigures(r?.figures || {})).catch(() => setFigures({}));
+  }, [sizeOn, data]);
+  const perFt = (v: number | null | undefined) => (v != null ? `${money(v)}` : '-');
+  const sizeColumns = sizeOn ? [
+    { key: 'sqft', label: 'Sq ft', render: (_v: unknown, r: Record<string, unknown>) => { const f = figures[r.id as string]; return f?.squareFeet ? f.squareFeet.toLocaleString('en-US') : '-'; } },
+    { key: 'pricePerFt', label: 'Price / sq ft', render: (_v: unknown, r: Record<string, unknown>) => perFt(figures[r.id as string]?.price) },
+    { key: 'costPerFt', label: 'Cost / sq ft', render: (_v: unknown, r: Record<string, unknown>) => perFt(figures[r.id as string]?.actual) },
+  ] : [];
   const columns = [
     { key: 'number', label: 'Number', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
     { key: 'name', label: 'Name', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'type', label: 'Type', render: (v: unknown) => (v as string) || '-' },
     { key: 'estimatedValue', label: 'Value', render: (v: unknown) => v ? `${money(Number(v))}` : '-' },
+    ...sizeColumns,
     { key: 'progress', label: 'Progress', render: (v: unknown) => <div className="w-20 h-2 bg-gray-200 rounded-full dark:bg-slate-700 dark:text-slate-100"><div className="h-full bg-orange-500 rounded-full" style={{width:`${v}%`}}/></div> },
   ];
 

@@ -143,6 +143,8 @@ const inlineFormMessages = (html: string) => html
 const siteAdditions = (html: string) => html
   // The speed round (2026-10-29): no icon chosen says so, so no browser asks for /favicon.ico and logs a 404.
   .replace(/<link rel="icon" href="data:,">/g, '')
+  // Website chat-to-text (parity tier 3, website_chat_text — on here, as every feature is): the "Text us" button's script.
+  .replace(/<script src="\/scripts\/chat\.js" defer><\/script>/g, '')
   // …and the accessible names now include the words the control shows (Lighthouse label-content-name-mismatch): the text-size
   // buttons lead with their "Aa", the emergency bar's link is named by what it shows, the logo keeps its shape when capped.
   .replace(/aria-label="Aa, default text size"/g, 'aria-label="Default text size"').replace(/aria-label="Aa\+, larger text"/g, 'aria-label="Larger text"').replace(/aria-label="Aa\+\+, largest text"/g, 'aria-label="Largest text"')

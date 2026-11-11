@@ -17,6 +17,7 @@ import type { PaymentProvider } from '../payments/types.ts'
 import { formatCents } from '../lib/money.ts'
 import { createFastCheckout } from './fastCheckout.ts'
 import { NO_EMAIL_YET, newRecoveryToken, orderNumberFor, successUrlFor, type CheckoutService } from './checkoutService.ts'
+import { CARRIER_RATES, carrierOptions, cartWeightOz, chosenOption, type CarrierOption } from './carrierRates.ts'
 
 /** How the order reaches the shopper. 'digital' is decided here (a cart of gift cards only), never asked for. */
 export type Delivery = 'ship' | 'pickup'
@@ -25,7 +26,10 @@ export interface StartInput {
   companyId: string
   items: { sku: string; quantity: number }[]
   customerEmail?: string
-  shipTo?: { country?: string; state?: string }
+  /** zip: for carrier rates (store_carrier_rates) — the live rate to this ZIP; country and state for the store's zones and tax. */
+  shipTo?: { country?: string; state?: string; zip?: string }
+  /** The carrier rate the shopper picked from the preview's shippingOptions (store_carrier_rates): asked again and priced here. */
+  shippingRate?: { carrier?: string; service?: string } | null
   discountCode?: string
   loyaltyRewardId?: string
   giftCardCode?: string
@@ -34,7 +38,14 @@ export interface StartInput {
   origin: string
   /** A draft order: made by the owner for this customer at their group's prices, paid from the emailed link. */
   draft?: {
-    contactId: string; customerName?: string | null; pricing: GroupPricing | null; note?: string | null
+    contactId: string | null; customerName?: string | null; pricing: GroupPricing | null; note?: string | null
+    /**
+     * A sale at the counter (parity tier 2 #12, Shopify POS; store_counter): paid in person, handed over there and then, a walk-in
+     * needs no customer, and the store's pickup setting does not apply (nothing is collected later). Recorded with source 'counter'.
+     */
+    counter?: boolean
+    /** The location a counter sale is made at (stock by location): its units come off there first. */
+    locationId?: string | null
     /**
      * Paid already, in person — cash, a check, a card on the shop's own terminal (Shopify's draft order "Mark as paid"; store live
      * test 11/10: a hand-made order needed a payment provider even for cash). The order is paid when it is made: no link, no
@@ -65,7 +76,7 @@ export interface StartInput {
 }
 const IN_PERSON_WORDS = { cash: 'cash', check: 'check', card: "card on the shop's terminal", other: 'other' } as const
 export type StartResult =
-  | { ok: true; orderId: string; url: string; paidByGiftCard: boolean; clientSecret?: string; preview?: { subtotalCents: number; discountCents: number; shippingCents: number; taxCents: number; totalCents: number; currency: string; discountCode?: string | null; taxAtCheckout?: boolean } }
+  | { ok: true; orderId: string; url: string; paidByGiftCard: boolean; clientSecret?: string; preview?: { subtotalCents: number; discountCents: number; shippingCents: number; taxCents: number; totalCents: number; currency: string; discountCode?: string | null; taxAtCheckout?: boolean; shippingOptions?: CarrierOption[]; shippingChoice?: CarrierOption | null } }
   | { ok: false; status: 400 | 409 | 502 | 503; error: string; code?: string }
 
 // Shipping: first matching zone (by the buyer's ship-to region) wins, else the flat rate. Free-shipping thresholds
@@ -123,6 +134,8 @@ type Line = {
   productId: string; variantId: string; variantName: string; productName: string
   /** The option's cost when bought, kept on the line for profit reports. */
   unitCostCents: number | null
+  /** The option's weight, for carrier rates. */
+  weightOz: number | null
 }
 
 export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: CheckoutService, giftCards: StoreGiftCards) {
@@ -137,7 +150,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     const provider = await core.getActiveProvider(companyId)
     const settings = await core.settings(companyId)
     const currency = settings.currency ?? 'usd'
-    if (input.delivery === 'pickup' && !settings.pickupEnabled) return refuse(400, 'This store does not offer pickup.', 'no_pickup')
+    if (input.delivery === 'pickup' && !settings.pickupEnabled && !input.draft?.counter) return refuse(400, 'This store does not offer pickup.', 'no_pickup')
 
     // Accelerated checkout: only for a signed-in shopper, on Stripe, with the feature on (see StartInput.fast).
     const stripeFast = !input.draft && provider?.name === 'stripe' && await fast.enabled(companyId)
@@ -174,7 +187,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       lines.push({
         sku: v.sku, name: v.name && v.name !== p.name ? `${p.name} — ${v.name}` : p.name, description: p.tagline ?? undefined,
         unitPriceCents: groupPrice(v.priceCents, v.id, input.draft?.pricing ?? input.shopper?.pricing ?? null, giftCard), quantity: qty, giftCard,
-        productId: p.id, variantId: v.id, variantName: v.name, productName: p.name, unitCostCents: v.costCents ?? null,
+        productId: p.id, variantId: v.id, variantName: v.name, productName: p.name, unitCostCents: v.costCents ?? null, weightOz: v.weightOz ?? null,
       })
     }
     if (!lines.length) return refuse(400, 'None of these items are available')
@@ -219,13 +232,25 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     }
     const totalDiscountCents = Math.min(goodsCents, discountCents + loyaltyDiscountCents)
 
-    const shippingCents = fulfillment === 'ship' ? computeShipping(settings, goodsCents, shipTo) : 0
+    let shippingCents = fulfillment === 'ship' ? computeShipping(settings, goodsCents, shipTo) : 0
+    // Carrier rates (store_carrier_rates, ./carrierRates.ts): with a ZIP, the carrier's live rate for this cart replaces the store's
+    // own rate — the one the shopper picked, asked again here, or the cheapest. The free-shipping threshold still applies.
+    let shippingOptions: CarrierOption[] | null = null
+    let shippingChoice: CarrierOption | null = null
+    if (fulfillment === 'ship' && shipTo?.zip && (await d.features.isFeatureEnabled(companyId, CARRIER_RATES).catch(() => false))) {
+      shippingOptions = await carrierOptions(core, companyId, cartWeightOz(lines.filter((l) => !l.giftCard)), shipTo, (m) => logger.warn?.(m))
+      if (shippingOptions) {
+        shippingChoice = chosenOption(shippingOptions, input.shippingRate)
+        const threshold = settings?.freeShippingThresholdCents ?? null
+        shippingCents = threshold !== null && goodsCents >= threshold ? 0 : shippingChoice.amountCents
+      }
+    }
     const inPerson = input.draft?.paidInPerson ?? null
     const automaticTax = !inPerson && usesStripeTax(settings, provider)
     const taxCents = automaticTax ? 0 : Math.round(Math.max(0, goodsCents - totalDiscountCents) * (computeTaxBps(settings, shipTo) / 10000))
     const totalCents = subtotalCents - totalDiscountCents + shippingCents + taxCents
 
-    if (input.preview) return { ok: true, orderId: '', url: '', paidByGiftCard: false, preview: { subtotalCents, discountCents: totalDiscountCents, shippingCents, taxCents, totalCents, currency, discountCode: appliedCode, taxAtCheckout: automaticTax } }
+    if (input.preview) return { ok: true, orderId: '', url: '', paidByGiftCard: false, preview: { subtotalCents, discountCents: totalDiscountCents, shippingCents, taxCents, totalCents, currency, discountCode: appliedCode, taxAtCheckout: automaticTax, ...(shippingOptions ? { shippingOptions, shippingChoice } : {}) } }
 
     // A gift card pays what it can of the order — never the gift cards in it. Its balance is looked at now and HELD when
     // the order is written (giftCards.hold, the card row locked), so the figure the provider is told is the one taken.
@@ -260,8 +285,8 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       subtotalCents, shippingCents, taxCents,
       discountCents: totalDiscountCents, discountCode: appliedCode, loyaltyRewardId, loyaltyDiscountCents,
       totalCents, currency, fulfillment, taxAutomatic: automaticTax,
-      source: input.draft ? 'draft' : 'storefront', customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
-      internalNote: [input.draft?.note, inPerson ? `Paid in person: ${IN_PERSON_WORDS[inPerson]}` : null].filter(Boolean).join('\n') || null,
+      source: input.draft?.counter ? 'counter' : input.draft ? 'draft' : 'storefront', locationId: input.draft?.counter ? input.draft.locationId ?? null : null, customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
+      internalNote: [input.draft?.note, inPerson ? `Paid in person: ${IN_PERSON_WORDS[inPerson]}` : null, shippingChoice ? `Shipping chosen at checkout: ${shippingChoice.carrier} ${shippingChoice.service}` : null].filter(Boolean).join('\n') || null,
       // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout) — not one
       // paid in person.
       recoveryToken: input.draft && !inPerson ? newRecoveryToken() : null,

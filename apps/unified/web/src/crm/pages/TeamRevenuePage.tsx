@@ -8,7 +8,7 @@ import { api } from '../../api'
 import { RangePicker, rangeParams, Problem, type RangeValue } from './reportBits'
 import { ColumnChooser, ColumnsButton, DownloadButton, SavedReports, TableView, queryOf, sel, type Table } from './reportKit'
 
-const TABS: Array<[string, string]> = [['revenue', 'Revenue per person'], ['invoices', 'Invoices'], ['jobs', 'Jobs'], ['quotes', 'Quote conversion'], ['quote_list', 'Quotes']]
+const TABS: Array<[string, string]> = [['revenue', 'Revenue per person'], ['invoices', 'Invoices'], ['jobs', 'Jobs'], ['quotes', 'Quote conversion'], ['quote_list', 'Quotes'], ['tech_scorecard', 'Tech scorecard'], ['csr_scorecard', 'Office scorecard']]
 const BASES: Array<[string, string]> = [['drafted', 'Drafted'], ['sent', 'Sent'], ['approved', 'Approved'], ['converted', 'Converted to a job'], ['completed', 'Job completed']]
 const GROUPS: Array<[string, string]> = [['salesperson', 'Salesperson'], ['writer', 'Who wrote the quote'], ['tech', 'Tech on the job']]
 const STATUSES: Array<[string, string]> = [['approved', 'Approved'], ['declined', 'Turned down or expired'], ['open', 'Waiting']]

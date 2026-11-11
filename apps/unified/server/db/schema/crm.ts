@@ -134,6 +134,11 @@ export const lead = pgTable('lead', {
   // Who works the enquiry (0102): a sales rep reads the leads assigned to them (no leads:read-all); one they add by hand is theirs.
   // Null: nobody's yet — the office's.
   assignedToId: text('assigned_to_id').references((): AnyPgColumn => user.id, { onDelete: 'set null' }),
+  // Where the enquiry is on the map (lead_map, crm/leads/leadMap.ts): its `location` looked up once with Google's geocoder.
+  // geocodedAt is set when it was looked up, found or not, so no lead is ever looked up twice.
+  lat: real('lat'),
+  lng: real('lng'),
+  geocodedAt: timestamp('geocoded_at'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
@@ -176,6 +181,10 @@ export const project = pgTable('project', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   /** Formula estimating (0091, row 9): the job's parameters, which every quote on it reads unless it sets its own. */
   parameters: json('parameters'),
+  /** The building's size, for price and budget per square foot (parity tier 3, builders_risk; crm/projects/projectDetails.ts). */
+  squareFeet: integer('square_feet'),
+  /** The builder's risk policy on the build: { carrier, policyNumber, coverage, startsOn, endsOn } (builders_risk). */
+  buildersRisk: json('builders_risk'),
 }, (t) => [
   index('project_company_id_idx').on(t.companyId),
   index('project_status_idx').on(t.status),
@@ -764,6 +773,20 @@ export const reminderLog = pgTable('reminder_log', {
   index('reminder_log_subject_idx').on(t.subjectId),
 ])
 
+/** A client's like of, or reply to, a weekly client update (crm/clientUpdates/weeklyUpdate.ts) — the update is its reminder_log row. */
+export const clientUpdateReaction = pgTable('client_update_reaction', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  logId: text('log_id').notNull().references(() => reminderLog.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id'),
+  /** 'like' (one per update) or 'reply'. */
+  kind: text('kind').notNull(),
+  body: text('body'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_update_reaction_log_idx').on(t.logId),
+])
+
 export const timeEntry = pgTable('time_entry', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   date: timestamp('date').defaultNow().notNull(),
@@ -892,6 +915,8 @@ export const document = pgTable('document', {
   // Shown to the homeowner of the job it is filed under, in their portal (roofing's Photos & Documents). Off until someone
   // with portal:share turns it on; only roofing's /api/job-files writes it.
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  /** When it was last shared with the customer (the weekly client update's "shared this week"); null for one shared before this was kept. */
+  sharedAt: timestamp('shared_at'),
 }, (t) => [
   index('document_company_id_idx').on(t.companyId),
   index('document_project_id_idx').on(t.projectId),

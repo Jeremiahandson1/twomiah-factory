@@ -766,6 +766,8 @@ export const inspectionReport = pgTable('inspection_report', {
   linkExpiresAt: timestamp('link_expires_at'),
   // Listed in the homeowner's portal under Photos & documents (the portal opens it by their own login link, not this one).
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  /** When it was last shared with the customer (the weekly client update's "shared this week"); null for one shared before this was kept. */
+  sharedAt: timestamp('shared_at'),
   // How the page and the PDF are laid out (photos per row, which details print under a photo, the job's timeline): null is the
   // standard layout. Read through layoutOf (inspection/view.ts).
   layout: json('layout'),

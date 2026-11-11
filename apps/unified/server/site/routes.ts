@@ -55,7 +55,7 @@ const LAYOUT_CSS = fs.readFileSync(path.join(SITE_DIR, 'layouts.css'), 'utf8')
 const FONTS_DIR = path.join(SITE_DIR, 'public', 'fonts')
 const FONT_FILES = new Set(fs.readdirSync(FONTS_DIR).filter((f) => f.endsWith('.woff2')))
 const STYLES = new Map(['fonts.css', 'speakeasy.css'].map((f) => [f, fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', f), 'utf8')]))
-const SCRIPTS = new Map(['live', 'speakeasy', 'book'].map((f) => [f + '.js', new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', f + '.ts'), 'utf8'))]))
+const SCRIPTS = new Map(['live', 'speakeasy', 'book', 'chat'].map((f) => [f + '.js', new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', f + '.ts'), 'utf8'))]))
 
 
 function areaSlug(name: string): string {

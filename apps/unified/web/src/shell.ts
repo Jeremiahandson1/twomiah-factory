@@ -30,6 +30,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/contacts', icon: Users, label: 'Contacts', features: ['contacts'], permission: 'contacts:read' },
   // Next to Contacts, where an enquiry becomes one. It used to close the list, after Bookings, so it read as a Bookings page.
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'leads:read' },
+  // The same enquiries on a map (crm/pages/LeadMapPage.tsx; server crm/leads/leadMap.ts). Not ready.
+  { to: '/crm/lead-map', icon: MapPin, label: 'Lead Map', features: ['lead_map'], permission: 'leads:read' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', features: ['jobs'], permission: 'jobs:read' },
   { to: '/crm/tech', icon: Smartphone, label: 'Field View', features: ['tech_mobile_view'] },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', features: ['quotes'], permission: 'quotes:read' },
@@ -78,6 +80,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects', 'patient_records'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
+  // Leads and money per lead source against the spend (crm/pages/MarketingRoiPage.tsx; server crm/field/marketingRoi.ts). Not ready.
+  { to: '/crm/marketing-roi', icon: Target, label: 'Marketing ROI', features: ['marketing_roi'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   // Revenue per tech and quote conversion per person; service plans sold, due and ended. Both are reports:read on the server.
   { to: '/crm/team-revenue', icon: Users, label: 'Team Revenue', features: ['team_revenue_reports'], permission: 'reports:read' },
