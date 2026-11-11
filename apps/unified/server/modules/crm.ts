@@ -73,6 +73,7 @@ import { paymentToolMounts, paymentPlanMounts } from '../crm/billing/paymentTool
 import { createPaymentPlans } from '../crm/billing/paymentPlans.ts'
 import { createQuoteTemplateRoutes } from '../crm/billing/quoteTemplates.ts'
 import { createQuoteFollowUpRoutes } from '../crm/billing/quoteFollowUpRoutes.ts'
+import { createCreditMemoRoutes } from '../crm/billing/creditMemos.ts'
 import { surchargePctFor } from '../data/cardSurcharge.ts'
 import { createMarkupDefaultsRoutes } from '../crm/billing/markupDefaults.ts'
 import { createQuoteLineImageRoutes } from '../crm/billing/quoteLineImages.ts'
@@ -364,6 +365,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   // The salon's clock (the booking calendar's zone) and its clients' account ledger (CrmSettings.invoices).
   const salonClock = createSalonClock(db)
   const clientAccounts = createAccountBalanceStore(clientAccountEntry)
+  /** A client's balance is kept here: the salon always (its account balance), any other trade where credit_memos is on. */
+  const creditOn = async (companyId: string) => !!v.invoices?.accountBalance || (await features.isFeatureEnabled(companyId, 'credit_memos').catch(() => false))
 
   const invoices = createInvoiceRoutes({
     db, tables: { invoice, invoiceLineItem, payment, contact, project, quote, company }, authenticate, requirePermission, canSee, ...live,
@@ -406,23 +409,28 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The salon's retail product link survives a general invoice edit (crm/salon/retail.ts lineEdit).
       ...(v.invoices?.giftCardTender ? { lineEdit: s.lineEdit } : {}),
       ...(v.invoices?.giftCardTender ? { refundTender: { method: 'gift_card', credit: (tx: any, inv: any, amount: number) => s.creditTender('gift_card', tx, inv, amount) } } : {}),
-      ...(v.invoices?.accountBalance ? { accountBalance: {
+      // Every other trade: the same ledger as CUSTOMER CREDIT (parity tier 2, credit memos — QuickBooks' and Buildertrend's), per business
+      // behind credit_memos (not ready): credit issued on the customer (crm/billing/creditMemos.ts), spent on an invoice by the
+      // account_balance method, a refund kept as credit. Off, nothing is offered (balanceOf null) and both doors refuse in words.
+      accountBalance: {
         // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
         // inside the invoice's own transaction.
         async spend(tx: any, inv: any, amount: number) {
           const contactId = inv.contact_id ?? inv.contactId
+          if (!(await creditOn(inv.company_id ?? inv.companyId))) return 'Customer credit is not switched on for this business.'
           if (!contactId) return 'This invoice is not attached to a client, so there is no account to take it from.'
           const out = await clientAccounts.spend(tx, { companyId: inv.company_id ?? inv.companyId, contactId, amount, invoiceId: inv.id, reason: `Paid against ${inv.number}` })
           return out.ok ? null : out.error
         },
         async credit(tx: any, inv: any, amount: number) {
           const contactId = inv.contact_id ?? inv.contactId
+          if (!(await creditOn(inv.company_id ?? inv.companyId))) return 'Customer credit is not switched on for this business.'
           if (!contactId) return 'This invoice is not attached to a client, so there is no account to refund it to.'
           await clientAccounts.add(tx, { companyId: inv.company_id ?? inv.companyId, contactId, amount, source: 'refund_to_account', reason: `Refunded from ${inv.number} and kept on account`, invoiceId: inv.id })
           return null
         },
-        balanceOf: (companyId: string, contactId: string) => clientAccounts.balance(db, companyId, contactId),
-      } } : {}),
+        balanceOf: async (companyId: string, contactId: string) => ((await creditOn(companyId)) ? clientAccounts.balance(db, companyId, contactId) : null),
+      },
     },
   } as any)
 
@@ -473,6 +481,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Saved quotes to start the next from, and the automatic nudge to a customer who has not answered (crm/billing; both not ready).
     { path: '/api/quote-templates', access: 'user', feature: 'quote_templates', router: createQuoteTemplateRoutes(own) },
     { path: '/api/quote-followup', access: 'user', feature: 'quote_followup', router: createQuoteFollowUpRoutes(own, s.quoteFollowUp) },
+    // Credit memos: credit kept on a customer and spent on their invoices, on the shared client ledger (crm/billing/creditMemos.ts). Not ready.
+    { path: '/api/customer-credit', access: 'user', feature: 'credit_memos', router: createCreditMemoRoutes(own) },
     // The usual markup by kind of line, and a picture on a quote line (crm/billing; both not ready).
     { path: '/api/markup-defaults', access: 'user', feature: 'markup_defaults', router: createMarkupDefaultsRoutes(own) },
     { path: '/api/quote-line-images', access: 'user', feature: 'quote_line_images', router: createQuoteLineImageRoutes(own) },
