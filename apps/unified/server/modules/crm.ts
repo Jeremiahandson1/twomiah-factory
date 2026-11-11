@@ -96,6 +96,7 @@ import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
 import { leadMounts } from '../crm/leads/index.ts'
+import { clientUpdateMounts } from '../crm/clientUpdates/index.ts'
 import { dashboardPanelMounts } from '../crm/dashboard/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
@@ -699,6 +700,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ...storeMounts(own),
     // Lost with a reason, site visits and the pipeline strip (crm/leads; all not ready).
     ...leadMounts(own),
+    // The weekly email of what is new in each client's portal (crm/clientUpdates; not ready).
+    ...clientUpdateMounts(own),
     // The owner's "needs you today" panel and the crew's "my day" (crm/dashboard; both not ready).
     ...dashboardPanelMounts(own),
   ]
