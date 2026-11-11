@@ -12,6 +12,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { BarChart3, Plus, Trash2, Link2, X } from 'lucide-react'
 import { api } from '../../api'
 import { usePermissions, useToast, useConfirm, useAuth, PageLoading } from '../../shared'
+import { ScheduleBaselinePanel } from './ScheduleBaselinePanel'
 
 interface GanttTask {
   id: string;
@@ -86,6 +87,9 @@ export default function GanttChartsPage() {
   const { known, can } = usePermissions();
   const mayPlan = known && can('projects:update');
   const linksOn = useAuth().hasFeature('task_links');
+  // The schedule baseline (schedule_baseline, not ready): plan against now, per project (ScheduleBaselinePanel.tsx).
+  const baselineOn = useAuth().hasFeature('schedule_baseline');
+  const [baselineFor, setBaselineFor] = useState<string | null>(null);
   const [linking, setLinking] = useState<GanttTask | null>(null);
   const [linkDraft, setLinkDraft] = useState({ predecessorId: '', type: 'finish_to_start', lagDays: '0' });
   /** A move answered with the tasks its links moved: say so, by name. */
@@ -269,6 +273,11 @@ export default function GanttChartsPage() {
                     <div className="font-medium text-sm truncate">{p.name}</div>
                     <div className="text-xs text-gray-500 dark:text-slate-400">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
                   </div>
+                  {baselineOn && (
+                    <button type="button" onClick={() => setBaselineFor(baselineFor === p.id ? null : p.id)} className="shrink-0 inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700" aria-expanded={baselineFor === p.id} aria-label={`Baseline for ${p.name}`}>
+                      Baseline
+                    </button>
+                  )}
                   {mayPlan && (
                     <button type="button" onClick={() => openAdd(p)} className="shrink-0 inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Add a task to ${p.name}`}>
                       <Plus className="w-3 h-3" />Task
@@ -314,6 +323,8 @@ export default function GanttChartsPage() {
                   </div>
                 );
               })}
+
+              {baselineOn && baselineFor === p.id && <ScheduleBaselinePanel projectId={p.id} projectName={p.name} mayPlan={mayPlan} />}
 
               {linking && linking.projectId === p.id && (
                 <form onSubmit={(e) => addLink(e, p.id)} className="flex flex-wrap items-end gap-3 border-b bg-gray-50 px-4 py-3 dark:bg-slate-800 dark:border-slate-700" aria-label={`Link ${linking.name}`}>

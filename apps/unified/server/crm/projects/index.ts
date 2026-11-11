@@ -4,6 +4,7 @@ import type { Mount } from '../../http/registry.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createProjectRoutes } from './projects.ts'
 import { createGanttChartRoutes } from './ganttCharts.ts'
+import { createBaselineRoutes } from './baselines.ts'
 import { createProjectParameterRoutes } from './formulaParameters.ts'
 import { createClientPortal } from './clientPortal.ts'
 import { createProjectPhoneRoutes } from './phone.ts'
@@ -20,6 +21,8 @@ export function projectMounts(d: CrmDeps): Mount[] {
     { path: '/api/projects', access: 'user', feature: 'projects', router: createProjectRoutes(d) },
     { path: '/api/project-templates', access: 'user', feature: 'project_templates', router: createProjectTemplateRoutes(d) },
     { path: '/api/gantt-charts', access: 'user', feature: 'gantt_charts', router: createGanttChartRoutes(d) },
+    // A project's schedule saved as its baseline, and plan against now (./baselines.ts). Not ready.
+    { path: '/api/project-baselines', access: 'user', feature: 'schedule_baseline', router: createBaselineRoutes(d) },
     // Formula estimating (contractor parity row 9): a job's parameters; 404 while quote_formulas is off.
     { path: '/api/project-parameters', access: 'user', router: createProjectParameterRoutes(d) },
     // The client portal, finished (contractor parity row 10): per-project settings, sharing, to-dos; 404 while client_portal_plus is off.
