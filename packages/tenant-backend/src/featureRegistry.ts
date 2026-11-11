@@ -146,6 +146,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Field Service
   { id: 'portal_booking', name: 'Book from the Portal', description: 'Customers book a visit from their portal, with their details already filled in, and see the bookings they have made', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping'], hidden: true },
+  { id: 'days_off', name: 'Days Off', description: 'Holidays and other days the whole business is closed: online booking offers no time on them, a job booked on one is checked first, and a plan visit that falls on one moves to the next open day', category: 'Field Service', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'], hidden: true },
   { id: 'dispatch_board', name: 'Dispatch Board', description: 'A day of jobs by technician on one board — assign, reassign and set status', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm', 'crm-basic'] },
   { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Maintenance plans whose included visits go on the Schedule for each term', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },

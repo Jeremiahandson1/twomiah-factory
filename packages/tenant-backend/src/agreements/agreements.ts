@@ -56,6 +56,11 @@ export interface AgreementsServiceDeps {
   audit?: { log: (entry: any) => any }
   /** Emails the customer before an auto-renew agreement renews (template 'agreementRenewalNotice'). Optional. */
   sendRenewalNotice?: (to: string, data: Record<string, unknown>) => Promise<unknown>
+  /**
+   * The day itself, or the first day after it the business is open (its days off — a holiday; apps/unified data/daysOff.ts).
+   * A plan's visit that lands on a closed day goes on the next open one (parity tier 2, 11/10). Absent: dates as they fall.
+   */
+  openDay?: (companyId: string, day: string) => Promise<string>
 }
 
 /** Days before an auto-renew agreement's end date that the customer is told it will renew: 30 for terms of a year or
@@ -149,7 +154,7 @@ function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: numb
 }
 
 export function createAgreementsService(deps: AgreementsServiceDeps) {
-  const { db, tables, stripe, audit, sendRenewalNotice } = deps
+  const { db, tables, stripe, audit, sendRenewalNotice, openDay } = deps
   const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company, agreementEvent, user: userTable } = tables
   const equipmentTable = tables.equipment && 'equipmentId' in serviceAgreement ? tables.equipment : null
   /** The plan's unit on the service calls it puts on the schedule, so the unit's history and "last serviced" follow. */
@@ -507,6 +512,12 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       days = Array.from({ length: visits }, (_, k) => addDays(first, Math.floor((k * span) / visits)))
     }
     if (termEnd) days = days.filter((d) => d < termEnd)
+    // A visit on a day the business is closed goes on the next open day (still inside the term, never two on one day).
+    if (openDay) {
+      const moved: string[] = []
+      for (const d of days) { const o = await openDay(companyId, d); if (!moved.includes(o) && (!termEnd || o < termEnd)) moved.push(o) }
+      days = moved
+    }
     const existing = await db.select({ scheduledDate: job.scheduledDate, status: job.status }).from(job).where(and(
       eq(job.companyId, companyId), eq(job.serviceAgreementId, agreementId), gte(job.scheduledDate, new Date(termStart)),
     ))
@@ -1234,7 +1245,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       status: 'scheduled',
       priority: 'normal',
       jobType: 'maintenance',
-      scheduledDate: agr.nextServiceDate,
+      // Its day, or the next open one when the business is closed then (the plan's own rhythm, nextServiceDate, is not moved).
+      scheduledDate: openDay ? new Date(await openDay(companyId, markerDay(new Date(agr.nextServiceDate)))) : agr.nextServiceDate,
       address: agrContact?.address || '',
       city: agrContact?.city || '',
       state: agrContact?.state || '',

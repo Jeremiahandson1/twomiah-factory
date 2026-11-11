@@ -1,6 +1,7 @@
 // The CRM's services, each built once from the shared code (packages/tenant-backend) with the app's database and
 // tables — the wiring every CRM template carried in its own services/*.ts (templates/crm/backend/src/services). The
 // routes (modules/crm.ts) and the background jobs (startJobs, run by server/index.ts) both use these.
+import { nextOpenDay } from '../data/daysOff.ts'
 import Stripe from 'stripe'
 import { eq } from 'drizzle-orm'
 import {
@@ -213,6 +214,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     stripe: { listSavedPaymentMethods: stripeService.listSavedPaymentMethods, chargeInvoiceOffSession: stripeService.chargeInvoiceOffSession },
     audit,
     sendRenewalNotice: (to: string, data: Record<string, unknown>) => email.send(to, 'agreementRenewalNotice', data),
+    // A plan's visit on a day the business is closed goes on the next open one (data/daysOff.ts — parity tier 2).
+    openDay: async (companyId: string, day: string) => ((await isFeatureEnabled(companyId, 'days_off')) ? nextOpenDay(db, companyId, day) : day),
   } as any)
   const inventory = createInventoryService({
     db,

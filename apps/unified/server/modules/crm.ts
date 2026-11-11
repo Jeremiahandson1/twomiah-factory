@@ -7,7 +7,7 @@
 // (texting's and Stripe's webhooks, QuickBooks' callback, a review link, an unsubscribe link) is mounted public, as the
 // template mounted it; every other one is mounted for signed-in users, and the registry signs them in first.
 import { createCommissionDisclaimer } from '../crm/roof/commissionDisclaimer.ts'
-import { checkAvailability } from '../data/techAvailability.ts'
+import { checkAvailability, closedCheck } from '../data/techAvailability.ts'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
@@ -299,10 +299,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}), repeatPatterns: (companyId: string) => features.isFeatureEnabled(companyId, 'job_repeat_patterns'),
       onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart, onCreate: s.jobHooks.onCreate, onPause: s.jobHooks.onPause, onResume: s.jobHooks.onResume,
-      // Working hours and time off: a job given to someone who is off warns the office (server/data/techAvailability.ts).
-      // Only for a business that has switched Tech Availability on.
+      // The business's days off first, where Days Off is on (a holiday — server/data/daysOff.ts); then working hours and time off:
+      // a job given to someone who is off warns the office (server/data/techAvailability.ts), where Tech Availability is on.
       availability: async (companyId: string, people: any[], date: unknown, time: string | null | undefined, hours: unknown, exec: any) =>
-        (await features.isFeatureEnabled(companyId, 'tech_availability')) ? checkAvailability(exec, companyId, people, date, time, hours) : null,
+        ((await features.isFeatureEnabled(companyId, 'days_off')) ? await closedCheck(exec, companyId, date) : null) ?? ((await features.isFeatureEnabled(companyId, 'tech_availability')) ? checkAvailability(exec, companyId, people, date, time, hours) : null),
     },
   } as any)
 

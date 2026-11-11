@@ -112,7 +112,7 @@ export function createAvailabilityRoutes(d: CrmDeps) {
     const q = parsed.data, companyId = c.get('user').companyId
     const now = tzParts(new Date(), await companyTimeZone(db, companyId))
     const at = q.lat !== undefined && q.lng !== undefined ? { lat: q.lat, lng: q.lng, address: q.address ?? null } : q.address ? { address: q.address } : undefined
-    const found = await findOpenSlots(db, companyId, { from: q.from, days: q.days, durationMinutes: q.duration, personIds: q.personIds, at, stepMinutes: q.step, limit: q.limit, notBefore: { date: now.date, minutes: now.minutes } })
+    const found = await findOpenSlots(db, companyId, { from: q.from, days: q.days, durationMinutes: q.duration, personIds: q.personIds, at, stepMinutes: q.step, limit: q.limit, notBefore: { date: now.date, minutes: now.minutes }, skipClosed: await d.features.isFeatureEnabled(companyId, 'days_off') })
     return one(c, found)
   })
 

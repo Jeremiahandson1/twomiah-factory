@@ -15,6 +15,7 @@
 //   · a job on the company's day is the day marker (midnight UTC) and its time is the company's wall clock — the same
 //     two fields every other schedule check reads (tenant-backend jobs.ts). A shift that crosses midnight is counted on
 //     the day it starts and spills into the next day's early hours.
+import { dayOffOn, daysOffBetween } from './daysOff.ts'
 import { and, eq, inArray, or, gte, lte, lt, asc, notInArray, isNotNull } from 'drizzle-orm'
 import { businessHoursOf, businessHoursWindows, travelMinutes, NOT_GIVEN_WORK_ROLES } from '@twomiah/tenant-backend'
 import { techHours, techTimeOff, user, teamMember, timeEntry, job, jobAssignee, company } from '../db/schema/index.ts'
@@ -139,7 +140,22 @@ async function nameOf(exec: any, companyId: string, p: PersonRef): Promise<strin
   return 'That person'
 }
 
-export interface Unavailable { code: 'unavailable'; message: string; short: string; personId: string; reason: 'time_off' | 'hours' }
+export interface Unavailable { code: 'unavailable'; message: string; short: string; personId: string; reason: 'time_off' | 'hours' | 'closed' }
+
+/**
+ * The BUSINESS is closed that day (data/daysOff.ts — a holiday, parity tier 2): the same warning the office may book past, before
+ * anyone's own hours are looked at, and for every business (a closed day is not a Tech Availability setting). A repeating series
+ * lists the visit back as not booked, as it does a person's day off.
+ */
+export async function closedCheck(exec: any, companyId: string, scheduledDate: unknown): Promise<Unavailable | null> {
+  if (!scheduledDate) return null
+  const day = new Date(scheduledDate as any)
+  if (isNaN(day.getTime())) return null
+  const off = await dayOffOn(exec, companyId, dayKey(day))
+  if (!off) return null
+  const short = `The business is closed on ${dayWords(day)}${off.reason ? ` (${off.reason})` : ''}.`
+  return { code: 'unavailable', message: `${short} Book anyway, or pick another day.`, short, personId: '', reason: 'closed' }
+}
 
 /**
  * The check tenant-backend's jobs.ts calls on a create, a move and each visit of a repeating series (JobOptions.availability):
@@ -323,6 +339,8 @@ export async function resolvePerson(exec: any, companyId: string, id: string): P
 // ----------------------------------------------------------------------------------------------------------- find a time
 
 export interface FindTimeRequest {
+  /** Leave out the business's days off (feature days_off — the caller says whether it is on). */
+  skipClosed?: boolean
   /** The first day searched, YYYY-MM-DD on the company's calendar. */
   from: string
   /** How many days from it (1–31; default 7). */
@@ -411,8 +429,11 @@ export async function findOpenSlots(exec: any, companyId: string, req: FindTimeR
     const entry = entries.get(p.id) || { shifts: [], off: [] }
     listed.push({ personId: p.id, kind: p.kind, name: p.name, source: entry.shifts.length ? 'shifts' : business ? 'business_hours' : 'none' })
   }
+  // The business's days off (data/daysOff.ts), where Days Off is on (req.skipClosed): no open slot on one.
+  const closed = new Set(req.skipClosed ? (await daysOffBetween(exec, companyId, dayKey(first), dayKey(last))).map((d) => d.date) : [])
   for (let i = 0; i < days; i++) {
     const day = new Date(first.getTime() + i * DAY_MS), key = dayKey(day)
+    if (closed.has(key)) continue
     for (const p of people) {
       const entry = entries.get(p.id) || { shifts: [], off: [] }
       const cover: Window[] = entry.shifts.length ? coverFor(entry, day) : (business?.get(day.getUTCDay()) || [])
