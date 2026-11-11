@@ -65,6 +65,20 @@ describe('allowed', () => {
       { status: 'M', path: 'docs/CUTOVER_LEDGER.md' },
     ])).toEqual([])
   })
+
+  test('the roof engine\'s scoreboard (added, changed, deleted) and the old standalone roof estimator deleted — and only deleted', () => {
+    expect(run([
+      { status: 'A', path: 'packages/roof-core/bench/scoreAll.ts' },
+      { status: 'M', path: 'packages/roof-core/bench/README.md' },
+      { status: 'D', path: 'packages/roof-core/bench/inspect.ts' },
+      { status: 'D', path: 'apps/roof-estimator/backend/src/index.ts' },
+      { status: 'D', path: 'apps/roof-estimator/render.yaml' },
+    ])).toEqual([])
+    // The old app is not a place to build in, and no other shared package gains a folder outside src this way.
+    expect(run([{ status: 'A', path: 'apps/roof-estimator/backend/src/new.ts' }]).length).toBe(1)
+    expect(run([{ status: 'M', path: 'apps/roof-estimator/render.yaml' }]).length).toBe(1)
+    expect(run([{ status: 'A', path: 'packages/tenant-ui/bench/score.ts' }]).length).toBe(1)
+  })
 })
 
 describe('refused', () => {

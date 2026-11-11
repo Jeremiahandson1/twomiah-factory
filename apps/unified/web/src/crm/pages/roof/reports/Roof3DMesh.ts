@@ -54,6 +54,8 @@ export function buildRoofMeshes(
   centerLat: number,
   centerLng: number,
   exaggeration: number = 2.0,
+  /** Height above the eaves at a point, metres (roofHeights.ts); used instead of the grid when given. */
+  heightAt?: (lat: number, lng: number) => number,
 ): THREE.Group {
   const group = new THREE.Group()
   const cosLat = Math.cos(centerLat * Math.PI / 180)
@@ -77,7 +79,7 @@ export function buildRoofMeshes(
     const localVerts = seg.polygon.map(p => ({
       x: (p.lng - centerLng) * METERS_PER_DEG * cosLat,
       y: (p.lat - centerLat) * METERS_PER_DEG,
-      z: sampleElevation(p.lat, p.lng, dsmGrid, baseElevation) * exaggeration,
+      z: (heightAt ? heightAt(p.lat, p.lng) : sampleElevation(p.lat, p.lng, dsmGrid, baseElevation)) * exaggeration,
     }))
 
     // Build geometry using earcut triangulation
@@ -183,13 +185,14 @@ export function buildEdgeLines(
   centerLat: number,
   centerLng: number,
   exaggeration: number = 2.0,
+  heightAt?: (lat: number, lng: number) => number,
 ): THREE.Group {
   const group = new THREE.Group()
   const cosLat = Math.cos(centerLat * Math.PI / 180)
 
   const EDGE_COLORS: Record<string, number> = {
     ridge: 0xE53E3E, valley: 0x3182CE, hip: 0x38A169,
-    rake: 0xDD6B20, eave: 0x805AD5,
+    rake: 0xDD6B20, eave: 0x805AD5, flash: 0x0891B2, stepflash: 0xCA8A04,
   }
 
   let baseElev = 0
@@ -204,11 +207,11 @@ export function buildEdgeLines(
   for (const edge of edges) {
     const x1 = (edge.startLng - centerLng) * METERS_PER_DEG * cosLat
     const y1 = (edge.startLat - centerLat) * METERS_PER_DEG
-    const z1 = sampleElevation(edge.startLat, edge.startLng, dsmGrid, baseElev) * exaggeration
+    const z1 = (heightAt ? heightAt(edge.startLat, edge.startLng) : sampleElevation(edge.startLat, edge.startLng, dsmGrid, baseElev)) * exaggeration
 
     const x2 = (edge.endLng - centerLng) * METERS_PER_DEG * cosLat
     const y2 = (edge.endLat - centerLat) * METERS_PER_DEG
-    const z2 = sampleElevation(edge.endLat, edge.endLng, dsmGrid, baseElev) * exaggeration
+    const z2 = (heightAt ? heightAt(edge.endLat, edge.endLng) : sampleElevation(edge.endLat, edge.endLng, dsmGrid, baseElev)) * exaggeration
 
     const points = [new THREE.Vector3(x1, y1, z1 + 0.1), new THREE.Vector3(x2, y2, z2 + 0.1)]
     const geo = new THREE.BufferGeometry().setFromPoints(points)

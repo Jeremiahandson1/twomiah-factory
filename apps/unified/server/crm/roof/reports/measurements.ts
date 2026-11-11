@@ -11,14 +11,14 @@
 //   · the list is { data, pagination: { page, limit, total, pages } } (the template's `totalPages` is `pages`);
 //   · a bad body is the rulebook's validation reply (400, `fields`), not a thrown ZodError.
 // Kept: every permission (the reads asked only that you were signed in, and still do — reported), the 402 at no
-// credits, the credit purchase that adds credits without a payment (reported: it charges nothing).
+// credits. The credit purchase that added credits without a payment is closed (see the route).
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { getFullRoofReport } from '@twomiah/roof-core'
 import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { company, job, measurementReport } from '../../../db/schema/index.ts'
-import { spendReportCredit, addReportCredits } from '../../../data/roofReports.ts'
+import { spendReportCredit } from '../../../data/roofReports.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, done } from '../../../http/reply.ts'
@@ -147,14 +147,11 @@ export function createMeasurementRoutes(d: CrmDeps) {
     return one(c, (await maySeeMoney(c)) ? comp : { credits: comp.credits })
   })
 
-  // POST /credits/purchase — adds credits straight to the balance, as the template's "demo mode" did (no payment).
-  app.post('/credits/purchase', requirePermission('measurements:purchase'), async (c) => {
-    const me = c.get('user')
-    const parsed = z.object({ quantity: z.number().int().min(1).max(1000) }).safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) return invalid(c, parsed.error)
-    const credits = await addReportCredits(db, me.companyId, parsed.data.quantity)
-    return one(c, { credits, message: `${parsed.data.quantity} credits added` })
-  })
+  // POST /credits/purchase — CLOSED. It added credits straight to the balance with no payment (the template's "demo
+  // mode"), up to 1,000 a call. That balance is now what a paid pack of roof reports tops up ($15 for 100, on the Roof
+  // Reports page — roofReports.ts /credits/checkout), so a free way to fill it would make the pack pointless.
+  app.post('/credits/purchase', requirePermission('measurements:purchase'), (c) =>
+    fail(c, 410, 'Roof reports are bought in packs on the Roof Reports page.'))
 
   // GET /job/:jobId — the measurement filed on a job.
   app.get('/job/:jobId', async (c) => {

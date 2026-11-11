@@ -124,6 +124,12 @@ modified or deleted. The existing files it may change:
   `check-not-ready-features.ts`, `check-parked-features.ts`, `check-vertical-vocabulary.ts`), only when a change to
   `packages/*/src` changes what they check — so `build-check.yml` keeps meaning something on `engine`.
 
+- **The roof engine's scoreboard, `packages/roof-core/bench/`** (owner's yes, 2026-11-11): scripts that score the
+  shared roof-measuring code against professionally measured roofs. Run by hand, imported by nothing, shipped to no
+  tenant; added, changed and deleted freely. Its private test data is never in the repo.
+- **The old standalone roof estimator, `apps/roof-estimator/`** (owner, 2026-11-10 and 2026-11-11): its own app,
+  used by nothing else here and replaced by the roofing CRM's drawn roof report. It may be deleted, and only deleted.
+
 Anything moved out of existing code (rather than imported) is listed in
 `docs/CUTOVER_LEDGER.md`, so the original is deleted at cutover and no second copy
 survives.

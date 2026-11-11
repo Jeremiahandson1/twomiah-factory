@@ -496,6 +496,39 @@ ${data.disclosure}`,
     }
   },
 
+  // The roofer's balance of roof reports is low, or gone (crm/roof/reports/roofCredits.ts): to the owners and admins,
+  // once at each level on the way down. `estimatorOn` — their website's instant estimator draws on the same balance,
+  // and comes off the website at none.
+  roofReportsLow: (data, b, appUrl) => {
+    const left = Number(data.left) || 0
+    const pack = (data.pack || {}) as { roofs?: number; priceCents?: number }
+    const cents = Number(pack.priceCents) || 0
+    const price = `$${Math.floor(cents / 100)}${cents % 100 ? `.${String(cents % 100).padStart(2, '0')}` : ''}`
+    const out = left <= 0
+    const heading = out ? 'You have no roof reports left' : `You have ${left} roof ${left === 1 ? 'report' : 'reports'} left`
+    const estimator = !data.estimatorOn ? ''
+      : out ? 'The instant estimator has been taken off your website until you buy more, so no visitor meets a tool that cannot answer. It comes back by itself when you top up.'
+        : 'Your website\'s instant estimator uses the same balance: one for each new house it measures. At none left it comes off your website until you top up.'
+    const what = out ? 'You cannot load the aerial picture for another roof until you buy more.' : 'One is used each time a roof is measured from the air.'
+    return {
+      subject: out ? 'You are out of roof reports' : `Roof reports running low: ${left} left`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${escHtml(b.companyName)}</h1></div>
+        <div class="content">
+          <h2>${heading}</h2>
+          <p>${what} A pack of ${Number(pack.roofs) || 0} is ${price} — bought when you need it, never a monthly charge.</p>
+          ${estimator ? `<p>${escHtml(estimator)}</p>` : ''}
+          <p style="text-align:center;"><a href="${appUrl}/crm/${data.estimatorOn ? 'estimator' : 'roof-reports'}" class="button">Buy roof reports</a></p>
+        </div>
+        <div class="footer">&copy; ${new Date().getFullYear()} ${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+      text: `${heading}. ${what} A pack of ${Number(pack.roofs) || 0} is ${price}.${estimator ? ` ${estimator}` : ''} Buy more at ${appUrl}/crm/${data.estimatorOn ? 'estimator' : 'roof-reports'}`,
+    }
+  },
+
   // Sent before an auto-renew service agreement renews (the agreements worker, 30 days ahead for yearly terms,
   // 14 for 3–11 months; month-to-month agreements get none). Says what renews, when, for how much, and how to cancel.
   agreementRenewalNotice: (data, b, appUrl) => ({
