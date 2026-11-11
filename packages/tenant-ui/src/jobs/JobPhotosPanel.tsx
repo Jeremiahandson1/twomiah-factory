@@ -174,7 +174,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job', folder
             <>
               <label htmlFor={`photo-folder-name-${jobId}`} className="sr-only">Folder name</label>
               <input id={`photo-folder-name-${jobId}`} autoFocus value={naming.name} maxLength={60} placeholder="Folder name"
-                onChange={(e) => setNaming({ ...naming, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveName() } if (e.key === 'Escape') setNaming(null) }}
+                onChange={(e) => { const name = e.target.value; setNaming((n) => (n ? { ...n, name } : n)) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveName() } if (e.key === 'Escape') setNaming(null) }}
                 className="border border-gray-300 rounded-lg px-2 py-1 bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600" />
               <Button type="button" onClick={saveName}>{naming.id ? 'Rename' : 'Make folder'}</Button>
               <Button type="button" variant="secondary" onClick={() => setNaming(null)}>Cancel</Button>
