@@ -25,3 +25,5 @@ Started 11/10 from the Buildertrend inventory (`contractor.md`, "Buildertrend in
 Contractor-only for now (they ride on things only the contractor has): bid packages to subs (on `vendor_portal` and
 `purchase_orders` — opens to roofing and landscaping with the vendor portal, not as a second build), the schedule baseline
 (finish `project_baseline`, with projects), builder's risk and cost per sq ft.
+
+**Built in tier 2 (11/10):** days off (`days_off`), photo folders (`photo_folders`), change orders on a job (`job_change_orders`, field service and landscaping). Credit memos moved to the end of tier 2 for a careful design pass (money: tax, commissions, QuickBooks).

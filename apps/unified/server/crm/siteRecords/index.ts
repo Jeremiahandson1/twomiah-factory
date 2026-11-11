@@ -19,6 +19,7 @@ export function siteRecordsMounts(d: CrmDeps): Mount[] {
     { path: '/api/inspections', access: 'user', feature: 'inspections', router: createInspectionRoutes(d) },
     { path: '/api/inspection-templates', access: 'user', feature: 'inspection_checklists', router: createInspectionTemplateRoutes(d) },
     { path: '/api/inspection-checklists', access: 'user', feature: 'inspection_checklists', router: createInspectionChecklistRoutes(d) },
-    { path: '/api/change-orders', access: 'user', feature: 'change_orders', router: createChangeOrderRoutes(d) },
+    // A project's (change_orders) or a job's (job_change_orders, parity tier 2 #4): either switch opens the routes.
+    { path: '/api/change-orders', access: 'user', feature: ['change_orders', 'job_change_orders'], router: createChangeOrderRoutes(d) },
   ]
 }

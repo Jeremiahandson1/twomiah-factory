@@ -69,7 +69,8 @@ const landscaping: VerticalSettings = {
     agreements: { recurrence: true },
     // A crew's end-of-visit property checklist; rows of the HVAC type this CRM first shipped are still read.
     tech: { checklistType: 'property_checklist', checklistTitle: 'Property checklist', legacyChecklistTypes: ['hvac_inspection_checklist'] },
-    portal: { disable: ['collaborators', 'projects', 'changeOrders', 'selections', 'projectFiles', 'sharedDocuments'] },
+    // Change orders are a job's here (job_change_orders, parity tier 2 #4): the section opens only with that switch on.
+    portal: { disable: ['collaborators', 'projects', 'selections', 'projectFiles', 'sharedDocuments'] },
   },
   // templates/crm-landscaping/frontend/src/*Config.ts and the page wrappers' configs
   screens: {
@@ -138,7 +139,7 @@ const landscaping: VerticalSettings = {
     },
     portal: {
       providerNoun: 'landscaping team',
-      clientNav: ['myJobs', 'visits', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      clientNav: ['myJobs', 'visits', 'quotes', 'changeOrders', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Visits', agreements: 'Service Plans' },

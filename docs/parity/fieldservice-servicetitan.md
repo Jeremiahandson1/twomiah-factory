@@ -39,7 +39,7 @@ Shared ones are also in `shared-backlog.md`.
 |---|---|---|
 | Estimate templates | `quote_templates` — offered to the contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
 | Automatic quote follow-up | `quote_followup` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
-| Change orders | `change_orders` — contractor only, and tied to a **project** (`projectId` required); field service has no projects — change orders on a **job** are a build | not built for jobs |
+| Change orders | **built 11/10 (tier 2 #4), hidden** — `job_change_orders` (field service, landscaping): a job's change orders on its page, sent to the customer to sign in their portal (named by the job), approved, and billed as their own lines on the job's invoice, once (migration 0108: change_order.job_id, invoice_id). Raised by the office; techs raising them on site and basic (which bills from quotes) are follow-ups | built |
 | CRM pipeline, quotes awaiting a reply | `lead_pipeline` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
 | Owner / technician dashboards | `owner_dashboard`, `crew_dashboard` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
 | Customer self-scheduling in the portal | `portal_appointments` — the salon only, built on the salon's stylists and service menu (crm.ts portal hooks); field service's portal takes a service request. Opening it means adapting it to the general bookings — a build | partly |

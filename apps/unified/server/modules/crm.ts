@@ -294,7 +294,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // photos in the store, served at /media/photos/… (the website's media route serves the same prefix)
       ...(v.jobs?.photos ? { storage: s.storage } : {}),
       // a job billed on its own: POST /api/jobs/:id/invoice
-      ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
+      // …and a job's approved change orders go on its invoice (change_order.job_id, 0108 — parity tier 2 #4).
+      ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays, changeOrders: true } } : {}),
       ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
       ...(v.jobs?.requireCustomer ? { requireCustomer: { word: customerWord || 'customer' } } : {}),
       ...(v.jobs?.repeatWeekdays ? { repeatWeekdays: true } : {}), repeatPatterns: (companyId: string) => features.isFeatureEnabled(companyId, 'job_repeat_patterns'),

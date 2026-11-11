@@ -12,7 +12,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
-import { eq, and, inArray, count, sql, desc, asc, gte, lt, lte, max, notInArray } from 'drizzle-orm'
+import { eq, and, or, inArray, count, sql, desc, asc, gte, lt, lte, max, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
@@ -243,7 +243,8 @@ export interface PortalDeps {
  */
 const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   projects: ['projects'],
-  changeOrders: ['change_orders'],
+  // A project's change orders (the contractor) or a job's (job_change_orders, parity tier 2 #4): either switch.
+  changeOrders: [['change_orders', 'job_change_orders']],
   selections: ['selections'],
   sharedDocuments: ['documents'],
   // The photos and documents a roofer chose to show a homeowner: only where that switch (not ready) is on.
@@ -312,7 +313,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   const off = (s: NonNullable<PortalOptions['disable']>[number]) => (o.disable || []).includes(s)
   const has = {
     projects: !!t.project && !off('projects'),
-    changeOrders: !!t.project && !!t.changeOrder && !off('changeOrders'),
+    changeOrders: !!t.changeOrder && (!!t.project || 'jobId' in (t.changeOrder || {})) && !off('changeOrders'),
     selections: !!t.project && !!selections && !off('selections'),
     // a sub sees the jobs assigned to them (job.subcontractorId); a customer sees their own jobs (job.contactId)
     myJobs: !!t.job && !off('myJobs'),
@@ -1475,33 +1476,53 @@ export function createPortalRoutes(deps: PortalDeps) {
     const AWAITING_CLIENT = ['submitted', 'pending']
     /** What a client may see at all: waiting on them, or already decided — never a draft. */
     const CLIENT_VISIBLE = [...AWAITING_CLIENT, 'approved', 'rejected']
-    const coSelect = () => ({ id: t.changeOrder.id, number: t.changeOrder.number, title: t.changeOrder.title, description: t.changeOrder.description, status: t.changeOrder.status, reason: t.changeOrder.reason, amount: t.changeOrder.amount, daysAdded: t.changeOrder.daysAdded, submittedDate: t.changeOrder.submittedDate, approvedDate: t.changeOrder.approvedDate, approvedBy: t.changeOrder.approvedBy, createdAt: t.changeOrder.createdAt, projectId: t.changeOrder.projectId, projectName: t.project.name, projectNumber: t.project.number })
+    /**
+     * WHICH CHANGE ORDERS ARE THIS CLIENT'S: those on their projects, and (parity tier 2 #4, 11/10) those on their jobs — a field
+     * service call's. One condition every door here uses (list, detail, approve, reject), or null when they have neither.
+     */
+    const jobsCo = 'jobId' in (t.changeOrder || {}) && !!t.job
+    const coScope = async (contactId: string): Promise<any | null> => {
+      const projectIds = await contactProjectIds(contactId)
+      const jobIds = jobsCo ? (await db.select({ id: t.job.id }).from(t.job).where(eq(t.job.contactId, contactId))).map((j: any) => j.id) : []
+      const parts: any[] = []
+      if (projectIds.length) parts.push(inArray(t.changeOrder.projectId, projectIds))
+      if (jobIds.length) parts.push(inArray(t.changeOrder.jobId, jobIds))
+      return parts.length ? (parts.length === 1 ? parts[0] : or(...parts)) : null
+    }
+    const coSelect = () => ({ id: t.changeOrder.id, number: t.changeOrder.number, title: t.changeOrder.title, description: t.changeOrder.description, status: t.changeOrder.status, reason: t.changeOrder.reason, amount: t.changeOrder.amount, daysAdded: t.changeOrder.daysAdded, submittedDate: t.changeOrder.submittedDate, approvedDate: t.changeOrder.approvedDate, approvedBy: t.changeOrder.approvedBy, createdAt: t.changeOrder.createdAt, projectId: t.changeOrder.projectId, projectName: t.project.name, projectNumber: t.project.number, ...(jobsCo ? { jobId: t.changeOrder.jobId, jobTitle: t.job.title, jobNumber: t.job.number } : {}) })
     app.get('/p/:token/change-orders', portalAuth, gate('changeOrders'), async (c) => {
       const { contact } = P(c)
-      const projectIds = await contactProjectIds(contact.id)
-      if (projectIds.length === 0) return c.json([])
-      const rows = await db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
-        .where(and(inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, CLIENT_VISIBLE))).orderBy(desc(t.changeOrder.createdAt), asc(t.changeOrder.id))
+      const scope = await coScope(contact.id)
+      if (!scope) return c.json([])
+      const q = db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
+      const rows = await (jobsCo ? q.leftJoin(t.job, eq(t.changeOrder.jobId, t.job.id)) : q)
+        .where(and(scope, inArray(t.changeOrder.status, CLIENT_VISIBLE))).orderBy(desc(t.changeOrder.createdAt), asc(t.changeOrder.id))
       return c.json(rows)
     })
+    // The tie is spelled out here, not through coScope, so the tenancy guard (scripts/check-companyid-scoping.ts, rule B) can see it.
     const ownCo = async (changeOrderId: string, contactId: string) => {
       const projectIds = await contactProjectIds(contactId)
-      if (projectIds.length === 0) return null
-      const [row] = await db.select().from(t.changeOrder).where(and(eq(t.changeOrder.id, changeOrderId), inArray(t.changeOrder.projectId, projectIds))).limit(1)
+      const jobIds = jobsCo ? (await db.select({ id: t.job.id }).from(t.job).where(eq(t.job.contactId, contactId))).map((j: any) => j.id) : []
+      const mine: any[] = []
+      if (projectIds.length) mine.push(inArray(t.changeOrder.projectId, projectIds))
+      if (jobIds.length) mine.push(inArray(t.changeOrder.jobId, jobIds))
+      if (!mine.length) return null
+      const [row] = await db.select().from(t.changeOrder).where(and(eq(t.changeOrder.id, changeOrderId), mine.length === 1 ? mine[0] : or(...mine))).limit(1)
       return row || null
     }
     app.get('/p/:token/change-orders/:changeOrderId', portalAuth, gate('changeOrders'), async (c) => {
       const { contact, company } = P(c)
       const changeOrderId = c.req.param('changeOrderId')
-      const projectIds = await contactProjectIds(contact.id)
-      if (projectIds.length === 0) return c.json({ error: 'Change order not found' }, 404)
+      const scope = await coScope(contact.id)
+      if (!scope) return c.json({ error: 'Change order not found' }, 404)
       // …and the DETAIL applies the same visibility the list does. It only ever checked that the
       // change order belonged to one of this contact's projects, so a DRAFT — the office still
       // writing it, with whatever numbers are in it mid-thought — was one URL away from the client
       // the whole time. Found while fixing the list above: the same rule, in the place that was
       // quietly missing it. (T41)
-      const [found] = await db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
-        .where(and(eq(t.changeOrder.id, changeOrderId), inArray(t.changeOrder.projectId, projectIds), inArray(t.changeOrder.status, CLIENT_VISIBLE))).limit(1)
+      const dq = db.select(coSelect()).from(t.changeOrder).leftJoin(t.project, eq(t.changeOrder.projectId, t.project.id))
+      const [found] = await (jobsCo ? dq.leftJoin(t.job, eq(t.changeOrder.jobId, t.job.id)) : dq)
+        .where(and(eq(t.changeOrder.id, changeOrderId), scope, inArray(t.changeOrder.status, CLIENT_VISIBLE))).limit(1)
       if (!found) return c.json({ error: 'Change order not found' }, 404)
       return c.json({ ...found, project: { name: found.projectName, number: found.projectNumber }, company: { name: company.name, email: company.email, phone: company.phone } })
     })

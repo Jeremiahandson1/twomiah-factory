@@ -68,7 +68,8 @@ const fieldservice: VerticalSettings = {
     fleet: { gps: true },
     // One checklist for every trade this CRM serves; rows of the old HVAC-only type are still read.
     tech: { checklistType: 'service_checklist', checklistTitle: 'Service checklist', legacyChecklistTypes: ['hvac_inspection_checklist'] },
-    portal: { disable: ['collaborators', 'projects', 'changeOrders', 'selections', 'projectFiles', 'sharedDocuments'] },
+    // Change orders are a job's here (job_change_orders, parity tier 2 #4): the section opens only with that switch on.
+    portal: { disable: ['collaborators', 'projects', 'selections', 'projectFiles', 'sharedDocuments'] },
   },
   // templates/crm-fieldservice/frontend/src/*Config.ts
   screens: {
@@ -122,7 +123,7 @@ const fieldservice: VerticalSettings = {
     fleet: { gps: true },
     portal: {
       providerNoun: 'service team',
-      clientNav: ['myJobs', 'upcomingVisits', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      clientNav: ['myJobs', 'upcomingVisits', 'quotes', 'changeOrders', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Calls', agreements: 'Maintenance Plans' },
