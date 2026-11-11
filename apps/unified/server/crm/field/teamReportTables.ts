@@ -2,12 +2,13 @@
 // that — in the shape the saved/scheduled reports and CSV share (reportTables.ts). The money rules are data/teamRevenue.ts's.
 import { storeDateString } from '@twomiah/tenant-backend'
 import { NO_JOB, NO_ONE, QUOTE_BASES, QUOTE_GROUPS, contactNamesFor, quoteGroups, quoteLines, revenuePeople, revenueSlices, dollars, type QuoteBasis, type QuoteGroup } from '../../data/teamRevenue.ts'
-import type { Range } from '../../data/teamReports.ts'
+import { namesFor, type Range } from '../../data/teamReports.ts'
+import { CALLBACK_DAYS, ON_TIME_MINUTES, csrScores, techScores } from '../../data/scorecards.ts'
 import type { Col, ReportTable, Row } from './reportTables.ts'
 
-export const TEAM_TABS = ['revenue', 'invoices', 'jobs', 'quotes', 'quote_list'] as const
+export const TEAM_TABS = ['revenue', 'invoices', 'jobs', 'quotes', 'quote_list', 'tech_scorecard', 'csr_scorecard'] as const
 export type TeamTab = typeof TEAM_TABS[number]
-export const TEAM_TAB_LABEL: Record<TeamTab, string> = { revenue: 'Revenue per person', invoices: 'Invoices', jobs: 'Jobs', quotes: 'Quote conversion', quote_list: 'Quotes' }
+export const TEAM_TAB_LABEL: Record<TeamTab, string> = { revenue: 'Revenue per person', invoices: 'Invoices', jobs: 'Jobs', quotes: 'Quote conversion', quote_list: 'Quotes', tech_scorecard: 'Tech scorecard', csr_scorecard: 'Office scorecard' }
 export { QUOTE_BASES, QUOTE_GROUPS }
 
 export interface TeamParams {
@@ -136,6 +137,49 @@ export async function teamTable(db: any, companyId: string, p: TeamParams): Prom
           { key: 'converted', label: 'Converted to job', kind: 'date' }, { key: 'completed', label: 'Job completed', kind: 'date', default: false }, { key: 'job', label: 'Job', link: 'job', idKey: 'jobId' },
         ],
         rows, totals: { quote: 'Total', total: dollars(rows.reduce((n, r) => n + Math.round(r.total * 100), 0)) },
+      }
+    }
+    // ServiceTitan's technician scorecard (parity tier 3): the revenue and quote figures above, beside jobs, on-time starts and call-backs.
+    case 'tech_scorecard': {
+      const [rev, scores, q] = await Promise.all([revenueSlices(db, companyId, p.range, { contactId: p.contactId }), techScores(db, companyId, p.range, p.tz), quoteLines(db, companyId, p.range, 'tech', 'sent', { contactId: p.contactId })])
+      const revenue = new Map(revenuePeople(rev).rows.map((r) => [r.key, r]))
+      const quotes = new Map(quoteGroups(q.lines, q.people).map((g) => [g.key, g]))
+      const keys = [...new Set([...scores.keys(), ...[...revenue.keys()].filter((k) => k.startsWith('u:') || k.startsWith('m:'))])]
+      const names = await namesFor(db, companyId, keys.filter((k) => k.startsWith('u:')).map((k) => k.slice(2)), keys.filter((k) => k.startsWith('m:')).map((k) => k.slice(2)))
+      const rows: Row[] = keys.map((k) => {
+        const s = scores.get(k), r = revenue.get(k), g = quotes.get(k)
+        return {
+          person: names.get(k)?.name ?? 'Someone no longer on the team', jobs: s?.completed ?? 0, invoiced: r?.invoiced ?? 0,
+          average: r && r.invoiceCount ? dollars(Math.round((r.invoiced / r.invoiceCount) * 100)) : null,
+          winRate: g ? g.conversionRate : null, onTime: s && s.timed ? Math.round((s.onTime / s.timed) * 100) : null,
+          callbacks: s?.callbacks ?? 0, callbackRate: s && s.completed ? Math.round((s.callbacks / s.completed) * 100) : null,
+          drill: { jobs: { tab: 'jobs', person: k }, invoiced: { tab: 'invoices', person: k } },
+        }
+      }).sort((a, b) => b.invoiced - a.invoiced || b.jobs - a.jobs || String(a.person).localeCompare(String(b.person)))
+      return {
+        tab: 'tech_scorecard', title: 'Tech scorecard',
+        note: `Jobs completed in the period (everyone on a crew counts the job). On time: started within ${ON_TIME_MINUTES} minutes of the booked time, of the jobs with a booked time and a start. Call-back: the same customer had another job made within ${CALLBACK_DAYS} days. Win rate: quotes sent in the period on that tech's jobs.`,
+        columns: [
+          { key: 'person', label: 'Tech' }, { key: 'jobs', label: 'Jobs completed', kind: 'number' }, money('invoiced', 'Revenue'), money('average', 'Average ticket'),
+          { key: 'winRate', label: 'Quote win rate', kind: 'percent' }, { key: 'onTime', label: 'On time', kind: 'percent' },
+          { key: 'callbacks', label: 'Call-backs', kind: 'number' }, { key: 'callbackRate', label: 'Call-back rate', kind: 'percent', default: false },
+        ],
+        rows,
+      }
+    }
+    // ServiceTitan's CSR scorecard: the jobs each office person booked in the period, and how they ended.
+    case 'csr_scorecard': {
+      const scores = await csrScores(db, companyId, p.range)
+      const names = await namesFor(db, companyId, [...scores.keys()].map((k) => k.slice(2)), [])
+      const rows: Row[] = [...scores.values()].map((s) => ({
+        person: names.get(s.key)?.name ?? 'Someone no longer on the team', booked: s.booked, completed: s.completed, cancelled: s.cancelled,
+        completedRate: s.booked ? Math.round((s.completed / s.booked) * 100) : null,
+      })).sort((a, b) => b.booked - a.booked || String(a.person).localeCompare(String(b.person)))
+      return {
+        tab: 'csr_scorecard', title: 'Office scorecard',
+        note: 'Jobs booked in the period by the person who made them, and how many of those were completed or cancelled so far.',
+        columns: [{ key: 'person', label: 'Booked by' }, { key: 'booked', label: 'Jobs booked', kind: 'number' }, { key: 'completed', label: 'Completed', kind: 'number' }, { key: 'cancelled', label: 'Cancelled', kind: 'number' }, { key: 'completedRate', label: 'Completed rate', kind: 'percent' }],
+        rows, totals: { person: 'Total', booked: rows.reduce((n, r) => n + r.booked, 0), completed: rows.reduce((n, r) => n + r.completed, 0), cancelled: rows.reduce((n, r) => n + r.cancelled, 0) },
       }
     }
   }
