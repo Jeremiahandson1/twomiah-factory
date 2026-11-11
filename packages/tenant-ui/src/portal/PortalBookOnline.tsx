@@ -33,7 +33,7 @@ export function PortalBookOnline() {
                     <p className="font-medium text-gray-900 dark:text-slate-100">{b.service || 'Visit'}</p>
                     <p className="text-sm text-gray-600 dark:text-slate-400">{formatWhenTime(b.startAt, (company as any)?.timeZone)}{b.status === 'pending' ? ' · waiting to be confirmed' : ''}</p>
                   </div>
-                  {b.manageUrl && <a href={b.manageUrl} className="inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:underline dark:text-orange-300">Change or cancel<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
+                  {b.manageUrl && <a href={b.manageUrl} className="inline-flex items-center gap-1 text-sm font-medium text-orange-700 hover:underline dark:text-orange-200">Change or cancel<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
                 </div>
               ))}
             </div>

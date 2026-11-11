@@ -1,5 +1,5 @@
 {
- "discoveredOn": "2026-10-31",
+ "discoveredOn": "2026-11-11",
  "routes": [
   "/api/admin/customer-groups",
   "/api/admin/discounts",
@@ -60,6 +60,7 @@
   "/api/site/posts",
   "/api/site/preview/settings/site?v=1",
   "/api/site/settings",
+  "/api/sms/conversations",
   "/api/support/kb",
   "/api/team/assignable",
   "/api/team?limit=25&page=1",
