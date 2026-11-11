@@ -78,12 +78,20 @@ test("Reports' collected leaves credit out: a payment from credit is not money r
   await t.db.update(t.schema.company).set({ enabledFeatures: [...FEATURES, 'reports'] } as any).where(eq(t.schema.company.id, companyId))
   t.services.features.forgetFeatures()
   const before = Number((await json(await call('/api/reports/revenue'))).body.collected ?? (await json(await call('/api/reports/revenue'))).body.totalCollected)
+  const topOf = async () => (await json(await call('/api/reports/revenue/customers?limit=10'))).body.find((r: any) => r.contact.id === ann) || { invoiced: 0, collected: 0 }
+  const topBefore = await topOf(), statsBefore = (await json(await call('/api/invoices/stats'))).body
   const inv = await invoiceFor(ann, 50)
   await call(`/api/customer-credit/${ann}`, { method: 'POST', json: { amount: 20, reason: 'Goodwill' } })
   await call(`/api/invoices/${inv}/payments`, { method: 'POST', json: { amount: 20, method: 'account_balance' } })
   await call(`/api/invoices/${inv}/payments`, { method: 'POST', json: { amount: 30, method: 'cash' } })
   const after = await json(await call('/api/reports/revenue'))
   expect(Number(after.body.collected ?? after.body.totalCollected) - before).toBe(30)
+  // …and every other "collected" on Reports agrees (live test 11/11: Top customers and the invoice totals roofing's Reports
+  // read counted the $20 of credit): Top customers, and the invoice list's collectedAmount (paidAmount stays what is paid).
+  const top = await topOf()
+  expect([top.invoiced - topBefore.invoiced, top.collected - topBefore.collected]).toEqual([50, 30])
+  const stats = (await json(await call('/api/invoices/stats'))).body
+  expect([stats.paidAmount - statsBefore.paidAmount, stats.collectedAmount - statsBefore.collectedAmount]).toEqual([50, 30])
   await setFeatures(FEATURES)
 })
 

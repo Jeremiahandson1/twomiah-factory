@@ -124,6 +124,9 @@ export default function PinMap({ pins, center, zoom = 15, circleMiles, fit = tru
       }).bindPopup(popupOf(pin)).addTo(layer)
     }
     if (fit && pins.length > 1) map.fitBounds(L.latLngBounds(pins.map((p) => [p.lat, p.lng] as [number, number])), { padding: [30, 30] })
+    // One pin: on it, at least the home view's width (live test 11/11: a single lead an hour away sat off-screen, the map left
+    // on the business's own street).
+    else if (fit && pins.length === 1) map.setView([pins[0].lat, pins[0].lng], Math.min(map.getZoom(), HOME_ZOOM))
   }, [pins, fit, ready])
 
   if (failed) {

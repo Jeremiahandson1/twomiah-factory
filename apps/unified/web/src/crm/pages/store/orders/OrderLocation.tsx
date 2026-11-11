@@ -7,7 +7,7 @@ import { errorText, useAuth, usePermissions, useToast } from '../../../../shared
 
 interface Where { locationId: string | null; locationName: string | null; locations: Array<{ id: string; name: string }>; canChange: boolean; why: string | null }
 
-export function OrderLocation({ orderId, onChanged }: { orderId: string; onChanged?: () => void }) {
+export function OrderLocation({ orderId, status, onChanged }: { orderId: string; /** the order's status: read again when it moves (sent — live test 11/11: the picker stayed until a reload) */ status?: string; onChanged?: () => void }) {
   const on = useAuth().hasFeature('store_locations')
   const { known, can } = usePermissions()
   const mayChange = !known || can('orders:update')
@@ -15,7 +15,7 @@ export function OrderLocation({ orderId, onChanged }: { orderId: string; onChang
   const [where, setWhere] = useState<Where | null>(null)
   const [saving, setSaving] = useState(false)
   const load = () => api.get(`/api/admin/stock-locations/orders/${encodeURIComponent(orderId)}`).then((r: any) => setWhere(r)).catch(() => setWhere(null))
-  useEffect(() => { if (on) load() }, [on, orderId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (on) load() }, [on, orderId, status]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!on || !where || !where.locationId) return null
   const change = async (to: string) => {
     setSaving(true)

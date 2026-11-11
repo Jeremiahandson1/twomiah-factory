@@ -31,7 +31,8 @@ import {
   Receipt, Shield, Home,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton, TextButton } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, useConfirm, errorText, ReviewRequestButton, TextButton } from '../../../../shared'
+import { sendBookingAnyway } from './bookAnyway'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf, stageLabel } from './model'
@@ -985,6 +986,7 @@ export default function JobDetailPage() {
  * is a calendar day and the time the company's wall clock, as every job on the shared Schedule is; blank clears.
  */
 function ScheduleCard({ job, mayEdit, mayMove, onSaved }: { job: Pick<RoofJob, 'id' | 'scheduledDate' | 'scheduledTime' | 'totalSquares'>; mayEdit: boolean; mayMove: boolean; onSaved: (j: RoofJob) => void }) {
+  const confirm = useConfirm()
   const toast = useToast()
   const dayOf = (v: unknown) => (typeof v === 'string' ? v.slice(0, 10) : '')
   const [date, setDate] = useState(dayOf(job.scheduledDate))
@@ -998,9 +1000,11 @@ function ScheduleCard({ job, mayEdit, mayMove, onSaved }: { job: Pick<RoofJob, '
   const save = async () => {
     setSaving(true)
     try {
-      const updated = await api.put(`/api/jobs/${job.id}`, {
+      const updated = await sendBookingAnyway((bookAnyway) => api.put(`/api/jobs/${job.id}`, {
         scheduledDate: date, scheduledTime: date ? time : '', totalSquares: squares === '' ? '' : Number(squares),
-      }) as RoofJob
+        ...(bookAnyway ? { bookAnyway: true } : {}),
+      }) as Promise<RoofJob>, confirm)
+      if (!updated) return
       onSaved(updated)
       toast.success('Job updated')
     } catch (err) {

@@ -12,6 +12,7 @@
 //   GET    /:id                     the package, its invites and the comparison
 //   POST   /:id/send                open it and email the subs their link
 //   POST   /:id/award               { inviteId } — the winner's purchase order
+//   POST   /:id/invites/:inviteId/link  that sub's portal link, for the office to send another way (text, or a missed email)
 //   POST   /:id/close               no award
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -133,6 +134,19 @@ export function createBidPackageRoutes(d: CrmDeps) {
     }
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'bid_package', entityId: p.id, entityName: p.title, metadata: { sent: true, emailed }, req: c })
     return one(c, { ...(await view(c, { ...p, status: 'open' })), emailed })
+  })
+
+  // A sub's link, to copy and send another way (live test 11/11: it was only ever in their email — Buildertrend's bid request can
+  // be resent; the contact page copies a customer's portal link the same way). The same link the email carries.
+  app.post('/:id/invites/:inviteId/link', requirePermission('projects:update'), async (c) => {
+    const companyId = c.get('user').companyId
+    const p = await packageOf(companyId, c.req.param('id'))
+    if (!p) return fail(c, 404, 'Bid package not found')
+    if (p.status !== 'open') return fail(c, 400, 'Send the package first — the link opens it for the sub.')
+    const row = ((await invitesOf(companyId, p.id)) as any[]).find((r) => r.i.id === c.req.param('inviteId'))
+    if (!row) return fail(c, 404, 'That sub is not on this package')
+    const [v] = await db.select().from(contact).where(and(eq(contact.id, row.i.vendorId), eq(contact.companyId, companyId))).limit(1)
+    return one(c, { link: (await ensureVendorLink(db, v)).link })
   })
 
   app.post('/:id/award', requirePermission('projects:update'), async (c) => {

@@ -75,7 +75,7 @@ Before starting on each site, make two people so there is someone to dispatch: *
 ## D. Roofing
 
 1. **Weekly client update** (as B1, using a job's shared photos / documents / inspection report and the roofer's posts).
-2. **Skill matching** (as A2) and **days off** (as A1).
+2. **Days off** (as A1): a job (new, or its Scheduled date changed on the job or moved on the Schedule) on the closed day → "The business is closed on …"; Book anyway works. (Skill matching is not offered to roofing: its jobs go to a crew and a sales rep.)
 3. **Credit memos** (as A8).
 4. **Lead map** (as A9).
 

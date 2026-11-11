@@ -18,7 +18,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, useConfirm, errorText } from '../../../../shared'
+import { sendBookingAnyway } from './bookAnyway'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, jobValue, pipelineFor, rowsOf, stageLabel } from './model'
@@ -73,6 +74,7 @@ export default function JobsPage() {
   const mayCreateJob = useMayWrite('jobs:create')
   const { hasFeature } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const navigate = useNavigate()
 
   const [jobs, setJobs] = useState<RoofJob[]>([])
@@ -189,11 +191,14 @@ export default function JobsPage() {
         ? Object.fromEntries(Object.entries({ insuranceCompany, claimNumber, adjusterName, adjusterPhone, dateOfLoss }).filter(([, v]) => v.trim()))
         : {}
       // The day and time on the calendar (the company's clock) and the roof's squares, each only when filled in.
-      const job = await api.post('/api/jobs', {
+      // On one of the business's days off: asked, and booked anyway only if the office says so (./bookAnyway.ts).
+      const job = await sendBookingAnyway((bookAnyway) => api.post('/api/jobs', {
         ...rest, ...claim, propertyAddress: address, ...(stories ? { stories: Number(stories) } : {}), ...(roofType && { roofType }),
         ...(totalSquares ? { totalSquares: Number(totalSquares) } : {}),
         ...(scheduledDate ? { scheduledDate } : {}), ...(scheduledDate && scheduledTime ? { scheduledTime } : {}),
-      }) as RoofJob
+        ...(bookAnyway ? { bookAnyway: true } : {}),
+      }) as Promise<RoofJob>, confirm)
+      if (!job) return
       toast.success('Job created')
       setModalOpen(false)
       navigate(`/crm/jobs/${job.id}`)

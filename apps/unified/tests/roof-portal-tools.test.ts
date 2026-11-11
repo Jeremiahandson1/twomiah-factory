@@ -72,6 +72,20 @@ describe('row 21', () => {
     expect((await auth('/api/job-files/notify', { method: 'POST', json: { jobId: j3.id } })).status).toBe(409)
   })
 
+  test("texting not set up: never \"Texted\" — the email instead, or said why (live test 11/11)", async () => {
+    const real = (t.services as any).crm.sms.sendSMS
+    ;(t.services as any).crm.sms.sendSMS = async () => ({ status: 'refused', refused: true, errorMessage: 'Texting is not set up for this business yet — turn it on under Settings › Texting.' })
+    try {
+      const both = await contactRow({ name: 'Dee Both', mobile: '715-555-0104', email: 'dee@home.example' })
+      const r = await json(await auth('/api/job-files/notify', { method: 'POST', json: { jobId: (await jobRow(both.id)).id } }))
+      expect([r.status, r.body.sent, mails.at(-1).to]).toEqual([200, 'email', 'dee@home.example'])
+      const phoneOnly = await contactRow({ name: 'Ray Phone', mobile: '715-555-0105' })
+      const n = await json(await auth('/api/job-files/notify', { method: 'POST', json: { jobId: (await jobRow(phoneOnly.id)).id } }))
+      expect(n.status).toBe(409)
+      expect(n.body.error).toContain('Texting is not set up')
+    } finally { (t.services as any).crm.sms.sendSMS = real }
+  })
+
   test('close on Collected: only with the setting, only once the last open job is Collected', async () => {
     expect((await json(await auth('/api/job-files/settings', { method: 'PUT', json: { closeOnCollected: true } }))).body.closeOnCollected).toBe(true)
     const ct = await contactRow({ name: 'Two Jobs', mobile: '715-555-0104' })

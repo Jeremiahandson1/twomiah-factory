@@ -55,6 +55,16 @@ test('with an email, the receipt goes there; a customer can be named', async () 
   expect(await stock()).toBe(7)
 })
 
+test("an email typed for the receipt: an existing customer's makes the sale theirs; a new one is a new customer, by that email — never \"Walk-in\" (live test 11/11)", async () => {
+  const typed = await sell({ items: [{ sku: 'MUG-1', quantity: 1 }], paidBy: 'cash', email: 'SAM@shop.example' })
+  expect(typed.body.order).toMatchObject({ customerName: 'Sam Shopper' })
+  expect(typed.body.order.contactId).toBeTruthy()
+  const stranger = await sell({ items: [{ sku: 'MUG-1', quantity: 1 }], paidBy: 'cash', email: 'new@shop.example' })
+  expect(stranger.body.order.customerName).toBe('new@shop.example')
+  expect(stranger.body.order.contactId).toBeTruthy()
+  expect(stranger.body.receiptTo).toBe('new@shop.example')
+})
+
 test('refused in words: nothing in it, an unknown product', async () => {
   expect((await sell({ items: [], paidBy: 'cash' })).status).toBe(400)
   const r = await sell({ items: [{ sku: 'NOPE', quantity: 1 }], paidBy: 'cash' })

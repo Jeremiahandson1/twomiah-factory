@@ -11,7 +11,7 @@
 //     quotes:read). With either missing the fallback would print a different figure, not an empty one. The template
 //     read the list's `moneyWithheld` signal, which the unified list doesn't carry (RULEBOOK §3). None of these tiles
 //     reads a cost, so margin:read gates nothing here;
-//   · Invoiced / Collected / Outstanding are GET /api/invoices/stats (`totalAmount`, `paidAmount`, `outstanding`), asked
+//   · Invoiced / Collected / Outstanding are GET /api/invoices/stats (`totalAmount`, `collectedAmount` — paid less what came from credit, 11/11 — `outstanding`), asked
 //     only of a seat holding what that route asks (invoices:read and revenue:read); the template's
 //     /api/invoices/summary is gone;
 //   · rep names from GET /api/company/users (the template's /api/users), asked of a seat the server answers
@@ -66,7 +66,7 @@ const TYPE_COLORS: Record<string, string> = {
 }
 
 /** GET /api/invoices/stats — the parts this page shows. */
-interface InvoiceStats { totalAmount: number; paidAmount: number; outstanding: number }
+interface InvoiceStats { totalAmount: number; paidAmount: number; outstanding: number; /** paid, less what was paid from credit */ collectedAmount?: number }
 
 /**
  * The label colour for a bar, chosen from the bar's own brightness (M5): white on a dark bar, near-black on a light
@@ -257,7 +257,7 @@ export default function ReportsPage() {
             ['Signed', signed],
             ['Proposals Sent', proposalsSent],
             ...(maySeeJobValue ? [['Avg Job Value', csvMoney(avgJobValue)], ['Pipeline Value', csvMoney(jobs.reduce((s, j) => s + valueOf(j), 0))]] as CsvCell[][] : []),
-            ...(money ? [['Invoiced', csvMoney(money.totalAmount)], ['Collected', csvMoney(money.paidAmount)], ['Outstanding', csvMoney(money.outstanding)]] as CsvCell[][] : []),
+            ...(money ? [['Invoiced', csvMoney(money.totalAmount)], ['Collected', csvMoney(money.collectedAmount ?? money.paidAmount)], ['Outstanding', csvMoney(money.outstanding)]] as CsvCell[][] : []),
           ]} />
         </div>
 
@@ -321,7 +321,7 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {([
               ['Invoiced', Number(money.totalAmount) || 0, 'billed to customers', 'text-gray-900 dark:text-slate-100'],
-              ['Collected', Number(money.paidAmount) || 0, 'payments received', 'text-green-700 dark:text-green-300'],
+              ['Collected', Number(money.collectedAmount ?? money.paidAmount) || 0, 'payments received', 'text-green-700 dark:text-green-300'],
               ['Outstanding', Number(money.outstanding) || 0, 'still owed', 'text-amber-700 dark:text-amber-300'],
             ] as Array<[string, number, string, string]>).map(([label, value, hint, tone]) => (
               <div key={label} className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
