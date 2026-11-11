@@ -17,15 +17,19 @@ Before starting on each site, make two people so there is someone to dispatch: *
 2. **Skills.** Settings › Skills: give Tia "Gas", give Gus "Gas, Install"; job type "Furnace install" needs "Gas, Install".
    - Create a "Furnace install" job for Tia. → It warns that Install is missing. Book anyway works.
    - Dispatch Board: tap **Move** on that job. → The banner names Gus ✓ first and Tia as "missing Install"; Tia's lane says "Missing Install", Gus's says "Has the skills".
+   - The same on **Schedule › By person** (week) and the Schedule's **Day** view: tap Move → the "needs Gas, Install. Best fit:" line, and each person's lane says "Has the skills" / "Missing Install".
 3. **Service zones.** Settings › Service zones: "East" with ZIP 53714; tick Tia under "Who works East"; set "Jobs a day, at most" to 1. Save.
    - Create a job in 53714 for tomorrow. Then create a second one there for the same day. → "East is full on …: 1 of 1 jobs already booked there." Book anyway works.
    - New job in 53714, then **Find a time**. → "In East — showing the people who work East", only Tia offered, tomorrow listed as full.
    - Dispatch Board, zone filter "East". → Only Unassigned and Tia's lanes (plus anyone a shown job names).
+   - Schedule: the **Zone** picker (beside By person). "East" → only East's jobs; By person shows Tia's lane (plus anyone a shown job names) and Unassigned.
 4. **Where's my tech.** Start "On my way" on a job that has an address (Tia's seat), then open the link from the text log.
    → "Tia is on the way". With a location from the phone it shows the map and "About N minutes away". Starting the job → "has arrived".
-5. **Photo folders.** On a job's photos, make a folder and move a photo into it.
+5. **Photo folders.** On a job's photos: **New folder** "Attic" → an "Attic (0)" tab. Add a photo into Attic (the Folder picker lists it), move one into
+   a standard folder (Before) and back. With the Attic tab picked: **Rename**, then **Delete folder** → its photos stay, in no folder.
 6. **Change orders.** On a job: add a change order, then send it. The client signs it from the portal. → The approved amount is added to the job.
-7. **Online booking in the portal.** Customer portal → **Book online** card → book a time. → The job appears on the schedule.
+7. **Online booking in the portal.** First, with NO bookable service: the customer portal has no "Book a Visit" card. Then Bookings › add a service
+   (e.g. "Furnace tune-up", 1 hr) with online booking on → the card appears. Book a time. → The booking (and its job) is on the schedule.
 8. **Credit memos.** On a customer: Customer credit › $50 "Late arrival". → Listed as "Credit issued CM-0001" with a **PDF** button; the PDF opens.
    - Pay an invoice from it: Record payment › Account balance.
    - Reports: "collected" does NOT go up by the credit.
@@ -33,7 +37,8 @@ Before starting on each site, make two people so there is someone to dispatch: *
 10. **Marketing ROI.**
     - Settings › Call tracking: a tracking number with source "Google Ads".
     - Marketing ROI: enter spend for Google Ads this month. The table has a **Calls** column.
-    - "Where it came from" shows circles by ZIP, and the "Customers from" picker narrows the map to one source.
+    - "Where it came from" shows circles by ZIP — a customer typed in by hand too (their ZIP is placed on the map) — and the "Customers from"
+      picker narrows the map to one source.
 11. **Caller ID.** Log an inbound call from a customer's number (Call tracking, or the test webhook). → A pop at the bottom right shows their name, open jobs, what they owe, and **Open their record**.
 12. **Website chat-to-text.** Open the public website. → "Text us" button bottom right. Send with the box ticked.
     → A lead in the Lead Inbox, and the message in Texting as from them. Unticked: a lead only.

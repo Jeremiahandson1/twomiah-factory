@@ -6,7 +6,7 @@
 import { type AnyPgColumn, pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { equipment } from './field.ts'
-import { site } from './trades.ts'
+import { site, jobPhotoFolder } from './trades.ts'
 import { event } from './events.ts'
 import { patient } from './vet.ts'
 import { booking } from './booking.ts'
@@ -917,6 +917,8 @@ export const document = pgTable('document', {
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
   /** When it was last shared with the customer (the weekly client update's "shared this week"); null for one shared before this was kept. */
   sharedAt: timestamp('shared_at'),
+  /** A photo in a folder its job's people named (job_photo_folder — the photo library's, as job_photo.folder_id is the job's own). */
+  photoFolderId: text('photo_folder_id').references((): AnyPgColumn => jobPhotoFolder.id, { onDelete: 'set null' }),
 }, (t) => [
   index('document_company_id_idx').on(t.companyId),
   index('document_project_id_idx').on(t.projectId),

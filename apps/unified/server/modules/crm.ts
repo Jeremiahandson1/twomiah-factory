@@ -29,7 +29,7 @@ import {
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, projectWarranty, site, jobPhoto, jobSeries, jobAssignee, crewLogin,
+  documentShare, equipment, serviceAgreement, agreementVisit, projectWarranty, site, jobPhoto, jobPhotoFolder, jobSeries, jobAssignee, crewLogin,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -288,7 +288,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     db,
     tables: {
       job, project, contact, user, timeEntry, teamMember, location, jobSeries, jobAssignee, crewLogin,
-      ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
+      ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto, jobPhotoFolder } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
     // jobAssignee + crewLogin: a seat without jobs:read-all reads the jobs it leads, is on, sells or crews (onJob).
     authenticate, requirePermission, canSee, ...live, cleanText, cleanLines, audit,
@@ -540,7 +540,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Tasks: a construction business's with projects (the base CRM's gate); a clinic's always (templates/crm-vet
     // mounted tasks ungated and put Tasks on every menu, and a clinic has no projects) — the union, on both sides.
     { path: '/api/tasks', access: 'user', feature: ['projects', 'patient_records'], router: createTasksRoutes({ service: s.tasks, authenticate, requirePermission } as any) },
-    { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
+    { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job, jobPhotoFolder }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: new Hono().use('/:id/complete-job', completionGate).route('/', createTechRoutes({
       // canSee: a job's money by the one rule (packages/tenant-backend jobs/jobMoney.ts); without it the module withholds all of it.
@@ -663,6 +663,13 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // portal books inside it (appointments).
       ...(!v.portal?.appointments ? { bookOnline: {
         bookUrl: (portalToken: string) => `${siteOrigin()}/book?portal=${encodeURIComponent(portalToken)}`,
+        // Offered only once something can be booked — online booking on in the booking settings and a service to book, the
+        // test /book itself applies (booking/pages.ts). Before that the card led a customer to "Bookings opening soon" (live
+        // test 11/11); Housecall Pro and ServiceTitan show self-booking only once it is set up.
+        open: async (companyId: string) => {
+          const engine = s.bookingEngine.current // filled in when the booking module starts (app.ts); none, no booking pages
+          return !!engine && !!(await engine.settingsOf(companyId)).enabled && (await engine.listServices(companyId, { activeOnly: true })).length > 0
+        },
         list: async (companyId: string, contactId: string) => {
           const rows = await db.select({ id: booking.id, startAt: booking.startAt, status: booking.status, token: booking.token, serviceId: booking.serviceId }).from(booking)
             .where(and(eq(booking.companyId, companyId), eq(booking.contactId, contactId), gte(booking.startAt, new Date()), notInArray(booking.status, ['cancelled', 'declined'])))

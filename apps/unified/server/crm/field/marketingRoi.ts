@@ -25,6 +25,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { done, fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
+import { createGeocodingService } from './geocodingService.ts'
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -37,8 +38,14 @@ const digits = (p: unknown) => String(p ?? '').replace(/\D/g, '').slice(-10)
 
 export interface RoiRow { source: string; label: string; calls: number; leads: number; customers: number; jobs: number; revenue?: number; spend?: number; costPerLead?: number | null; returnPerDollar?: number | null }
 
+/** ZIPs looked up per opening of the map (each is one Google lookup, then kept by the geocoder's cache). */
+export const ZIP_LOOKUPS_PER_OPEN = 25
+
 export function createMarketingRoiRoutes(d: CrmDeps) {
   const { db, audit } = d
+  // A ZIP with no customer or job on the map is placed at the ZIP itself (live test 11/11: a customer typed in by hand has no
+  // map point until a map screen looks their jobs up, so the heat map drew nothing). The geocoder keeps each answer 7 days.
+  const geocoding = createGeocodingService(d)
   const { requirePermission } = d.permissions
   const mayWith = canSeeWith(d.permissions)
   const app = new Hono<AppEnv>()
@@ -129,7 +136,8 @@ export function createMarketingRoiRoutes(d: CrmDeps) {
   /**
    * The heat map (ServiceTitan's revenue map): the period's customers by their ZIP — how many, their jobs made in the period and
    * (invoices:read) what they paid in it — every paying or booked customer, or only one source's (?source=, the attribution above).
-   * Each ZIP is placed at the middle of its customers' map points (else its jobs'); a ZIP with no point is counted as unplaced.
+   * Each ZIP is placed at the middle of its customers' map points, else its jobs', else at the ZIP itself (looked up — up to
+   * ZIP_LOOKUPS_PER_OPEN a time); a ZIP still with no point (no Maps key, or not found) is counted as unplaced.
    */
   app.get('/map', requirePermission('reports:read'), async (c) => {
     const me = c.get('user')
@@ -162,9 +170,15 @@ export function createMarketingRoiRoutes(d: CrmDeps) {
     }
     for (const x of cells.values()) for (const id of x.customers) { const q = person.get(id); if (q?.lat != null && q?.lng != null) x.pts.push([Number(q.lat), Number(q.lng)]) }
     const mid = (pts: Array<[number, number]>) => pts.length ? [pts.reduce((n, q) => n + q[0], 0) / pts.length, pts.reduce((n, q) => n + q[1], 0) / pts.length] : null
+    const atZip = new Map<string, [number, number]>()
+    const bare = [...cells.values()].filter((x) => !x.pts.length && !x.jobPts.length && /^\d{5}$/.test(x.zip)).slice(0, ZIP_LOOKUPS_PER_OPEN)
+    for (const x of bare) {
+      const found = await geocoding.geocode(`${x.zip}, USA`, me.companyId).catch(() => null)
+      if (found) atZip.set(x.zip, [found.lat, found.lng])
+    }
     let unplaced = 0
     const zips = [...cells.values()].map((x) => {
-      const at = mid(x.pts) ?? mid(x.jobPts)
+      const at = mid(x.pts) ?? mid(x.jobPts) ?? atZip.get(x.zip) ?? null
       if (!at) unplaced++
       return { zip: x.zip, customers: x.customers.size, jobs: x.jobs, ...(money ? { revenue: x.cents / 100 } : {}), lat: at ? Math.round(at[0] * 1e5) / 1e5 : null, lng: at ? Math.round(at[1] * 1e5) / 1e5 : null }
     }).sort((a: any, b: any) => (b.revenue ?? 0) - (a.revenue ?? 0) || b.jobs - a.jobs || a.zip.localeCompare(b.zip))
