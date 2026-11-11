@@ -19,6 +19,7 @@ import { dayOffOn, daysOffBetween } from './daysOff.ts'
 import { and, eq, inArray, or, gte, lte, lt, asc, notInArray, isNotNull } from 'drizzle-orm'
 import { businessHoursOf, businessHoursWindows, travelMinutes, NOT_GIVEN_WORK_ROLES } from '@twomiah/tenant-backend'
 import { techHours, techTimeOff, user, teamMember, timeEntry, job, jobAssignee, company } from '../db/schema/index.ts'
+import { missingSkills, skillsOf } from './skills.ts'
 
 /** Where a job is, as tenant-backend jobs/travel.ts reads it: on the map, or an address alone. */
 export interface Place { lat?: number | null; lng?: number | null; address?: string | null }
@@ -140,7 +141,7 @@ async function nameOf(exec: any, companyId: string, p: PersonRef): Promise<strin
   return 'That person'
 }
 
-export interface Unavailable { code: 'unavailable'; message: string; short: string; personId: string; reason: 'time_off' | 'hours' | 'closed' }
+export interface Unavailable { code: 'unavailable'; message: string; short: string; personId: string; reason: 'time_off' | 'hours' | 'closed' | 'skills' }
 
 /**
  * The BUSINESS is closed that day (data/daysOff.ts — a holiday, parity tier 2): the same warning the office may book past, before
@@ -357,6 +358,8 @@ export interface FindTimeRequest {
   limit?: number
   /** Nothing before this moment on the company's clock (the route passes "now"). */
   notBefore?: { date: string; minutes: number }
+  /** Only people who have every one of these skills (skill matching, data/skills.ts — the kind of job's needs). */
+  skills?: string[]
 }
 export interface OpenSlot {
   date: string; startsAt: string; endsAt: string
@@ -370,7 +373,7 @@ export interface FindTimePerson { personId: string; kind: 'user' | 'member'; nam
 export interface FindTimeResult { from: string; days: number; durationMinutes: number; slots: OpenSlot[]; people: FindTimePerson[] }
 
 /** Everyone who can be given work: active logins that are not view-only, and active roster crew without a login (the /assignable rule). */
-async function workers(exec: any, companyId: string, only?: string[]): Promise<Array<{ ref: PersonRef; id: string; kind: 'user' | 'member'; name: string }>> {
+export async function workers(exec: any, companyId: string, only?: string[]): Promise<Array<{ ref: PersonRef; id: string; kind: 'user' | 'member'; name: string }>> {
   const users = await exec.select({ id: user.id, f: user.firstName, l: user.lastName, email: user.email }).from(user)
     .where(and(eq(user.companyId, companyId), eq(user.isActive, true), notInArray(user.role, [...NOT_GIVEN_WORK_ROLES]))).orderBy(asc(user.firstName), asc(user.id))
   const seen = new Set(users.map((u: any) => String(u.email || '').toLowerCase()).filter(Boolean))
@@ -402,7 +405,12 @@ export async function findOpenSlots(exec: any, companyId: string, req: FindTimeR
   const duration = Math.max(5, Math.round(req.durationMinutes))
   const first = marker(req.from)
   const last = new Date(first.getTime() + (days - 1) * DAY_MS)
-  const people = await workers(exec, companyId, req.personIds)
+  let people = await workers(exec, companyId, req.personIds)
+  // Skill matching: a slot is offered only to someone who can do this kind of job alone (data/skills.ts).
+  if (req.skills?.length) {
+    const have = await skillsOf(exec, companyId, people.map((p) => p.ref))
+    people = people.filter((p) => !missingSkills(req.skills!, [have.get(p.id) || []]).length)
+  }
   const entries = await loadEntries(exec, companyId, people.map((p) => p.ref), new Date(first.getTime() - DAY_MS))
   const business = people.some((p) => !(entries.get(p.id)?.shifts.length)) ? await businessWindows(exec, companyId) : null
 

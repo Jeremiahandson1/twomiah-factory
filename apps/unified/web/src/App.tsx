@@ -88,6 +88,7 @@ const WeeklyUpdatePage = page(() => import('./crm/pages/WeeklyUpdatePage'))
 const ServiceZonesPage = page(() => import('./crm/pages/ServiceZonesPage'))
 const MarketingRoiPage = page(() => import('./crm/pages/MarketingRoiPage'))
 const DaysOffPage = page(() => import('./crm/pages/DaysOffPage'))
+const SkillsPage = page(() => import('./crm/pages/SkillsPage'))
 const QuoteFollowUpPage = page(() => import('./crm/pages/QuoteFollowUpPage'))
 const MarkupDefaultsPage = page(() => import('./crm/pages/MarkupDefaultsPage'))
 const TimeClockSettingsPage = page(() => import('./crm/pages/TimeClockSettingsPage'))
@@ -274,6 +275,7 @@ export default function App() {
                       <Route path="settings/weekly-update" element={<WeeklyUpdatePage />} />
                       <Route path="settings/service-zones" element={<ServiceZonesPage />} />
                       <Route path="settings/days-off" element={<DaysOffPage />} />
+                      <Route path="settings/skills" element={<SkillsPage />} />
                       <Route path="settings/quote-followup" element={<QuoteFollowUpPage />} />
                       <Route path="settings/markup-defaults" element={<MarkupDefaultsPage />} />
                       <Route path="settings/time-clock" element={<TimeClockSettingsPage />} />

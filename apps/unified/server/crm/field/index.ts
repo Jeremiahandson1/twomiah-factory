@@ -26,6 +26,7 @@ import { createPlanReports } from './planReportRoutes.ts'
 import { createAvailabilityRoutes } from './availabilityRoutes.ts'
 import { createServiceZoneRoutes } from './serviceZones.ts'
 import { createMarketingRoiRoutes } from './marketingRoi.ts'
+import { createSkillRoutes } from './skillRoutes.ts'
 import { createChecklistRoutes } from './checklistRoutes.ts'
 import { createClockExtras } from './clockExtras.ts'
 import { createJobConfirm } from './jobConfirm.ts'
@@ -86,6 +87,8 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/service-zones', access: 'user', feature: 'service_zones', router: createServiceZoneRoutes(d) },
     // Leads, customers, jobs and money per lead source against the spend on it (./marketingRoi.ts). Not ready.
     { path: '/api/marketing-roi', access: 'user', feature: 'marketing_roi', router: createMarketingRoiRoutes(d) },
+    // What each person can do and what each kind of job needs (crm/field/skillRoutes.ts); jobs.ts warns on a mismatch. Not ready.
+    { path: '/api/skills', access: 'user', feature: 'skill_matching', router: createSkillRoutes(d) },
     // The checklists a business builds per job type, filled in on the phone and signed on site (crm/field/checklistRoutes.ts). Not ready.
     { path: '/api/checklists', access: 'user', feature: 'job_checklists', router: createChecklistRoutes(d) },
     // Home care's /api/payroll is its own pay run (server/crm/homecare/payroll/payroll.ts), so this one stands aside there.

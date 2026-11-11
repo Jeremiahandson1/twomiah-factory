@@ -109,22 +109,26 @@ export function ContactDetail() {
 // every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
 // Find a time on the form follows Tech Availability (not ready): the slots come from people's shifts (/api/availability/find).
 const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, customerWord: vocabulary().customer.one, siteLabels: v().sites, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking'), findTime: hasFeature('tech_availability') })
-/** The kinds of job the owner's checklists are written for (Job Checklists, NOT READY) — the job form's "Job type" box. */
-function useChecklistJobTypes(on: boolean): string[] | undefined {
+/**
+ * The kinds of job the job form's "Job type" box offers: those the owner's checklists are written for (Job Checklists, NOT READY)
+ * and those Settings › Skills says need skills (Skill Matching, NOT READY). Neither on: no box, and no call.
+ */
+function useJobTypes(checklists: boolean, skills: boolean): string[] | undefined {
   const [types, setTypes] = useState<string[] | undefined>()
   useEffect(() => {
-    if (!on) return
+    if (!checklists && !skills) return
     let live = true
-    client.get('/api/checklists/templates').then((r: any) => {
-      if (live) setTypes([...new Set<string>((r?.data || []).flatMap((x: any) => x.jobTypes || []))])
-    }).catch(() => { /* the box just stays away */ })
+    Promise.all([
+      checklists ? client.get('/api/checklists/templates').then((r: any) => (r?.data || []).flatMap((x: any) => x.jobTypes || [])).catch(() => []) : [],
+      skills ? client.get('/api/skills').then((r: any) => (r?.jobTypes || []).map((x: any) => x.jobType)).catch(() => []) : [],
+    ]).then(([a, b]) => { if (live) setTypes([...new Set<string>([...a, ...b])]) })
     return () => { live = false }
-  }, [on])
+  }, [checklists, skills])
   return types
 }
 export function Jobs() {
   const { hasFeature, can } = useAuth()
-  const jobTypes = useChecklistJobTypes(hasFeature('job_checklists'))
+  const jobTypes = useJobTypes(hasFeature('job_checklists'), hasFeature('skill_matching'))
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can, jobTypes } as any} />
 }
 export function JobDetail() {

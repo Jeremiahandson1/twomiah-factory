@@ -52,7 +52,7 @@ service where they fit (`shared-backlog.md`).
 
 | ServiceTitan | Ours | Mark |
 |---|---|---|
-| Skill matching when dispatching | team members carry `skills` (`tenant-backend/src/team/team.ts`); nothing uses them to pick a technician | partly |
+| Skill matching when dispatching | built 11/10, hidden (`skill_matching`): each person's skills and each job type's needs on Settings › Skills; a job given to people who together lack a needed skill asks "check before you book"; Find a time offers only people with every needed skill (`server/data/skills.ts`, `tests/parity-skill-matching.test.ts`). Not done: ranking technicians by skill on the dispatch board | yes (hidden) |
 | Caller ID with the customer's record (screen pop) | none | not built |
 | Live "where's my tech" map for the customer | built 11/10, hidden (`tech_tracking`): the "on my way" text carries a private link (`/on-the-way/<token>`, signed, 4 hours) to a map of the tech's newest position (from their phone, when they share location; 15 minutes at most old), refreshed every 30 seconds; "arrived" once they start, no position after (`server/crm/field/techTrack.ts`, `tests/parity-tech-tracking.test.ts`). Not done: a drive-time estimate on the page | yes (hidden) |
 | Chat-to-text website widget | none | not built |

@@ -15,7 +15,7 @@ const clock = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); re
 const dayWords = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
 const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
-export function FindTime({ api, toast, durationMinutes, personId, people, address, from, onPick, onClose }: {
+export function FindTime({ api, toast, durationMinutes, personId, people, address, from, jobType, onPick, onClose }: {
   api: JobsApi; toast: JobsToast
   /** How long the job is (the form's estimated hours); an hour when unknown. */
   durationMinutes: number
@@ -26,6 +26,8 @@ export function FindTime({ api, toast, durationMinutes, personId, people, addres
   address?: string | null
   /** The first day to look at (the form's day, else today). */
   from?: string | null
+  /** The kind of job (its type): where the business matches skills, only people with the skills it needs are offered. */
+  jobType?: string | null
   onPick: (pick: FindTimePick) => void
   onClose: () => void
 }) {
@@ -35,6 +37,7 @@ export function FindTime({ api, toast, durationMinutes, personId, people, addres
   const [minutes, setMinutes] = useState(Math.max(15, Math.round(durationMinutes / 15) * 15))
   const [slots, setSlots] = useState<FoundSlot[] | null>(null)
   const [found, setFound] = useState<FoundPerson[]>([])
+  const [needs, setNeeds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -43,12 +46,13 @@ export function FindTime({ api, toast, durationMinutes, personId, people, addres
     const params: Record<string, string | number> = { from: start, days, duration: minutes, limit: 120 }
     if (who) params.personIds = who
     if (address && address.trim()) params.address = address.trim()
+    if (jobType && jobType.trim()) params.jobType = jobType.trim()
     api.get('/api/availability/find', params)
-      .then((r: any) => { if (live) { setSlots(r?.slots || []); setFound(r?.people || []) } })
+      .then((r: any) => { if (live) { setSlots(r?.slots || []); setFound(r?.people || []); setNeeds(r?.skillsNeeded || []) } })
       .catch((e: unknown) => { if (live) { toast.error(errMsg(e, 'No times could be found')); setSlots([]) } })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [who, start, days, minutes, address]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [who, start, days, minutes, address, jobType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const byDay = new Map<string, FoundSlot[]>()
   for (const s of slots || []) byDay.set(s.date, [...(byDay.get(s.date) || []), s])
@@ -63,6 +67,7 @@ export function FindTime({ api, toast, durationMinutes, personId, people, addres
         <Field label="Length"><select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className={inputCls}>{[15, 30, 45, 60, 90, 120, 180, 240, 480].map((n) => <option key={n} value={n}>{n < 60 ? `${n} min` : `${n / 60} h`}</option>)}</select></Field>
       </div>
       {address && address.trim() && <p className="mt-2 text-xs text-gray-600 dark:text-slate-400">Allowing for the drive to {address.trim()} from the job before and to the job after.</p>}
+      {needs.length > 0 && <p className="mt-2 text-xs text-gray-600 dark:text-slate-400" data-testid="find-skills">Only people with the skills this kind of job needs: {needs.join(', ')}.</p>}
       {notSetUp.length > 0 && <p className="mt-2 text-xs text-amber-800 dark:text-amber-200" data-testid="find-not-set-up">No shifts and no business hours for {notSetUp.map((p) => p.name).join(', ')} — set them on Hours &amp; Time Off (or the company's hours in Settings) to find their times.</p>}
       <div className="mt-3 max-h-[50vh] overflow-y-auto" data-testid="find-slots" aria-busy={loading}>
         {loading && !slots ? <p className="py-6 text-center text-sm text-gray-600 dark:text-slate-400">Looking…</p>
