@@ -96,16 +96,21 @@ export function createJobFilesRoutes(d: CrmDeps) {
     const first = String(who.name || '').trim().split(/\s+/)[0] || 'there'
     const message = `Hi ${first}, ${co?.name || 'we'} added new photos and documents for your project. See them at ${link}`
     const mobile = String(who.mobile || who.phone || '').trim()
+    // A text first; one that does not go (texting not set up, the wallet empty — sendSMS answers `refused`, never throws — or a
+    // carrier failure) falls through to email. Live test 11/11: with texting off it said "Texted the homeowner" and sent nothing.
+    let notTexted = ''
     if (mobile && !who.optedOutSms) {
       const r: any = await d.services.sms.sendSMS(me.companyId, { contactId: who.id, message, jobId, userId: me.userId }).catch((e: any) => ({ success: false, error: e?.message }))
-      if (r?.success === false) return fail(c, 502, r.error ? `The text was not sent: ${r.error}` : 'The text was not sent.')
-      return one(c, { sent: 'text' })
+      const went = r && r.success !== false && !r.refused && r.status !== 'refused' && r.status !== 'failed'
+      if (went) return one(c, { sent: 'text' })
+      notTexted = String(r?.errorMessage || r?.error || 'The text was not sent.')
     }
     if (String(who.email || '').trim() && !who.emailOptOut) {
       const esc = (x: string) => x.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
       await (d.services as any).emailService.sendRaw({ to: String(who.email).trim(), subject: `New photos and documents for your project — ${co?.name || ''}`.trim(), html: `<p>${esc(message.replace(link, ''))}</p><p><a href="${esc(link)}">Open your portal</a></p>` })
       return one(c, { sent: 'email' })
     }
+    if (notTexted) return fail(c, 409, `${notTexted} They have no email to send it to instead.`)
     return fail(c, 409, 'No way to reach the homeowner: no phone or email, or they opted out.')
   })
 

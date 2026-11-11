@@ -127,6 +127,13 @@ export function createReportingService(deps: ReportingDeps) {
   // Money that came IN: a payment from the customer's own credit (account_balance — the salon's account balance, credit memos) or a
   // refund kept as credit moved no money, so neither is collected nor returned (QuickBooks' and ServiceTitan's rule for applied credit).
   const cash: SQL[] = t.payment.method ? [sql`coalesce(${t.payment.method}, '') <> 'account_balance'`] : []
+  /**
+   * An invoice's money collected, net of refunds, less what was paid from the customer's credit (the same rule as `cash` above —
+   * live test 11/11: Top customers and Revenue by branch counted a $50 credit as collected while the headline did not).
+   */
+  const collectedOf = () => t.payment.method
+    ? sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric - coalesce((SELECT sum(cp.amount::numeric) FROM payment cp WHERE cp.invoice_id = ${t.invoice}."id" AND cp.method = 'account_balance'), 0)), 0)`
+    : sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)`
   const inRange = (col: any, range: DateRange) => [range.gte ? gte(col, range.gte) : undefined, range.lte ? lte(col, range.lte) : undefined].filter(Boolean) as any[]
 
   // ---------------------------------------------------------------- revenue
@@ -190,7 +197,7 @@ export function createReportingService(deps: ReportingDeps) {
    */
   async function revenueByCustomer(companyId: string, range: DateRange, limitRaw: number) {
     const limit = Math.min(100, Math.max(1, Math.round(num(limitRaw) || 10)))
-    const collectedExpr = sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)`
+    const collectedExpr = collectedOf()
     const rows = await db.select({ contactId: t.invoice.contactId, invoiced: sum(t.invoice.total), collected: collectedExpr, count: count() })
       .from(t.invoice)
       .where(and(eq(t.invoice.companyId, companyId), isNotNull(t.invoice.contactId), billed, ...onlyRevenue, ...inRange(t.invoice.createdAt, range)))
@@ -221,7 +228,7 @@ export function createReportingService(deps: ReportingDeps) {
       ? sql`(j.id = ${t.invoice.jobId} OR (${t.invoice.jobId} IS NULL AND j.quote_id = ${t.invoice.quoteId}))`
       : sql`j.quote_id = ${t.invoice.quoteId}`
     const branchExpr = sql<string | null>`(SELECT j.location_id FROM job j WHERE j.company_id = ${t.invoice.companyId} AND ${jobMatch} ORDER BY j.created_at LIMIT 1)`
-    const collectedExpr = sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)`
+    const collectedExpr = collectedOf()
     // GROUP BY 1: the branch expression is a subquery, and grouping by its text again would be a second copy of it.
     const rows = await db.select({ locationId: branchExpr, invoiced: sum(t.invoice.total), collected: collectedExpr, count: count() })
       .from(t.invoice)

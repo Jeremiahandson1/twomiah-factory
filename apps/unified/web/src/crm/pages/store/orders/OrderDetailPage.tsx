@@ -386,7 +386,7 @@ export default function OrderDetailPage() {
       {/* Fulfillment */}
       <div className="card p-5 space-y-3">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Fulfillment</h2>
-        <OrderLocation orderId={order.id} />
+        <OrderLocation orderId={order.id} status={order.status} />
         {/* Tracking only where there is a parcel (hasParcel). An order that never went out shows the boxes only while
             they hold something, so a value saved before the rule can still be cleared. */}
         {ships && (hasParcel(order) || order.trackingCarrier || order.trackingNumber) ? (

@@ -8,9 +8,9 @@
 // off still logs the calls its providers send.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { parseTwilioBody, verifyTwilioRequest, twilioConfigFor, verifyCallRailSignature, refuseUnverifiedWebhook } from '@twomiah/tenant-backend'
-import { company } from '../../db/schema/index.ts'
+import { company, trackingNumber } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, done, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
@@ -26,6 +26,9 @@ const trackingNumberSchema = z.object({
   name: z.string().optional(),
   providerId: z.string().optional(),
 })
+
+const xmlEscape = (s: string) => s.replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[ch]!))
+const voiceXml = (inner: string) => `<?xml version="1.0" encoding="UTF-8"?><Response>${inner}</Response>`
 
 export function createCalltrackingRoutes(d: CrmDeps) {
   const { db, logger } = d
@@ -58,13 +61,23 @@ export function createCalltrackingRoutes(d: CrmDeps) {
     return c.body(null, 200)
   })
 
+  /**
+   * A request signed by Twilio — with the company's own account (Settings › Integrations), or Twomiah's (the platform's
+   * TWILIO_AUTH_TOKEN), which owns the tracking numbers Twomiah sells: a company with its own Twilio still gets those calls.
+   */
+  const fromTwilio = (c: any, params: Record<string, string>, row: any) => {
+    const own = verifyTwilioRequest(c, params, twilioConfigFor(row).authToken)
+    if (own.ok || !process.env.TWILIO_AUTH_TOKEN || twilioConfigFor(row).authToken === process.env.TWILIO_AUTH_TOKEN) return own
+    return verifyTwilioRequest(c, params, process.env.TWILIO_AUTH_TOKEN)
+  }
+
   // Twilio posts application/x-www-form-urlencoded (JSON still read, for tools) and signs URL + sorted params with
   // the account's auth token — the company's own (Settings › Integrations) or the platform's TWILIO_AUTH_TOKEN.
   app.post('/webhook/twilio/:companyId', async (c) => {
     const companyId = c.req.param('companyId')
     const params = await parseTwilioBody(c)
     const row = await companyRowFor(companyId)
-    const v = verifyTwilioRequest(c, params, twilioConfigFor(row).authToken)
+    const v = fromTwilio(c, params, row)
     if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio call webhook', v.reason)
     try {
       await calltracking.handleTwilioWebhook(companyId, params)
@@ -72,6 +85,29 @@ export function createCalltrackingRoutes(d: CrmDeps) {
       logger.error('Twilio webhook error', { error: error?.message })
     }
     return c.body(null, 200)
+  })
+
+  /**
+   * A call to a tracking number Twomiah sold (call_tracking_numbers — trackingLines.ts): Twilio asks what to do, and the
+   * answer is to ring the business's own line, showing the caller's number, so the business answers as it always does.
+   * Which ad it came from is the number that was dialled; the call is logged from the status callback above. A number
+   * this company has no line for (given back, or not set up) says so and hangs up.
+   */
+  app.post('/voice/:companyId', async (c) => {
+    const companyId = c.req.param('companyId')
+    const params = await parseTwilioBody(c)
+    const row = await companyRowFor(companyId)
+    if (!row) return c.notFound()
+    const v = fromTwilio(c, params, row)
+    if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio voice webhook', v.reason)
+    const last10 = (x: unknown) => String(x ?? '').replace(/\D/g, '').slice(-10)
+    const lines = await db.select({ phoneNumber: trackingNumber.phoneNumber, forwardTo: trackingNumber.forwardTo }).from(trackingNumber)
+      .where(and(eq(trackingNumber.companyId, companyId), eq(trackingNumber.active, true)))
+    const line = (lines as any[]).find((l) => last10(l.phoneNumber) === last10(params.To) && last10(l.forwardTo).length === 10)
+    c.header('Content-Type', 'text/xml')
+    if (!line) return c.body(voiceXml('<Say>This number is not in service.</Say><Hangup/>'))
+    const caller = /^\+?\d{7,15}$/.test(params.From || '') ? ` callerId="${xmlEscape(params.From)}"` : ''
+    return c.body(voiceXml(`<Dial answerOnBridge="true"${caller}><Number>+1${last10(line.forwardTo)}</Number></Dial>`))
   })
 
   // ── Signed in, and Call Tracking on (the AI Receptionist, where that is the switch) ──

@@ -387,6 +387,12 @@ factory.post('/stripe/webhook', async (c) => {
           () => { logTenantAudit(meta.tenant_id, 'messaging_enable', { messaging_enabled: { old: false, new: true } }, 'stripe-webhook', 'Messaging enabled'); emailEnabled(meta.tenant_id, 'SMS / Messaging') },
           (err: any) => { console.error('[Messaging] Enable mark failed:', err?.message || err); void raiseAlert({ key: 'addon-enable:messaging:' + meta.tenant_id, what: 'A customer paid for texting and it was not switched on', detail: err?.message || String(err), tenantId: meta.tenant_id }) },
         )
+      } else if (meta.addon === 'calltrack_numbers' && meta.tenant_id) {
+        // The first call tracking number's checkout was paid: keep its subscription and buy the number it was for.
+        import('../../services/callTrackingNumbers').then(({ onCheckoutPaid }) => onCheckoutPaid(meta.tenant_id, session.subscription || null, meta)).then(
+          (line) => logTenantAudit(meta.tenant_id, 'calltrack_number_bought', { number: { old: null, new: line?.phoneNumber ?? null } }, 'stripe-webhook', 'Call tracking: first number bought'),
+          (err: any) => { console.error('[CallTracking] first number not bought:', err?.message || err); void raiseAlert({ key: 'calltrack-first:' + meta.tenant_id, what: 'A customer paid for a call tracking number and it was not bought', detail: err?.message || String(err), tenantId: meta.tenant_id }) },
+        )
       } else if (meta.addon === 'ai_enable' && meta.tenant_id) {
         supabase.from('tenants').update({
           ai_enabled: true,
@@ -408,6 +414,13 @@ factory.post('/stripe/webhook', async (c) => {
       const addon = sub.metadata?.addon
       const tenantId = sub.metadata?.tenant_id
       const dead = event.type === 'customer.subscription.deleted' || ['canceled', 'unpaid', 'incomplete_expired'].includes(String(sub.status))
+      // Call tracking numbers: their subscription ended or went unpaid — every number goes back to Twilio.
+      if (tenantId && dead && addon === 'calltrack_numbers') {
+        import('../../services/callTrackingNumbers').then(({ onSubscriptionEnded }) => onSubscriptionEnded(tenantId)).then(
+          (n) => logTenantAudit(tenantId, 'calltrack_numbers_lapsed', { numbers: { old: n, new: 0 } }, 'stripe-webhook', `Call tracking subscription ${sub.status || 'deleted'} → ${n} number(s) given back`),
+          (err: any) => { console.error('[CallTracking] numbers not released:', err?.message || err); void raiseAlert({ key: 'calltrack-lapse:' + tenantId, what: 'A call tracking subscription ended and its numbers were not given back (Twilio still charges for them)', detail: err?.message || String(err), tenantId }) },
+        )
+      }
       if (tenantId && dead && (addon === 'messaging_enable' || addon === 'ai_enable')) {
         const patch = addon === 'messaging_enable'
           ? { messaging_enabled: false, messaging_sub_id: null }

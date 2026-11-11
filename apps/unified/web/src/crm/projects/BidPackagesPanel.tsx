@@ -37,6 +37,14 @@ export function BidPackagesPanel({ projectId }: { projectId: string }) {
       .then(([a, b]) => setSubs([...a, ...b].map((x: any) => ({ id: x.id, name: x.name, company: x.company }))))
   }, [making]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** A sub's portal link, copied to send another way (a text, or when their email went astray). */
+  const copyLink = async (packageId: string, inviteId: string) => {
+    try {
+      const r: any = await api.post(`/api/bid-packages/${packageId}/invites/${inviteId}/link`, {})
+      await navigator.clipboard.writeText(r.link)
+      toast.success('Their link is copied — send it to them however you like')
+    } catch (e: any) { toast.error(e?.message || 'The link could not be copied') }
+  }
   const run = async (what: () => Promise<unknown>, ok: string) => {
     setBusy(true)
     try { await what(); toast.success(ok); await load() } catch (e: any) { toast.error(e?.message || 'That did not work.') } finally { setBusy(false) }
@@ -95,7 +103,7 @@ export function BidPackagesPanel({ projectId }: { projectId: string }) {
             </div>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead><tr className="text-gray-600 dark:text-slate-300"><th className="py-1 pr-3 font-medium">Item</th>{p.bids.map((b) => <th key={b.id} className="py-1 pr-3 font-medium">{b.vendor}<span className="block font-normal">{STATUS[b.status] || b.status}</span></th>)}</tr></thead>
+                <thead><tr className="text-gray-600 dark:text-slate-300"><th className="py-1 pr-3 font-medium">Item</th>{p.bids.map((b) => <th key={b.id} className="py-1 pr-3 font-medium">{b.vendor}<span className="block font-normal">{STATUS[b.status] || b.status}</span>{mayEdit && p.status === 'open' && ['invited', 'viewed'].includes(b.status) && <button type="button" className="block font-normal text-orange-700 underline dark:text-orange-200" onClick={() => void copyLink(p.id, b.id)}>Copy their link</button>}</th>)}</tr></thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                   {p.lines.map((l) => (
                     <tr key={l.id} className="text-gray-900 dark:text-slate-100">
