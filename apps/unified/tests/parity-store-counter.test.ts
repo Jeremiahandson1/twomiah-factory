@@ -65,6 +65,18 @@ test("an email typed for the receipt: an existing customer's makes the sale thei
   expect(stranger.body.receiptTo).toBe('new@shop.example')
 })
 
+test("the reports name a customer from their record — an old \"Walk-in\" order of theirs never labels the row (live test 11/11)", async () => {
+  const { salesByCustomer, repeatCustomers } = await import('../server/data/storeReports.ts')
+  const typed = await sell({ items: [{ sku: 'MUG-1', quantity: 1 }], paidBy: 'cash', email: 'sam@shop.example' })
+  // As an order sold before the counter knew the email belonged to Sam: named "Walk-in", on Sam's record.
+  await t.db.update(t.schema.storeOrder).set({ customerName: 'Walk-in' } as any).where(eq(t.schema.storeOrder.id, typed.body.order.id))
+  const w = { from: '2000-01-01', to: '2100-01-01', timeZone: 'UTC' }
+  const row = (await salesByCustomer(t.db, companyId, w)).find((r) => r.customer === typed.body.order.contactId)
+  expect(row?.name).toBe('Sam Shopper')
+  const repeat = (await repeatCustomers(t.db, companyId, w)).top.find((r) => r.customerId === typed.body.order.contactId)
+  expect(repeat?.name).toBe('Sam Shopper')
+})
+
 test('refused in words: nothing in it, an unknown product', async () => {
   expect((await sell({ items: [], paidBy: 'cash' })).status).toBe(400)
   const r = await sell({ items: [{ sku: 'NOPE', quantity: 1 }], paidBy: 'cash' })

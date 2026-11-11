@@ -63,7 +63,9 @@ export function createMoneyStripRoutes(d: CrmDeps) {
           .from(invoice).where(and(eq(invoice.companyId, companyId), ne(invoice.status, 'draft'), ne(invoice.status, 'void'))),
         db.select({ amount: payment.amount, paidAt: payment.paidAt }).from(payment)
           .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
-          .where(and(eq(invoice.companyId, companyId), gte(payment.paidAt, since))),
+          // Money that came IN: a payment from the customer's credit (account_balance — a credit memo, the salon's balance) moved
+          // none, so it is not cash in (QuickBooks, ServiceTitan; the Reports rule — live test 11/11: the strip counted a $50 credit).
+          .where(and(eq(invoice.companyId, companyId), gte(payment.paidAt, since), ne(payment.method, 'account_balance'))),
       ])
       let owed = 0, owedCount = 0, overdue = 0, overdueCount = 0
       for (const inv of invoices as any[]) {

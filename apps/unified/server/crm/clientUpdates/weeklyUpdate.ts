@@ -190,8 +190,11 @@ export function createWeeklyUpdates(d: CrmDeps) {
     const ids = (rows as any[]).map((r) => r.id)
     const reacts = ids.length ? await db.select().from(clientUpdateReaction).where(and(eq(clientUpdateReaction.companyId, companyId), inArray(clientUpdateReaction.logId, ids))).orderBy(asc(clientUpdateReaction.createdAt), asc(clientUpdateReaction.id)) : []
     return (rows as any[]).map((r) => {
-      const opened = /^opened (\S+)/.exec(String(r.detail || ''))?.[1] ?? null
       const mine = (reacts as any[]).filter((x) => x.logId === r.id)
+      // Opened: the email's button, else the first like or reply (a person who read it) — so a send liked before the reaction
+      // marked it (live test 11/11) reads opened too.
+      const firstReaction = mine.length ? new Date(Math.min(...mine.map((x: any) => new Date(x.createdAt).getTime()))).toISOString() : null
+      const opened = /^opened (\S+)/.exec(String(r.detail || ''))?.[1] ?? firstReaction
       const like = mine.find((x) => x.kind === 'like')
       return {
         id: r.id, client: r.name || 'A client who was removed', sentTo: r.sentTo, sentAt: new Date(r.at).toISOString(), status: r.status, openedAt: opened, problem: r.status === 'failed' ? r.detail : null,
@@ -200,7 +203,9 @@ export function createWeeklyUpdates(d: CrmDeps) {
       }
     })
   }
-  office.get('/', requirePermission('contacts:read'), async (c) => {
+  // Who was sent what, their emails and their replies: the Settings screen's (owners and admins — company:update, as saving it is).
+  // Live test 11/11: contacts:read let a Field seat read every client's email and reply through the API.
+  office.get('/', requirePermission('company:update'), async (c) => {
     const companyId = c.get('user').companyId
     const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
     return one(c, { settings: weeklySettings(co?.settings), sent: await recent(companyId) })

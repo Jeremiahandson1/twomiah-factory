@@ -252,3 +252,23 @@ describe('RV Deal Desk, Recall Lookup, Marketplace Syndication', () => {
     expect(await doors()).toEqual(on)
   }, 120_000)
 })
+
+describe('the roofer\'s instant estimate page (live test 11/11: switched on, but on no page of the site)', () => {
+  test('a page of its own and a nav item only while instant_estimator is on, the roofer has it on and roof reports are left', async () => {
+    const x = await boot('roofing', ['contacts'])
+    await x.t.db.insert(x.t.schema.page).values({ companyId: x.companyId, slug: 'about', title: 'About', sections: [{ type: 'text', variant: 'plain', data: { title: 'About us', body: 'Roofs since 1990.' } }], isPublished: true } as any)
+    const slug = ((await x.t.db.select({ slug: x.t.schema.company.slug }).from(x.t.schema.company).where(eq(x.t.schema.company.id, x.companyId))) as any[])[0].slug
+    const look = async () => {
+      const page = await x.t.call('/estimate', { redirect: 'manual' } as any)
+      const html = page.status === 200 ? await page.text() : ''
+      return { status: page.status, widget: html.includes(`data-slug="${slug}"`) && html.includes('/estimator.js'), nav: (await (await x.t.call('/about')).text()).includes('href="/estimate"') }
+    }
+    expect(await look()).toEqual({ status: 302, widget: false, nav: false })
+    await x.set(['contacts', 'instant_estimator'])
+    expect((await look()).status).toBe(302) // the roofer has not switched it on
+    await x.t.db.update(x.t.schema.company).set({ estimatorEnabled: true, reportCredits: 5 } as any).where(eq(x.t.schema.company.id, x.companyId))
+    expect(await look()).toEqual({ status: 200, widget: true, nav: true })
+    await x.t.db.update(x.t.schema.company).set({ reportCredits: 0 } as any).where(eq(x.t.schema.company.id, x.companyId))
+    expect(await look()).toEqual({ status: 302, widget: false, nav: false }) // no roofs left: off the site
+  }, 60_000)
+})
