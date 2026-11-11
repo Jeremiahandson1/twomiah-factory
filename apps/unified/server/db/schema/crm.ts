@@ -773,6 +773,20 @@ export const reminderLog = pgTable('reminder_log', {
   index('reminder_log_subject_idx').on(t.subjectId),
 ])
 
+/** A client's like of, or reply to, a weekly client update (crm/clientUpdates/weeklyUpdate.ts) — the update is its reminder_log row. */
+export const clientUpdateReaction = pgTable('client_update_reaction', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  logId: text('log_id').notNull().references(() => reminderLog.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id'),
+  /** 'like' (one per update) or 'reply'. */
+  kind: text('kind').notNull(),
+  body: text('body'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_update_reaction_log_idx').on(t.logId),
+])
+
 export const timeEntry = pgTable('time_entry', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   date: timestamp('date').defaultNow().notNull(),
@@ -901,6 +915,8 @@ export const document = pgTable('document', {
   // Shown to the homeowner of the job it is filed under, in their portal (roofing's Photos & Documents). Off until someone
   // with portal:share turns it on; only roofing's /api/job-files writes it.
   sharedWithCustomer: boolean('shared_with_customer').default(false).notNull(),
+  /** When it was last shared with the customer (the weekly client update's "shared this week"); null for one shared before this was kept. */
+  sharedAt: timestamp('shared_at'),
 }, (t) => [
   index('document_company_id_idx').on(t.companyId),
   index('document_project_id_idx').on(t.projectId),

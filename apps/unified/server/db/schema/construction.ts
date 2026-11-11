@@ -145,6 +145,8 @@ export const dailyLog = pgTable('daily_log', {
   visitors: text('visitors'),
   /** Shown to the client in their portal (0092, contractor parity row 10; client_portal_plus). Off until someone shares it. */
   sharedWithClient: boolean('shared_with_client').default(false).notNull(),
+  /** When it was last shared with the client (the weekly client update's "shared this week"); null for one shared before this was kept. */
+  sharedAt: timestamp('shared_at'),
   photos: json('photos').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

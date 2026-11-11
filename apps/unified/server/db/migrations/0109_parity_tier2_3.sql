@@ -1,3 +1,13 @@
+CREATE TABLE IF NOT EXISTS "client_update_reaction" (
+	"id" text PRIMARY KEY NOT NULL,
+	"company_id" text NOT NULL,
+	"log_id" text NOT NULL,
+	"contact_id" text,
+	"kind" text NOT NULL,
+	"body" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "bid_invite" (
 	"id" text PRIMARY KEY NOT NULL,
 	"company_id" text NOT NULL,
@@ -40,11 +50,27 @@ CREATE TABLE IF NOT EXISTS "store_stock_level" (
 );
 --> statement-breakpoint
 ALTER TABLE "user" ADD COLUMN "skills" json DEFAULT '[]'::json NOT NULL;--> statement-breakpoint
+ALTER TABLE "document" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
 ALTER TABLE "lead" ADD COLUMN "lat" real;--> statement-breakpoint
 ALTER TABLE "lead" ADD COLUMN "lng" real;--> statement-breakpoint
 ALTER TABLE "lead" ADD COLUMN "geocoded_at" timestamp;--> statement-breakpoint
 ALTER TABLE "project" ADD COLUMN "square_feet" integer;--> statement-breakpoint
 ALTER TABLE "project" ADD COLUMN "builders_risk" json;--> statement-breakpoint
+ALTER TABLE "daily_log" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
+ALTER TABLE "job_photo" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
+ALTER TABLE "inspection_report" ADD COLUMN "shared_at" timestamp;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "client_update_reaction" ADD CONSTRAINT "client_update_reaction_company_id_company_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."company"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "client_update_reaction" ADD CONSTRAINT "client_update_reaction_log_id_reminder_log_id_fk" FOREIGN KEY ("log_id") REFERENCES "public"."reminder_log"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "bid_invite" ADD CONSTRAINT "bid_invite_company_id_company_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."company"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
@@ -105,6 +131,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "client_update_reaction_log_idx" ON "client_update_reaction" USING btree ("log_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "bid_invite_package_vendor_unique" ON "bid_invite" USING btree ("package_id","vendor_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "bid_invite_vendor_idx" ON "bid_invite" USING btree ("vendor_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "bid_package_company_idx" ON "bid_package" USING btree ("company_id");--> statement-breakpoint

@@ -1,5 +1,5 @@
 {
-  "id": "cbe4af55-5148-4b47-ba45-10b3cf5c9c09",
+  "id": "cb2667e7-8e3f-4ac8-aa9b-379be5497116",
   "prevId": "a8108b2b-e1ac-4ada-a253-425bda162e41",
   "version": "7",
   "dialect": "postgresql",
@@ -1664,6 +1664,105 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.client_update_reaction": {
+      "name": "client_update_reaction",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "log_id": {
+          "name": "log_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "client_update_reaction_log_idx": {
+          "name": "client_update_reaction_log_idx",
+          "columns": [
+            {
+              "expression": "log_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "client_update_reaction_company_id_company_id_fk": {
+          "name": "client_update_reaction_company_id_company_id_fk",
+          "tableFrom": "client_update_reaction",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "client_update_reaction_log_id_reminder_log_id_fk": {
+          "name": "client_update_reaction_log_id_reminder_log_id_fk",
+          "tableFrom": "client_update_reaction",
+          "tableTo": "reminder_log",
+          "columnsFrom": [
+            "log_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.comment": {
       "name": "comment",
       "schema": "",
@@ -3053,6 +3152,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "shared_at": {
+          "name": "shared_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -11729,6 +11834,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "shared_at": {
+          "name": "shared_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "photos": {
           "name": "photos",
@@ -30532,6 +30643,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "shared_at": {
+          "name": "shared_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "source_photo_id": {
           "name": "source_photo_id",
@@ -88384,6 +88501,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "shared_at": {
+          "name": "shared_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "layout": {
           "name": "layout",

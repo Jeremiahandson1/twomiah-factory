@@ -1,5 +1,5 @@
 // Settings › Weekly Client Update (server crm/clientUpdates/weeklyUpdate.ts, /api/weekly-update): when the weekly email goes, and
-// every update sent lately with whether the client opened it. Every word here is what the pass does.
+// every update sent lately with whether the client opened it, liked it or wrote back. Every word here is what the pass does.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, Newspaper } from 'lucide-react'
@@ -8,7 +8,7 @@ import { api } from '../../api'
 import { useToast, usePermissions } from '../../shared'
 
 interface Settings { enabled: boolean; weekday: number; hour: number }
-interface Sent { id: string; client: string; sentTo: string | null; sentAt: string; status: string; openedAt: string | null; problem: string | null }
+interface Sent { id: string; client: string; sentTo: string | null; sentAt: string; status: string; openedAt: string | null; problem: string | null; likedAt?: string | null; replies?: Array<{ body: string; at: string }> }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const hourWords = (h: number) => (h === 0 ? 'midnight' : h === 12 ? 'noon' : `${h % 12}${h < 12 ? 'am' : 'pm'}`)
@@ -52,8 +52,9 @@ export default function WeeklyUpdatePage() {
         <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white"><Newspaper className="h-6 w-6 text-orange-600 dark:text-orange-300" aria-hidden="true" /> Weekly Client Update</h1>
         <p className="mt-1 text-gray-600 dark:text-slate-300">
           Once a week, each client with something new in their portal gets one email listing it — daily logs, photos, files, reports and
-          messages from the past seven days — with a button to their portal. A client with nothing new that week gets nothing. Only
-          clients whose portal is on and who have an email address are sent one; anyone who unsubscribed is never emailed.
+          messages shared with them in the past seven days — with a button to their portal, and a link to like the update or write back
+          (both show below). A client with nothing new that week gets nothing. Only clients whose portal is on and who have an email
+          address are sent one; anyone who unsubscribed is never emailed.
         </p>
       </div>
 
@@ -92,13 +93,18 @@ export default function WeeklyUpdatePage() {
           ? <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">None yet.</p>
           : (
             <table className="mt-3 w-full text-left text-sm">
-              <thead><tr className="text-gray-600 dark:text-slate-300"><th className="py-1 font-medium">Client</th><th className="py-1 font-medium">Sent</th><th className="py-1 font-medium">Opened</th></tr></thead>
+              <thead><tr className="text-gray-600 dark:text-slate-300"><th className="py-1 font-medium">Client</th><th className="py-1 font-medium">Sent</th><th className="py-1 font-medium">Opened</th><th className="py-1 font-medium">Their reply</th></tr></thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                 {sent.map((s) => (
                   <tr key={s.id} className="text-gray-900 dark:text-slate-100">
                     <td className="py-2">{s.client}{s.sentTo && <span className="block text-xs text-gray-600 dark:text-slate-400">{s.sentTo}</span>}</td>
                     <td className="py-2">{momentDate(s.sentAt, { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                     <td className="py-2">{s.status === 'failed' ? <span className="text-red-700 dark:text-red-300">Not sent{s.problem ? `: ${s.problem}` : ''}</span> : s.openedAt ? whenDateTime(s.openedAt) : 'Not yet'}</td>
+                    <td className="py-2">
+                      {s.likedAt && <span className="block text-green-800 dark:text-green-300">Liked it</span>}
+                      {(s.replies || []).map((r, i) => <span key={i} className="block whitespace-pre-wrap">&ldquo;{r.body}&rdquo; <span className="text-xs text-gray-600 dark:text-slate-400">{whenDateTime(r.at)}</span></span>)}
+                      {!s.likedAt && !(s.replies || []).length && <span className="text-gray-600 dark:text-slate-400">None</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
