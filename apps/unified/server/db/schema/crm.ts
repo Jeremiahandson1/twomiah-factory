@@ -176,6 +176,10 @@ export const project = pgTable('project', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   /** Formula estimating (0091, row 9): the job's parameters, which every quote on it reads unless it sets its own. */
   parameters: json('parameters'),
+  /** The building's size, for price and budget per square foot (parity tier 3, builders_risk; crm/projects/projectDetails.ts). */
+  squareFeet: integer('square_feet'),
+  /** The builder's risk policy on the build: { carrier, policyNumber, coverage, startsOn, endsOn } (builders_risk). */
+  buildersRisk: json('builders_risk'),
 }, (t) => [
   index('project_company_id_idx').on(t.companyId),
   index('project_status_idx').on(t.status),

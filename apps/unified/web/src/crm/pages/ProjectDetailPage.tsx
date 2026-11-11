@@ -14,6 +14,7 @@ import { StatusBadge } from '../ui/DataTable'
 import { ConfirmModal } from '../ui/Modal'
 import { usePermissions, useAuth } from '../../shared'
 import { ClientPortalPanel } from '../projects/ClientPortalPanel'
+import { ProjectSizeRiskPanel } from '../projects/ProjectSizeRiskPanel'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -129,6 +130,8 @@ export default function ProjectDetailPage() {
   const { can } = usePermissions();
   // The client portal, finished (contractor parity row 10): only where the business has it on.
   const portalPlus = useAuth().hasFeature('client_portal_plus');
+  // Square footage and the builder's risk policy (builders_risk, not ready).
+  const sizeRisk = useAuth().hasFeature('builders_risk');
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -597,6 +600,7 @@ export default function ProjectDetailPage() {
           </div>
           )}
 
+          {sizeRisk && id && <ProjectSizeRiskPanel projectId={id} />}
           {portalPlus && id && <ClientPortalPanel projectId={id} />}
 
           {/* Timeline */}
