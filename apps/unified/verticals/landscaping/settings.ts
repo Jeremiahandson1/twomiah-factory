@@ -138,7 +138,7 @@ const landscaping: VerticalSettings = {
     },
     portal: {
       providerNoun: 'landscaping team',
-      clientNav: ['myJobs', 'visits', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      clientNav: ['myJobs', 'visits', 'bookOnline', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Service Visits', agreements: 'Service Plans' },

@@ -149,6 +149,11 @@ export interface PortalDeps {
   jobFiles?: PortalJobFiles
   /** The customer's coming visits and a way to confirm one (the unified app's crm/field/jobConfirm.ts). Optional: no such section without it. */
   upcomingVisits?: { list: (companyId: string, contactId: string) => Promise<unknown[]>; confirm: (companyId: string, contactId: string, jobId: string) => Promise<{ ok: true; visit: unknown } | { ok: false; error: string; status: number }> }
+  /**
+   * Book a visit online from the portal (parity tier 2 #5 — the unified app's online booking): the booking pages' address for this
+   * customer (their details filled in from the portal), and the bookings they have coming. Optional: no such section without it.
+   */
+  bookOnline?: { bookUrl: (portalToken: string) => string; list: (companyId: string, contactId: string) => Promise<unknown[]> }
   authenticate: any
   requirePermission: (permission: string) => any
   /** emailService.send — templates: portalInvite, collaboratorAction. */
@@ -260,6 +265,8 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   visits: ['visit_reports'],
   // The customer's coming visits, each with a Confirm button (the Job Reminders feature: a hidden one until the owner has tried it).
   upcomingVisits: ['job_reminders'],
+  // Book a visit (parity tier 2 #5): its own switch, and online booking itself.
+  bookOnline: ['portal_booking', 'online_booking'],
   // The client's own appointments: only where the business switched this on (a hidden feature until the owner has tried it).
   appointments: ['portal_appointments'],
   vendorPortal: ['vendor_portal'],
@@ -339,6 +346,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     visits: !!deps.visits && !off('visits'),
     // fieldservice / basic: the coming visits a customer can confirm (deps.upcomingVisits supplies and confirms them)
     upcomingVisits: !!deps.upcomingVisits && !off('upcomingVisits'),
+    // fieldservice / basic / landscaping: book a visit online (deps.bookOnline supplies the pages' address and the bookings)
+    bookOnline: !!deps.bookOnline && !off('bookOnline' as any),
     // salon: the client's upcoming appointments. NEVER on from what is mounted: it is offered only where the business has the
     // `portal_appointments` feature switched on (sectionsFor adds it), so a missing lookup or an empty list is not a yes.
     appointments: false,
@@ -753,6 +762,20 @@ export function createPortalRoutes(deps: PortalDeps) {
       const { contact } = P(c)
       const r = await deps.upcomingVisits!.confirm(contact.companyId, contact.id, c.req.param('jobId'))
       return r.ok ? c.json(r.visit) : c.json({ error: r.error }, r.status as 404 | 409)
+    })
+  }
+  // ---- book a visit online (field service, basic, landscaping — parity tier 2 #5)
+  if (has.bookOnline) {
+    app.get('/p/:token/book-online', portalAuth, gate('bookOnline' as any), async (c) => {
+      const { contact } = P(c)
+      return c.json({ bookUrl: deps.bookOnline!.bookUrl(c.req.param('token')), bookings: await deps.bookOnline!.list(contact.companyId, contact.id) })
+    })
+    // What the booking form is filled in with (the site's scripts/book-flow.ts, which came here from the portal's link): the
+    // customer's own details, to this portal's holder only — never a note, a price or anyone else's.
+    app.get('/p/:token/book-online/prefill', portalAuth, gate('bookOnline' as any), async (c) => {
+      const { contact } = P(c)
+      const v = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : '')
+      return c.json({ name: v(contact.name), email: v(contact.email), phone: v(contact.mobile) || v(contact.phone), address: v(contact.address), city: v(contact.city), state: v(contact.state), zip: v(contact.zip) })
     })
   }
   // ---- appointments (salon)

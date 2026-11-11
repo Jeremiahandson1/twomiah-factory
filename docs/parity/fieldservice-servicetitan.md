@@ -42,7 +42,7 @@ Shared ones are also in `shared-backlog.md`.
 | Change orders | `change_orders` — contractor only, and tied to a **project** (`projectId` required); field service has no projects — change orders on a **job** are a build | not built for jobs |
 | CRM pipeline, quotes awaiting a reply | `lead_pipeline` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
 | Owner / technician dashboards | `owner_dashboard`, `crew_dashboard` — contractor only | opened 11/10 (tier 1), hidden until tried — field service, landscaping, basic |
-| Customer self-scheduling in the portal | `portal_appointments` — the salon only, built on the salon's stylists and service menu (crm.ts portal hooks); field service's portal takes a service request. Opening it means adapting it to the general bookings — a build | partly |
+| Customer self-scheduling in the portal | **built 11/10 (tier 2 #5), hidden** — `portal_booking` (with online booking; field service, basic, landscaping): the portal's Book a Visit opens the business's booking pages with the customer's details filled in, and lists their bookings still to come with the page that moves or cancels each. The salon keeps its own (`portal_appointments`) | built |
 | A `route_optimization` switch | in the registry, offered to **no** trade; the dispatch board's optimiser works without it — find what it was for before opening it | to check |
 
 Each is opened by adding the trade to the feature's `templates` and trying it — shared first: landscaping and basic with field

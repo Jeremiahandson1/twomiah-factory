@@ -145,6 +145,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] /* not crm-homecare: an agency has no quotes or invoices to price (owner, 2026-10-19) */ },
 
   // Field Service
+  { id: 'portal_booking', name: 'Book from the Portal', description: 'Customers book a visit from their portal, with their details already filled in, and see the bookings they have made', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping'], hidden: true },
   { id: 'dispatch_board', name: 'Dispatch Board', description: 'A day of jobs by technician on one board — assign, reassign and set status', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm', 'crm-basic'] },
   { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Maintenance plans whose included visits go on the Schedule for each term', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },

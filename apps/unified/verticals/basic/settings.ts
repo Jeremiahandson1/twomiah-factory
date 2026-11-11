@@ -123,7 +123,7 @@ const basic: VerticalSettings = {
     fleet: { gps: true },
     portal: {
       providerNoun: 'service team',
-      clientNav: ['myJobs', 'upcomingVisits', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      clientNav: ['myJobs', 'upcomingVisits', 'bookOnline', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
       collaboratorNav: ['messages'],
       reviewerNav: ['messages'],
       labels: { myJobs: 'Jobs', agreements: 'Maintenance Plans' },
