@@ -96,7 +96,7 @@ describe('contractor: projects', () => {
     expect(openToken(sent[0].id)).toBe(token)
   })
 
-  test('the like-or-reply page: opening records nothing; a like (once) and a reply, on the activity and in the office', async () => {
+  test('the like-or-reply page: opening records nothing; a like (once) and a reply, on the activity and in the office — and a like counts as opened', async () => {
     const { t, companyId, call, mails } = b
     const link = /href="https:\/\/crm\.builder\.example(\/api\/weekly-update\/react\/[^"]+)"/.exec(mails[0].html)![1]
     const page = await t.call(link)
@@ -104,10 +104,15 @@ describe('contractor: projects', () => {
     expect(await page.text()).toContain('Like this update')
     const office = async () => (await (await call('/api/weekly-update')).json() as any).sent[0]
     expect((await office()).likedAt).toBeNull()
+    // As if the email's button was never pressed: the page alone records no opening; a like does (live test 11/11).
+    await (t.db as any).update(t.schema.reminderLog).set({ detail: null }).where(eq(t.schema.reminderLog.id, (await office()).id))
+    await t.call(link)
+    expect((await office()).openedAt).toBeNull()
     const form = (body: Record<string, string>) => t.call(link, { method: 'POST', body: new URLSearchParams(body).toString(), headers: { 'content-type': 'application/x-www-form-urlencoded' } } as any)
     const liked = await form({ like: '1' })
     expect(liked.status).toBe(200)
     expect(await liked.text()).toContain('You liked this update.')
+    expect((await office()).openedAt).toBeTruthy()
     await form({ like: '1' })
     expect((await form({ reply: '   ' })).status).toBe(400)
     expect((await form({ reply: 'Looks great — can we add a pantry light?' })).status).toBe(200)

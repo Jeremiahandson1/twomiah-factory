@@ -47,6 +47,12 @@ test('made on a project, then sent: each sub is emailed their link; a draft is n
   expect([sent.body.status, sent.body.emailed]).toEqual(['open', 2])
   expect(mails.map((m) => m.to).sort()).toEqual(['bids@frameco.example', 'office@buildco.example'])
   expect(mails[0].html).toContain('https://crm.builder.example/')
+  // The office can copy a sub's link to send another way — the same link the email carried (live test 11/11).
+  const inv = sent.body.bids[0].id
+  const link = await json(await call(`/api/bid-packages/${pkg}/invites/${inv}/link`, { method: 'POST', json: {} }))
+  expect(link.status).toBe(200)
+  expect(mails.some((m) => m.html.includes(link.body.link))).toBe(true)
+  expect((await call(`/api/bid-packages/${pkg}/invites/nope/link`, { method: 'POST', json: {} })).status).toBe(404)
 })
 
 test('in the portal: seen, priced and sent; a part-priced bid refused; the other declines', async () => {

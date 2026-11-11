@@ -778,7 +778,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   app.get('/stats', requirePermission('invoices:read'), requirePermission('revenue:read'), async (c) => {
     const currentUser = c.get('user') as any
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, ...(deps.options?.revenueOnly ? { isRevenue: sql<boolean>`${deps.options.revenueOnly}` } : {}) }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
-    const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }
+    const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0, collectedAmount: 0 }
     const tz = await zoneOf(currentUser.companyId)
     // The invoice tallies count every invoice, a gift card's sale included; the money below counts only invoices that are revenue
     // (InvoiceOptions.revenueOnly — a card's sale is a liability, its money is revenue when it is spent).
@@ -794,6 +794,14 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       // (Contractor T29 L3)
       stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
     }
+    // collectedAmount: what paidAmount is, less what was paid from customers' credit (a credit memo, an account balance) — money
+    // that came in, which a report's "Collected" means (QuickBooks, ServiceTitan; roofing's Reports read it — live test 11/11).
+    // paidAmount stays what the invoices say is paid on them.
+    const [fromCredit] = t.payment && 'method' in t.payment
+      ? await db.select({ total: sql<string>`coalesce(sum(${t.payment.amount}::numeric), 0)` }).from(t.payment).innerJoin(t.invoice, eq(t.invoice.id, t.payment.invoiceId))
+        .where(and(eq(t.invoice.companyId, currentUser.companyId), eq(t.payment.method, 'account_balance'), sql`${t.invoice.status} <> 'void'`, ...(deps.options?.revenueOnly ? [deps.options.revenueOnly] : [])))
+      : [{ total: '0' }]
+    stats.collectedAmount = round2(stats.paidAmount - Number(fromCredit?.total || 0))
     return c.json(stats)
   })
 

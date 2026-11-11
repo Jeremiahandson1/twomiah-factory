@@ -37,6 +37,7 @@ import { done, fail, list, one, listAll } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
+import { closedCheck } from '../../data/techAvailability.ts'
 import { ownJobsWhere } from '../ownWork.ts'
 import { jobOnDay } from '../../data/dayJobs.ts'
 import { ROOF_JOB_TILES, roofTileCondition } from './tiles.ts'
@@ -212,6 +213,22 @@ export function createRoofJobRoutes(d: CrmDeps) {
   // The stage's text to the homeowner, the review ask and the business's switched-on features: shared with the step that
   // collects a job when its invoice is paid (./stageEffects.ts), so Advance and a payment do exactly the same.
   const { companyFeatures, stageReached, textHomeowner } = createStageEffects(d)
+  /**
+   * The business's days off (days_off — server/data/daysOff.ts), as every other trade's jobs ask them (modules/crm.ts
+   * availability): a job put on a closed day is checked first — 409 with the code the screens read to offer "Book anyway"
+   * (the same request again with bookAnyway: true). Live test 11/11: roofing booked onto a holiday without a word.
+   */
+  const closedRefusal = async (c: any, companyId: string, days: unknown[], bookAnyway: boolean) => {
+    const asked = days.filter(Boolean)
+    if (bookAnyway || !asked.length || !(await d.features.isFeatureEnabled(companyId, 'days_off').catch(() => false))) return null
+    for (const day of asked) {
+      const off = await closedCheck(db, companyId, day)
+      if (off) return fail(c, 409, off.message, off.code)
+    }
+    return null
+  }
+  /** The days a roofing job is booked for: its appointment, its inspection, its install. */
+  const BOOKED_DAYS = ['scheduledDate', 'inspectionDate', 'installDate'] as const
   // The people are paid when the job reaches the stage a plan waits for — Approved, Completed, Invoiced or Collected (commissions.ts,
   // TRIGGER_STAGE) — also when the office moves it there by hand.
   const roofCommissions = createRoofCommissions(d)
@@ -365,7 +382,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
   // POST / — a job, numbered ROOF-0001, ROOF-0002…
   app.post('/', requirePermission('jobs:create'), async (c) => {
     const me = c.get('user')
-    const parsed = jobSchema.safeParse((await c.req.json().catch(() => null)) ?? {})
+    const body = (await c.req.json().catch(() => null)) ?? {}
+    const parsed = jobSchema.safeParse(body)
     if (!parsed.success) return refuseJob(c, parsed.error)
     const data = parsed.data
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))
@@ -376,6 +394,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const badRep = await repRefusal(me.companyId, data.assignedSalesRepId)
     if (badRep) return fail(c, 400, badRep, 'not_given_work')
     if (data.status && !(await stageOpen(me.companyId, data.status))) return fail(c, 400, STAGE_OFF, 'stage_off')
+    const cols: any = toColumns(data, dates.values)
+    const closed = await closedRefusal(c, me.companyId, BOOKED_DAYS.map((k) => cols[k]), (body as any).bookAnyway === true)
+    if (closed) return closed
     const created = await db.transaction((tx: any) => insertRoofJob(tx, me.companyId, me.userId, {
       ...toColumns(data, dates.values), address: data.propertyAddress, source: data.source || 'manual',
       status: data.status || 'lead', priority: data.priority || 'medium',
@@ -460,6 +481,10 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const asText = (v: unknown) => (v instanceof Date ? String(v.getTime()) : v == null || v === '' ? '' : String(v))
     const moved = ROOF_DISPATCH_FIELDS.filter((k) => k in set && asText(set[k]) !== asText((before as any)[k]))
     if (moved.length && !(await mayDo(c, JOB_DISPATCH_PERMISSION))) return dispatchRefusal(c, moved)
+    // Moved onto another day: the business's days off first.
+    const newDays = BOOKED_DAYS.filter((k) => set[k] && asText(set[k]) !== asText((before as any)[k])).map((k) => set[k])
+    const closed = await closedRefusal(c, me.companyId, newDays, raw.bookAnyway === true)
+    if (closed) return closed
     const cents = (v: unknown) => (v == null || v === '' ? null : Math.round(Number(v) * 100))
     if ('estimatedValue' in set && cents(set.estimatedValue) !== cents((before as any).estimatedValue) && !(await mayDo(c, 'quotes:update'))) {
       return fail(c, 403, 'Changing what a job is worth needs the same right as pricing a quote. Ask a manager to change estimatedRevenue.', 'job_money_not_permitted')
