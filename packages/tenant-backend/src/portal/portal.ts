@@ -1499,10 +1499,15 @@ export function createPortalRoutes(deps: PortalDeps) {
         .where(and(scope, inArray(t.changeOrder.status, CLIENT_VISIBLE))).orderBy(desc(t.changeOrder.createdAt), asc(t.changeOrder.id))
       return c.json(rows)
     })
+    // The tie is spelled out here, not through coScope, so the tenancy guard (scripts/check-companyid-scoping.ts, rule B) can see it.
     const ownCo = async (changeOrderId: string, contactId: string) => {
-      const scope = await coScope(contactId)
-      if (!scope) return null
-      const [row] = await db.select().from(t.changeOrder).where(and(eq(t.changeOrder.id, changeOrderId), scope)).limit(1)
+      const projectIds = await contactProjectIds(contactId)
+      const jobIds = jobsCo ? (await db.select({ id: t.job.id }).from(t.job).where(eq(t.job.contactId, contactId))).map((j: any) => j.id) : []
+      const mine: any[] = []
+      if (projectIds.length) mine.push(inArray(t.changeOrder.projectId, projectIds))
+      if (jobIds.length) mine.push(inArray(t.changeOrder.jobId, jobIds))
+      if (!mine.length) return null
+      const [row] = await db.select().from(t.changeOrder).where(and(eq(t.changeOrder.id, changeOrderId), mine.length === 1 ? mine[0] : or(...mine))).limit(1)
       return row || null
     }
     app.get('/p/:token/change-orders/:changeOrderId', portalAuth, gate('changeOrders'), async (c) => {
