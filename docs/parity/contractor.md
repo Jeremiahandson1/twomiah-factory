@@ -98,7 +98,7 @@ what we do not have is listed; everything else in the inventory is built (the ro
 | Buildertrend | Ours (code, 11/10) | Mark | For which trades | Where it is built (share first) |
 |---|---|---|---|---|
 | **Credit memos** on invoices | none | not built | every trade that invoices (`invoices` is on 11 CRMs) | **shared**: `packages/tenant-backend/src/invoicing` — once, for all |
-| **Workday exceptions**: holidays and days off the schedule skips | none on the job or project schedule (booking hours and the bar have closed days) | not built | contractor, roofing, field service, landscaping, basic — anyone who schedules jobs | **shared**: one company calendar of days off that job scheduling, the project schedule (Gantt, task links), plan visits and booking all read; booking's closed days move onto it |
+| **Workday exceptions**: holidays and days off the schedule skips | **built 11/10 (tier 2 #1), hidden** — `days_off`: Settings › Days off (one press adds the usual US holidays); the rows are online booking's own (booking_blackout, no person, whole day), so booking closes too; a job booked on one warns and can be booked anyway (a series lists it as not booked); Find a time skips it; the Dispatch Board says Closed; a plan's visit moves to the next open day | built | every job trade | **shared**: `apps/unified/server/data/daysOff.ts` |
 | **Photo folders per job** (pre-sale, progress, from change orders and messages) | the shared `job_photo` table already has a kind (`photo_type`: before, damage, during, after…), but only roofing's screens use it; the contractor's project photos are the core `photo` table with unused `tags` | not built | contractor, roofing, field service, landscaping, basic | **shared**: the shared job page groups by `photo_type` (roofing's kinds kept), the kinds per trade in its settings; the project's photos use the same kinds — no second folder model |
 | **Lead map** | none for leads; roofing's canvassing has a pin map (`web/src/crm/pages/roof/field/PinMap.tsx`) on the shared map pieces (`tenant-ui/src/maps`) | not built | contractor, roofing, field service, landscaping, basic (`lead_inbox` is on 13 CRMs) | **shared**: move `PinMap` into `tenant-ui/src/maps` and put the lead inbox's leads on it; roofing's canvassing keeps using the same component |
 | **Weekly client update** (a digest, liked / read) | none; the contractor portal emails each shared item (row 10a), roofing has "tell them when something new is shared" (`portal_tools`) | not built | contractor, roofing; landscaping installs | **shared**: in the shared portal (`packages/tenant-backend/src/portal`), a weekly digest of what was shared on the customer's jobs or projects that week, built on the existing per-item sharing |
@@ -119,7 +119,7 @@ integrations** (Gusto, Lowe's PRO, Home Depot, HubSpot, Salesforce, Pipedrive, B
 
 ## What is left, in the order a builder would feel it (11/10)
 Shared ones first (they serve every trade at once), then the contractor's own:
-1. Workday exceptions — **shared**.
+1. ~~Workday exceptions~~ — built 11/10 (`days_off`, hidden).
 2. Photo folders per job — **shared**.
 3. Credit memos — **shared**.
 4. Lead map — **shared** (roofing's pin map moved into the shared maps).
