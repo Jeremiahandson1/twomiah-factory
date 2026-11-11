@@ -58,6 +58,19 @@ test("an invoice is paid from the credit: no more than the credit, no more than 
   expect((await json(await call(`/api/invoices/${bobs}/payments`, { method: 'POST', json: { amount: 10, method: 'account_balance' } }))).status).toBeGreaterThanOrEqual(400)
 })
 
+test("Reports' collected leaves credit out: a payment from credit is not money received", async () => {
+  await t.db.update(t.schema.company).set({ enabledFeatures: [...FEATURES, 'reports'] } as any).where(eq(t.schema.company.id, companyId))
+  t.services.features.forgetFeatures()
+  const before = Number((await json(await call('/api/reports/revenue'))).body.collected ?? (await json(await call('/api/reports/revenue'))).body.totalCollected)
+  const inv = await invoiceFor(ann, 50)
+  await call(`/api/customer-credit/${ann}`, { method: 'POST', json: { amount: 20, reason: 'Goodwill' } })
+  await call(`/api/invoices/${inv}/payments`, { method: 'POST', json: { amount: 20, method: 'account_balance' } })
+  await call(`/api/invoices/${inv}/payments`, { method: 'POST', json: { amount: 30, method: 'cash' } })
+  const after = await json(await call('/api/reports/revenue'))
+  expect(Number(after.body.collected ?? after.body.totalCollected) - before).toBe(30)
+  await setFeatures(FEATURES)
+})
+
 test('a refund can be kept as credit', async () => {
   const inv = await invoiceFor(ann, 100)
   await call(`/api/invoices/${inv}/payments`, { method: 'POST', json: { amount: 100, method: 'cash' } })

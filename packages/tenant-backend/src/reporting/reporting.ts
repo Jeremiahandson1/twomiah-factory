@@ -124,6 +124,9 @@ export function createReportingService(deps: ReportingDeps) {
   const balanceExpr = sql`CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END`
   // Only invoices that are revenue (ReportingOptions.revenueOnly); absent, nothing is left out.
   const onlyRevenue: SQL[] = deps.options?.revenueOnly ? [deps.options.revenueOnly] : []
+  // Money that came IN: a payment from the customer's own credit (account_balance — the salon's account balance, credit memos) or a
+  // refund kept as credit moved no money, so neither is collected nor returned (QuickBooks' and ServiceTitan's rule for applied credit).
+  const cash: SQL[] = t.payment.method ? [sql`coalesce(${t.payment.method}, '') <> 'account_balance'`] : []
   const inRange = (col: any, range: DateRange) => [range.gte ? gte(col, range.gte) : undefined, range.lte ? lte(col, range.lte) : undefined].filter(Boolean) as any[]
 
   // ---------------------------------------------------------------- revenue
@@ -133,11 +136,11 @@ export function createReportingService(deps: ReportingDeps) {
       .where(and(eq(t.invoice.companyId, companyId), billed, ...onlyRevenue, ...inRange(t.invoice.createdAt, range)))
     const [col] = await db.select({ total: sum(t.payment.amount) }).from(t.payment)
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
-      .where(and(eq(t.invoice.companyId, companyId), ...onlyRevenue, ...inRange(t.payment.paidAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), ...onlyRevenue, ...cash, ...inRange(t.payment.paidAt, range)))
     // money returned in the period (refund rows are negative payments, dated when refunded)
     const [ref] = await db.select({ total: sql<string>`coalesce(sum(-(${t.payment.amount}::numeric)), 0)` }).from(t.payment)
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
-      .where(and(eq(t.invoice.companyId, companyId), sql`${t.payment.amount}::numeric < 0`, ...onlyRevenue, ...inRange(t.payment.paidAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), sql`${t.payment.amount}::numeric < 0`, ...onlyRevenue, ...cash, ...inRange(t.payment.paidAt, range)))
     // Balances are a point-in-time figure — what is owed right now, whatever the period picker says.
     const [out] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
       .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued))
@@ -172,7 +175,7 @@ export function createReportingService(deps: ReportingDeps) {
         .where(and(eq(t.invoice.companyId, companyId), ...onlyRevenue, gte(t.invoice.createdAt, start), billed)),
       db.select({ amount: t.payment.amount, paidAt: t.payment.paidAt }).from(t.payment)
         .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
-        .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start), ...onlyRevenue)),
+        .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start), ...onlyRevenue, ...cash)),
     ])
     const rows: Record<string, { month: string; invoiced: number; collected: number }> = {}
     for (const k of keys) rows[k] = { month: k, invoiced: 0, collected: 0 }

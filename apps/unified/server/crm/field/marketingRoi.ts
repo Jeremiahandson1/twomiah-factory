@@ -11,7 +11,7 @@
 // contact it was converted to; that customer's jobs made in the period and the payments on their invoices in the period count to the
 // source. Spend counts for the months the period touches.
 import { Hono } from 'hono'
-import { and, asc, eq, gte, inArray, isNotNull, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, lte, ne } from 'drizzle-orm'
 import { companyTimeZone, storeDayStart } from '@twomiah/tenant-backend'
 import { eventMarketingSpend, invoice, job, lead, payment } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -52,7 +52,7 @@ export function createMarketingRoiRoutes(d: CrmDeps) {
     const allContacts = [...new Set([...bySource.values()].flatMap((s) => [...s.contacts]))]
     const jobs = allContacts.length ? await db.select({ contactId: job.contactId }).from(job).where(and(eq(job.companyId, me.companyId), inArray(job.contactId, allContacts), gte(job.createdAt, start), lte(job.createdAt, end))) : []
     const paid = money && allContacts.length ? await db.select({ contactId: invoice.contactId, amount: payment.amount }).from(payment).innerJoin(invoice, eq(invoice.id, payment.invoiceId))
-      .where(and(eq(invoice.companyId, me.companyId), inArray(invoice.contactId, allContacts), isNotNull(payment.paidAt), gte(payment.paidAt, start), lte(payment.paidAt, end))) : []
+      .where(and(eq(invoice.companyId, me.companyId), inArray(invoice.contactId, allContacts), isNotNull(payment.paidAt), ne(payment.method, 'account_balance'), gte(payment.paidAt, start), lte(payment.paidAt, end))) : []
     const spendRows = money ? await db.select({ source: eventMarketingSpend.source, cents: eventMarketingSpend.amountCents }).from(eventMarketingSpend)
       .where(and(eq(eventMarketingSpend.companyId, me.companyId), gte(eventMarketingSpend.month, from.slice(0, 7)), lte(eventMarketingSpend.month, to.slice(0, 7)))) : []
     const spend = new Map<string, number>()
