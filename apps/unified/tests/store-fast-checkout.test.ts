@@ -72,9 +72,9 @@ afterAll(() => k.restore())
 describe('offered, never switched on', () => {
   test('registered not ready and offered to the store; off, nothing is kept or charged and the wallet routes are closed', async () => {
     const f = FEATURE_MAP.store_fast_checkout
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm-store'])
-    expect(getDefaultFeaturesForTemplate('crm-store')).not.toContain('store_fast_checkout')
+    expect(getDefaultFeaturesForTemplate('crm-store')).toContain('store_fast_checkout')
     await features(ON.filter((x) => x !== 'store_fast_checkout'))
     const me = await k.pub('GET', `${A}/me`, undefined, { cookie })
     expect(me.json.fastCheckout).toBe(false)

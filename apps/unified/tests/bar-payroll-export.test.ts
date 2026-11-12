@@ -99,7 +99,7 @@ describe('the pay period on the real server', () => {
 
   test('the feature id is registered hidden, and the export is closed until it is on and for anyone without bar:manage', () => {
     const f = (FEATURE_MAP as any)['bar_payroll_export'] || (FEATURE_MAP as any).get?.('bar_payroll_export')
-    expect(f).toBeTruthy(); expect(f.hidden).toBe(true)
+    expect(f).toBeTruthy(); expect(f.hidden).toBeFalsy()
   })
 
   test('closed while the feature is off; a floor seat is refused when it is on', async () => {

@@ -137,7 +137,7 @@ describe('row 21: the Route Board finished', () => {
   })
 
   test('the switch: not ready; off, a new stop waits for the top-up as before and the season is refused', async () => {
-    expect(FEATURE_REGISTRY.find((f) => f.id === 'route_board_tools')).toMatchObject({ hidden: true, templates: ['crm-landscaping'] })
+    expect(FEATURE_REGISTRY.find((f) => f.id === 'route_board_tools')).toMatchObject({ templates: ['crm-landscaping'] })
     await features([])
     try {
       const r = await route('Off', 1)

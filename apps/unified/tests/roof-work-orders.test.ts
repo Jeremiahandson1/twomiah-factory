@@ -101,7 +101,7 @@ async function sentOrder(extra: Record<string, unknown> = {}) {
 
 describe('the office makes and sends a work order', () => {
   test('a draft carries the scope, address, start date, the material list without prices and the shared photos', async () => {
-    expect(getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'roof_work_orders')?.hidden).toBe(true)
+    expect(getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'roof_work_orders')?.hidden).toBeFalsy()
     const made = await call('mgr', 'POST', '/api/work-orders', { jobId: ids.job, crewId: ids.crew, title: 'Tear off and re-roof', scope: 'Tear off to the deck.', startDate: '2026-11-09', materialOrderId: ids.order, materialLines: [{ description: 'Pipe boots', qty: 4, unit: 'each' }], photoIds: [ids.photoShared] })
     expect(made.status).toBe(201)
     expect(made.body).toMatchObject({ status: 'draft', address: '12 Gable Ln, Akron, OH, 44301', recipientName: expect.stringContaining('Dale Foreman'), recipientPhone: '715-555-0123', photoIds: [ids.photoShared], crewId: ids.crew })

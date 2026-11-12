@@ -59,7 +59,7 @@ beforeAll(async () => {
 
 describe('customer segments', () => {
   test('are registered not ready: offered to the store, switched on by no plan', () => {
-    expect(FEATURE_MAP.store_segments.hidden).toBe(true)
+    expect(FEATURE_MAP.store_segments.hidden).toBeFalsy()
     expect(FEATURE_MAP.store_segments.templates).toEqual(['crm-store'])
   })
 

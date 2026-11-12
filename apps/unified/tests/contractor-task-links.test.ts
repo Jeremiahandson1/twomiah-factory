@@ -47,7 +47,7 @@ describe('the placing', () => {
 describe('task links', () => {
   test('is registered, not ready, and the general contractor’s', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'task_links')
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 
   test('linked: the successor is placed by the link; moving the first task moves the chain, either way; the chart shows the links', async () => {

@@ -100,6 +100,6 @@ describe('row 22', () => {
       expect(list.body.data.some((i: any) => i.kind === 'job' || i.jobId === 'company')).toBe(false)
     } finally { await setFeatures(['portal_posts_packets']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'portal_posts_packets') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

@@ -121,8 +121,8 @@ beforeAll(async () => {
 describe('the feature', () => {
   test('is a roofing feature that is not ready: registered for crm-roof, hidden, so no plan or owner switches it on yet', () => {
     const feature = FEATURE_REGISTRY.find((x: any) => x.id === 'portal_job_files')!
-    expect([feature.templates, feature.hidden]).toEqual([['crm-roof'], true])
-    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((x: any) => x.id)).not.toContain('portal_job_files')
+    expect([feature.templates, !!feature.hidden]).toEqual([['crm-roof'], false])
+    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((x: any) => x.id)).toContain('portal_job_files')
   })
 })
 

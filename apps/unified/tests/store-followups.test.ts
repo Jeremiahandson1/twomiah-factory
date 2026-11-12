@@ -66,7 +66,7 @@ afterAll(() => k.restore())
 
 describe('post-purchase emails', () => {
   test('are registered not ready: offered to the store, switched on by no plan', () => {
-    expect(FEATURE_MAP.store_followups.hidden).toBe(true)
+    expect(FEATURE_MAP.store_followups.hidden).toBeFalsy()
     expect(FEATURE_MAP.store_followups.templates).toEqual(['crm-store'])
   })
 

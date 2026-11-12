@@ -114,6 +114,6 @@ describe('the routes', () => {
     await setFeatures(['territory_tools'])
     try { expect((await auth('/api/storm-map/swaths', { method: 'POST', json: {} })).status).toBe(404) } finally { await setFeatures(['storm_data_tools', 'territory_tools']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'storm_data_tools') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

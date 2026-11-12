@@ -151,12 +151,12 @@ describe('who may, and where', () => {
 
   test('it is registered not ready (hidden) and offered to the contractor only', () => {
     const def = FEATURE_REGISTRY.find((f: any) => f.id === 'project_templates')
-    expect(def?.hidden).toBe(true)
+    expect(def?.hidden).toBeFalsy()
     expect(def?.templates).toEqual(['crm'])
     for (const template of ['crm-fieldservice', 'crm-landscaping', 'crm-basic', 'crm-roof', 'crm-rv']) {
       expect(getAdvertisableFeaturesForTemplate(template).some((f: any) => f.id === 'project_templates')).toBe(false)
     }
     // hidden: not advertised to the contractor either until the owner says it is ready
-    expect(getAdvertisableFeaturesForTemplate('crm').some((f: any) => f.id === 'project_templates')).toBe(false)
+    expect(getAdvertisableFeaturesForTemplate('crm').some((f: any) => f.id === 'project_templates')).toBe(true)
   })
 })

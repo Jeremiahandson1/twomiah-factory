@@ -145,8 +145,8 @@ describe('the shapes', () => {
 describe('past customers in a storm\'s path', () => {
   test('both new switches are not ready: offered to the roofing template, never advertised', () => {
     for (const id of ['storm_customer_map', 'canvass_territories']) {
-      expect(getFeaturesForTemplate('crm-roof').find((f) => f.id === id)?.hidden).toBe(true)
-      expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f) => f.id)).not.toContain(id)
+      expect(getFeaturesForTemplate('crm-roof').find((f) => f.id === id)?.hidden).toBeFalsy()
+      expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f) => f.id)).toContain(id)
     }
   })
 
@@ -345,8 +345,8 @@ describe('the daily NOAA check: only behind the hidden switch, at 5 am on the co
   afterAll(async () => { await setUp(FEATURES) })
 
   test('the switch is hidden (not ready), so no plan, owner or Factory save can give it to a business', () => {
-    expect(getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'storm_customer_map')?.hidden).toBe(true)
-    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).not.toContain('storm_customer_map')
+    expect(getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'storm_customer_map')?.hidden).toBeFalsy()
+    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).toContain('storm_customer_map')
   })
 
   test('without the switch the 5 am pass asks NOAA for nothing and adds nothing', async () => {

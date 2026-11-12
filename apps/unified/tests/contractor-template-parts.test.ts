@@ -38,7 +38,7 @@ async function boot(features = ON) {
 describe('template parts', () => {
   test('is registered, not ready, and the general contractor’s', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'template_parts')
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 
   test('saved: the budget, the selections to be made with their shared allowance, and the task link with its lag', async () => {

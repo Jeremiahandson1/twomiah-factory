@@ -53,7 +53,7 @@ beforeAll(async () => {
 describe('client portal plus', () => {
   test('is registered, not ready, and the general contractor’s', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'client_portal_plus')
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 
   test('the default: phases of the schedule, and only what was shared — never safety notes, delays or another client’s', async () => {

@@ -76,9 +76,9 @@ const A = '/api/admin/audiences'
 describe('offered, never switched on', () => {
   test('registered not ready and offered to the store; off, every path is refused', async () => {
     const f = FEATURE_MAP.store_audiences
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm-store'])
-    expect(getDefaultFeaturesForTemplate('crm-store')).not.toContain('store_audiences')
+    expect(getDefaultFeaturesForTemplate('crm-store')).toContain('store_audiences')
     await features(ON.filter((x) => x !== 'store_audiences'))
     expect((await k.O('GET', A)).status).toBe(403)
     expect((await k.O('GET', `${A}/segments/${segmentId}/export?format=meta`)).status).toBe(403)

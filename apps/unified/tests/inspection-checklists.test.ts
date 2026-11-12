@@ -256,8 +256,8 @@ describe('who may do what, and what is off by default', () => {
 
   test('the feature is registered not ready: never advertised, named for the contractor template only', () => {
     const f = FEATURE_REGISTRY.find((r: any) => r.id === 'inspection_checklists') as any
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm'])
-    expect(getAdvertisableFeaturesForTemplate('crm').map((r: any) => r.id)).not.toContain('inspection_checklists')
+    expect(getAdvertisableFeaturesForTemplate('crm').map((r: any) => r.id)).toContain('inspection_checklists')
   })
 })

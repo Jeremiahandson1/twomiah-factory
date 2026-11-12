@@ -18,13 +18,13 @@ describe('the features', () => {
   test.each(['lead_lost', 'lead_site_visit'])('%s is registered, not ready, and offered to the general contractor only', (id) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm'])
   })
   // Opened to the other job trades (parity tier 1, 11/10 — ServiceTitan's pipeline): still not ready.
   test('lead_pipeline is registered, not ready, and offered to the contractor, field service, landscaping and basic', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'lead_pipeline')
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
   })
 })

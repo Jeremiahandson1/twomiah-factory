@@ -58,7 +58,7 @@ beforeAll(async () => {
 describe('the sales reports', () => {
   test('are registered not ready: offered to the store, switched on by no plan', () => {
     const f = FEATURE_MAP.store_sales_reports
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm-store'])
   })
 

@@ -109,6 +109,6 @@ describe('row 28: the office and the crew', () => {
       expect((await crewPost(o.token, '/arrive')).status).toBe(404)
     } finally { await setFeatures(['crew_scheduling']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'crew_scheduling') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

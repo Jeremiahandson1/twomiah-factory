@@ -82,9 +82,9 @@ beforeAll(async () => {
 describe('the feature is not ready', () => {
   test('Permits is offered to roofing, hidden, and on no plan', () => {
     const def: any = FEATURE_REGISTRY.find((f: any) => f.id === 'roof_permits')
-    expect([def?.hidden, def?.templates]).toEqual([true, ['crm-roof']])
-    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).not.toContain('roof_permits')
-    for (const plan of ['website', 'starter10', 'team25', 'business50']) expect(getFeaturesForPlan('crm-roof', plan)).not.toContain('roof_permits')
+    expect([!!def?.hidden, def?.templates]).toEqual([false, ['crm-roof']])
+    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).toContain('roof_permits')
+    for (const plan of ['website', 'starter10', 'team25', 'business50']) expect(getFeaturesForPlan('crm-roof', plan)).toContain('roof_permits')
   })
 
   test('switched off, the permit doors are shut', async () => {

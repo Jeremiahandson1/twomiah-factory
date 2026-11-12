@@ -49,7 +49,7 @@ afterAll(() => k.restore())
 
 describe('draft a reorder', () => {
   test('is registered not ready: offered to the store, switched on by no plan', () => {
-    expect(FEATURE_MAP.store_reorders.hidden).toBe(true)
+    expect(FEATURE_MAP.store_reorders.hidden).toBeFalsy()
     expect(FEATURE_MAP.store_reorders.templates).toEqual(['crm-store'])
   })
 

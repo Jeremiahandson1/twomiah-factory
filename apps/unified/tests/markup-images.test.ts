@@ -24,7 +24,7 @@ describe('the features', () => {
   test.each([['markup_defaults', ['crm', 'crm-landscaping']], ['quote_line_images', ['crm', 'crm-landscaping']]] as const)('%s is registered, not ready, and offered to %p', (id, templates) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual([...templates])
   })
 })

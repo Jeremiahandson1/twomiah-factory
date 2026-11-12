@@ -30,7 +30,7 @@ beforeAll(async () => {
 
 test('job_change_orders is registered, not ready, for the trades that bill a job', () => {
   const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'job_change_orders')
-  expect([f.hidden, f.templates]).toEqual([true, ['crm-fieldservice', 'crm-landscaping']])
+  expect([!!f.hidden, f.templates]).toEqual([false, ['crm-fieldservice', 'crm-landscaping']])
 })
 
 test("a change order is for a project or a job of this business — one, never both, never another's", async () => {

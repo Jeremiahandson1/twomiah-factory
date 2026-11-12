@@ -12,7 +12,8 @@ import { bootTenant, seedOwner } from './harness.ts'
 
 const KEY = 'factory-key-for-not-ready-test'
 const NOT_READY = FEATURE_REGISTRY.filter((f) => f.hidden).map((f) => f.id)
-const OWNER_NAMED = ['measurement_reports', 'instant_estimator', 'storm_radar_overlay', 'paid_ads']
+// Measurement Reports, the Instant Roof Estimator and Storm Radar launched 2026-11-12 (owner); Paid Ads stays parked.
+const OWNER_NAMED = ['paid_ads']
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = ''

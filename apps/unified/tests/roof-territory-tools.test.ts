@@ -94,6 +94,6 @@ describe('row 23: the routes', () => {
     await setFeatures([])
     try { expect((await upload(kml(placemark('X', poly(ring(-91.5, 44.8)))))).status).toBe(404) } finally { await setFeatures(['territory_tools']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'territory_tools') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

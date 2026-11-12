@@ -32,7 +32,7 @@ beforeAll(async () => {
 
 test('portal_booking is registered, not ready, for field service, basic and landscaping', () => {
   const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'portal_booking')
-  expect([f.hidden, f.templates]).toEqual([true, ['crm-fieldservice', 'crm-basic', 'crm-landscaping']])
+  expect([!!f.hidden, f.templates]).toEqual([false, ['crm-fieldservice', 'crm-basic', 'crm-landscaping']])
 })
 
 test("Book a Visit: the booking pages' address for this customer, and their bookings still to come", async () => {

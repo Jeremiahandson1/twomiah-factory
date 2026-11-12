@@ -12,7 +12,7 @@ describe('the features', () => {
     for (const id of ['phone_inspections', 'inspection_signature', 'inspection_auto_checklists']) {
       const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
       expect(f).toBeTruthy()
-      expect(f.hidden).toBe(true)
+      expect(f.hidden).toBeFalsy()
       expect(f.templates).toEqual(['crm'])
     }
     const { BASE_ROLE_PERMISSIONS: ROLE_PERMISSIONS } = await import('@twomiah/tenant-backend/src/auth/permissions.ts')

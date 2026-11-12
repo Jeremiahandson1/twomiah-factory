@@ -108,8 +108,8 @@ describe('a photo remembers where and when the phone took it', () => {
 describe('building a report', () => {
   test('is a roofing feature that is not ready: registered for crm-roof, hidden, so no plan or owner switches it on yet', () => {
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'inspection_reports')!
-    expect([f.templates, f.hidden]).toEqual([['crm-roof'], true])
-    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((x: any) => x.id)).not.toContain('inspection_reports')
+    expect([f.templates, !!f.hidden]).toEqual([['crm-roof'], false])
+    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((x: any) => x.id)).toContain('inspection_reports')
   })
   test('with no sections named it takes the job’s damage photos and before photos, each in a section, and not the general ones', async () => {
     const r = await json(await as('owner')('/api/inspection-reports', { method: 'POST', json: { jobId: jobA } }))

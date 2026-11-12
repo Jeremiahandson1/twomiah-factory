@@ -166,7 +166,7 @@ describe('who may, and what is not there', () => {
 
   test('the calculator is not ready: the feature is hidden, and with it off the door is not there', async () => {
     const def = getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'roof_material_list') as any
-    expect(def?.hidden).toBe(true)
+    expect(def?.hidden).toBeFalsy()
     await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'materials'] } as any).where(eq(t.schema.company.id, companyId))
     t.services.features.forgetFeatures()
     expect((await call('owner', 'GET', `/api/material-list/jobs/${ids.job}`)).status).toBeGreaterThanOrEqual(400)

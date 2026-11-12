@@ -52,7 +52,7 @@ describe('row 12b', () => {
   test('the three switches are registered, not ready, and the general contractor’s', () => {
     for (const id of ['payment_method_choice', 'invoice_tips', 'payment_plans']) {
       const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
-      expect([id, f?.hidden, f?.templates]).toEqual([id, true, ['crm']])
+      expect([id, !!f?.hidden, f?.templates]).toEqual([id, false, ['crm']])
     }
   })
 

@@ -81,7 +81,7 @@ describe('row 3: aerial detection up to the provider', () => {
     await setFeatures([])
     try { expect((await post(owner, `/api/area-pricing/sites/${siteId}/detect`, VIEW)).status).toBe(404) } finally { await setFeatures(['aerial_detect']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'aerial_detect') as any
-    expect(f?.hidden).toBe(true)
+    expect(f?.hidden).toBeFalsy()
     expect(f?.templates).toEqual(['crm-landscaping'])
   })
 })

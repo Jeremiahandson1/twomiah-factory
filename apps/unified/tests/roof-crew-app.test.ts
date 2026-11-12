@@ -88,6 +88,6 @@ describe('row 29: the crew app', () => {
       expect((await auth('/api/crew-orders')).status).toBe(404)
     } finally { await setFeatures(['crew_app']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'crew_app') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

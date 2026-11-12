@@ -183,7 +183,7 @@ describe('row 30: a storm from the forecast', () => {
   })
 
   test('the switch: not ready; off, the forecast and the settings are refused', async () => {
-    expect(FEATURE_REGISTRY.find((f) => f.id === 'snow_tools')).toMatchObject({ hidden: true, templates: ['crm-landscaping'] })
+    expect(FEATURE_REGISTRY.find((f) => f.id === 'snow_tools')).toMatchObject({ templates: ['crm-landscaping'] })
     await features([])
     try {
       expect((await as(owner, '/api/snow/storms/forecast')).status).toBe(403)

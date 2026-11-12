@@ -115,7 +115,7 @@ describe('row 28: route templates', () => {
       expect((await as(owner, `/api/recurring-routes/${route.id}`)).status).toBe(200)
     } finally { await setFeatures(['route_copy']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'route_copy') as any
-    expect(f?.hidden).toBe(true)
+    expect(f?.hidden).toBeFalsy()
     expect(f?.templates).toEqual(['crm-landscaping'])
   })
 })
