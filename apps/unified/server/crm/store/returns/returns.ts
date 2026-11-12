@@ -251,7 +251,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       await log(companyId, { action: 'update', entity: 'order', entityId: ret.orderId, metadata: { description: `Return ${ret.returnNumber}: its label could not be voided (${String(e?.message || 'no reason given').slice(0, 200)}) — void it in the carrier account`, returnId: ret.id } }, c)
       return null
     }
-    const [now]: Return[] = await db.update(storeReturn).set({ labelUrl: null, labelTracking: null, labelCarrier: null, labelShipmentId: null, labelVoidedAt: new Date(), labelRefundStatus: status, updatedAt: new Date() })
+    const [now]: Return[] = await db.update(storeReturn).set({ labelUrl: null, labelTracking: null, labelCarrier: null, labelVoidedAt: new Date(), labelRefundStatus: status, updatedAt: new Date() })
       .where(and(eq(storeReturn.id, ret.id), eq(storeReturn.companyId, companyId))).returning()
     await log(companyId, { action: 'update', entity: 'order', entityId: ret.orderId, metadata: { description: `Return ${ret.returnNumber}: its ${ret.labelCarrier ?? ''} label voided, refund ${status}`.replace(/\s+/g, ' '), returnId: ret.id } }, c)
     return now ?? null
