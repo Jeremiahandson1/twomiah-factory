@@ -16,6 +16,8 @@ import { fail, list, one, done, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingService } from './calltrackingService.ts'
+import { attachRecording, clearRecording, expiredRecordings, recordingOf } from '../../data/calltracking.ts'
+import { DEFAULT_RECORDING_NOTICE, deleteRecordingAt, fetchCall, fetchRecordingAudio, parseRecordingUrl } from './recordings.ts'
 
 const trackingNumberSchema = z.object({
   phoneNumber: z.string().trim().min(1, 'The tracking phone number is required'),
@@ -27,6 +29,15 @@ const trackingNumberSchema = z.object({
   providerId: z.string().optional(),
 })
 
+const recordingSchema = z.object({
+  callRecording: z.boolean().optional(),
+  callRecordingNotice: z.string().max(300, 'Keep the notice under 300 characters').optional().nullable(),
+  callRecordingKeepDays: z.union([z.literal(30), z.literal(90), z.literal(365), z.null()], { error: 'Keep recordings 30, 90 or 365 days, or until deleted' }).optional(),
+})
+
+/** A call as the screens get it: a Twilio recording is said to be there (and how long), never where. */
+const forScreen = (r: any) => (r?.recordingSid ? { ...r, recordingSid: undefined, recordingUrl: null, recording: { seconds: r.recordingSeconds ?? null } } : { ...r, recording: null })
+
 const xmlEscape = (s: string) => s.replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[ch]!))
 const voiceXml = (inner: string) => `<?xml version="1.0" encoding="UTF-8"?><Response>${inner}</Response>`
 
@@ -35,6 +46,24 @@ export function createCalltrackingRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const calltracking = createCalltrackingService(d)
   const app = new Hono<AppEnv>()
+
+  // Recordings past the days the business keeps them are deleted at Twilio, then off the call: daily, first an hour after boot.
+  const sweepRecordings = async () => {
+    for (const r of await expiredRecordings(db)) {
+      const [row] = await db.select().from(company).where(eq(company.id, r.companyId)).limit(1)
+      if (await deleteRecordingAt(row, r.recordingUrl)) await clearRecording(db, r.companyId, r.id)
+    }
+  }
+  const jobs = (d.services as any).eventJobs
+  if (jobs) jobs.callRecordingSweep = sweepRecordings
+  d.services.addJob?.(() => {
+    const run = () => sweepRecordings().catch((e: any) => logger.warn('[calltracking] recording sweep failed', { error: e?.message }))
+    const t1 = setTimeout(run, 60 * 60_000); (t1 as any).unref?.()
+    const t2 = setInterval(run, 24 * 60 * 60_000); (t2 as any).unref?.()
+  })
+
+  /** Where Twilio and CallRail reach this app: the site's own address (https). */
+  const webhookOrigin = (c: any) => String(process.env.FRONTEND_URL || new URL(c.req.url).origin).replace(/\/+$/, '').replace(/^http:\/\//, 'https://')
 
   /** The company row a webhook names — its CallRail signing key and its Twilio account. */
   const companyRowFor = async (id: string) => {
@@ -107,7 +136,42 @@ export function createCalltrackingRoutes(d: CrmDeps) {
     c.header('Content-Type', 'text/xml')
     if (!line) return c.body(voiceXml('<Say>This number is not in service.</Say><Hangup/>'))
     const caller = /^\+?\d{7,15}$/.test(params.From || '') ? ` callerId="${xmlEscape(params.From)}"` : ''
-    return c.body(voiceXml(`<Dial answerOnBridge="true"${caller}><Number>+1${last10(line.forwardTo)}</Number></Dial>`))
+    // Call recording (CallRail's), where the business turned it on: the caller hears the notice first — some states need both
+    // sides told — then both sides are recorded from the answer, each on its own channel; Twilio says when it is ready.
+    const rec = (row as any).callRecording
+      ? ` record="record-from-answer-dual" recordingStatusCallback="${xmlEscape(`${webhookOrigin(c)}/api/calltracking/webhook/twilio-recording/${companyId}`)}" recordingStatusCallbackEvent="completed"`
+      : ''
+    const notice = (row as any).callRecording ? `<Say>${xmlEscape(String((row as any).callRecordingNotice || DEFAULT_RECORDING_NOTICE).slice(0, 300))}</Say>` : ''
+    return c.body(voiceXml(`${notice}<Dial answerOnBridge="true"${caller}${rec}><Number>+1${last10(line.forwardTo)}</Number></Dial>`))
+  })
+
+  /**
+   * A call's recording is ready (Twilio's recordingStatusCallback, signed like the calls). It is filed on its call; a recording
+   * that comes in before the call's own report has the call read from Twilio and logged first. Anything but a finished
+   * recording at a Twilio address is ignored.
+   */
+  app.post('/webhook/twilio-recording/:companyId', async (c) => {
+    const companyId = c.req.param('companyId')
+    const params = await parseTwilioBody(c)
+    const row = await companyRowFor(companyId)
+    if (!row) return c.notFound()
+    const v = fromTwilio(c, params, row)
+    if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio recording webhook', v.reason)
+    const where = parseRecordingUrl(params.RecordingUrl)
+    if (params.RecordingStatus !== 'completed' || !where || !params.CallSid) return c.body(null, 200)
+    const r = { sid: where.recordingSid, url: `https://api.twilio.com/2010-04-01/Accounts/${where.accountSid}/Recordings/${where.recordingSid}`, seconds: parseInt(params.RecordingDuration) || 0 }
+    try {
+      if (!(await attachRecording(db, companyId, params.CallSid, r))) {
+        const call = await fetchCall(row, where.accountSid, params.CallSid)
+        if (call) {
+          await calltracking.handleTwilioWebhook(companyId, { CallSid: params.CallSid, From: call.from, To: call.to, CallStatus: call.status, CallDuration: call.duration, Direction: call.direction.startsWith('inbound') ? 'inbound' : 'outbound' })
+          await attachRecording(db, companyId, params.CallSid, r)
+        }
+      }
+    } catch (error: any) {
+      logger.error('Twilio recording webhook error', { error: error?.message })
+    }
+    return c.body(null, 200)
   })
 
   // ── Signed in, and Call Tracking on (the AI Receptionist, where that is the switch) ──
@@ -152,14 +216,38 @@ export function createCalltrackingRoutes(d: CrmDeps) {
       page: parseInt(page) || 1,
       limit: parseInt(limit) || 50,
     })
-    return list(c, r.data, { page: r.page, limit: r.limit, total: r.total })
+    return list(c, r.data.map(forScreen), { page: r.page, limit: r.limit, total: r.total })
   })
 
   app.get('/calls/:id', requirePermission('calltracking:read'), async (c) => {
     const user = c.get('user')
     const call = await calltracking.getCall(c.req.param('id'), user.companyId)
     if (!call) return fail(c, 404, 'Call not found')
-    return one(c, call)
+    return one(c, forScreen(call))
+  })
+
+  /**
+   * A call's recording, played here (calltracking:read): fetched from Twilio with the account's own credentials and passed on, never
+   * kept by the browser (private, no-store). A CallRail recording is CallRail's link on the call, as before.
+   */
+  app.get('/calls/:id/recording', requirePermission('calltracking:read'), async (c) => {
+    const user = c.get('user')
+    const rec = await recordingOf(db, user.companyId, c.req.param('id'))
+    if (!rec) return fail(c, 404, 'This call has no recording')
+    const audio = await fetchRecordingAudio(await companyRowFor(user.companyId), rec.recordingUrl)
+    if (!audio || !audio.body) return fail(c, 502, 'The recording could not be fetched from the phone company. Try again in a minute.', 'recording_unavailable')
+    return new Response(audio.body, { status: 200, headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, no-store', 'Content-Disposition': `inline; filename="call-${rec.id}.mp3"` } })
+  })
+
+  /** Delete a call's recording (calltracking:update): at Twilio, then off the call. */
+  app.delete('/calls/:id/recording', requirePermission('calltracking:update'), async (c) => {
+    const user = c.get('user')
+    const rec = await recordingOf(db, user.companyId, c.req.param('id'))
+    if (!rec) return fail(c, 404, 'This call has no recording')
+    if (!(await deleteRecordingAt(await companyRowFor(user.companyId), rec.recordingUrl))) return fail(c, 502, 'The phone company did not delete the recording. Try again in a minute.', 'recording_not_deleted')
+    await clearRecording(db, user.companyId, rec.id)
+    await d.audit.log({ action: 'delete', entity: 'call_recording', entityId: rec.id, metadata: { description: 'Call recording deleted' }, req: c })
+    return done(c)
   })
 
   app.put('/calls/:id', requirePermission('calltracking:update'), async (c) => {
@@ -198,8 +286,8 @@ export function createCalltrackingRoutes(d: CrmDeps) {
   })
 
   // Settings — the CallRail signing key. Owner and admins (integrations:update). Write-only: GET answers whether one
-  // is SET, never the key; without it, production refuses every CallRail webhook.
-  const webhookOrigin = (c: any) => String(process.env.FRONTEND_URL || new URL(c.req.url).origin).replace(/\/+$/, '').replace(/^http:\/\//, 'https://')
+  // is SET, never the key; without it, production refuses every CallRail webhook. And call recording (on the numbers Twomiah
+  // sells): on or off, the notice the caller hears first, and how long a recording is kept.
 
   app.get('/settings', requirePermission('integrations:update'), async (c) => {
     const user = c.get('user')
@@ -207,13 +295,34 @@ export function createCalltrackingRoutes(d: CrmDeps) {
     return one(c, {
       callrailSigningKeySet: !!row?.callrailSigningKey,
       callrailWebhookUrl: `${webhookOrigin(c)}/api/calltracking/webhook/callrail/${user.companyId}`,
+      callRecording: !!row?.callRecording,
+      callRecordingNotice: row?.callRecordingNotice || DEFAULT_RECORDING_NOTICE,
+      callRecordingKeepDays: row?.callRecordingKeepDays ?? null,
     })
   })
 
   app.put('/settings', requirePermission('integrations:update'), async (c) => {
     const user = c.get('user')
     const body = (await c.req.json().catch(() => null)) as any
-    if (!body || typeof body !== 'object' || !('callrailSigningKey' in body)) return fail(c, 400, 'Send callrailSigningKey (a string, or null to remove it)')
+    if (!body || typeof body !== 'object') return fail(c, 400, 'Send the settings to change')
+    // Call recording: any of the three, each checked; the rest of the body is the CallRail key, as before.
+    const rec = recordingSchema.safeParse(body)
+    if (!rec.success) return invalid(c, rec.error)
+    const recPatch: Record<string, unknown> = {}
+    if (rec.data.callRecording !== undefined) recPatch.callRecording = rec.data.callRecording
+    if (rec.data.callRecordingNotice !== undefined) recPatch.callRecordingNotice = rec.data.callRecordingNotice?.trim() || null
+    if (rec.data.callRecordingKeepDays !== undefined) recPatch.callRecordingKeepDays = rec.data.callRecordingKeepDays
+    if (Object.keys(recPatch).length) {
+      const before: any = await companyRowFor(user.companyId)
+      await db.update(company).set({ ...recPatch, updatedAt: new Date() } as any).where(eq(company.id, user.companyId))
+      if (recPatch.callRecording !== undefined && !!before?.callRecording !== recPatch.callRecording) {
+        await d.audit.log({ action: 'update', entity: 'company', entityId: user.companyId, metadata: { description: `Call recording turned ${recPatch.callRecording ? 'on' : 'off'}` }, req: c })
+      }
+    }
+    if (!('callrailSigningKey' in body)) {
+      const row: any = await companyRowFor(user.companyId)
+      return one(c, { callrailSigningKeySet: !!row?.callrailSigningKey, callRecording: !!row?.callRecording, callRecordingNotice: row?.callRecordingNotice || DEFAULT_RECORDING_NOTICE, callRecordingKeepDays: row?.callRecordingKeepDays ?? null })
+    }
     const v = body.callrailSigningKey
     let key: string | null = null
     if (v === null || (typeof v === 'string' && v.trim() === '')) key = null
