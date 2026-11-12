@@ -123,3 +123,17 @@ test('the site loads the script only with a website number set and the switch on
   await (t.db as any).update(S().trackingNumber).set({ swapSource: null }).where(eq(S().trackingNumber.companyId, companyId))
   expect(await (await t.call('/about')).text()).not.toContain('number-swap.js')
 })
+
+test('an app with no link to the Twomiah account (the demo) lists the numbers it holds and says none can be bought here — not an error', async () => {
+  const prev = { t: process.env.TENANT_ID, f: process.env.FACTORY_URL }
+  delete process.env.TENANT_ID; delete process.env.FACTORY_URL
+  try {
+    const r = await json(await call('/api/calltracking-lines'))
+    expect(r.status).toBe(200)
+    expect(r.body).toMatchObject({ connected: false, monthlyCents: null, subscribed: false })
+    expect(Array.isArray(r.body.numbers)).toBe(true)
+  } finally {
+    if (prev.t !== undefined) process.env.TENANT_ID = prev.t
+    if (prev.f !== undefined) process.env.FACTORY_URL = prev.f
+  }
+})

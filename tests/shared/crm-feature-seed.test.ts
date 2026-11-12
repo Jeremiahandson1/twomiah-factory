@@ -35,7 +35,7 @@ const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort(
   check('the company starts on exactly the list the Factory gives', same(given.seed, lean), given.seed)
   check('…while the code shipped covers the whole plan, so a feature turned on later works', reg.getFeaturesForPlan('crm-bar', 'starter10').every((id: string) => given.code.includes(id)) && lean.every((id: string) => given.code.includes(id)))
   check('no list given: the template\'s starting default (its whole ready CRM)', same(gen.resolveCrmFeatures('crm-bar', 'starter10', []).seed, lean) && same(gen.resolveCrmFeatures('crm-bar', 'starter10', undefined).seed, lean))
-  check('a not-ready feature never starts on, even when asked for', !gen.resolveCrmFeatures('crm', 'starter10', ['contacts', 'instant_estimator']).seed.includes('instant_estimator'))
+  check('a not-ready feature never starts on, even when asked for', !gen.resolveCrmFeatures('crm', 'starter10', ['contacts', 'ai_call_answering']).seed.includes('ai_call_answering'))
   check('a staff-chosen list is kept as chosen (an extra add-on stays on)', gen.resolveCrmFeatures('crm', 'starter10', ['contacts', 'jobs', 'visualizer']).seed.includes('visualizer'))
 }
 

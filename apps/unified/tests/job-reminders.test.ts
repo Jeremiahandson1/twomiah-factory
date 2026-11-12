@@ -105,13 +105,15 @@ for (const vertical of ['fieldservice', 'basic'] as const) {
         expect(silent.status).toBe(400); expect(Object.keys((await json(silent)).fields)).toEqual(['sms'])
         expect((await json(await owner('/api/job-reminders/settings'))).enabled).toBe(false)
       })
-      test('the feature is not ready: a business without it cannot switch it on from Settings, and without it the door is shut', async () => {
+      test('launched (2026-11-12): without it the door is shut; the owner switches it on from Settings and it opens', async () => {
         await features(['contacts', 'jobs'])
-        const res = await owner('/api/company/features', { method: 'PUT', json: { features: ['contacts', 'jobs', 'job_reminders'] } })
-        expect(res.status).toBe(400)
-        const [co] = await t.db.select().from(t.schema.company).where(eq(t.schema.company.id, companyId))
-        expect(co.enabledFeatures).not.toContain('job_reminders')
         expect((await owner('/api/job-reminders/settings')).status).toBe(403)
+        const res = await owner('/api/company/features', { method: 'PUT', json: { features: ['contacts', 'jobs', 'job_reminders'] } })
+        expect(res.status).toBe(200)
+        const [co] = await t.db.select().from(t.schema.company).where(eq(t.schema.company.id, companyId))
+        expect(co.enabledFeatures).toContain('job_reminders')
+        expect((await owner('/api/job-reminders/settings')).status).toBe(200)
+        await features(['contacts', 'jobs'])
       })
     })
 

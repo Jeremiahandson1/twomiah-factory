@@ -32,10 +32,11 @@ const put = async (features: string[]) => {
 const enabled = async () => ((await db.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, co.id)))[0]?.f || []) as string[]
 
 const base = await enabled()
-const roofReport = await put([...base, 'measurement_reports'])
-check('the roof report cannot be switched on by the owner', roofReport.status === 400, roofReport)
-check('…and the answer names it and says why', roofReport.json?.code === 'feature_not_ready' && roofReport.json?.error === "Measurement Reports isn't ready yet, so it can't be switched on.", roofReport.json)
-check('…and nothing was saved', !(await enabled()).includes('measurement_reports'))
+// Measurement Reports launched 2026-11-12; roofing's not-ready example is now financing on each proposal option.
+const roofReport = await put([...base, 'proposal_financing'])
+check('a not-ready roofing feature cannot be switched on by the owner', roofReport.status === 400, roofReport)
+check('…and the answer names it and says why', roofReport.json?.code === 'feature_not_ready' && roofReport.json?.error === "Financing on each proposal option isn't ready yet, so it can't be switched on.", roofReport.json)
+check('…and nothing was saved', !(await enabled()).includes('proposal_financing'))
 
 const typo = await put([...base, 'not_a_feature'])
 check('an id that is not a feature keeps the "unknown" answer', typo.status === 400 && /Unknown feature ids for this product: not_a_feature/.test(typo.json?.error || ''), typo.json)

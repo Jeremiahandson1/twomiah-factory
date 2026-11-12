@@ -40,6 +40,7 @@ const contractor: VerticalSettings = {
       '/crm/dashboard': '',
       '/crm/contacts': 'Sales',
       '/crm/leads': 'Sales',
+      '/crm/lead-map': 'Sales',
       '/crm/lead-sources': 'Sales',
       '/crm/quotes': 'Sales',
       '/crm/bids': 'Sales',
