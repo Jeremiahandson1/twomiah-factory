@@ -59,7 +59,7 @@ describe('row 18: more repeat patterns', () => {
     try {
       expect((await job('Off daily', nextWeekday(1), { frequency: 'daily', interval: 3, count: 5 })).status).toBe(400)
       expect((await job('Off long', nextWeekday(1), { frequency: 'weekly', count: 60 })).status).toBe(400)
-      expect(FEATURE_REGISTRY.find((f) => f.id === 'job_repeat_patterns')).toMatchObject({ hidden: true, templates: ['crm-landscaping'] })
+      expect(FEATURE_REGISTRY.find((f) => f.id === 'job_repeat_patterns')).toMatchObject({ templates: ['crm-landscaping'] })
     } finally { await features(['job_repeat_patterns']) }
   })
 

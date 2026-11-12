@@ -94,6 +94,6 @@ describe('row 24: the route', () => {
     await setFeatures([])
     try { expect((await auth('/api/territories/boundary?kind=zip&name=54701')).status).toBe(404) } finally { await setFeatures(['territory_boundaries']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'territory_boundaries') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

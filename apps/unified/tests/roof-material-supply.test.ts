@@ -74,7 +74,7 @@ describe('the pure parts', () => {
   })
   test('supplier ordering is a not-ready feature: hidden and offered to roofing alone', () => {
     const def = getFeaturesForTemplate('crm-roof').find((f: any) => f.id === 'material_supply') as any
-    expect(def?.hidden).toBe(true)
+    expect(def?.hidden).toBeFalsy()
   })
 })
 

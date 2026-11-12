@@ -141,7 +141,7 @@ describe('row 18: payouts, and off', () => {
     } finally { await setFeatures(['card_surcharge', 'payments_overview']) }
     for (const id of ['card_surcharge', 'payments_overview']) {
       const f = FEATURE_REGISTRY.find((x: any) => x.id === id) as any
-      expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof', 'crm']]) // the general contractor too (contractor parity row 12)
+      expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof', 'crm']]) // the general contractor too (contractor parity row 12)
     }
   })
 })

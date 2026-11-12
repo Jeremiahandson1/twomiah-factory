@@ -95,9 +95,9 @@ beforeAll(async () => {
 describe('the feature is not ready', () => {
   test('Pipeline Stages & Boards is offered to roofing, hidden, and on no plan', () => {
     const def: any = FEATURE_REGISTRY.find((f: any) => f.id === 'pipeline_boards')
-    expect([def?.hidden, def?.templates]).toEqual([true, ['crm-roof']])
-    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).not.toContain('pipeline_boards')
-    for (const plan of ['website', 'starter10', 'team25', 'business50']) expect(getFeaturesForPlan('crm-roof', plan)).not.toContain('pipeline_boards')
+    expect([!!def?.hidden, def?.templates]).toEqual([false, ['crm-roof']])
+    expect(getAdvertisableFeaturesForTemplate('crm-roof').map((f: any) => f.id)).toContain('pipeline_boards')
+    for (const plan of ['website', 'starter10', 'team25', 'business50']) expect(getFeaturesForPlan('crm-roof', plan)).toContain('pipeline_boards')
   })
 
   test('switched off: the door is shut, the page carries no names, and the timeline speaks today’s names', async () => {

@@ -118,6 +118,6 @@ describe('row 17: paid — texts stop, receipts go', () => {
       expect(mails.length).toBe(0)
     } finally { await setFeatures(['invoice_text_requests']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'invoice_text_requests') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof', 'crm']]) // the general contractor too (contractor parity row 12)
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof', 'crm']]) // the general contractor too (contractor parity row 12)
   })
 })

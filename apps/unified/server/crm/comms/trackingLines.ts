@@ -62,7 +62,16 @@ export function createTrackingLineRoutes(d: CrmDeps, factory: TrackingLinesFacto
   }
 
   app.get('/', requirePermission('calltracking:read'), async (c) => {
-    try { return one(c, await inStep(c.get('user').companyId)) } catch (e: any) { return passOn(c, e) }
+    try { return one(c, { connected: true, ...(await inStep(c.get('user').companyId)) }) } catch (e: any) {
+      // An app with no link to the Factory (the demo, a developer's machine — every business's app has one) is not a fault:
+      // it has the numbers it already holds and cannot buy more here, and the screen says so instead of an error.
+      if (Number(e?.status) === 503 && /not connected to Twomiah yet/.test(String(e?.message))) {
+        const companyId = c.get('user').companyId
+        const numbers = await db.select().from(trackingNumber).where(and(eq(trackingNumber.companyId, companyId), eq(trackingNumber.provider, PROVIDER), eq(trackingNumber.active, true)))
+        return one(c, { connected: false, monthlyCents: null, subscribed: false, numbers })
+      }
+      return passOn(c, e)
+    }
   })
 
   app.post('/', requirePermission('calltracking:create'), async (c) => {

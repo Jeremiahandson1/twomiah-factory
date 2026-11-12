@@ -143,7 +143,7 @@ describe('row 9: before and after photos', () => {
   test('drawing on photos is offered to landscaping, still not ready; off, its door is shut', async () => {
     const f = FEATURE_REGISTRY.find((x) => x.id === 'photo_markup')!
     expect(f.templates).toContain('crm-landscaping')
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     await setFeatures(FEATURES.filter((x) => x !== 'photo_markup'))
     try { expect((await as(crew, '/api/photo-markup/x', { method: 'PUT', json: { shapes: [] } })).status).toBe(403) }
     finally { await setFeatures(FEATURES) }
@@ -256,7 +256,7 @@ describe('rows 11 and 14: the day on a map, and Finish Day', () => {
     try { expect((await as(crew, '/api/crew-day/day')).status).toBe(403) } finally { await setFeatures(FEATURES) }
     for (const id of ['crew_day_map', 'visit_skip', 'visit_materials', 'crew_timers']) {
       const f = FEATURE_REGISTRY.find((x) => x.id === id)!
-      expect([f.hidden, f.templates]).toEqual([true, ['crm-landscaping']])
+      expect([!!f.hidden, f.templates]).toEqual([false, ['crm-landscaping']])
     }
     expect(FEATURE_REGISTRY.find((x) => x.id === 'job_checklists')!.templates).toContain('crm-landscaping')
   })

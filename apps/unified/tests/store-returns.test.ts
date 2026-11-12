@@ -111,9 +111,9 @@ afterAll(() => k.restore())
 describe('offered, never switched on', () => {
   test('registered not ready and offered to the store only; off, the back office says so and the shopper has no returns', async () => {
     const f = FEATURE_MAP.store_returns
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm-store'])
-    expect(getDefaultFeaturesForTemplate('crm-store')).not.toContain('store_returns')
+    expect(getDefaultFeaturesForTemplate('crm-store')).toContain('store_returns')
     await features(['dashboard', 'orders', 'products', 'contacts', 'store_accounts'])
     const off = await k.O('GET', R)
     expect(off.status).toBe(403)

@@ -25,7 +25,7 @@ beforeAll(async () => {
 
 test('photo_folders is registered, not ready, for the job trades whose job page shows the photos', () => {
   const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'photo_folders')
-  expect([f.hidden, f.templates]).toEqual([true, ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping']])
+  expect([!!f.hidden, f.templates]).toEqual([false, ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping']])
 })
 
 test('a photo is moved into a folder, to another, and out of one', async () => {

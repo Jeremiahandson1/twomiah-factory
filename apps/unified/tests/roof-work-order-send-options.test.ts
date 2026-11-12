@@ -92,7 +92,7 @@ describe('row 27', () => {
       expect((await auth(`/api/work-orders/${o.id}/options`, { method: 'PUT', json: { language: 'es' } })).status).toBe(404)
     } finally { await setFeatures(['work_order_send_options']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'work_order_send_options') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
     if (saved.FRONTEND_URL === undefined) delete process.env.FRONTEND_URL; else process.env.FRONTEND_URL = saved.FRONTEND_URL
   })
 })

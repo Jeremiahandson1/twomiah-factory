@@ -18,7 +18,8 @@ export default function TrackingLines() {
   const { can } = usePermissions()
   const mayBuy = can('calltracking:create')
   const mayRelease = can('calltracking:update')
-  const [data, setData] = useState<{ monthlyCents: number; subscribed: boolean; numbers: Line[] } | null>(null)
+  /** connected: false — this app has no link to the Twomiah account (the demo): numbers are listed, none can be bought here. */
+  const [data, setData] = useState<{ connected?: boolean; monthlyCents: number | null; subscribed: boolean; numbers: Line[] } | null>(null)
   const [failed, setFailed] = useState('')
   const [form, setForm] = useState({ label: '', forwardTo: '', areaCode: '' })
   const [busy, setBusy] = useState(false)
@@ -55,7 +56,7 @@ export default function TrackingLines() {
         <h2 className="font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2"><Phone className="w-4 h-4" />Tracking numbers from us</h2>
         <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">
           A local number for each place you advertise — every call rings your own phone, and shows here with where it came from. No CallRail account needed.
-          {data ? ` ${money(data.monthlyCents / 100)} a month a number; the calls at cost from your texting wallet (about 2¢ a minute).` : ''}
+          {data && data.monthlyCents != null ? ` ${money(data.monthlyCents / 100)} a month a number; the calls at cost from your texting wallet (about 2¢ a minute).` : ''}
         </p>
       </div>
       {failed && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{failed}</p>}
@@ -70,7 +71,10 @@ export default function TrackingLines() {
           ))}
         </ul>
       )}
-      {data && mayBuy && (
+      {data && data.connected === false && (
+        <p className="text-sm text-gray-600 dark:text-slate-400">Numbers are bought through your Twomiah account, so they can't be bought from here.</p>
+      )}
+      {data && data.connected !== false && mayBuy && (
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-sm text-gray-800 dark:text-slate-200">What it's for
             <input className={input} value={form.label} maxLength={60} placeholder="Google Ads" onChange={(e) => { const label = e.target.value; setForm((f) => ({ ...f, label })) }} />
@@ -83,7 +87,7 @@ export default function TrackingLines() {
           </label>
           <div className="sm:col-span-3">
             <button type="button" disabled={busy} onClick={buy} className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60">
-              {busy && <Loader2 className="w-4 h-4 animate-spin" />}{data.subscribed ? 'Get a number' : `Get a number — ${money(data.monthlyCents / 100)} a month`}
+              {busy && <Loader2 className="w-4 h-4 animate-spin" />}{data.subscribed || data.monthlyCents == null ? 'Get a number' : `Get a number — ${money(data.monthlyCents / 100)} a month`}
             </button>
           </div>
         </div>

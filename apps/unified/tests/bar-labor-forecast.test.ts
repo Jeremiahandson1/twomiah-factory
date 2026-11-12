@@ -110,7 +110,7 @@ describe('the week\'s forecast on the real server', () => {
 
   test('the feature id is registered hidden; the forecast is closed until it is on and for anyone without bar:update', async () => {
     const f = (FEATURE_MAP as any)['bar_labor_forecast'] || (FEATURE_MAP as any).get?.('bar_labor_forecast')
-    expect(f).toBeTruthy(); expect(f.hidden).toBe(true)
+    expect(f).toBeTruthy(); expect(f.hidden).toBeFalsy()
     expect((await k.M('GET', `/api/schedule/labor-forecast?day=${FRI}`)).status).toBe(403)
     await k.features([...ON, 'bar_labor_forecast'])
     expect((await k.B('GET', `/api/schedule/labor-forecast?day=${FRI}`)).status).toBe(403)

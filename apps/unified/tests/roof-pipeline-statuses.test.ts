@@ -84,6 +84,6 @@ describe('row 20', () => {
     await setFeatures(['pipeline_custom_boards'])
     try { expect((await as(owner, '/api/roof-pipeline/statuses')).status).toBe(404) } finally { await setFeatures(['pipeline_statuses']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'pipeline_statuses') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

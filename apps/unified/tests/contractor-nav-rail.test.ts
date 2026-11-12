@@ -64,6 +64,6 @@ describe('row 8: the rail', () => {
     expect(html).not.toContain('nav-rail-toggle')
     expect(html).toContain('lg:ml-64')
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'nav_rail') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 })

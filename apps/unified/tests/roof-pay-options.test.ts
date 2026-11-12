@@ -109,6 +109,6 @@ describe('row 16: pay from the estimate', () => {
     } finally { await setFeatures(['portal_pay_options']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'portal_pay_options') as any
     // Opened to the general contractor's CRM too (contractor parity row 12, crm/billing/paymentTools.ts).
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof', 'crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof', 'crm']])
   })
 })

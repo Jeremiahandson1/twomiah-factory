@@ -5,6 +5,9 @@ export function canonicalKey(method: string, pathname: string, params: URLSearch
   const entries: Array<[string, string]> = []
   if (params instanceof URLSearchParams) params.forEach((v, k) => entries.push([k, v]))
   else for (const [k, v] of Object.entries(params)) if (v !== undefined) entries.push([k, v])
+  // A value that is a list of record ids (?ids=a,b,c) names the same records in any order: sorted, so a screen's own order
+  // and the recorder's always meet.
+  for (const e of entries) { const parts = e[1].split(','); if (parts.length > 1 && parts.every((x) => looksLikeId(x))) e[1] = [...parts].sort().join(',') }
   entries.sort(([a, av], [b, bv]) => (a === b ? av.localeCompare(bv) : a.localeCompare(b)))
   const q = entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
   const path = pathname.replace(/\/+$/, '') || '/'

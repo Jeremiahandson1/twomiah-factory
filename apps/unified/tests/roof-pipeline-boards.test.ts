@@ -83,6 +83,6 @@ describe('row 19: boards', () => {
     // Boards on, stage names off: the names route stays shut.
     expect((await as(owner, '/api/roof-pipeline')).status).toBe(404)
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'pipeline_custom_boards') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

@@ -32,7 +32,7 @@ const LINES = [
 describe('formula estimating', () => {
   test('is registered, not ready, and the general contractor’s', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'quote_formulas')
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 
   test('a quote’s lines are worked out from the project’s parameters and the quote’s own, and kept as formulas', async () => {

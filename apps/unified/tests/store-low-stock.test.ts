@@ -44,7 +44,7 @@ beforeAll(async () => {
 describe('low-stock alerts', () => {
   test('are registered not ready: offered to the store, switched on by no plan', () => {
     const f = FEATURE_MAP.store_low_stock
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm-store'])
   })
 

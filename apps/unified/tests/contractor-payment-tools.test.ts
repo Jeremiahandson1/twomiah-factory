@@ -21,7 +21,7 @@ describe('payment tools for the contractor', () => {
   test('the four switches are offered to the contractor CRM as well as roofing, and none is ready', () => {
     for (const id of ['card_surcharge', 'payments_overview', 'invoice_text_requests', 'portal_pay_options']) {
       const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
-      expect([id, f?.hidden, f?.templates]).toEqual([id, true, ['crm-roof', 'crm']])
+      expect([id, !!f?.hidden, f?.templates]).toEqual([id, false, ['crm-roof', 'crm']])
     }
   })
 

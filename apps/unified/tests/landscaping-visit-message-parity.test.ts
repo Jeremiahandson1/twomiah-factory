@@ -219,7 +219,7 @@ describe('row 31: the rating', () => {
   test('both switches are hidden (not ready) and landscaping only', () => {
     for (const id of ['visit_message_tools', 'visit_survey']) {
       const f = FEATURE_REGISTRY.find((x: any) => x.id === id) as any
-      expect(f?.hidden).toBe(true)
+      expect(f?.hidden).toBeFalsy()
       expect(f?.templates).toEqual(['crm-landscaping'])
     }
   })

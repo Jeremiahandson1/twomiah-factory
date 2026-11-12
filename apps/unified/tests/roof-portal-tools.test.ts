@@ -110,6 +110,6 @@ describe('row 21', () => {
     await setFeatures([])
     try { expect((await auth('/api/job-files/settings', { method: 'PUT', json: { closeOnCollected: false } })).status).toBeGreaterThanOrEqual(403) } finally { await setFeatures(['portal_tools']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'portal_tools') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

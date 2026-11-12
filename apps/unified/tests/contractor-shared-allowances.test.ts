@@ -44,7 +44,7 @@ describe('the arithmetic', () => {
 describe('shared allowances', () => {
   test('is registered, not ready, and the general contractor’s', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'shared_allowances')
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 
   test('one allowance over three selections: no charge while under, the overage raised and linked when the last goes over', async () => {

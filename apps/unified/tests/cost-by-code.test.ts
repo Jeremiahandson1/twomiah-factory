@@ -15,7 +15,7 @@ describe('the feature', () => {
   test('is registered, not ready, and offered to the general contractor only', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'cost_by_code')
     expect(f).toBeTruthy()
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm'])
   })
 })

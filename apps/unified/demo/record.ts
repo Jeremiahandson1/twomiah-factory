@@ -28,7 +28,20 @@ const LISTS: Record<string, string> = {
   // Roofing (11/05): a job's books and a job's insurance claim are asked for by the JOB's id (/crm/jobs/:id, its Insurance tab).
   // An exact address (with its :id) wins over its prefix: the claim is the job's, its activity and supplements are the claim's.
   '/api/job-books': '/api/jobs', '/api/insurance/claims/:id': '/api/jobs',
+  // Store (11/12, stock by location launched): an order's location panel is asked for by the ORDER's id.
+  '/api/admin/stock-locations/orders': '/api/admin/orders',
+  // Launched 11/12: a project's client portal, figures and details; a contact's credit; an invoice's plan and text
+  // requests; a quote's formula parameters.
+  '/api/client-portal': '/api/projects', '/api/project-details': '/api/projects', '/api/customer-credit': '/api/contacts',
+  '/api/invoice-payments': '/api/invoices', '/api/invoice-requests': '/api/invoices',
+  // A quote's formula parameters are its PROJECT's (QuotesPage asks /api/project-parameters/<form.projectId>); the storm map's
+  // events are the storm list's.
+  '/api/project-parameters': '/api/projects', '/api/storm-map/events': '/api/storms/events',
 }
+/** ?<name>=:id where the name does not say the list (spaceId is an event space). */
+const QUERY_LISTS: Record<string, string> = { spaceId: '/api/event-spaces' }
+/** ?<name>=:ids — every row of a list, comma-separated (the key sorts them: web/demo/keys.ts). */
+const IDS_LISTS: Record<string, string> = { '/api/project-details/list/figures': '/api/projects', '/api/project-baselines/latest/plans': '/api/projects' }
 /**
  * Addresses whose :id is a record that has NO list, only answers already recorded: the rows are those answers' bodies. A
  * roofing claim is reached through its job (/api/insurance/claims/<job id>, above), so its activity and supplements are asked
@@ -36,6 +49,7 @@ const LISTS: Record<string, string> = {
  */
 const FROM_ANSWERS: Record<string, string> = {
   '/api/insurance/claims/:id/activity': '/api/insurance/claims/', '/api/insurance/claims/:id/supplements': '/api/insurance/claims/',
+  '/api/insurance-extras/claims/:id/depreciation': '/api/insurance/claims/',
 }
 /** Rows asked for by id, per list: enough that any row a visitor opens is real. */
 const MAX_DETAILS = 40
@@ -116,7 +130,7 @@ export async function recordKit(kit: Kit, manifest: RouteManifest): Promise<Demo
   await ask('/api/auth/me')
   const hasPathId = (r: string) => r.split('?')[0].split('/').includes(':id')
   const hasQueryId = (r: string) => (r.split('?')[1] ?? '').split('&').some((kv) => kv.endsWith('=:id'))
-  const direct = manifest.routes.filter((r) => !hasPathId(r) && !hasQueryId(r))
+  const direct = manifest.routes.filter((r) => !hasPathId(r) && !hasQueryId(r) && !/=:ids(&|$)/.test(r))
   for (const address of direct) await ask(address)
 
   /** The widest recorded answer of a list, or one asked for now. */
@@ -131,7 +145,9 @@ export async function recordKit(kit: Kit, manifest: RouteManifest): Promise<Demo
   // (/api/jobs/:id → /api/jobs); where the part before it is a feature and not the thing (/api/comments/job/:id, a job's
   // comments), the thing is named by the last word, or by LISTS below when the word does not say.
   const plural = (name: string) => (name.endsWith('s') ? name : name.endsWith('y') ? `${name.slice(0, -1)}ies` : `${name}s`)
-  for (const template of manifest.routes.filter(hasPathId)) {
+  // Addresses whose rows come from answers already recorded (FROM_ANSWERS) go last, whatever their name sorts as: a claim's
+  // depreciation (/api/insurance-extras/…) sorts before the claims (/api/insurance/…) it is read from.
+  for (const template of [...manifest.routes.filter(hasPathId)].sort((a, b) => Number(!!FROM_ANSWERS[a.split('?')[0]]) - Number(!!FROM_ANSWERS[b.split('?')[0]]))) {
     const [p, q] = template.split('?')
     const segs = p.split('/')
     const first = segs.indexOf(':id')
@@ -160,9 +176,17 @@ export async function recordKit(kit: Kit, manifest: RouteManifest): Promise<Demo
     const params = q.split('&')
     const slot = params.findIndex((kv) => kv.endsWith('=:id'))
     if (params.filter((kv) => kv.endsWith('=:id')).length > 1) continue
-    const name = params[slot].slice(0, -4).replace(/Id$/, '')
+    const key = params[slot].slice(0, -4)
+    const name = key.replace(/Id$/, '')
     const plural = name.endsWith('y') ? `${name.slice(0, -1)}ies` : `${name}s`
-    for (const row of await rowsOfList(`/api/${plural}`)) await ask(`${p}?${params.map((kv, i) => (i === slot ? `${kv.slice(0, -3)}${row.id}` : kv)).join('&')}`)
+    for (const row of await rowsOfList(QUERY_LISTS[key] ?? `/api/${plural}`)) await ask(`${p}?${params.map((kv, i) => (i === slot ? `${kv.slice(0, -3)}${row.id}` : kv)).join('&')}`)
+  }
+
+  // Addresses with a list of ids in the query (?ids=:ids): asked once with every row of the list they name.
+  for (const template of manifest.routes.filter((r) => /=:ids(&|$)/.test(r))) {
+    const [p, q] = template.split('?')
+    const rows = IDS_LISTS[p] ? await rowsOfList(IDS_LISTS[p]) : []
+    if (rows.length) await ask(`${p}?${q.split('&').map((kv) => (kv.endsWith('=:ids') ? `${kv.slice(0, -4)}${rows.map((r) => String(r.id)).join(',')}` : kv)).join('&')}`)
   }
 
   // POSTs the screens make to read: asked with the body they sent (its dates moved to today), answered under the path alone.

@@ -44,7 +44,7 @@ beforeAll(async () => {
 describe('contractor phone', () => {
   test('is registered, not ready, and the general contractor’s', () => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'contractor_phone')
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm']])
   })
 
   test('today’s daily log: the spec’s request twice is one log, the second send writing over the first', async () => {

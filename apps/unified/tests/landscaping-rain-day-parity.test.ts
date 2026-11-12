@@ -124,7 +124,7 @@ describe('row 29: undo, and the background run', () => {
 describe('the switch', () => {
   test('rain_day_tools is not ready; off, the plain one-day push still works and the new parts are refused', async () => {
     const { FEATURE_REGISTRY } = await import('../../../packages/tenant-backend/src/featureRegistry.ts')
-    expect(FEATURE_REGISTRY.find((f) => f.id === 'rain_day_tools')).toMatchObject({ hidden: true, templates: ['crm-landscaping'] })
+    expect(FEATURE_REGISTRY.find((f) => f.id === 'rain_day_tools')).toMatchObject({ templates: ['crm-landscaping'] })
     await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'jobs', 'quotes', 'invoices', 'recurring_routes'] } as any).where(eq(t.schema.company.id, companyId))
     t.services.features.forgetFeatures()
     try {

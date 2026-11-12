@@ -10,17 +10,17 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 
 | Trade | Desktop items | Phone has today | A | B | C | D |
 |---|---:|---:|---:|---:|---:|---:|
-| Contractor | 67 | 18 | 12 | 9 | 25 | 21 |
-| Basic (general service business) | 48 | 17 | 12 | 3 | 17 | 16 |
-| Field service | 50 | 17 | 12 | 4 | 17 | 17 |
-| Landscaping | 55 | 18 | 13 | 4 | 21 | 17 |
-| Roofing | 34 | 13 | 11 | 3 | 7 | 13 |
-| Home care | 67 | 9 | 13 | 1 | 25 | 28 |
+| Contractor | 69 | 18 | 12 | 9 | 27 | 21 |
+| Basic (general service business) | 55 | 17 | 12 | 3 | 20 | 20 |
+| Field service | 57 | 17 | 12 | 4 | 20 | 21 |
+| Landscaping | 61 | 18 | 13 | 4 | 26 | 18 |
+| Roofing | 44 | 13 | 11 | 3 | 13 | 17 |
+| Home care | 86 | 9 | 13 | 1 | 44 | 28 |
 | RV / powersports dealership | 45 | 14 | 10 | 1 | 21 | 13 |
-| Salon / barber / spa | 36 | 13 | 7 | 5 | 10 | 14 |
-| Restaurant / caterer / event venue | 40 | 12 | 9 | 5 | 9 | 17 |
-| Bar / tavern | 45 | 13 | 10 | 8 | 7 | 20 |
-| Online store | 31 | 6 | 6 | 2 | 5 | 18 |
+| Salon / barber / spa | 42 | 13 | 7 | 5 | 16 | 14 |
+| Restaurant / caterer / event venue | 44 | 12 | 9 | 5 | 13 | 17 |
+| Bar / tavern | 49 | 13 | 10 | 8 | 11 | 20 |
+| Online store | 40 | 7 | 6 | 2 | 14 | 18 |
 | Veterinary practice | 34 | 0 | 8 | 4 | 9 | 13 |
 
 ## Contractor (`contractor`, feature set `crm`)
@@ -42,6 +42,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | — | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Sales | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Sales | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
+| Sales | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 | Sales | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Sales | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Sales | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
@@ -69,6 +70,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Projects | Daily Logs | `/crm/daily-logs` | — | daily_logs (on by default) | all | none | B — projects, bids and the price book |
 | Projects | Inspections | `/crm/inspections` | — | inspections (on by default) | all | Inspections on the job (Jobs › job › Inspections, with Inspections on the Phone on): answer the checklist Pass / Fail / Not applicable with a note and photos, and the customer signs; booking a visit, its result and the saved checklists stay on the desktop | B — projects, bids and the price book |
 | Projects | Gantt Chart | `/crm/gantt` | — | gantt_charts (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
+| Projects | Card payments | `/crm/card-payments` | invoices:read | payments_overview, card_surcharge, invoice_tips (on by default) | owner, admin, manager, viewer | none | C |
 | Field | Field View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Field | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Field | Time | `/crm/time` | — | time_tracking (on by default) | all | Hours (More): waiting approval / all + approve | A — time clock |
@@ -126,6 +128,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
+| Business | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
@@ -152,9 +155,15 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page | B — projects, bids and the price book |
+| Business | Marketing ROI | `/crm/marketing-roi` | reports:read | marketing_roi (on by default) | owner, admin, manager | none | C |
 | Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
+| Business | Team Revenue | `/crm/team-revenue` | reports:read | team_revenue_reports (on by default) | owner, admin, manager | none | D — wide comparison tables for the owner at a desk; the phone has the Reports summary |
+| Business | Plan Reports | `/crm/plan-reports` | reports:read | plan_reports (on by default) | owner, admin, manager | none | D — wide comparison tables for the owner at a desk; the phone has the Reports summary |
+| Business | Client Communications | `/crm/client-communications` | reports:read | job_reminders (on by default) | owner, admin, manager | none | C |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Field Service | Hours & Time Off | `/crm/availability` | jobs:dispatch | tech_availability (on by default) | owner, admin, manager | none | D — setting each tech's weekly hours and time off is office set-up done at a desk |
+| Field Service | Job Checklists | `/crm/checklists` | settings:update | job_checklists (on by default) | owner, admin | none | D — building the checklists per kind of job is office set-up done at a desk; the tech fills them in on the job screen |
 | Field Service | Dispatch Board | `/crm/dispatch` | jobs:read | dispatch_board (on by default) | all | none | A — the day's work |
 | Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
 | Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
@@ -191,6 +200,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
+| Business | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 | Business | Service Calls | `/crm/jobs` | jobs:read | jobs (on by default) | all | Service Calls tab + job detail + form | A — the day's work |
 | Business | Tech View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
@@ -218,9 +228,15 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page | B — projects, bids and the price book |
+| Business | Marketing ROI | `/crm/marketing-roi` | reports:read | marketing_roi (on by default) | owner, admin, manager | none | C |
 | Business | Service Call Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
+| Business | Team Revenue | `/crm/team-revenue` | reports:read | team_revenue_reports (on by default) | owner, admin, manager | none | D — wide comparison tables for the owner at a desk; the phone has the Reports summary |
+| Business | Plan Reports | `/crm/plan-reports` | reports:read | plan_reports (on by default) | owner, admin, manager | none | D — wide comparison tables for the owner at a desk; the phone has the Reports summary |
+| Business | Client Communications | `/crm/client-communications` | reports:read | job_reminders (on by default) | owner, admin, manager | none | C |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Field Service | Hours & Time Off | `/crm/availability` | jobs:dispatch | tech_availability (on by default) | owner, admin, manager | none | D — setting each tech's weekly hours and time off is office set-up done at a desk |
+| Field Service | Job Checklists | `/crm/checklists` | settings:update | job_checklists (on by default) | owner, admin | none | D — building the checklists per kind of job is office set-up done at a desk; the tech fills them in on the job screen |
 | Field Service | Dispatch Board | `/crm/dispatch` | jobs:read | dispatch_board (on by default) | all | none | A — the day's work |
 | Field Service | Flat Rate Pricebook | `/crm/pricebook-rates` | — | flat_rate_pricebook (on by default) | all | none | B — projects, bids and the price book |
 | Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
@@ -258,6 +274,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
+| Business | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Business | Crew View | `/crm/tech` | — | tech_mobile_view (on by default) | all | none | D — this IS the phone-sized field view; the app replaces it |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
@@ -285,9 +302,11 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Business | Recurring Invoices | `/crm/recurring` | invoices:read | recurring_jobs (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager, staff | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Business | Reports | `/crm/reports` | reports:read | reports (on by default) | owner, admin, manager | Reports summary (More): owed now, today, last 7 days; the full reports open on the desktop page | B — projects, bids and the price book |
+| Business | Marketing ROI | `/crm/marketing-roi` | reports:read | marketing_roi (on by default) | owner, admin, manager | none | C |
 | Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Business | Support | `/crm/support` | — | support_tickets (on by default) | all | none | C |
+| Operations | Job Checklists | `/crm/checklists` | settings:update | job_checklists (on by default) | owner, admin | none | D — building the checklists per kind of job is office set-up done at a desk; the tech fills them in on the job screen |
 | Operations | Dispatch Board | `/crm/dispatch` | jobs:read | dispatch_board (on by default) | all | none | A — the day's work |
 | Operations | Maintenance Contracts | `/crm/maintenance` | — | maintenance_contracts (on by default) | all | none | C |
 | Operations | Parts & Materials | `/crm/parts` | — | parts_tracking (on by default) | all | none | C |
@@ -307,6 +326,9 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Landscaping | Route Board | `/crm/recurring-routes` | jobs:read | recurring_routes (on by default) | all | Today's route (the crew's visits in stop order, Start / Finish, note and after-photo for the customer, directions) and Log snow visit (the storm stops: pushes, snowfall, salt, hours, note); the Route Board itself — building routes, ordering stops, billing — stays on the desktop | A — the day's work |
 | Landscaping | Area Pricing | `/crm/area-pricing` | quotes:read | area_pricing (on by default) | owner, admin, manager, viewer | none | C |
 | Landscaping | Snow Billing | `/crm/snow-billing` | invoices:read | snow_billing (on by default) | owner, admin, manager, viewer | none | C |
+| Landscaping | Visit messages | `/crm/visit-messages` | jobs:read | visit_message_tools (on by default) | all | none | C |
+| Landscaping | Budget | `/crm/budget` | margin:read | company_budget (on by default) | owner, admin, manager | none | C |
+| Landscaping | Plan Takeoffs | `/crm/plan-takeoffs` | quotes:read | plan_takeoffs (on by default) | owner, admin, manager, viewer | none | C |
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Account | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Account | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -317,11 +339,11 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 
 Roofing's home is the pipeline board (a column per stage, a count on each), not a tile grid. Needs jobs:read.
 
-- **owner** (10): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
-- **admin** (10): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
-- **manager** (10): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
-- **staff** (10): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
-- **viewer** (10): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
+- **owner** (11): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: measurement ordered; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
+- **admin** (11): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: measurement ordered; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
+- **manager** (11): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: measurement ordered; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
+- **staff** (11): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: measurement ordered; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
+- **viewer** (11): Stage: lead; Stage: inspection scheduled; Stage: inspected; Stage: measurement ordered; Stage: proposal sent; Stage: signed; Stage: material ordered; Stage: in production; Stage: final inspection; Stage: invoiced; Stage: collected
 
 ### Menu
 
@@ -329,14 +351,19 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 |---|---|---|---|---|---|---|---|
 | Business | Pipeline | `/crm/pipeline` | jobs:read | jobs (on by default) | all | Pipeline board (a column per stage), a row in More; the stages are also on the Home tab | A — the home screen |
 | Business | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
+| Business | Permits | `/crm/permits` | jobs:read | roof_permits (on by default) | all | none | C |
 | Business | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Business | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
+| Business | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 | Business | Storm Leads | `/crm/storm-leads` | — | storm_lead_gen (on by default) | all | none | C |
 | Business | Crews | `/crm/crews` | — | crews (on by default) | all | none | C |
+| Business | Measurements | `/crm/measurements` | — | measurement_reports (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Business | Materials | `/crm/materials` | — | materials (on by default) | all | none | C |
 | Business | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes list (More, or the Pending quotes tile) + quote detail + form | A — quote on site, take payment on site |
 | Business | Invoices | `/crm/invoices` | invoices:read | invoices (on by default) | owner, admin, manager, viewer | Invoices list (More, or the Open invoices tile) + invoice detail: Record payment, Send invoice | A — quote on site, take payment on site |
+| Business | Card payments | `/crm/card-payments` | invoices:read | payments_overview, card_surcharge (on by default) | owner, admin, manager, viewer | none | C |
 | Business | Adjusters | `/crm/adjusters` | — | insurance_workflow (on by default) | all | none | C |
+| Business | Insurance follow-ups | `/crm/insurance-follow-ups` | insurance:read | insurance_extras (on by default) | owner, admin, manager | none | C |
 | Business | Schedule | `/crm/schedule` | — | scheduling (on by default) | all | Schedule (More): the day's jobs, read only | A — the day's work |
 | Business | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Business | Commissions | `/crm/commissions` | — | commission_tracking (on by default) | all | none | C |
@@ -351,6 +378,11 @@ Roofing's home is the pipeline board (a column per stage, a count on each), not 
 | Business | Job Costing | `/crm/job-costing` | reports:read | job_costing (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
 | Business | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Roofing | Canvassing | `/crm/canvassing` | — | canvassing_tool (on by default) | all | Canvass tab (door-to-door) | A — door-to-door, already on the phone |
+| Roofing | Territories | `/crm/territories` | — | canvass_territories (on by default) | all | none | C |
+| Roofing | Storm Radar | `/crm/storm-radar` | — | storm_radar_overlay (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
+| Roofing | Storm Map | `/crm/storm-map` | storms:read | storm_customer_map (on by default) | owner, admin, manager | none | C |
+| Roofing | Roof Estimator | `/crm/estimator` | — | instant_estimator (off by default (add-on or opt-in)) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
+| Roofing | Roof Reports | `/crm/roof-reports` | — | measurement_reports (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Website | Website | `/crm/website` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
 | Website | Pages | `/crm/website/pages` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
 | Website | Photos | `/crm/website/photos` | site:read | — (core) | owner, admin, manager | none | D — building the public website is a desk job |
@@ -395,6 +427,9 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Operations | Clients | `/crm/clients` | care-clients:update or care-office:read | — (core) | owner, admin, manager, viewer | My clients (More) + client detail — the caregiver's own clients | A — who the work is for |
 | Operations | Onboarding | `/crm/client-onboarding` | care-clients:update | — (core) | owner, admin, manager | none | C |
 | Operations | Client Documents | `/crm/client-documents` | care-clients:update | — (core) | owner, admin, manager | none | C |
+| Operations | Supervisory visits | `/crm/supervisory-visits` | care-clients:update | care_supervisory_visits (on by default) | owner, admin, manager | none | C |
+| Operations | Import from a spreadsheet | `/crm/data-import` | care-clients:create or care-hr:create or care-schedule:create or care-billing:create or care-payroll:create | care_import (on by default) | owner, admin, manager | none | C |
+| Operations | Assisted migration | `/crm/migration` | care-clients:create | care_migration (on by default) | owner, admin, manager | none | C |
 | Operations | Referral Sources | `/crm/referral-sources` | care-clients:update | — (core) | owner, admin, manager | none | C |
 | Operations | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | owner, admin, manager | none | A — who the work is for |
 | Operations | Care Plans | `/crm/care-plans` | care-clients:update | — (core) | owner, admin, manager | none | C |
@@ -404,17 +439,23 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Scheduling | No-Show Alerts | `/crm/no-show-alerts` | care-schedule:update | — (core) | owner, admin, manager | none | A — home care visits and shifts |
 | Scheduling | Shift Approvals | `/crm/shift-approvals` | evv:delete | — (core) | owner, admin, manager | none | C |
 | Scheduling | Route Optimizer | `/crm/route-optimizer` | care-schedule:update | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
+| Scheduling | Pickup bonus & rewards | `/crm/pickup-rewards` | care-schedule:update | care_pickup_rewards (on by default) | owner, admin, manager | none | C |
+| Scheduling | Open shift offers | `/crm/open-shift-offers` | care-schedule:update | care_open_shift_offers (on by default) | owner, admin, manager | none | C |
 | Scheduling | Company Optimizer | `/crm/company-optimizer` | care-schedule:update | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
+| Scheduling | Visit optimizer | `/crm/visit-optimizer` | care-schedule:update | care_visit_optimizer (on by default) | owner, admin, manager | none | C |
 | Daily care | ADL Tracking | `/crm/adl` | care-clients:update | — (core) | owner, admin, manager | none | C |
 | Daily care | Medicine list & dose log | `/crm/medications` | care-clients:update | — (core) | owner, admin, manager | none | C |
 | Daily care | Visit Documentation | `/crm/visit-docs` | evv:delete | — (core) | owner, admin, manager | none | A — home care visits and shifts |
 | Daily care | Incidents | `/crm/incidents` | care-compliance:read | — (core) | owner, admin, manager | Report an incident (More) | C |
 | Daily care | Form Builder | `/crm/form-builder` | care-clients:update | — (core) | owner, admin, manager | none | D — account and set-up administration |
+| Daily care | In-visit items | `/crm/visit-items` | care-clients:update | care_visit_items (on by default) | owner, admin, manager | none | C |
+| Daily care | Visit tasks & signatures | `/crm/visit-tasks` | care-clients:update | care_required_tasks, care_visit_signature (on by default) | owner, admin, manager | none | C |
 | Caregivers | Caregivers | `/crm/caregivers` | care-hr:read or care-office:read | — (core) | owner, admin, manager, viewer | none | C |
 | Caregivers | Performance | `/crm/performance` | care-hr:read | — (core) | owner, admin | none | C |
 | Caregivers | Job Applications | `/crm/applications` | care-hr:read | — (core) | owner, admin | none | C |
 | Caregivers | Job Postings | `/crm/job-postings` | care-hr:read | — (core) | owner, admin | none | C |
 | Caregivers | Onboarding Queue | `/crm/onboarding-packets` | care-hr:read | — (core) | owner, admin | none | C |
+| Caregivers | Caregiver satisfaction & retention | `/crm/caregiver-retention` | care-hr:read | care_caregiver_surveys (on by default) | owner, admin | none | C |
 | Financial | Billing | `/crm/billing` | care-billing:read | — (core) | owner, admin, manager | none | C |
 | Financial | Invoice Import | `/crm/billing-import` | care-billing:create | — (core) | owner, admin | none | D — bulk billing, payroll and optimiser runs need a full-size table |
 | Financial | Portal Claim Days | `/crm/portal-claim-days` | care-billing:read | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
@@ -424,10 +465,19 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Financial | Authorizations | `/crm/authorizations` | care-billing:read | — (core) | owner, admin, manager | none | D — bulk billing, payroll and optimiser runs need a full-size table |
 | Financial | Client Hours by Week | `/crm/client-week` | care-billing:read | — (core) | owner, admin, manager | none | C |
 | Financial | Payroll | `/crm/payroll` | care-payroll:update | — (core) | owner, admin | none | D — bulk billing, payroll and optimiser runs need a full-size table |
+| Financial | Pay rules | `/crm/pay-rules` | care-payroll:read | care_payroll_rules (on by default) | owner, admin | none | C |
+| Financial | Automatic payments | `/crm/autopay` | care-billing:read | care_autopay (on by default) | owner, admin, manager | none | C |
+| Financial | Long-term care insurance | `/crm/ltc-billing` | care-billing:read | care_ltc_billing (on by default) | owner, admin, manager | none | C |
+| Financial | Split billing | `/crm/split-billing` | care-billing:read | care_split_billing (on by default) | owner, admin, manager | none | C |
+| Financial | Billing contacts | `/crm/billing-contacts` | care-billing:read | care_billing_contacts (on by default) | owner, admin, manager | none | C |
 | Financial | Expenses | `/crm/expenses` | care-payroll:update | — (core) | owner, admin | none | C |
 | Financial | Reports & Analytics | `/crm/reports` | care-billing:read | reports (on by default) | owner, admin, manager | none | B — projects, bids and the price book |
+| Financial | Margin & turnover | `/crm/margin-reports` | care-billing:read | care_margin_reports (on by default) | owner, admin, manager | none | C |
+| Financial | Reports & dashboards | `/crm/report-builder` | care-billing:read | care_report_builder (on by default) | owner, admin, manager | none | C |
 | Financial | Revenue Forecast | `/crm/revenue-forecast` | care-billing:read | — (core) | owner, admin, manager | none | C |
 | Compliance | Compliance | `/crm/compliance` | care-hr:read | — (core) | owner, admin | none | C |
+| Compliance | Credentials | `/crm/credentials` | care-hr:read | care_cert_reminders (on by default) | owner, admin | none | C |
+| Compliance | Clock-in questions | `/crm/visit-questions` | care-clients:update | care_visit_questions (on by default) | owner, admin, manager | none | C |
 | Compliance | EVV Dashboard | `/crm/evv` | evv:delete or care-office:read | — (core) | owner, admin, manager, viewer | none | A — home care visits and shifts |
 | Compliance | Background Checks | `/crm/background-checks` | care-hr:read | — (core) | owner, admin | none | C |
 | Compliance | Documents | `/crm/documents` | care-clients:update | documents (on by default) | owner, admin, manager | Documents to sign (More) | C |
@@ -436,6 +486,7 @@ A caregiver (staff) gets a day view (CaregiverDashboard: Home, Schedule, Clients
 | Communication | Communication Log | `/crm/communication-log` | care-portal:update | — (core) | owner, admin, manager | none | C |
 | Communication | SMS | `/crm/sms` | care-portal:update | two_way_texting (on by default) | owner, admin, manager | none | C |
 | Communication | Family Portal | `/crm/family-portal` | care-portal:update | — (core) | owner, admin, manager | none | C |
+| Communication | Family messages | `/crm/family-messages` | care-portal:update | care_family_comms (on by default) | owner, admin, manager | none | C |
 | Communication | Alerts | `/crm/alerts` | care-compliance:read | — (core) | owner, admin, manager | none | C |
 | Communication | Messages | `/crm/messages` | care-portal:update | — (core) | owner, admin, manager | Messages tab + thread + compose | A — texting customers |
 | Communication | Integrations Hub | `/crm/integrations` | evv:delete | — (core) | owner, admin, manager | none | D — account and set-up administration |
@@ -568,10 +619,16 @@ The salon's own dashboard (pages/salon/DashboardPage.tsx): a Due-to-Rebook banne
 | Bookings | Booking settings | `/crm/bookings/settings` | bookings:update | online_booking (on by default) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Salon | Clients | `/crm/clients` | contacts:read | client_profiles (on by default) | all | Clients tab + client card (formula record, last visits; a stylist sees no prices) | A — the client chart: allergies, formulas, visits |
 | Salon | The Book | `/crm/appointments` | contacts:read | salon_booking (on by default) | all | The Book tab (My day for a stylist): the day book and check in; booking and the service record stay on the desktop | A — the book: check in, move, complete, no-show |
+| Salon | Time off | `/crm/time-off` | contacts:read | book_grid (on by default) | all | none | C |
 | Salon | Rebooking | `/crm/reminders` | contacts:read | rebooking_reminders (on by default) | all | Rebook tab (who is due; text them) | A — rebooking: text the clients who are due |
 | Salon | Service Menu | `/crm/service-menu` | contacts:read | service_menu (on by default) | all | none | C |
 | Salon | Memberships | `/crm/memberships` | contacts:read | salon_memberships (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
+| Salon | Booth rent | `/crm/booth-rent` | invoices:read | booth_rent (on by default) | owner, admin, manager, viewer | none | C |
 | Salon | Loyalty | `/crm/loyalty` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful on the phone, not the chair's daily loop |
+| Salon | Gift cards | `/crm/gift-cards` | invoices:read | salon_gift_cards (on by default) | owner, admin, manager, viewer | none | C |
+| Salon | Retail | `/crm/retail` | inventory:read | salon_retail (on by default) | owner, admin, manager | none | C |
+| Salon | Client reports | `/crm/client-reports` | reports:read | salon_reports (on by default) | owner, admin, manager | none | C |
+| Salon | Commissions | `/crm/commissions` | commissions:read | salon_commissions (on by default) | owner, admin, manager | none | C |
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Account | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Account | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
@@ -621,6 +678,8 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Kitchen & Counter | Orders | `/crm/orders` | bar:register | online_ordering, order_kiosk (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | B — useful later; the event already names the client and the room |
 | Kitchen & Counter | Kitchen Stock | `/crm/stock` | bar:update | bar_stock (off by default (add-on or opt-in)) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | C |
 | Kitchen & Counter | Staff Schedule | `/crm/shifts` | bar:read | bar_schedule (off by default (add-on or opt-in)) | all | Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More) | C |
+| Kitchen & Counter | Tips | `/crm/tips` | bar:register | bar_tip_pooling (on by default) | owner, admin, manager, staff | none | C |
+| Kitchen & Counter | Payroll | `/crm/pay-period` | bar:manage | bar_payroll_export (on by default) | owner, admin, manager | none | C |
 | Kitchen & Counter | Menu | `/crm/menu` | bar:read | bar_menu (off by default (add-on or opt-in)) | all | 86 board (put an item out, back on) | A — close the kitchen and 86 an item mid-service (when switched on) |
 | Kitchen & Counter | Taps | `/crm/taps` | bar:read | draft_taps (off by default (add-on or opt-in)) | all | none | C |
 | Kitchen & Counter | What's on | `/crm/whats-on` | bar:read | bar_tonight (off by default (add-on or opt-in)) | all | none | C |
@@ -628,6 +687,8 @@ The events dashboard (pages/restaurant/DashboardPage.tsx) under the bar HomePage
 | Kitchen & Counter | Register Settings | `/crm/register-settings` | bar:register | bar_register, card_reader, order_kiosk, online_ordering (off by default (add-on or opt-in)) | owner, admin, manager, staff | none | D — takes card payments and is a counter screen; the phone is not a register |
 | Events | Events | `/crm/events` | contacts:read | event_bookings (on by default) | all | Events (Parties) tab + banquet event order; the office records a deposit received (no card) | A — the whole trade: inquiry, booking, the banquet event order |
 | Events | Spaces | `/crm/spaces` | contacts:read | event_spaces (on by default) | all | none | B — useful later; the event already names the client and the room |
+| Events | Room Calendar | `/crm/event-calendar` | contacts:read | event_calendar (on by default) | all | none | C |
+| Events | Event Sources | `/crm/event-insights` | reports:read | event_reports, event_form_campaigns, event_marketing_spend, event_report_schedules (on by default) | owner, admin, manager | none | C |
 | Events | Catering Menus | `/crm/menus` | contacts:read | catering_menus (on by default) | all | none | B — useful later; the event already names the client and the room |
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Account | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
@@ -683,6 +744,8 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | The Bar | Regulars | `/crm/regulars` | loyalty:read | loyalty_rewards (on by default) | all | none | B — useful later, not the bar's nightly loop |
 | The Bar | Stock | `/crm/stock` | bar:update | bar_stock (on by default) | owner, admin, manager | Count (blind count, open bottles by how full, finish with a confirm; a restaurant opens it from More) | A — blind count and receiving a delivery in the back room |
 | The Bar | Schedule | `/crm/shifts` | bar:read | bar_schedule (on by default) | all | Shifts (published schedule, ask for a day off, my availability, give away / swap / take a shift, and a manager decides them; a restaurant opens it from More) | A — my shifts, time off and the clock |
+| The Bar | Tips | `/crm/tips` | bar:register | bar_tip_pooling (on by default) | owner, admin, manager, staff | none | C |
+| The Bar | Payroll | `/crm/pay-period` | bar:manage | bar_payroll_export (on by default) | owner, admin, manager | none | C |
 | The Bar | Menu | `/crm/menu` | bar:read | bar_menu (on by default) | all | 86 board (put an item out, back on) | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | Taps | `/crm/taps` | bar:read | bar_menu (on by default) | all | none | A — the bar's live board: open/closed, 86, what is on tap |
 | The Bar | What's on | `/crm/whats-on` | bar:read | bar_tonight (on by default) | all | none | C |
@@ -690,6 +753,8 @@ The bar's home (pages/bar/HomePage.tsx): the Tonight strip, "Today on the regist
 | The Bar | Register Settings | `/crm/register-settings` | bar:register | bar_register, card_reader, order_kiosk, online_ordering (on by default) | owner, admin, manager, staff | none | D — rings sales, takes cards or sells stored value; the phone is not a register |
 | Parties | Parties | `/crm/events` | contacts:read | event_bookings (on by default) | all | Events (Parties) tab + banquet event order; the office records a deposit received (no card) | A — private parties: who, when, how many |
 | Parties | Spaces | `/crm/spaces` | contacts:read | event_spaces (on by default) | all | none | B — useful later, not the bar's nightly loop |
+| Parties | Room Calendar | `/crm/event-calendar` | contacts:read | event_calendar (on by default) | all | none | C |
+| Parties | Event Sources | `/crm/event-insights` | reports:read | event_reports, event_form_campaigns, event_marketing_spend, event_report_schedules (on by default) | owner, admin, manager | none | C |
 | Parties | Party Packages | `/crm/menus` | contacts:read | catering_menus (on by default) | all | none | B — useful later, not the bar's nightly loop |
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Account | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
@@ -714,10 +779,17 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: what is waiting to be packed |
 | Shop | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | Stock tab (look up by name, SKU or barcode; set the count) | A — stock look-up and count from the shelf |
 | Shop | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | Orders tab + order (pack, ready for pickup, mark shipped, buy a label) | A — pick, pack and ship |
+| Shop | Sell at the counter | `/crm/sell` | orders:create | store_counter (on by default) | owner, admin, manager | none | C |
+| Shop | Reorders | `/crm/reorders` | margin:read | store_reorders (on by default) | owner, admin, manager | Deliveries (book a delivery into stock once it is here; drafting and emailing a reorder stay on the desktop) | C |
+| Shop | Stock by location | `/crm/stock-locations` | products:read | store_locations (on by default) | owner, admin, manager, staff | none | C |
 | Shop | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Shop | Shipping | `/crm/shipping` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| Shop | Returns | `/crm/returns` | orders:read | store_returns (on by default) | owner, admin, manager, staff | none | C |
 | Customers | Customers | `/crm/customers` | orders:read | — (core) | owner, admin, manager, staff | none | B — useful later; the order already carries the buyer |
 | Customers | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later; the order already carries the buyer |
+| Customers | Segments | `/crm/segments` | marketing:read | store_segments (on by default) | owner, admin, manager | none | C |
+| Customers | Post-purchase emails | `/crm/followups` | marketing:read | store_followups (on by default) | owner, admin, manager | none | C |
+| Customers | Audiences | `/crm/audiences` | marketing:update | store_audiences (on by default) | owner, admin, manager | none | C |
 | Customers | Customer groups | `/crm/customer-groups` | discounts:read | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Customers | Loyalty | `/crm/store-loyalty` | loyalty:read | — (core) | all | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Customers | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
@@ -726,6 +798,7 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Customers | Product reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
 | Customers | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
 | Customers | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | A — answering customers' email and reviews |
+| Money | Sales | `/crm/sales` | revenue:read | store_sales_reports (on by default) | owner, admin, manager, viewer | none | C |
 | Money | Payments | `/crm/payments` | payments:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Money | Disputes | `/crm/disputes` | orders:refund | — (core) | owner, admin, manager | none | C |
 | Money | Discounts | `/crm/discounts` | discounts:read | — (core) | owner, admin, manager | none | C |
@@ -737,6 +810,7 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Account | Apps & integrations | `/crm/apps` | integrations:update | store_apps (on by default) | owner, admin | none | C |
 | Account | Store Settings | `/crm/store-settings` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
 | Account | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |

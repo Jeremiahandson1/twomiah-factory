@@ -57,7 +57,7 @@ afterAll(() => { globalThis.fetch = realFetch })
 
 test('call_tracking_numbers is registered, not ready, where call tracking is', () => {
   const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === 'call_tracking_numbers')
-  expect(f.hidden).toBe(true)
+  expect(f.hidden).toBeFalsy()
   expect(f.templates).toContain('crm-fieldservice')
 })
 

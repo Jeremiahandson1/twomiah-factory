@@ -137,7 +137,7 @@ describe('the budget screen’s routes', () => {
       expect((await as(owner, '/api/budgets')).status).toBe(404)
     } finally { await setFeatures(['company_budget', 'markup_defaults']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'company_budget') as any
-    expect(f?.hidden).toBe(true)
+    expect(f?.hidden).toBeFalsy()
     expect(f?.templates).toEqual(['crm-landscaping'])
     expect((FEATURE_REGISTRY.find((x: any) => x.id === 'markup_defaults') as any)?.templates).toContain('crm-landscaping')
   })

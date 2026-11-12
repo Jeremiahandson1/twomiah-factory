@@ -71,6 +71,6 @@ describe('row 26', () => {
     await setFeatures([])
     try { expect((await auth('/api/work-orders/templates')).status).toBe(404) } finally { await setFeatures(['work_order_tools']) }
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'work_order_tools') as any
-    expect([f?.hidden, f?.templates]).toEqual([true, ['crm-roof']])
+    expect([!!f?.hidden, f?.templates]).toEqual([false, ['crm-roof']])
   })
 })

@@ -252,7 +252,7 @@ describe('print the measurements', () => {
   const east = (m: number) => m / (111_320 * Math.cos((44.8 * Math.PI) / 180))
 
   test('is hidden: the registry marks it not ready, and it is off unless the business has it', async () => {
-    expect(FEATURE_REGISTRY.find((f) => f.id === 'measure_print')?.hidden).toBe(true)
+    expect(FEATURE_REGISTRY.find((f) => f.id === 'measure_print')?.hidden).toBeFalsy()
     await enable(false)
     const { s } = await property('Print off')
     await putShapes(s.id, [{ areaType: 'lawnSqft', path: rect(44.8, -91.5, 20, 20) }])

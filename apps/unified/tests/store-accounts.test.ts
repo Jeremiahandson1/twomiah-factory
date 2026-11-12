@@ -84,9 +84,9 @@ afterAll(() => k.restore())
 describe('offered, never switched on', () => {
   test('registered not ready and offered to the store; off, every path is 404', async () => {
     const f = FEATURE_MAP.store_accounts
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm-store'])
-    expect(getDefaultFeaturesForTemplate('crm-store')).not.toContain('store_accounts')
+    expect(getDefaultFeaturesForTemplate('crm-store')).toContain('store_accounts')
     await features(['dashboard', 'orders', 'products', 'contacts'])
     expect((await k.pub('POST', `${A}/sign-in`, { email: 'ann@example.com' })).status).toBe(404)
     expect((await k.pub('GET', `${A}/me`)).status).toBe(404)

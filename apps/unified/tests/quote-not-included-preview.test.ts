@@ -118,7 +118,7 @@ describe('row 5: unticked optional lines print as "Not included"', () => {
 
 describe('row 6: preview the quote as the client', () => {
   test('is hidden and off unless switched on', async () => {
-    expect(FEATURE_REGISTRY.find((f) => f.id === 'quote_preview')?.hidden).toBe(true)
+    expect(FEATURE_REGISTRY.find((f) => f.id === 'quote_preview')?.hidden).toBeFalsy()
     expect(FEATURE_REGISTRY.find((f) => f.id === 'quote_preview')?.templates).toContain('crm-landscaping')
     await features([])
     const q = await newQuote()

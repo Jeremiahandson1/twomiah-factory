@@ -120,7 +120,7 @@ describe('the plan screen’s routes', () => {
     expect((await as(owner, `/api/plan-takeoffs/${other.id}`, { method: 'DELETE' })).status).toBe(200)
     expect((await as(owner, `/api/plan-takeoffs/${other.id}`)).status).toBe(404)
     const f = FEATURE_REGISTRY.find((x: any) => x.id === 'plan_takeoffs') as any
-    expect(f?.hidden).toBe(true)
+    expect(f?.hidden).toBeFalsy()
     expect(f?.templates).toEqual(['crm-landscaping'])
   })
 })

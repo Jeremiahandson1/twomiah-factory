@@ -20,7 +20,8 @@ let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
 /** Features that exist in code but must not be sellable yet. */
-const PARKED = ['paid_ads', 'instant_estimator']
+// Instant Roof Estimator unparked 2026-11-12 (owner, launch; live-tested on the roofing test site).
+const PARKED = ['paid_ads']
 
 for (const id of PARKED) {
   const def = (FEATURE_REGISTRY as any[]).find((f) => f.id === id)

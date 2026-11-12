@@ -63,11 +63,11 @@ beforeAll(async () => {
 }, 120_000)
 
 describe('the features', () => {
-  test('line pictures are offered to landscaping; text lines are registered not ready for every quoting trade', () => {
+  test('line pictures are offered to landscaping; text lines are offered to every quoting trade (launched 2026-11-12)', () => {
     const pics = FEATURE_REGISTRY.find((f) => f.id === 'quote_line_images')!
     expect(pics.templates).toContain('crm-landscaping')
     const text = FEATURE_REGISTRY.find((f) => f.id === 'quote_text_lines')!
-    expect(text.hidden).toBe(true)
+    expect(text.hidden).toBeFalsy()
     expect(text.templates).toEqual(expect.arrayContaining(['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof']))
   })
 })

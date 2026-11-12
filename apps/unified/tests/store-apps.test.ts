@@ -90,9 +90,9 @@ afterAll(() => { globalThis.fetch = realFetch; k.restore() })
 describe('offered, never switched on', () => {
   test('registered not ready and offered to the store; off, every door is shut', async () => {
     for (const id of ['store_apps', 'store_api', 'store_webhooks']) {
-      expect(FEATURE_MAP[id].hidden).toBe(true)
+      expect(FEATURE_MAP[id].hidden).toBeFalsy()
       expect(FEATURE_MAP[id].templates).toEqual(['crm-store'])
-      expect(getDefaultFeaturesForTemplate('crm-store')).not.toContain(id)
+      expect(getDefaultFeaturesForTemplate('crm-store')).toContain(id)
     }
     const { key } = await makeKey(['products:read'])
     await features(BASE)

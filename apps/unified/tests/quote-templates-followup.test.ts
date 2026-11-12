@@ -25,7 +25,7 @@ describe('the features', () => {
   test.each(['quote_templates', 'quote_followup'])('%s is registered, not ready, and offered to the job trades (parity tier 1, 11/10)', (id) => {
     const f = (FEATURE_REGISTRY as any[]).find((x) => x.id === id)
     expect(f).toBeTruthy()
-    expect(f.hidden).toBe(true)
+    expect(f.hidden).toBeFalsy()
     expect(f.templates).toEqual(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
   })
 })
