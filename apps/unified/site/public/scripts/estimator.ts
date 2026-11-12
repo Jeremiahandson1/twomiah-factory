@@ -77,6 +77,11 @@
     .tw-est-canvas { display: block; width: 100%; border-radius: 10px; border: 1px solid #e5e7eb; touch-action: none; cursor: crosshair; background: #e5e7eb; }
     .tw-est-roof-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
     .tw-est-roof-actions .tw-est-btn { width: auto; margin-top: 0; padding: 8px 14px; font-size: 13px; }
+    .tw-est-addr { position: relative; }
+    .tw-est-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 10; margin-top: 2px; list-style: none; background: #fff; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.12); overflow: hidden; }
+    .tw-est-suggest[hidden] { display: none; }
+    .tw-est-suggest li { padding: 8px 12px; font-size: 13px; color: #111827; cursor: pointer; }
+    .tw-est-suggest li[aria-selected="true"], .tw-est-suggest li:hover { background: #f3f4f6; }
     .tw-est-link { background: none; border: none; padding: 0; font-size: 12px; color: var(--tw-color, #7c3aed); font-weight: 600; cursor: pointer; text-decoration: underline; }
   `;
   shadow.appendChild(style);
@@ -103,6 +108,80 @@
     })
     .catch(showNothing);
 
+  // Address suggestions as the visitor types (server/crm/roof/reports/addressSuggest.ts — asked of Google by the
+  // business's server, so the widget works on any website): a pause in typing and three characters before asking; the
+  // one picked fills in the street, city, state and zip. Arrow keys and Enter pick, Escape closes. One session token
+  // for each address typed, ended by the pick (that is how Google bills it least). Google not answering: no list, and
+  // the boxes are typed by hand as before.
+  function addressSuggestions() {
+    var input = shadow.getElementById('tw-addr');
+    var list = shadow.getElementById('tw-suggest');
+    var session = newSession();
+    var timer = null;
+    var asked = 0;
+    var items = [];
+    var at = -1;
+    function newSession() {
+      var a = new Uint8Array(16);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+    }
+    function close() { list.hidden = true; list.innerHTML = ''; items = []; at = -1; input.setAttribute('aria-expanded', 'false'); }
+    function mark() {
+      for (var i = 0; i < list.children.length; i++) list.children[i].setAttribute('aria-selected', i === at ? 'true' : 'false');
+    }
+    function show(found) {
+      items = found || [];
+      at = -1;
+      if (!items.length) { close(); return; }
+      list.innerHTML = items.map(function (x, i) { return '<li role="option" id="tw-sug-' + i + '" data-i="' + i + '">' + esc(x.text) + '</li>'; }).join('');
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    }
+    function pick(i) {
+      var x = items[i];
+      if (!x) return;
+      close();
+      input.value = x.text.split(',')[0];
+      fetch(apiBase + '/api/estimator/address/' + slug + '?id=' + encodeURIComponent(x.id) + '&s=' + session)
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (a) {
+          if (!a) return;
+          if (a.address) input.value = a.address;
+          if (a.city) shadow.getElementById('tw-city').value = a.city;
+          if (a.state) shadow.getElementById('tw-state').value = a.state;
+          if (a.zip) shadow.getElementById('tw-zip').value = a.zip;
+        })
+        .catch(function () {})
+        .then(function () { session = newSession(); });
+    }
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 3) { close(); return; }
+      timer = setTimeout(function () {
+        var mine = ++asked;
+        fetch(apiBase + '/api/estimator/addresses/' + slug + '?q=' + encodeURIComponent(q) + '&s=' + session)
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) { if (mine === asked) show(d && d.suggestions); })
+          .catch(close);
+      }, 300);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (list.hidden) return;
+      if (e.key === 'ArrowDown') { at = Math.min(items.length - 1, at + 1); mark(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { at = Math.max(0, at - 1); mark(); e.preventDefault(); }
+      else if (e.key === 'Enter' && at >= 0) { pick(at); e.preventDefault(); }
+      else if (e.key === 'Escape') close();
+    });
+    // mousedown, not click: the pick lands before the box loses focus and closes the list.
+    list.addEventListener('mousedown', function (e) {
+      var li = e.target && e.target.closest ? e.target.closest('li') : null;
+      if (li) { e.preventDefault(); pick(Number(li.getAttribute('data-i'))); }
+    });
+    input.addEventListener('blur', function () { setTimeout(close, 150); });
+  }
+
   function render(config) {
     // Only a colour: it goes into the stylesheet, so anything else is the default.
     const color = /^#[0-9a-fA-F]{6}$/.test(String(config.primaryColor || '')) ? config.primaryColor : '#7c3aed';
@@ -112,7 +191,7 @@
     wrapper.innerHTML = '<div class="tw-est-card">' +
       '<div class="tw-est-title">' + esc(config.estimatorHeadline || 'Get Your Free Roof Estimate') + '</div>' +
       '<div class="tw-est-sub">Enter your address for an instant estimate, measured from an aerial picture of your roof</div>' +
-      '<div class="tw-est-field"><label class="tw-est-label">Street Address</label><input class="tw-est-input" id="tw-addr" placeholder="1234 Main St"></div>' +
+      '<div class="tw-est-field tw-est-addr"><label class="tw-est-label" for="tw-addr">Street Address</label><input class="tw-est-input" id="tw-addr" placeholder="Start typing your address" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tw-suggest"><ul class="tw-est-suggest" id="tw-suggest" role="listbox" hidden></ul></div>' +
       '<div class="tw-est-row">' +
         '<div class="tw-est-field"><label class="tw-est-label">City</label><input class="tw-est-input" id="tw-city"></div>' +
         '<div class="tw-est-field"><label class="tw-est-label">State</label><input class="tw-est-input" id="tw-state" maxlength="2"></div>' +
@@ -130,6 +209,8 @@
       '<div id="tw-result"></div>' +
       '<div class="tw-est-powered">Powered by Twomiah Roof</div>' +
     '</div>';
+
+    addressSuggestions();
 
     var btn = shadow.getElementById('tw-submit');
     btn.addEventListener('click', function () {
