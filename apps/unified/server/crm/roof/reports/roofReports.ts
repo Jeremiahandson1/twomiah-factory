@@ -35,6 +35,7 @@ import { and, count, desc, eq } from 'drizzle-orm'
 import { generateReportHTML, generateReportPDF, getNearmapRoofAI, getNearmapRollup, segmentRoof } from '@twomiah/roof-core'
 import { company, contact, roofReport } from '../../../db/schema/index.ts'
 import { escapeHtml, escapeRow } from '../../../core/sanitize.ts'
+import { companyRowTimeZone } from '@twomiah/tenant-backend'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -50,6 +51,9 @@ export { REPORT_PACK, REPORT_PACK_LOW_AT }
 
 const PRICE = (REPORT_PRICE_CENTS / 100).toFixed(2)
 
+/** The company as its report shows it: text escaped, and its own clock for the "Generated" date (live test 11/11: the
+ *  server's UTC day printed tomorrow's date on a Chicago evening). */
+const reportCompany = (row: any) => ({ ...escapeRow(row), timeZone: companyRowTimeZone(row) })
 /** What the company paid for a report comes off it for a reader without margin:read (T43, T68). */
 const withoutPaid = (r: any) => { if (!r) return r; const { amountCharged: _paid, ...rest } = r; return rest }
 
@@ -107,7 +111,7 @@ export function createRoofReportRoutes(d: CrmDeps) {
       if (!report) return fail(c, 404, 'Report not found')
       const [companyRecord] = await db.select().from(company).where(eq(company.id, report.companyId)).limit(1)
       const fullAddress = escapeHtml(`${report.address}, ${report.city}, ${report.state} ${report.zip}`)
-      return c.html(await generateReportHTML(await reports.renderData(report), escapeRow(companyRecord as any), fullAddress))
+      return c.html(await generateReportHTML(await reports.renderData(report), reportCompany(companyRecord), fullAddress))
     } catch (err: any) {
       logger.error('Roof report HTML generation failed', { id, error: err?.message, stack: err?.stack })
       return fail(c, 500, 'Failed to generate report HTML')
@@ -468,7 +472,7 @@ export function createRoofReportRoutes(d: CrmDeps) {
       // The print page carries the materials list, worked with the settings the screen sent (reportMaterials.ts).
       const list = reportMaterialList(report, cleanMaterialOptions(c.req.query()))
       const materialList = list.lines.length ? { wastePercent: list.settings.wastePercent, lines: list.lines, warnings: list.warnings } : null
-      const html = await generateReportPDF({ ...(await reports.renderData(report)), materialList }, escapeRow(companyRecord as any), fullAddress)
+      const html = await generateReportPDF({ ...(await reports.renderData(report)), materialList }, reportCompany(companyRecord), fullAddress)
       return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': `inline; filename="roof-report-${id}.html"` })
     } catch (err: any) {
       logger.error('Roof report PDF generation failed', { id, error: err?.message })
