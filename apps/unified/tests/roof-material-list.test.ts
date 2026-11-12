@@ -177,3 +177,15 @@ describe('who may, and what is not there', () => {
     expect([r.status, r.body.code]).toEqual([403, 'feature_disabled'])
   })
 })
+
+// Live test 11/11: the starter and drip edge lines read "154.20000000000002 ft of eave and rake" — the sum of drawn
+// lines, shown as the float it was. A length the roofer reads is shown to a tenth of a foot; the counts are unchanged.
+describe('material list — lengths read as a person writes them', () => {
+  test('drawn lengths that sum to float dust read to a tenth of a foot', () => {
+    const l = buildMaterialList(11.94, { eaveFt: 137.3, rakeFt: 16.9, ridgeFt: 24.7 + 16.4, valleyFt: 16.4 })
+    const text = l.lines.map((x) => x.basis).join(' | ')
+    expect(text).toContain('154.2 ft of eave and rake')
+    expect(text).not.toMatch(/\d\.\d{3,}/)
+    expect(l.lines.find((x) => x.code === 'drip-edge')!.qty).toBe(Math.ceil((154.2 * 1.1) / DEFAULT_ASSUMPTIONS.dripEdgePieceFt))
+  })
+})

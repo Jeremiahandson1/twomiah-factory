@@ -159,20 +159,22 @@ export function buildMaterialList(squaresIn: number, lengthsIn: Lengths = {}, ov
   const lines: ListLine[] = []
   const add = (code: string, description: string, qty: number, unit: string, basis: string) => { if (qty > 0) lines.push({ code, description, qty, unit, basis }) }
   const pct = `${a.wastePercent}% waste`
+  // Lengths as a person reads them: sums of drawn lines carry float dust (live test 11/11: "154.20000000000002 ft").
+  const ft = (n: number) => round1(n)
 
   add('shingles', 'Shingles', up(squares * a.bundlesPerSquare * waste), 'bundle',
     `${squares} squares × ${a.bundlesPerSquare} bundles + ${pct} = ${round1(squares * a.bundlesPerSquare * waste)}, rounded up`)
   add('starter', 'Starter strip shingles', up((edgeFt * waste) / a.starterFtPerBundle), 'bundle',
-    `${edgeFt} ft of eave and rake + ${pct} ÷ ${a.starterFtPerBundle} ft a bundle`)
+    `${ft(edgeFt)} ft of eave and rake + ${pct} ÷ ${a.starterFtPerBundle} ft a bundle`)
   add('ridge-cap', 'Hip and ridge cap shingles', up((lengths.ridgeFt * waste) / a.ridgeCapFtPerBundle), 'bundle',
-    `${lengths.ridgeFt} ft of ridge and hip + ${pct} ÷ ${a.ridgeCapFtPerBundle} ft a bundle`)
+    `${ft(lengths.ridgeFt)} ft of ridge and hip + ${pct} ÷ ${a.ridgeCapFtPerBundle} ft a bundle`)
   add('underlayment', 'Synthetic underlayment', up(orderedSquares / a.underlaymentSquaresPerRoll), 'roll',
     `${orderedSquares} squares with waste ÷ ${a.underlaymentSquaresPerRoll} squares a roll`)
   const iceSqFt = (lengths.eaveFt + lengths.valleyFt) * a.iceWaterWidthFt * waste
   add('ice-water', 'Ice and water shield', up(iceSqFt / a.iceWaterRollSqFt), 'roll',
-    `(${lengths.eaveFt} ft of eave + ${lengths.valleyFt} ft of valley) × ${a.iceWaterWidthFt} ft wide + ${pct} ÷ ${a.iceWaterRollSqFt} sq ft a roll`)
+    `(${ft(lengths.eaveFt)} ft of eave + ${ft(lengths.valleyFt)} ft of valley) × ${a.iceWaterWidthFt} ft wide + ${pct} ÷ ${a.iceWaterRollSqFt} sq ft a roll`)
   add('drip-edge', 'Drip edge', up((edgeFt * waste) / a.dripEdgePieceFt), 'piece',
-    `${edgeFt} ft of eave and rake + ${pct} ÷ ${a.dripEdgePieceFt} ft a piece`)
+    `${ft(edgeFt)} ft of eave and rake + ${pct} ÷ ${a.dripEdgePieceFt} ft a piece`)
   add('nails', 'Coil roofing nails, 1-1/4 in', up((squares * a.nailsPerSquare * waste) / a.nailsPerBox), 'box',
     `${squares} squares × ${a.nailsPerSquare} nails + ${pct} ÷ ${a.nailsPerBox} a box`)
 
@@ -186,7 +188,7 @@ export function buildMaterialList(squaresIn: number, lengthsIn: Lengths = {}, ov
       const feet = needSqIn / a.ridgeVentSqInPerFt
       add('vents', 'Ridge vent', up(feet / a.ridgeVentPieceFt), 'piece',
         `${Math.round(needSqIn)} sq in of exhaust ÷ ${a.ridgeVentSqInPerFt} sq in a foot = ${round1(feet)} ft, in ${a.ridgeVentPieceFt} ft pieces`)
-      if (feet > lengths.ridgeFt) warnings.push(`The roof needs about ${round1(feet)} ft of ridge vent but the ridge is ${lengths.ridgeFt} ft: add box vents or another exhaust for the rest.`)
+      if (feet > lengths.ridgeFt) warnings.push(`The roof needs about ${round1(feet)} ft of ridge vent but the ridge is ${ft(lengths.ridgeFt)} ft: add box vents or another exhaust for the rest.`)
     }
   }
   if (estimated.length) warnings.push(`Estimated from the squares, not measured: ${estimated.map((k) => k.replace('Ft', '')).join(', ')}. Enter the real lengths for a tighter list.`)

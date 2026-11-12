@@ -428,7 +428,7 @@ function buildReportBody(
       <div class="header-contact">
         ${companyPhone ? `<div>${escapeHtml(companyPhone)}</div>` : ''}
         ${companyEmail ? `<div>${escapeHtml(companyEmail)}</div>` : ''}
-        <div style="color:#a0aec0;font-size:11px;margin-top:4px;">Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        <div style="color:#a0aec0;font-size:11px;margin-top:4px;">Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', ...(company?.timeZone ? { timeZone: company.timeZone } : {}) })}</div>
       </div>
     </div>
 
