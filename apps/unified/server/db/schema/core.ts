@@ -46,6 +46,12 @@ export const company = pgTable('company', {
   twilioAuthToken: text('twilio_auth_token'),
   // CallRail webhook signing key (Call Tracking › Settings). Write-only: never returned, the screen sees set / not set.
   callrailSigningKey: text('callrail_signing_key'),
+  // Recording the calls to the tracking numbers Twomiah sells (CallRail's call recording; Call Tracking › Settings): off until
+  // the business turns it on; the caller hears the notice first (some states need both sides told); a recording is deleted
+  // once it is older than the days kept (null = kept until deleted by hand).
+  callRecording: boolean('call_recording').notNull().default(false),
+  callRecordingNotice: text('call_recording_notice'),
+  callRecordingKeepDays: integer('call_recording_keep_days').default(365),
 
   // Onboarding (V1 domain + email setup wizard)
   onboardingCompletedAt: timestamp('onboarding_completed_at'),

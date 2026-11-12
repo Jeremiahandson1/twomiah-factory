@@ -8,7 +8,8 @@
 //   · $3 a month a number (CALLTRACK_NUMBER_MONTHLY_CENTS), on the business's own "Call tracking number" subscription, one unit
 //     a number. The first number is bought once its checkout is paid (the number asked for waits in the session's metadata);
 //     after that a number is bought at once and the count goes up, prorated. Releasing one takes it down; none left ends it.
-//   · Each call, exactly what Twilio charged for it — the call in and the forward out (its child call) — from the wallet, once
+//   · Each call, exactly what Twilio charged for it — the call in, the forward out (its child call) and its recording where the
+//     business records calls — from the wallet, once
 //     per call (the ledger's twilio_ref 'call:<CallSid>'), by billCalls() each hour. Twilio prices a call a little after it ends,
 //     so a call not yet priced is left for the next pass.
 //
@@ -166,7 +167,12 @@ export async function billCalls(): Promise<{ calls: number; hc: number }> {
       const kids = await twilio(account(), `/Calls.json?ParentCallSid=${call.sid}&PageSize=20`, 'GET').catch(() => null)
       const out = ((kids?.calls as any[]) || []).map((k) => priceHc(k.price))
       if (out.some((x, i) => x === null && (kids.calls[i].status === 'completed'))) continue
-      const hc = (legIn ?? 0) + out.reduce((a: number, x) => a + (x ?? 0), 0)
+      // A call the business records (its CRM's Call Tracking › Settings): each recording at Twilio's price, with the call. A
+      // recording not priced yet keeps the whole call for the next pass.
+      const recs = await twilio(account(), `/Recordings.json?CallSid=${call.sid}&PageSize=20`, 'GET').catch(() => null)
+      const recHc = ((recs?.recordings as any[]) || []).map((r) => (String(r.status) === 'completed' ? priceHc(r.price) : 0))
+      if (recHc.some((x) => x === null)) continue
+      const hc = (legIn ?? 0) + out.reduce((a: number, x) => a + (x ?? 0), 0) + recHc.reduce((a: number, x) => a + (x ?? 0), 0)
       if (hc <= 0) continue // nothing to charge (a call Twilio priced at nothing)
       await debitHc(l.tenant_id, hc, 'call_tracking_call', { twilioRef: ref, allowNegative: true })
       calls++; total += hc

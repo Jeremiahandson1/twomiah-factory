@@ -417,6 +417,9 @@ export const callLog = pgTable('call_log', {
   startTime: timestamp('start_time'),
   endTime: timestamp('end_time'),
   recordingUrl: text('recording_url'),
+  /** A recording Twilio holds for a call to a number Twomiah sold: played through /api/calltracking/calls/:id/recording, never linked to. */
+  recordingSid: text('recording_sid'),
+  recordingSeconds: integer('recording_seconds'),
   transcription: text('transcription'),
   tags: json('tags'),
   notes: text('notes'),
