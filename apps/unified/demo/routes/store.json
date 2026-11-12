@@ -11,6 +11,7 @@
   "/api/admin/loyalty/rewards",
   "/api/admin/orders",
   "/api/admin/orders/:id",
+  "/api/admin/orders/:id/history",
   "/api/admin/orders/customers?limit=50&page=1",
   "/api/admin/orders/stats",
   "/api/admin/payments",
