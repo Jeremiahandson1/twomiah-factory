@@ -59,6 +59,7 @@ import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { company, contact, measurementReport } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import { createRateLimiter } from '../../../http/guards.ts'
+import { PLACE_ID_RE, SESSION_RE, pickedAddress, suggestAddresses } from './addressSuggest.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, one, done } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -86,6 +87,9 @@ const RADIUS_M = 50
 const ASKS_PER_VISITOR = 3
 /** Corrections to the outline, and choices of an option, one visitor may send in an hour (neither costs anything). */
 const CHANGES_PER_VISITOR = 40
+/** Address look-ups (suggestions and the one picked) one visitor may ask in an hour: a few addresses typed out, with
+ *  room to spare; each one is a call to Google that Twomiah pays for. */
+const LOOKUPS_PER_VISITOR = 120
 /** A house the estimator has measured is not measured again for this many days; the kept measurement answers. */
 const REMEASURE_AFTER_DAYS = 30
 /** How many times one estimate's outline may be corrected. */
@@ -219,6 +223,29 @@ export function createEstimatorRoutes(d: CrmDeps) {
     if (!comp.estimatorEnabled || Number(comp.reportCredits) <= 0) return fail(c, 403, 'Estimator not enabled')
     const { reportCredits: _balance, ...shown } = comp
     return one(c, shown)
+  })
+
+  // GET /addresses/:slug?q=&s= — street addresses for what the visitor has typed (addressSuggest.ts), and
+  // GET /address/:slug?id=&s= — the street, city, state and zip of the one they picked. `s` is the widget's session token
+  // for the one address being typed. Only while the business's estimator is on; Google not answering is an empty list.
+  const lookups = createRateLimiter(60 * 60 * 1000, process.env.NODE_ENV === 'production' ? LOOKUPS_PER_VISITOR : 100000)
+  app.get('/addresses/:slug', lookups, async (c) => {
+    const opened = await openCompany(c)
+    if ('refusal' in opened) return opened.refusal
+    const q = String(c.req.query('q') || '').trim().slice(0, 120)
+    const s = String(c.req.query('s') || '')
+    if (!SESSION_RE.test(s)) return fail(c, 400, 'A session token is required', 'bad_session')
+    if (q.length < 3) return one(c, { suggestions: [] })
+    return one(c, { suggestions: await suggestAddresses(q, s) })
+  })
+  app.get('/address/:slug', lookups, async (c) => {
+    const opened = await openCompany(c)
+    if ('refusal' in opened) return opened.refusal
+    const id = String(c.req.query('id') || '')
+    const s = String(c.req.query('s') || '')
+    if (!SESSION_RE.test(s) || !PLACE_ID_RE.test(id)) return fail(c, 400, 'A suggestion and its session token are required', 'bad_lookup')
+    const picked = await pickedAddress(id, s)
+    return picked ? one(c, picked) : fail(c, 404, 'That address could not be looked up', 'not_found')
   })
 
   // POST /estimate/:slug — keep the lead, measure the roof, and price it at the company's own prices when the

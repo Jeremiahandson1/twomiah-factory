@@ -22,6 +22,7 @@ const json = async (r: Response) => { const text = await r.text(); let body: any
 // ── The stubbed outside world ──
 const realFetch = globalThis.fetch
 const outbound: string[] = []
+const placesAsked: any[] = []
 const INSIGHTS = {
   name: 'buildings/1', center: { latitude: 41.08, longitude: -81.51 }, imageryDate: { year: 2025, month: 4, day: 2 },
   imageryQuality: 'HIGH', regionCode: 'US',
@@ -86,7 +87,7 @@ beforeAll(async () => {
   AERIAL = await sharp({ create: { width: TW, height: TH, channels: 3, background: { r: 90, g: 110, b: 90 } } }).png().toBuffer()
   await makeLayers('near', 20, 24)
   await makeLayers('far', 0, 0)
-  globalThis.fetch = (async (input: any) => {
+  globalThis.fetch = (async (input: any, init?: any) => {
     const url = String(input?.url ?? input)
     outbound.push(url)
     if (url.startsWith('https://maps.googleapis.com/maps/api/geocode/json')) {
@@ -108,6 +109,24 @@ beforeAll(async () => {
       return body ? new Response(new Uint8Array(body), { status: 200 }) : new Response('no such layer', { status: 404 })
     }
     if (url.startsWith('https://solar.googleapis.com/v1/buildingInsights:findClosest')) return new Response(JSON.stringify(INSIGHTS), { status: 200 })
+    // Google Places (New): the estimator's address suggestions and the one picked (addressSuggest.ts).
+    if (url === 'https://places.googleapis.com/v1/places:autocomplete') {
+      const body = JSON.parse(String(init?.body || '{}'))
+      placesAsked.push(body)
+      if (String(body.input).includes('Nowhere')) return new Response('{}', { status: 200 })
+      return new Response(JSON.stringify({ suggestions: [
+        { placePrediction: { placeId: 'place-pine-12', text: { text: '12 Pine St, Akron, OH, USA' } } },
+        { placePrediction: { placeId: 'place-pine-120', text: { text: '120 Pine St, Akron, OH, USA' } } },
+      ] }), { status: 200 })
+    }
+    if (url.startsWith('https://places.googleapis.com/v1/places/place-pine-12?')) {
+      placesAsked.push({ details: url })
+      return new Response(JSON.stringify({ addressComponents: [
+        { longText: '12', shortText: '12', types: ['street_number'] }, { longText: 'Pine Street', shortText: 'Pine St', types: ['route'] },
+        { longText: 'Akron', shortText: 'Akron', types: ['locality', 'political'] }, { longText: 'Ohio', shortText: 'OH', types: ['administrative_area_level_1', 'political'] },
+        { longText: '44301', shortText: '44301', types: ['postal_code'] },
+      ] }), { status: 200 })
+    }
     return new Response('not stubbed', { status: 404 })
   }) as any
 
@@ -681,6 +700,37 @@ describe('instant estimator', () => {
     }
     expect((await json(await as('owner')('/api/company'))).body.settings.estimator).toMatchObject({ serviceRadiusMiles: null, base: null })
     expect((await json(await estimate({ address: '99 Outside Rd', city: 'Akron', state: 'OH', zip: '44301', name: 'Too Far', email: 'toofar@example.com' }))).body.quoted).toBe(true)
+  })
+
+  // Live test 11/11: the estimator's street box suggested nothing. As the visitor types, the business's server asks Google
+  // for addresses (one session token for the typing, ended by the pick), and the one picked fills in the city, state, zip.
+  test('suggests addresses as they are typed, and the one picked fills in the street, city, state and zip', async () => {
+    placesAsked.length = 0
+    const S = 'sess-abc12345'
+    const found = await json(await t.call(`/api/estimator/addresses/test-builders?q=${encodeURIComponent('12 Pine')}&s=${S}`))
+    expect(found.status).toBe(200)
+    expect(found.body.suggestions).toEqual([{ id: 'place-pine-12', text: '12 Pine St, Akron, OH, USA' }, { id: 'place-pine-120', text: '120 Pine St, Akron, OH, USA' }])
+    expect(placesAsked[0]).toMatchObject({ input: '12 Pine', sessionToken: S, includedRegionCodes: ['us'] })
+    const picked = await json(await t.call(`/api/estimator/address/test-builders?id=place-pine-12&s=${S}`))
+    expect(picked).toEqual({ status: 200, body: { address: '12 Pine Street', city: 'Akron', state: 'OH', zip: '44301' } })
+    // The pick ends the typing's session: the same token, and only the Essentials field asked for.
+    expect(placesAsked[1].details).toContain(`sessionToken=${S}`)
+    // Too little typed asks Google nothing; nothing found is an empty list; a missing token or a made-up id is refused.
+    const before = placesAsked.length
+    expect((await json(await t.call(`/api/estimator/addresses/test-builders?q=12&s=${S}`))).body).toEqual({ suggestions: [] })
+    expect(placesAsked.length).toBe(before)
+    expect((await json(await t.call(`/api/estimator/addresses/test-builders?q=Nowhere&s=${S}`))).body).toEqual({ suggestions: [] })
+    expect((await t.call('/api/estimator/addresses/test-builders?q=12+Pine')).status).toBe(400)
+    expect((await t.call(`/api/estimator/address/test-builders?id=${encodeURIComponent('../x')}&s=${S}`)).status).toBe(400)
+    expect((await t.call(`/api/estimator/address/test-builders?id=place-unknown-1&s=${S}`)).status).toBe(404)
+    // Another business's slug that has no estimator, and an estimator switched off: no look-ups for them.
+    expect((await t.call(`/api/estimator/addresses/other-roofing?q=12+Pine&s=${S}`)).status).toBe(403)
+    await t.db.update(t.schema.company).set({ estimatorEnabled: false } as any).where(eq(t.schema.company.id, companyId))
+    try {
+      expect((await t.call(`/api/estimator/addresses/test-builders?q=12+Pine&s=${S}`)).status).toBe(403)
+    } finally {
+      await t.db.update(t.schema.company).set({ estimatorEnabled: true } as any).where(eq(t.schema.company.id, companyId))
+    }
   })
 
   test('refuses when the company has turned it off (403), and is not there with the feature off (404)', async () => {

@@ -406,7 +406,7 @@ function buildReportBody(
   // A house and a detached garage drawn on one report: each building's own total (server drawnReport.ts).
   const buildingRows: any[] = Array.isArray((measurements as any).buildings) ? (measurements as any).buildings : []
   const severalBuildings = buildingRows.length > 1
-  const wallRow = (label: string, v: unknown) => (typeof v === 'number' && v > 0 ? `<tr><td>${label}</td><td>${fmt(v)} LF</td></tr>` : '')
+  const wallRow = (label: string, v: unknown) => (typeof v === 'number' && v > 0 ? `<tr><td>${label}</td><td>${fmt(v, 1)} LF</td></tr>` : '')
 
   // Imagery source badge
   const imagerySource = report.imagerySource === 'nearmap'
@@ -527,14 +527,14 @@ function buildReportBody(
       <tbody>
         <tr><td>Total Roof Area</td><td>${fmt(measurements.totalAreaSqft)} sqft</td></tr>
         <tr><td>Total Squares</td><td>${fmt(measurements.totalSquares, 2)}</td></tr>
-        <tr><td>Ridge</td><td>${fmt(measurements.ridgeLF)} LF</td></tr>
+        <tr><td>Ridge</td><td>${fmt(measurements.ridgeLF, 1)} LF</td></tr>
         ${measurements.valleyLF > 0
-          ? `<tr class="highlight"><td>Valley (ice &amp; water shield needed)</td><td>${fmt(measurements.valleyLF)} LF</td></tr>`
-          : `<tr><td>Valley</td><td>${fmt(measurements.valleyLF)} LF</td></tr>`}
-        <tr><td>Hip</td><td>${fmt(measurements.hipLF)} LF</td></tr>
-        <tr><td>Rake</td><td>${fmt(measurements.rakeLF)} LF</td></tr>
-        <tr><td>Eave</td><td>${fmt(measurements.eaveLF)} LF</td></tr>
-        <tr><td>Total Perimeter</td><td>${fmt(measurements.totalPerimeterLF)} LF</td></tr>
+          ? `<tr class="highlight"><td>Valley (ice &amp; water shield needed)</td><td>${fmt(measurements.valleyLF, 1)} LF</td></tr>`
+          : `<tr><td>Valley</td><td>${fmt(measurements.valleyLF, 1)} LF</td></tr>`}
+        <tr><td>Hip</td><td>${fmt(measurements.hipLF, 1)} LF</td></tr>
+        <tr><td>Rake</td><td>${fmt(measurements.rakeLF, 1)} LF</td></tr>
+        <tr><td>Eave</td><td>${fmt(measurements.eaveLF, 1)} LF</td></tr>
+        <tr><td>Total Perimeter</td><td>${fmt(measurements.totalPerimeterLF, 1)} LF</td></tr>
         ${wallRow('Wall flashing', (measurements as any).flashLF)}
         ${wallRow('Step flashing', (measurements as any).stepFlashLF)}
         <tr><td>Waste Factor</td><td>${measurements.wasteFactor}%</td></tr>
