@@ -10,6 +10,8 @@ export interface Address { name?: string; line1: string; line2?: string | null; 
 export interface OrderItem {
   id: string; productName: string; variantName: string; sku: string; imageUrl: string | null
   unitPriceCents: number; quantity: number; lineTotalCents: number; refundedQuantity?: number
+  /** This line credited to someone other than the order's "Sold by". */
+  staffName?: string | null
 }
 
 /** One refund of part (or the rest) of an order — server db/schema/store.ts storeOrderRefund. */
@@ -40,6 +42,8 @@ export interface Order {
   labelShipmentId?: string | null; labelVoidedAt?: string | null; labelRefundStatus?: string | null
   /** ship | pickup | digital (gift cards only); storefront | draft (made for a customer); Stripe Tax worked the tax out. */
   fulfillment?: string; source?: string; taxAutomatic?: boolean
+  /** Who the sale is credited to (the counter's "Sold by", or whoever made a draft); null = no one (the online store). */
+  staffName?: string | null
   /** What a gift card paid, and what has gone back on it. */
   giftCardCents?: number; giftCardRefundedCents?: number
   /** A chargeback's status at the provider, when there is one. */

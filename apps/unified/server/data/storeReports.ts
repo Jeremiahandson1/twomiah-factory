@@ -382,3 +382,29 @@ export function abcGrades<T extends { salesCents: number }>(rows: T[]): Array<T 
     return { ...r, sharePercent: Math.round(share * 10) / 10, cumulativePercent: Math.round(before * 10) / 10, grade }
   })
 }
+
+// ── Sales by staff (Shopify POS) ────────────────────────────────────────────────────────────────────────────────────────
+export interface StaffSales { userId: string; name: string; orders: number; units: number; grossCents: number; returnedCents: number; netCents: number }
+
+/**
+ * What each person sold in the window: a line is credited to its own staff where one was chosen for it, else to its order's
+ * (the counter's "Sold by", a draft order's maker). Lines are price × quantity, before discounts, shipping and tax (as Sales by
+ * product counts them); returned units come off. Online-store orders, credited to no one, are not listed. Most sold first.
+ */
+export async function salesByStaff(db: any, companyId: string, w: Window): Promise<StaffSales[]> {
+  const who = sql`coalesce(${storeOrderItem.staffUserId}, ${storeOrder.staffUserId})`
+  const kept = sql`(${storeOrderItem.quantity} - ${storeOrderItem.refundedQuantity})`
+  const rows = await db.select({
+    userId: sql<string>`${who}`,
+    name: sql<string>`max(coalesce(${storeOrderItem.staffName}, ${storeOrder.staffName}))`,
+    orders: sql<number>`count(distinct ${storeOrder.id})`,
+    units: sql<number>`coalesce(sum(${kept}), 0)`,
+    grossCents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${storeOrderItem.quantity}), 0)`,
+    returnedCents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${storeOrderItem.refundedQuantity}), 0)`,
+  }).from(storeOrderItem).innerJoin(storeOrder, sql`${storeOrder.id} = ${storeOrderItem.orderId}`)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)} and ${who} is not null`)
+    .groupBy(sql`1`)
+  return rows
+    .map((r: any) => ({ userId: String(r.userId), name: String(r.name || 'Staff'), orders: Number(r.orders), units: Number(r.units), grossCents: Number(r.grossCents), returnedCents: Number(r.returnedCents), netCents: Number(r.grossCents) - Number(r.returnedCents) }))
+    .sort((a: StaffSales, b: StaffSales) => b.netCents - a.netCents || a.name.localeCompare(b.name))
+}

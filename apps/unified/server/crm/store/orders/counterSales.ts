@@ -1,6 +1,9 @@
 // /api/admin/counter-sales — a sale at the counter (parity tier 2 #12, Shopify POS; feature store_counter, not ready).
 //
-//   POST /   orders:create   { items: [{ sku, quantity }], paidBy: 'cash' | 'card' | 'other', contactId?, email?, locationId?, preview? }
+//   POST /   orders:create   { items: [{ sku, quantity, soldBy? }], paidBy: 'cash' | 'card' | 'other', contactId?, email?, locationId?, soldBy?, preview? }
+//   GET /staff               who a sale may be credited to (../lib/salesStaff.ts)
+//   (soldBy: who the sale is credited to — Shopify POS's attributed staff, for the Sales by staff report; the person ringing it up
+//   unless another is chosen. A line's own soldBy credits that line to someone else.)
 //   (locationId: where the counter is, with stock by location — the units come off there; one of the store's locations)
 //
 // The same order the store makes everywhere (../checkout/placeOrder.ts): the catalogue's prices, the store's tax, the stock taken
@@ -24,11 +27,13 @@ import { pricingForContact } from '../catalog/groupPricing.ts'
 import { createCheckoutService, requestOrigin } from '../checkout/checkoutService.ts'
 import { createOrderStarter } from '../checkout/placeOrder.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { createSalesStaff } from '../lib/salesStaff.ts'
 import { storeLocations } from '../../../data/storeStock.ts'
 
 const PAID_BY_WORDS = { cash: 'cash', card: 'card on the shop’s machine', other: 'other' } as const
 const saleSchema = z.object({
-  items: z.array(z.object({ sku: z.string().min(1), quantity: z.number().int().positive().max(9999) })).min(1, 'Add at least one item').max(100),
+  items: z.array(z.object({ sku: z.string().min(1), quantity: z.number().int().positive().max(9999), soldBy: z.string().min(1).max(64).optional().nullable() })).min(1, 'Add at least one item').max(100),
+  soldBy: z.string().min(1).max(64).optional().nullable(),
   paidBy: z.enum(['cash', 'card', 'other'], { error: 'Choose how they paid' }),
   contactId: z.string().min(1).optional().nullable(),
   email: z.string().trim().email('Enter a whole email address, or leave it empty').max(200).optional().nullable().or(z.literal('')),
@@ -42,6 +47,10 @@ export function createCounterSaleRoutes(d: CrmDeps, core: StoreCore) {
   app.use('*', d.permissions.requirePermission('orders:create'))
   const checkout = createCheckoutService(d, core)
   const starter = createOrderStarter(d, core, checkout, createStoreGiftCards(d, core))
+  const salesStaff = createSalesStaff(db)
+
+  // Who a sale may be credited to: the "Sold by" picker.
+  app.get('/staff', async (c) => one(c, { data: await salesStaff.list(c.get('user').companyId), me: (c.get('user') as any).userId ?? null }))
 
   app.post('/', async (c) => {
     const parsed = saleSchema.safeParse(await c.req.json().catch(() => null))
@@ -64,12 +73,21 @@ export function createCounterSaleRoutes(d: CrmDeps, core: StoreCore) {
     }
     const email = typed || who?.email || undefined
     const locationId = parsed.data.locationId || null
+    // Who it is credited to: the chosen "Sold by", else the person ringing it up; a line may name someone else.
+    const me = (c.get('user') as any).userId as string | undefined
+    const people = await salesStaff.resolve(companyId, [parsed.data.soldBy || me || '', ...items.map((i) => i.soldBy || '')])
+    if (parsed.data.soldBy && !people.has(parsed.data.soldBy)) return fail(c, 400, 'Choose who made the sale from your team.', 'validation_failed', { soldBy: 'Not one of your team' })
+    const badLine = items.find((i) => i.soldBy && !people.has(i.soldBy))
+    if (badLine) return fail(c, 400, `Choose who sold ${badLine.sku} from your team.`, 'validation_failed', { items: 'Not one of your team' })
+    const staff = people.get(parsed.data.soldBy || me || '') ?? null
+    const lineStaff: Record<string, { userId: string; name: string }> = {}
+    for (const i of items) if (i.soldBy && i.soldBy !== staff?.userId) lineStaff[i.sku] = people.get(i.soldBy)!
     if (locationId && !(await storeLocations(db, companyId)).some((l) => l.id === locationId)) return fail(c, 400, "That location is not one of the store's.")
     const pricing = who ? await pricingForContact(db, companyId, who.id) : null
     const r = await starter.start({
       companyId, items, customerEmail: email, delivery: 'pickup', origin: requestOrigin(c), preview: !!preview,
       // A new email becomes the store's customer, as any order with an email does (placeOrder): named by it, not "Walk-in".
-      draft: { contactId: who?.id ?? null, customerName: who?.name ?? (typed || 'Walk-in'), pricing, note: 'Sold at the counter', paidInPerson: paidBy, counter: true, locationId },
+      draft: { contactId: who?.id ?? null, customerName: who?.name ?? (typed || 'Walk-in'), pricing, note: 'Sold at the counter', paidInPerson: paidBy, counter: true, locationId, staff, lineStaff },
     })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
     if (preview) return one(c, { preview: (r as any).preview })
@@ -79,7 +97,7 @@ export function createCounterSaleRoutes(d: CrmDeps, core: StoreCore) {
       .where(and(eq(storeOrder.id, r.orderId), eq(storeOrder.companyId, companyId), eq(storeOrder.status, 'paid'))).returning()
     const made = order ?? (await db.select().from(storeOrder).where(and(eq(storeOrder.id, r.orderId), eq(storeOrder.companyId, companyId))).limit(1))[0]
     await audit.log({ action: audit.ACTIONS.CREATE, entity: 'order', entityId: made.id, entityName: made.orderNumber,
-      metadata: { description: `Sold at the counter${who ? ` to ${who.name}` : ''}, paid by ${PAID_BY_WORDS[paidBy]}` }, req: c })
+      metadata: { description: `Sold at the counter${who ? ` to ${who.name}` : ''}${staff ? ` by ${staff.name}` : ''}, paid by ${PAID_BY_WORDS[paidBy]}` }, req: c })
     return one(c, { order: made, receiptTo: email ?? null }, 201)
   })
 
