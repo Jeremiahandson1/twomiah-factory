@@ -20,6 +20,7 @@ import { createCheckoutService, requestOrigin } from '../checkout/checkoutServic
 import { createOrderStarter } from '../checkout/placeOrder.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { createSalesStaff } from '../lib/salesStaff.ts'
 import { contactShipTo, keptShipTo, shipToSchema } from './shipTo.ts'
 
 const draftSchema = z.object({
@@ -45,6 +46,7 @@ export function createDraftOrderRoutes(d: CrmDeps, core: StoreCore) {
   app.use('*', d.permissions.requirePermission('orders:create'))
   const checkout = createCheckoutService(d, core)
   const starter = createOrderStarter(d, core, checkout, createStoreGiftCards(d, core))
+  const salesStaff = createSalesStaff(db)
 
   /** Email the customer their order and the link to pay it. */
   const sendInvoice = async (orderId: string, companyId: string, payUrl: string): Promise<boolean> => {
@@ -69,9 +71,12 @@ export function createDraftOrderRoutes(d: CrmDeps, core: StoreCore) {
     const shipsTo = parsed.data.delivery === 'ship' ? (parsed.data.shippingAddress ? keptShipTo(parsed.data.shippingAddress) : contactShipTo(who)) : null
     // The shipping rate and tax follow the address when there is one (the region boxes are for an order with none).
     const region = shipsTo ? { country: shipsTo.country, state: shipsTo.state } : parsed.data.shipTo
+    // Credited to whoever made it (the Sales by staff report).
+    const me = (c.get('user') as any).userId as string | undefined
+    const staff = me ? (await salesStaff.resolve(companyId, [me])).get(me) ?? null : null
     const r = await starter.start({
       companyId, items: parsed.data.items, customerEmail: who.email || undefined, delivery: parsed.data.delivery, shipTo: region,
-      origin: requestOrigin(c), draft: { contactId: who.id, customerName: who.name, pricing, note: parsed.data.note ?? null, ...(inPerson ? { paidInPerson: inPerson } : {}) },
+      origin: requestOrigin(c), draft: { contactId: who.id, customerName: who.name, pricing, note: parsed.data.note ?? null, staff, ...(inPerson ? { paidInPerson: inPerson } : {}) },
     })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
     if (shipsTo) {

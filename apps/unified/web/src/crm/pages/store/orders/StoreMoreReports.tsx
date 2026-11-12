@@ -14,6 +14,7 @@ export const MORE_REPORTS: Array<{ id: string; label: string }> = [
   { id: 'taxes', label: 'Taxes' }, { id: 'refunds', label: 'Refunds given' }, { id: 'inventory', label: 'Inventory value' },
   // Shopify's inventory reports, on the stock history (server/data/storeStockMoves.ts).
   { id: 'sell_through', label: 'Sell-through rate' }, { id: 'days_left', label: 'Days of inventory left' }, { id: 'abc', label: 'ABC analysis' }, { id: 'stock_moves', label: 'Stock changes' },
+  { id: 'staff', label: 'Sales by staff' },
 ]
 
 export function StoreMoreReports({ from, to }: { from: string; to: string }) {

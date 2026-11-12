@@ -154,6 +154,13 @@ export const storeOrder = pgTable('orders', {
   source: text('source').notNull().default('storefront'),
   /** The location it shipped from or was sold at (stock by location — store_locations); null where locations are not counted. */
   locationId: text('location_id'),
+  /**
+   * Who the sale is credited to (Shopify POS's attributed staff; the Sales by staff report): at the counter, the person chosen as
+   * "Sold by" (the cashier unless another is chosen); a draft order, whoever made it. Null = no one (the online store). The name is
+   * kept as it was, so a person removed later still reads on their sales.
+   */
+  staffUserId: text('staff_user_id'),
+  staffName: text('staff_name'),
   /** Where each option's units came off: { variantId: { locationId: units } } — so changing the location moves exactly those. */
   stockTakes: json('stock_takes'),
   /** Tax worked out by Stripe Tax at checkout (filled from the paid session), not the store's flat rate. */
@@ -203,6 +210,9 @@ export const storeOrderItem = pgTable('order_items', {
   refundedQuantity: integer('refunded_quantity').notNull().default(0),
   /** The option's cost when this was bought (a later cost edit never rewrites a sale's profit); null = it had none. */
   unitCostCents: integer('unit_cost_cents'),
+  /** This line credited to someone other than the order's staff (Shopify POS's line-item attribution); null = the order's. */
+  staffUserId: text('staff_user_id'),
+  staffName: text('staff_name'),
 }, (t) => [index('order_items_order_idx').on(t.orderId)])
 
 /**

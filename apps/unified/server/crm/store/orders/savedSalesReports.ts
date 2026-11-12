@@ -12,17 +12,17 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { companyRowTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { company } from '../../../db/schema/index.ts'
-import { salesOverTime, topProducts, salesByVariant, discountCodes, salesByCustomer, salesByChannel, salesByPlace, taxesByMonth, refundsGiven, inventoryValue, inventoryFlow, sellThroughPercent, daysOfStockLeft, abcGrades, windowInstants, type Bucket, type Window } from '../../../data/storeReports.ts'
+import { salesOverTime, topProducts, salesByVariant, discountCodes, salesByCustomer, salesByChannel, salesByPlace, taxesByMonth, refundsGiven, inventoryValue, inventoryFlow, sellThroughPercent, daysOfStockLeft, abcGrades, windowInstants, salesByStaff, type Bucket, type Window } from '../../../data/storeReports.ts'
 import { STOCK_REASON_WORDS, historyStarts, movesBetween, type StockReason } from '../../../data/storeStockMoves.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createSavedReports } from '../../field/savedReports.ts'
 import { PERIOD_IDS, chooseColumns, resolvePeriod, type Col, type ReportTable } from '../../field/reportTables.ts'
 
 export const STORE_REPORT_SCHEDULES = 'store_report_schedules'
-export const STORE_TABS = ['over_time', 'products', 'variants', 'discounts', 'customers', 'channels', 'places', 'taxes', 'refunds', 'inventory', 'sell_through', 'days_left', 'abc', 'stock_moves'] as const
+export const STORE_TABS = ['over_time', 'products', 'variants', 'discounts', 'customers', 'channels', 'places', 'taxes', 'refunds', 'inventory', 'sell_through', 'days_left', 'abc', 'stock_moves', 'staff'] as const
 export type StoreTab = typeof STORE_TABS[number]
 /** The further reports (store_report_schedules): shown on Store › Sales only where that switch is on. */
-export const MORE_TABS: StoreTab[] = ['customers', 'channels', 'places', 'taxes', 'refunds', 'inventory', 'sell_through', 'days_left', 'abc', 'stock_moves']
+export const MORE_TABS: StoreTab[] = ['customers', 'channels', 'places', 'taxes', 'refunds', 'inventory', 'sell_through', 'days_left', 'abc', 'stock_moves', 'staff']
 export const CHANNEL_WORDS: Record<string, string> = { storefront: 'Online store', counter: 'At the counter', draft: 'Draft orders (sent to pay)' }
 const DAY = 86_400_000
 const dollars = (cents: number | null | undefined) => (cents == null ? null : Math.round(Number(cents)) / 100)
@@ -114,6 +114,15 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
     const rows = graded.map((g) => ({ product: g.product, option: g.option, sku: g.sku, grade: g.grade, sales: dollars(g.salesCents), share: g.sharePercent, cumulative: g.cumulativePercent, sold: g.sold, ending: g.ending }))
     return { tab, title: 'ABC analysis', columns: [...opt, text('grade', 'Grade'), money('sales', 'Net sales'), { key: 'share', label: 'Share of sales', kind: 'percent', default: true }, { key: 'cumulative', label: 'Running share', kind: 'percent' }, num('sold', 'Units sold'), num('ending', 'Ending stock')], rows,
       note: 'A: the best sellers making up the first 80% of sales; B: the next 15%; C: the rest, and every counted option that sold nothing. Sales are what stayed sold, before shipping and tax.' }
+  }
+  if (tab === 'staff') {
+    const people = await salesByStaff(db, companyId, w)
+    const rows = people.map((x) => ({ name: x.name, orders: x.orders, units: x.units, gross: dollars(x.grossCents), returned: dollars(x.returnedCents), net: dollars(x.netCents), average: dollars(Math.round(x.netCents / Math.max(1, x.orders))) }))
+    const sum = (k: 'orders' | 'units') => rows.reduce((n, r) => n + r[k], 0)
+    const cents = (k: 'gross' | 'returned' | 'net') => Math.round(rows.reduce((n, r) => n + Number(r[k] ?? 0) * 100, 0)) / 100
+    return { tab, title: 'Sales by staff', columns: [text('name', 'Sold by'), num('orders', 'Orders'), num('units', 'Units'), money('gross', 'Sales'), money('returned', 'Returned'), money('net', 'Net sales'), money('average', 'Net per order', false)], rows,
+      totals: { name: 'Total', orders: sum('orders'), units: sum('units'), gross: cents('gross'), returned: cents('returned'), net: cents('net') },
+      note: "Sales made at the counter (credited to who the \u201cSold by\u201d names, line by line where a line names someone else) and draft orders (credited to whoever made them). Online-store orders are no one's and are not listed. Lines before discounts, shipping and tax." }
   }
   if (tab === 'stock_moves') {
     const { startUtc, endUtc } = await windowInstants(db, w)

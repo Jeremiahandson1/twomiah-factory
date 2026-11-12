@@ -271,7 +271,7 @@ export default function OrderDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.orderNumber || 'Pending order'}</h1>
-          <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.createdAt)} · <span>{PAID_BY[order.provider] ?? order.provider}</span></p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.createdAt)} · <span>{PAID_BY[order.provider] ?? order.provider}</span>{order.staffName ? <> · Sold by {order.staffName}</> : null}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusBadge(order.status)}`}>{codeLabel(order.status)}</span>
       </div>
@@ -333,7 +333,7 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{it.productName}</div>
-                <div className="text-xs text-gray-500 dark:text-slate-400">{it.variantName} · {it.sku} · × {it.quantity}{(it.refundedQuantity || 0) > 0 ? ` · ${it.refundedQuantity === it.quantity ? 'refunded' : `${it.refundedQuantity} refunded`}` : ''}</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400">{it.variantName} · {it.sku} · × {it.quantity}{it.staffName ? ` · sold by ${it.staffName}` : ''}{(it.refundedQuantity || 0) > 0 ? ` · ${it.refundedQuantity === it.quantity ? 'refunded' : `${it.refundedQuantity} refunded`}` : ''}</div>
               </div>
               <div className="text-sm font-medium whitespace-nowrap text-gray-900 dark:text-slate-100">{cents(it.lineTotalCents, order.currency)}</div>
             </div>

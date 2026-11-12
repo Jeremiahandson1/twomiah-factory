@@ -52,6 +52,10 @@ export interface StartInput {
      * provider, the store's own tax rates; a refund goes back the way it was paid (refunds.ts "none on file").
      */
     paidInPerson?: 'cash' | 'check' | 'card' | 'other'
+    /** Who the sale is credited to (the Sales by staff report): the counter's "Sold by", or whoever made the draft. */
+    staff?: { userId: string; name: string } | null
+    /** A line credited to someone else, by its SKU (Shopify POS's line-item attribution). */
+    lineStaff?: Record<string, { userId: string; name: string }>
   }
   /**
    * A signed-in shopper (their account's cookie, checked by the route): the order is theirs whatever email is typed, at
@@ -285,6 +289,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       subtotalCents, shippingCents, taxCents,
       discountCents: totalDiscountCents, discountCode: appliedCode, loyaltyRewardId, loyaltyDiscountCents,
       totalCents, currency, fulfillment, taxAutomatic: automaticTax,
+      staffUserId: input.draft?.staff?.userId ?? null, staffName: input.draft?.staff?.name ?? null,
       source: input.draft?.counter ? 'counter' : input.draft ? 'draft' : 'storefront', locationId: input.draft?.counter ? input.draft.locationId ?? null : null, customerGroupId: (input.draft?.pricing ?? input.shopper?.pricing)?.groupId ?? null,
       internalNote: [input.draft?.note, inPerson ? `Paid in person: ${IN_PERSON_WORDS[inPerson]}` : null, shippingChoice ? `Shipping chosen at checkout: ${shippingChoice.carrier} ${shippingChoice.service}` : null].filter(Boolean).join('\n') || null,
       // A draft is paid from its emailed link, which reopens a payment page each time it is opened (resumeCheckout) — not one
@@ -295,6 +300,7 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
       orderId: order.id, productId: li.productId, variantId: li.variantId, productName: li.productName, variantName: li.variantName,
       sku: li.sku, imageUrl: li.imageUrl ?? null, unitPriceCents: li.unitPriceCents, quantity: li.quantity, lineTotalCents: li.unitPriceCents * li.quantity,
       unitCostCents: li.unitCostCents,
+      staffUserId: input.draft?.lineStaff?.[li.sku]?.userId ?? null, staffName: input.draft?.lineStaff?.[li.sku]?.name ?? null,
     })))
     // The audit log: an order begun (store live test, 2026-10-26: orders left no record there). Unpaid until the provider
     // says so (checkoutService.ts finalizeOrder records "paid").
