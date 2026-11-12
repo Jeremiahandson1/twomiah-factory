@@ -42,6 +42,7 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | — | Dashboard | `/crm/dashboard` | — | dashboard (on by default) | all | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen |
 | Sales | Contacts | `/crm/contacts` | contacts:read | contacts (on by default) | all | Contacts tab + contact detail + form | A — who the work is for |
 | Sales | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | Leads list (status filter, search, call/text/email) + lead detail (note, convert, create quote) + quick-add | A — leads are answered from the phone |
+| Sales | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 | Sales | Quotes | `/crm/quotes` | quotes:read | quotes (on by default) | owner, admin, manager, viewer | Quotes tab + quote detail + form | A — quote on site, take payment on site |
 | Sales | Reviews | `/crm/reviews` | — | google_reviews (on by default) | all | Review requests (More): sent / clicked + send a reminder | C |
 | Sales | Marketing | `/crm/marketing` | marketing:read | email_marketing (on by default) | owner, admin, manager | none | D — set-up and review screens for the owner at a desk |
@@ -107,7 +108,6 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up and review screens for the owner at a desk |
 | Account | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Account | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
-| Business | Lead Map | `/crm/lead-map` | leads:read | lead_map (on by default) | owner, admin, manager | none | C |
 
 ## Basic (general service business) (`basic`, feature set `crm-basic`)
 
@@ -777,20 +777,19 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Menu section | Label | Path | Permission | Switch | Seats | Phone today | Phase |
 |---|---|---|---|---|---|---|---|
 | — | Dashboard | `/crm/dashboard` | orders:read | — (core) | owner, admin, manager, staff | Home tab: tiles for the seat, each opens the list it counts (roofing: also the pipeline's stages, each opens its jobs) | A — the home screen: what is waiting to be packed |
-| — | Sales | `/crm/sales` | revenue:read | store_sales_reports (on by default) | owner, admin, manager, viewer | none | C |
-| — | Segments | `/crm/segments` | marketing:read | store_segments (on by default) | owner, admin, manager | none | C |
-| — | Post-purchase emails | `/crm/followups` | marketing:read | store_followups (on by default) | owner, admin, manager | none | C |
-| — | Reorders | `/crm/reorders` | margin:read | store_reorders (on by default) | owner, admin, manager | Deliveries (book a delivery into stock once it is here; drafting and emailing a reorder stay on the desktop) | C |
-| — | Stock by location | `/crm/stock-locations` | products:read | store_locations (on by default) | owner, admin, manager, staff | none | C |
-| — | Audiences | `/crm/audiences` | marketing:update | store_audiences (on by default) | owner, admin, manager | none | C |
-| — | Apps & integrations | `/crm/apps` | integrations:update | store_apps (on by default) | owner, admin | none | C |
 | Shop | Products | `/crm/products` | products:read | — (core) | owner, admin, manager, staff | Stock tab (look up by name, SKU or barcode; set the count) | A — stock look-up and count from the shelf |
 | Shop | Orders | `/crm/orders` | orders:read | — (core) | owner, admin, manager, staff | Orders tab + order (pack, ready for pickup, mark shipped, buy a label) | A — pick, pack and ship |
 | Shop | Sell at the counter | `/crm/sell` | orders:create | store_counter (on by default) | owner, admin, manager | none | C |
+| Shop | Reorders | `/crm/reorders` | margin:read | store_reorders (on by default) | owner, admin, manager | Deliveries (book a delivery into stock once it is here; drafting and emailing a reorder stay on the desktop) | C |
+| Shop | Stock by location | `/crm/stock-locations` | products:read | store_locations (on by default) | owner, admin, manager, staff | none | C |
 | Shop | Suppliers | `/crm/suppliers` | integrations:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Shop | Shipping | `/crm/shipping` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
+| Shop | Returns | `/crm/returns` | orders:read | store_returns (on by default) | owner, admin, manager, staff | none | C |
 | Customers | Customers | `/crm/customers` | orders:read | — (core) | owner, admin, manager, staff | none | B — useful later; the order already carries the buyer |
 | Customers | Lead Inbox | `/crm/leads` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | B — useful later; the order already carries the buyer |
+| Customers | Segments | `/crm/segments` | marketing:read | store_segments (on by default) | owner, admin, manager | none | C |
+| Customers | Post-purchase emails | `/crm/followups` | marketing:read | store_followups (on by default) | owner, admin, manager | none | C |
+| Customers | Audiences | `/crm/audiences` | marketing:update | store_audiences (on by default) | owner, admin, manager | none | C |
 | Customers | Customer groups | `/crm/customer-groups` | discounts:read | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Customers | Loyalty | `/crm/store-loyalty` | loyalty:read | — (core) | all | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Customers | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
@@ -799,6 +798,7 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Customers | Product reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
 | Customers | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
 | Customers | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | A — answering customers' email and reviews |
+| Money | Sales | `/crm/sales` | revenue:read | store_sales_reports (on by default) | owner, admin, manager, viewer | none | C |
 | Money | Payments | `/crm/payments` | payments:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Money | Disputes | `/crm/disputes` | orders:refund | — (core) | owner, admin, manager | none | C |
 | Money | Discounts | `/crm/discounts` | discounts:read | — (core) | owner, admin, manager | none | C |
@@ -810,9 +810,9 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Website | Blog | `/crm/website/blog` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Website | Portfolio | `/crm/website/portfolio` | site:read | — (core) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Website | Website settings | `/crm/website/settings` | site:settings | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
+| Account | Apps & integrations | `/crm/apps` | integrations:update | store_apps (on by default) | owner, admin | none | C |
 | Account | Store Settings | `/crm/store-settings` | shipping:configure | — (core) | owner, admin, manager | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
 | Account | Audit Log | `/crm/audit` | audit:read | — (core) | owner, admin | none | D — set-up, review and website building are desk jobs |
-| Account | Returns | `/crm/returns` | orders:read | store_returns (on by default) | owner, admin, manager, staff | none | C |
 | Account | Team | `/crm/team` | team:read | team (on by default) | owner, admin, manager, viewer | none | C |
 | Account | Help | `/crm/help` | — | — (core) | all | none | D — a link out is enough |
 | Account | Contact Twomiah | `/crm/contact-support` | — | — (core) | all | none | D — a link out is enough |
