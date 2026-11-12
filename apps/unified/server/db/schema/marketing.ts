@@ -352,6 +352,19 @@ export const trackingNumber = pgTable('tracking_number', {
   providerId: text('provider_id'),
   provider: text('provider'),
   active: boolean('active').default(true).notNull(),
+  /**
+   * On the business's website (CallRail's dynamic number insertion; crm/comms/numberSwap.ts): which visitors are shown this number
+   * in place of the business's own — 'all', a source ('google_ads', 'google_organic', 'facebook'…, numberSwapRules.ts) or
+   * 'utm:<utm_source>'. Null = not shown on the website.
+   */
+  swapSource: text('swap_source'),
+  /** One of a visitor pool (CallRail's visitor tracking): handed out a visitor at a time, so a call is tied to that visit. */
+  inPool: boolean('in_pool').notNull().default(false),
+  /**
+   * The CALL WHISPER (CallRail's whisper message): what the person answering hears before the caller is put through — "Call from
+   * Google Ads" — so they know where it came from before they say hello. The caller never hears it. Null = none.
+   */
+  whisper: text('whisper'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
@@ -359,6 +372,28 @@ export const trackingNumber = pgTable('tracking_number', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('tracking_number_company_id_idx').on(t.companyId),
+])
+
+/**
+ * A website visit shown a pool number (CallRail's visitor tracking): where the visitor came from, so a call to that number while
+ * the visit is live (seen in the last 30 minutes) is credited with its source, campaign, keyword and landing page.
+ */
+export const callTrackingVisit = pgTable('call_tracking_visit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  trackingNumberId: text('tracking_number_id').notNull().references(() => trackingNumber.id, { onDelete: 'cascade' }),
+  visitorId: text('visitor_id').notNull(),
+  source: text('source'),
+  medium: text('medium'),
+  campaign: text('campaign'),
+  keyword: text('keyword'),
+  landingPage: text('landing_page'),
+  referrer: text('referrer'),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
+}, (t) => [
+  index('call_tracking_visit_number_idx').on(t.trackingNumberId, t.lastSeenAt),
+  index('call_tracking_visit_visitor_idx').on(t.companyId, t.visitorId, t.lastSeenAt),
 ])
 
 export const phoneCall = pgTable('phone_call', {

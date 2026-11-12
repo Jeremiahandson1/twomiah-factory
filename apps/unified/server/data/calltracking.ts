@@ -37,7 +37,7 @@ export async function listTrackingNumbers(db: any, companyId: string, { source, 
 
 // The columns an edit may change. The template also listed whisper_message and recording_enabled, which are not
 // columns of tracking_number, so an edit carrying either answered 500; they are left out.
-const TRACKING_NUMBER_COLUMNS = ['name', 'phone_number', 'forward_to', 'source', 'active']
+const TRACKING_NUMBER_COLUMNS = ['name', 'phone_number', 'forward_to', 'source', 'active', 'swap_source', 'in_pool', 'whisper']
 
 /** Change the allowed columns of one of this company's tracking numbers; camelCase keys in, unknown keys skipped. */
 export async function updateTrackingNumber(db: any, numberId: string, companyId: string, data: Record<string, unknown>) {
@@ -49,13 +49,13 @@ export async function updateTrackingNumber(db: any, numberId: string, companyId:
 }
 
 /** The tracking number a call came in on, by its phone number. */
-export async function findTrackingNumberByPhone(db: any, companyId: string, phoneNumber: string): Promise<{ id: string; source: string | null; campaign: string | null; medium: string | null } | null> {
+export async function findTrackingNumberByPhone(db: any, companyId: string, phoneNumber: string): Promise<{ id: string; source: string | null; campaign: string | null; medium: string | null; swapSource: string | null; inPool: boolean } | null> {
   const row = rowsOf(await db.execute(sql`
-    SELECT id, source, campaign, medium FROM tracking_number
+    SELECT id, source, campaign, medium, swap_source, in_pool FROM tracking_number
     WHERE company_id = ${companyId} AND phone_number = ${phoneNumber}
     LIMIT 1
   `))[0]
-  return row ? { id: row.id, source: row.source, campaign: row.campaign, medium: row.medium } : null
+  return row ? { id: row.id, source: row.source, campaign: row.campaign, medium: row.medium, swapSource: row.swap_source ?? null, inPool: !!row.in_pool } : null
 }
 
 export interface CallLogRow {

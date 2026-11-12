@@ -1,9 +1,9 @@
 // What a public page knows about the business: the `settings` object the site views read (settings.companyName,
 // settings.logoUrl, …), built from the app's company and site rows. The views moved across unchanged; this is the one
 // place that knows the premium site kept these in its own settings table.
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, isNotNull } from 'drizzle-orm'
 import { businessHoursLines, businessHoursOf } from '@twomiah/tenant-backend'
-import { company, website, page, post, portfolioItem } from '../db/schema/index.ts'
+import { company, website, page, post, portfolioItem, trackingNumber } from '../db/schema/index.ts'
 import { sectionsShown } from './render.ts'
 import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices, type SiteService } from './menu.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
@@ -16,6 +16,8 @@ import { cleanStyle, fontsUrl, type SiteStyle } from './feel.ts'
 
 export interface SiteContext {
   companyId: string
+  /** The website number swap is on (call_tracking_numbers, and a tracking number set to show on the website): base.ejs loads it. */
+  numberSwap?: boolean
   /** The company's slug: its id in the Factory and in the Visualizer. */
   slug: string
   /** The object the views read as `settings`. */
@@ -90,8 +92,12 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     posts: !!aPost, portfolio: !!aWork,
     areas: serviceAreas.some((a: any) => String((a && typeof a === 'object' ? a.name : a) || '').trim()),
   })
+  // The website number swap (crm/comms/numberSwap.ts): never in the editor's preview, as no other tracking is.
+  const numberSwap = !preview && features.includes('call_tracking_numbers') && !!(await db.select({ id: trackingNumber.id }).from(trackingNumber)
+    .where(and(eq(trackingNumber.companyId, co.id), eq(trackingNumber.active, true), isNotNull(trackingNumber.swapSource))).limit(1))[0]
   return {
     companyId: co.id,
+    numberSwap,
     slug: co.slug,
     design,
     words: vertical.site.words,

@@ -10,6 +10,8 @@ import { mapCallRailPayload, insertLead } from '@twomiah/tenant-backend'
 import { company, contact, lead } from '../../db/schema/index.ts'
 import { resolveTimezone, ymdIn } from '../homecare/core/agencyTime.ts'
 import * as q from '../../data/calltracking.ts'
+import { visitForCall } from './numberSwap.ts'
+import { ruleAttribution } from './numberSwapRules.ts'
 import type { CrmDeps } from '../deps.ts'
 
 export interface CallInput {
@@ -38,7 +40,7 @@ export function createCalltrackingService(d: CrmDeps) {
   }
 
   /** Home care: the caller is a client, matched by phone; a first call makes one (the template's logCall). */
-  async function logClientCall(companyId: string, data: CallInput, tracking: { trackingNumberId: string | null; source: string | null; campaign: string | null; medium: string | null }) {
+  async function logClientCall(companyId: string, data: CallInput, tracking: { trackingNumberId: string | null; source: string | null; campaign: string | null; medium: string | null; keyword?: string | null; landingPage?: string | null }) {
     let clientId: string | null = null
     let isFirstTimeCaller = true
     if (data.callerNumber) {
@@ -48,7 +50,7 @@ export function createCalltrackingService(d: CrmDeps) {
     const logged = await q.insertCallLog(db, {
       companyId, trackingNumberId: tracking.trackingNumberId, contactId: null, clientId,
       callerNumber: data.callerNumber || null, callerName: data.callerName || null, callerCity: data.callerCity || null, callerState: data.callerState || null,
-      source: tracking.source, campaign: tracking.campaign, medium: tracking.medium, keyword: data.keyword || null, landingPage: data.landingPage || null,
+      source: tracking.source, campaign: tracking.campaign, medium: tracking.medium, keyword: tracking.keyword ?? data.keyword ?? null, landingPage: tracking.landingPage ?? data.landingPage ?? null,
       direction: data.direction || 'inbound', status: data.status || 'completed', duration: data.duration || 0,
       startTime: data.startTime ? new Date(data.startTime) : new Date(), endTime: data.endTime ? new Date(data.endTime) : null,
       recordingUrl: data.recordingUrl || null, transcription: data.transcription || null,
@@ -74,6 +76,8 @@ export function createCalltrackingService(d: CrmDeps) {
     let trackingSource: string | null = data.source || null
     let trackingCampaign: string | null = data.campaign || null
     let trackingMedium: string | null = data.medium || null
+    let keyword: string | null = data.keyword || null
+    let landingPage: string | null = data.landingPage || null
 
     if (data.trackingNumber) {
       const tn = await q.findTrackingNumberByPhone(db, companyId, data.trackingNumber)
@@ -82,10 +86,23 @@ export function createCalltrackingService(d: CrmDeps) {
         trackingSource = tn.source || data.source || null
         trackingCampaign = tn.campaign || data.campaign || null
         trackingMedium = tn.medium || data.medium || null
+        // The website number swap (./numberSwap.ts): a pool number's call is the live visit's — where it came from, the
+        // campaign, the search words and the page it landed on; a plain website number its rule's source, where the owner
+        // named none.
+        if (tn.inPool) {
+          const v = await visitForCall(db, tn.id, data.startTime ? new Date(data.startTime) : new Date())
+          if (v) {
+            trackingSource = v.source || trackingSource; trackingMedium = v.medium || trackingMedium; trackingCampaign = v.campaign || trackingCampaign
+            keyword = v.keyword || keyword; landingPage = v.landingPage || landingPage
+          }
+        } else if (tn.swapSource && !tn.source) {
+          const a = ruleAttribution(tn.swapSource)
+          if (a) { trackingSource = a.source; trackingMedium = tn.medium || a.medium }
+        }
       }
     }
 
-    if (callersAreClients) return logClientCall(companyId, data, { trackingNumberId, source: trackingSource, campaign: trackingCampaign, medium: trackingMedium })
+    if (callersAreClients) return logClientCall(companyId, data, { trackingNumberId, source: trackingSource, campaign: trackingCampaign, medium: trackingMedium, keyword, landingPage })
 
     const toInbox = await d.features.isFeatureEnabled(companyId, 'lead_inbox')
 
@@ -108,7 +125,7 @@ export function createCalltrackingService(d: CrmDeps) {
     const logged = await q.insertCallLog(db, {
       companyId, trackingNumberId, contactId,
       callerNumber: data.callerNumber || null, callerName: data.callerName || null, callerCity: data.callerCity || null, callerState: data.callerState || null,
-      source: trackingSource, campaign: trackingCampaign, medium: trackingMedium, keyword: data.keyword || null, landingPage: data.landingPage || null,
+      source: trackingSource, campaign: trackingCampaign, medium: trackingMedium, keyword, landingPage,
       direction: data.direction || 'inbound', status: data.status || 'completed', duration: data.duration || 0,
       startTime: data.startTime ? new Date(data.startTime) : new Date(), endTime: data.endTime ? new Date(data.endTime) : null,
       recordingUrl: data.recordingUrl || null, transcription: data.transcription || null,
@@ -128,7 +145,7 @@ export function createCalltrackingService(d: CrmDeps) {
           description: [
             trackingSource && `Source: ${trackingSource}`,
             trackingCampaign && `Campaign: ${trackingCampaign}`,
-            data.keyword && `Keyword: ${data.keyword}`,
+            keyword && `Keyword: ${keyword}`,
             data.status && data.status !== 'completed' && `Call: ${data.status}`,
             data.transcription && `Transcription: ${data.transcription}`,
           ].filter(Boolean).join('\n'),

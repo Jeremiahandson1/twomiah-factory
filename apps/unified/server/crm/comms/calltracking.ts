@@ -17,6 +17,7 @@ import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingService } from './calltrackingService.ts'
 import { attachRecording, clearRecording, expiredRecordings, recordingOf } from '../../data/calltracking.ts'
+import { isSwapSource } from './numberSwapRules.ts'
 import { DEFAULT_RECORDING_NOTICE, deleteRecordingAt, fetchCall, fetchRecordingAudio, parseRecordingUrl } from './recordings.ts'
 
 const trackingNumberSchema = z.object({
@@ -130,7 +131,7 @@ export function createCalltrackingRoutes(d: CrmDeps) {
     const v = fromTwilio(c, params, row)
     if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio voice webhook', v.reason)
     const last10 = (x: unknown) => String(x ?? '').replace(/\D/g, '').slice(-10)
-    const lines = await db.select({ phoneNumber: trackingNumber.phoneNumber, forwardTo: trackingNumber.forwardTo }).from(trackingNumber)
+    const lines = await db.select({ id: trackingNumber.id, phoneNumber: trackingNumber.phoneNumber, forwardTo: trackingNumber.forwardTo, whisper: trackingNumber.whisper }).from(trackingNumber)
       .where(and(eq(trackingNumber.companyId, companyId), eq(trackingNumber.active, true)))
     const line = (lines as any[]).find((l) => last10(l.phoneNumber) === last10(params.To) && last10(l.forwardTo).length === 10)
     c.header('Content-Type', 'text/xml')
@@ -142,7 +143,27 @@ export function createCalltrackingRoutes(d: CrmDeps) {
       ? ` record="record-from-answer-dual" recordingStatusCallback="${xmlEscape(`${webhookOrigin(c)}/api/calltracking/webhook/twilio-recording/${companyId}`)}" recordingStatusCallbackEvent="completed"`
       : ''
     const notice = (row as any).callRecording ? `<Say>${xmlEscape(String((row as any).callRecordingNotice || DEFAULT_RECORDING_NOTICE).slice(0, 300))}</Say>` : ''
-    return c.body(voiceXml(`${notice}<Dial answerOnBridge="true"${caller}${rec}><Number>+1${last10(line.forwardTo)}</Number></Dial>`))
+    // The whisper (CallRail's): Twilio asks for it when the business's line answers, and plays it to them alone before connecting.
+    const whisper = String(line.whisper || '').trim() ? ` url="${xmlEscape(`${webhookOrigin(c)}/api/calltracking/voice/${companyId}/whisper/${line.id}`)}" method="POST"` : ''
+    return c.body(voiceXml(`${notice}<Dial answerOnBridge="true"${caller}${rec}><Number${whisper}>+1${last10(line.forwardTo)}</Number></Dial>`))
+  })
+
+  /**
+   * The whisper itself: the business's line has answered and Twilio asks what to play to them before the caller is put through
+   * (signed like every Twilio request). A number with no whisper any more, or not this company's, plays nothing.
+   */
+  app.post('/voice/:companyId/whisper/:numberId', async (c) => {
+    const companyId = c.req.param('companyId')
+    const params = await parseTwilioBody(c)
+    const row = await companyRowFor(companyId)
+    if (!row) return c.notFound()
+    const v = fromTwilio(c, params, row)
+    if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio whisper webhook', v.reason)
+    const [n] = await db.select({ whisper: trackingNumber.whisper }).from(trackingNumber)
+      .where(and(eq(trackingNumber.id, c.req.param('numberId')), eq(trackingNumber.companyId, companyId))).limit(1)
+    const said = String(n?.whisper || '').trim().slice(0, 200)
+    c.header('Content-Type', 'text/xml')
+    return c.body(voiceXml(said ? `<Say>${xmlEscape(said)}</Say>` : ''))
   })
 
   /**
@@ -200,7 +221,22 @@ export function createCalltrackingRoutes(d: CrmDeps) {
 
   app.put('/numbers/:id', requirePermission('calltracking:update'), async (c) => {
     const user = c.get('user')
-    const body = await c.req.json()
+    const body = await c.req.json().catch(() => null)
+    if (!body || typeof body !== 'object') return fail(c, 400, 'Send the fields to change')
+    // The website number swap (./numberSwap.ts): which visitors see this number, and whether it is one of a visitor pool.
+    if ('swapSource' in body) {
+      const v = body.swapSource === '' ? null : typeof body.swapSource === 'string' ? body.swapSource.trim().toLowerCase() : body.swapSource
+      if (v !== null && !isSwapSource(v)) return fail(c, 400, 'Choose which visitors see this number on your website.', 'validation_failed', { swapSource: 'Not one of the choices' })
+      body.swapSource = v
+    }
+    if ('inPool' in body && typeof body.inPool !== 'boolean') return fail(c, 400, 'Say whether this number is one of a visitor pool.', 'validation_failed', { inPool: 'Yes or no' })
+    // The whisper the person answering hears (./calltracking.ts voice): a short sentence, or nothing.
+    if ('whisper' in body) {
+      if (body.whisper !== null && typeof body.whisper !== 'string') return fail(c, 400, 'Type what the person answering should hear, or leave it empty.', 'validation_failed', { whisper: 'Text, or empty' })
+      const w = typeof body.whisper === 'string' ? body.whisper.trim() : ''
+      if (w.length > 200) return fail(c, 400, 'Keep the whisper under 200 characters: it is said before every call.', 'validation_failed', { whisper: 'Too long' })
+      body.whisper = w || null
+    }
     await calltracking.updateTrackingNumber(c.req.param('id'), user.companyId, body)
     return done(c)
   })
@@ -298,6 +334,8 @@ export function createCalltrackingRoutes(d: CrmDeps) {
       callRecording: !!row?.callRecording,
       callRecordingNotice: row?.callRecordingNotice || DEFAULT_RECORDING_NOTICE,
       callRecordingKeepDays: row?.callRecordingKeepDays ?? null,
+      // The website number swap's line to paste on a website Twomiah did not build (./numberSwap.ts).
+      numberSwapScript: row?.slug ? `<script src="${webhookOrigin(c)}/scripts/number-swap.js" data-slug="${row.slug}" defer></script>` : null,
     })
   })
 
