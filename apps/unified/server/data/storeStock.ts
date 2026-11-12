@@ -16,6 +16,7 @@
 // those units back and takes them there.
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { inventoryLocation, storeProductVariant, storeStockLevel } from '../db/schema/index.ts'
+import { lockedCount, recordMove, shiftStock, type MoveWhy } from './storeStockMoves.ts'
 
 export const STORE_LOCATION_TYPE = 'store'
 
@@ -97,12 +98,11 @@ async function reconcileTaking(exec: any, companyId: string, variantId: string, 
 }
 
 /** An order's lines' units off the stock, from `prefer` first: where they came off, by option (only options counted by location). */
-export async function takeForOrder(exec: any, companyId: string, lines: Array<{ variantId: string; quantity: number }>, prefer: string | null): Promise<Record<string, Record<string, number>>> {
+export async function takeForOrder(exec: any, companyId: string, lines: Array<{ variantId: string; quantity: number }>, prefer: string | null, why: MoveWhy = { reason: 'sold' }): Promise<Record<string, Record<string, number>>> {
   const out: Record<string, Record<string, number>> = {}
   for (const l of lines) {
-    await exec.update(storeProductVariant)
-      .set({ inventoryQty: sql`GREATEST(0, ${storeProductVariant.inventoryQty} - ${l.quantity}::int)`, updatedAt: new Date() } as any)
-      .where(and(eq(storeProductVariant.id, l.variantId), sql`${storeProductVariant.inventoryQty} IS NOT NULL`))
+    // Kept in the stock history (data/storeStockMoves.ts), counted under the row's lock.
+    await shiftStock(exec, l.variantId, -l.quantity, { locationId: prefer, ...why }, true)
     const r = await reconcileTaking(exec, companyId, l.variantId, prefer)
     if (Object.keys(r.takes).length) {
       const m = out[l.variantId] ?? {}
@@ -166,7 +166,8 @@ export async function reconcileMany(exec: any, companyId: string, variantIds: st
  * A count typed for one location. The first count a variant gets at a location starts its rows: the units it already had stay
  * at the first location (so nothing is lost), and the typed count is set where it was typed. The total is written from the rows.
  */
-export async function setLevel(exec: any, companyId: string, variantId: string, locationId: string, quantity: number): Promise<{ total: number }> {
+export async function setLevel(exec: any, companyId: string, variantId: string, locationId: string, quantity: number, who: Pick<MoveWhy, 'byUserId' | 'byName'> = {}): Promise<{ total: number }> {
+  const was = await lockedCount(exec, variantId)
   const existing: any[] = await exec.select().from(storeStockLevel).where(and(eq(storeStockLevel.companyId, companyId), eq(storeStockLevel.variantId, variantId)))
   if (!existing.length) {
     const [v] = await exec.select({ qty: storeProductVariant.inventoryQty }).from(storeProductVariant).where(eq(storeProductVariant.id, variantId)).limit(1)
@@ -175,17 +176,22 @@ export async function setLevel(exec: any, companyId: string, variantId: string, 
   }
   await exec.insert(storeStockLevel).values({ companyId, variantId, locationId, quantity })
     .onConflictDoUpdate({ target: [storeStockLevel.variantId, storeStockLevel.locationId], set: { quantity, updatedAt: new Date() } })
-  return { total: await writeTotal(exec, companyId, variantId) }
+  const total = await writeTotal(exec, companyId, variantId)
+  await recordMove(exec, companyId, variantId, was?.qty ?? null, total, { reason: 'counted', locationId, note: `Counted ${quantity} here`, ...who })
+  return { total }
 }
 
 /** Units moved from one location to another: the total does not change. Refused (null) when the first has fewer than asked. */
-export async function transfer(exec: any, companyId: string, variantId: string, fromId: string, toId: string, quantity: number): Promise<{ total: number } | null> {
+export async function transfer(exec: any, companyId: string, variantId: string, fromId: string, toId: string, quantity: number, why: Pick<MoveWhy, 'byUserId' | 'byName' | 'note'> = {}): Promise<{ total: number } | null> {
   const [from] = await exec.select().from(storeStockLevel).where(and(eq(storeStockLevel.companyId, companyId), eq(storeStockLevel.variantId, variantId), eq(storeStockLevel.locationId, fromId))).limit(1)
   if (!from || Number(from.quantity) < quantity) return null
   await exec.update(storeStockLevel).set({ quantity: sql`${storeStockLevel.quantity} - ${quantity}::int`, updatedAt: new Date() }).where(eq(storeStockLevel.id, from.id))
   await exec.insert(storeStockLevel).values({ companyId, variantId, locationId: toId, quantity })
     .onConflictDoUpdate({ target: [storeStockLevel.variantId, storeStockLevel.locationId], set: { quantity: sql`${storeStockLevel.quantity} + ${quantity}::int`, updatedAt: new Date() } })
-  return { total: await writeTotal(exec, companyId, variantId) }
+  const total = await writeTotal(exec, companyId, variantId)
+  // The total does not move; the history keeps it (from = refId, to = locationId).
+  await recordMove(exec, companyId, variantId, total, total, { reason: 'transferred', locationId: toId, refId: fromId, ...why, note: why.note ?? `${quantity} moved` })
+  return { total }
 }
 
 /** reconcile by the variant alone (the stock doors that are handed only a variant): its rows name the company. */

@@ -5,6 +5,7 @@ import { and, asc, eq, gt, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeProduct, storeProductVariant } from '../db/schema/store.ts'
 import { reconcile } from './storeStock.ts'
+import { lockedCount, recordMove } from './storeStockMoves.ts'
 
 export interface Paged<T> { rows: T[]; next: string | null }
 const page = <T extends { id: string }>(rows: T[], limit: number): Paged<T> => ({ rows: rows.slice(0, limit), next: rows.length > limit ? rows[limit - 1].id : null })
@@ -73,19 +74,21 @@ export type StockWrite = { ok: true; id: string; sku: string; productName: strin
  * is refused (the owner switches counting on in the admin: a key must not decide what the shop tracks). `from` is the count the
  * caller saw: if the shelf has moved since, nothing is written ('changed'), as the admin's stock field does.
  */
-export async function writeStock(db: any, companyId: string, variantId: string, w: { set: number } | { adjustBy: number }, from?: number): Promise<StockWrite> {
+export async function writeStock(db: any, companyId: string, variantId: string, w: { set: number } | { adjustBy: number }, from?: number, key?: { id: string; name: string }): Promise<StockWrite> {
   const [v] = await db.select({ v: storeProductVariant, productName: storeProduct.name }).from(storeProductVariant).innerJoin(storeProduct, eq(storeProduct.id, storeProductVariant.productId))
     .where(and(eq(storeProductVariant.id, variantId), eq(storeProduct.companyId, companyId))).limit(1)
   if (!v) return { ok: false, reason: 'not_found' }
   if (v.v.inventoryQty === null) return { ok: false, reason: 'untracked' }
-  const next = 'set' in w ? sql`${w.set}::int` : sql`GREATEST(0, ${storeProductVariant.inventoryQty} + ${w.adjustBy}::int)`
-  const [row] = await db.update(storeProductVariant).set({ inventoryQty: next, updatedAt: new Date() } as any)
-    .where(and(eq(storeProductVariant.id, variantId), isNotNull(storeProductVariant.inventoryQty), from === undefined ? undefined : eq(storeProductVariant.inventoryQty, from))).returning({ q: storeProductVariant.inventoryQty })
-  if (!row) {
-    const [now] = await db.select({ q: storeProductVariant.inventoryQty }).from(storeProductVariant).where(eq(storeProductVariant.id, variantId)).limit(1)
-    return { ok: false, reason: 'changed', now: now?.q ?? null }
-  }
-  // Stock by location (store_locations): the difference moves onto the locations (data/storeStock.ts).
-  await reconcile(db, companyId, variantId)
-  return { ok: true, id: variantId, sku: v.v.sku, productName: v.productName, before: v.v.inventoryQty, after: row.q }
+  // Read and written under the row's lock, so the stock history (data/storeStockMoves.ts) keeps the exact before → after.
+  return db.transaction(async (tx: any): Promise<StockWrite> => {
+    const now = await lockedCount(tx, variantId)
+    if (!now || now.qty === null) return { ok: false, reason: 'untracked' }
+    if (from !== undefined && now.qty !== from) return { ok: false, reason: 'changed', now: now.qty }
+    const after = 'set' in w ? w.set : Math.max(0, now.qty + w.adjustBy)
+    await tx.update(storeProductVariant).set({ inventoryQty: after, updatedAt: new Date() } as any).where(eq(storeProductVariant.id, variantId))
+    await recordMove(tx, companyId, variantId, now.qty, after, { reason: 'adjusted', refId: key?.id ?? null, byName: key ? `API key "${key.name}"` : null })
+    // Stock by location (store_locations): the difference moves onto the locations (data/storeStock.ts).
+    await reconcile(tx, companyId, variantId)
+    return { ok: true, id: variantId, sku: v.v.sku, productName: v.productName, before: now.qty, after }
+  })
 }

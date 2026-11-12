@@ -1,6 +1,7 @@
 // More reports, on Store › Sales (parity tier 3, store — Shopify's report library; server crm/store/orders/reports.ts /table and
 // /export, the tables built by savedSalesReports.ts storeTableFor; behind store_report_schedules, not ready): sales by customer, by
-// channel, by place, taxes by month, refunds given and inventory value, for the same days as the rest of the page, each as a
+// channel, by place, taxes by month, refunds given, inventory value, and Shopify's inventory reports (sell-through rate, days of
+// inventory left, ABC analysis, every stock change — the stock history), for the same days as the rest of the page, each as a
 // table and a spreadsheet. A seat that does not see costs (margin:read) gets no cost columns.
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
@@ -11,6 +12,8 @@ import { TableView, type Table } from '../../reportKit'
 export const MORE_REPORTS: Array<{ id: string; label: string }> = [
   { id: 'customers', label: 'Sales by customer' }, { id: 'channels', label: 'Sales by channel' }, { id: 'places', label: 'Sales by place' },
   { id: 'taxes', label: 'Taxes' }, { id: 'refunds', label: 'Refunds given' }, { id: 'inventory', label: 'Inventory value' },
+  // Shopify's inventory reports, on the stock history (server/data/storeStockMoves.ts).
+  { id: 'sell_through', label: 'Sell-through rate' }, { id: 'days_left', label: 'Days of inventory left' }, { id: 'abc', label: 'ABC analysis' }, { id: 'stock_moves', label: 'Stock changes' },
 ]
 
 export function StoreMoreReports({ from, to }: { from: string; to: string }) {

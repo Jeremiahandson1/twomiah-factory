@@ -297,7 +297,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       if (a.restock) {
         for (const l of row.items) {
           const [it] = await tx.select({ variantId: storeOrderItem.variantId }).from(storeOrderItem).where(and(eq(storeOrderItem.id, l.orderItemId), eq(storeOrderItem.orderId, row.orderId))).limit(1)
-          if (it?.variantId && (await restockVariant(tx, it.variantId, l.quantity, row.orderId))) { restocked += l.quantity; restockedVariants.push(it.variantId) }
+          if (it?.variantId && (await restockVariant(tx, it.variantId, l.quantity, row.orderId, { refId: row.id, byUserId: by.userId ?? null, byName: by.name ?? null, note: `Return ${row.returnNumber} received` }))) { restocked += l.quantity; restockedVariants.push(it.variantId) }
         }
       }
       return row
@@ -463,7 +463,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
           await tx.insert(storeOrderItem).values({
             orderId, productId: f.p.id, variantId: f.v.id, productName: f.p.name, variantName: f.v.name, sku, unitPriceCents: f.v.priceCents, quantity: qty, lineTotalCents: f.v.priceCents * qty,
           })
-          await decrementStock(tx, f.v.id, qty)
+          await decrementStock(tx, f.v.id, qty, { reason: 'exchanged', orderId, refId: locked.id, byUserId: by.userId ?? null, byName: by.name ?? null, note: `Exchange for return ${locked.returnNumber}` })
         }
         await tx.update(storeReturn).set({
           status: 'exchanged', exchangeOrderId: orderId, refundRowId: refundRow.id, refundCents: difference, creditCents: credit, closedAt: new Date(), updatedAt: new Date(),

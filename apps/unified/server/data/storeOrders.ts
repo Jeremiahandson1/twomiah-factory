@@ -7,6 +7,7 @@
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { contact } from '../db/schema/index.ts'
 import { storeOrder, storeOrderItem, storeOrderRefund, storeProductVariant } from '../db/schema/store.ts'
+import { shiftStock, type MoveWhy } from './storeStockMoves.ts'
 import { toPackCondition, atSupplierCondition, countedOrderCondition } from '../crm/store/tileConditions.ts'
 import { reconcileVariant } from './storeStock.ts'
 
@@ -95,11 +96,10 @@ export async function clearRefundStamp(tx: any, orderId: string, companyId: stri
  * Units back on the shelf, counted by the database. An untracked variant (inventory_qty null = unlimited) is skipped: false. With
  * the order named, they go back to the location it was filled from (stock by location), else the first.
  */
-export async function restockVariant(tx: any, variantId: string, quantity: number, orderId?: string | null): Promise<boolean> {
-  const back = await tx.update(storeProductVariant)
-    .set({ inventoryQty: sql`${storeProductVariant.inventoryQty} + ${quantity}`, updatedAt: new Date() } as any)
-    .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} is not null`))
-    .returning({ id: storeProductVariant.id })
+export async function restockVariant(tx: any, variantId: string, quantity: number, orderId?: string | null, why: Partial<MoveWhy> = {}): Promise<boolean> {
+  // Kept in the stock history (data/storeStockMoves.ts).
+  const moved = await shiftStock(tx, variantId, quantity, { reason: 'restocked', orderId: orderId ?? null, ...why })
+  const back = moved ? [moved] : []
   // Stock by location (store_locations): back to the order's location, else the first (data/storeStock.ts).
   const at = back.length && orderId ? ((await tx.select({ at: storeOrder.locationId }).from(storeOrder).where(eq(storeOrder.id, orderId)).limit(1)) as any[])[0]?.at ?? null : null
   if (back.length) await reconcileVariant(tx, variantId, at)

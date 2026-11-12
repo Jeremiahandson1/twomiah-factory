@@ -249,7 +249,7 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
         await tx.update(storeOrderItem).set({ refundedQuantity: it.quantity }).where(eq(storeOrderItem.id, it.id))
         if (!it.variantId) continue
         restocked += left
-        if (await restockVariant(tx, it.variantId, left, orderId)) stocked.push(it.variantId)
+        if (await restockVariant(tx, it.variantId, left, orderId, { byUserId: by?.userId ?? null, byName: by?.name ?? null, note: 'Order refunded' })) stocked.push(it.variantId)
       }
       const amount = cleared.totalCents - (before?.refundedCents ?? 0)
       if (amount > 0 || lines.length) {
@@ -452,7 +452,7 @@ export function createOrderRefunds(d: CrmDeps, core: StoreCore) {
           const [it] = await tx.select({ variantId: storeOrderItem.variantId }).from(storeOrderItem)
             .where(and(eq(storeOrderItem.id, l.orderItemId), eq(storeOrderItem.orderId, row.orderId))).limit(1)
           if (!it?.variantId) continue
-          if (await restockVariant(tx, it.variantId, l.quantity, row.orderId)) { restocked += l.quantity; stocked.push(it.variantId) }
+          if (await restockVariant(tx, it.variantId, l.quantity, row.orderId, { refId: row.id, byUserId: row.createdBy ?? null, byName: row.createdByName ?? null, note: 'Part refund' })) { restocked += l.quantity; stocked.push(it.variantId) }
         }
       }
       // Nothing left to send back: the order is refunded, as a whole refund would have left it.

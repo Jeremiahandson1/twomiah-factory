@@ -808,3 +808,34 @@ export const storeStockLevel = pgTable('store_stock_level', {
   uniqueIndex('store_stock_level_variant_location_unique').on(t.variantId, t.locationId),
   index('store_stock_level_company_idx').on(t.companyId),
 ])
+
+/**
+ * EVERY CHANGE TO A VARIANT'S STOCK, kept (Shopify's inventory adjustment history; live test 11/12 — the store could say what was
+ * on the shelf now but not what it was last month, so a sell-through or days-of-stock report for any past window had nothing to
+ * stand on). One row per change to inventory_qty, written by the door that made it (server/data/storeStockMoves.ts): the count
+ * before and after (exact — read under the row's lock), why (sold, restocked, received, adjusted, counted, transferred, created,
+ * untracked), the order or purchase order or return behind it, and who. A transfer between locations leaves the total alone and
+ * is kept with a change of 0. The stock at any moment is the `after` of the last row before it (or the `before` of the first row
+ * after it, or the count now when there is none).
+ */
+export const storeStockMove = pgTable('store_stock_moves', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  variantId: text('variant_id').notNull().references(() => storeProductVariant.id, { onDelete: 'cascade' }),
+  reason: text('reason').notNull(),
+  /** null = the variant was not counted (before it was tracked, or after counting was switched off). */
+  quantityBefore: integer('quantity_before'),
+  quantityAfter: integer('quantity_after'),
+  delta: integer('delta').notNull().default(0),
+  locationId: text('location_id'),
+  orderId: text('order_id'),
+  /** The purchase order, return or API key behind it. */
+  refId: text('ref_id'),
+  byUserId: text('by_user_id'),
+  byName: text('by_name'),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('store_stock_moves_variant_idx').on(t.variantId, t.createdAt),
+  index('store_stock_moves_company_idx').on(t.companyId, t.createdAt),
+])

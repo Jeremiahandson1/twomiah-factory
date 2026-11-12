@@ -190,7 +190,7 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
     const items: Array<typeof storeOrderItem.$inferSelect> = await db.select().from(storeOrderItem).where(eq(storeOrderItem.orderId, order.id))
     const lines = items.filter((it) => it.variantId).map((it) => ({ variantId: it.variantId as string, quantity: it.quantity }))
     const at = (paid as any).locationId ?? (await chooseOrderLocation(db, companyId, lines))
-    const takes = await takeForOrder(db, companyId, lines, at)
+    const takes = await takeForOrder(db, companyId, lines, at, { reason: 'sold', orderId: order.id })
     if (at || Object.keys(takes).length) await db.update(storeOrder).set({ locationId: at, stockTakes: takes } as any).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId)))
 
     // Told to the shop's webhooks (store_webhooks): the order exists from here — a checkout nobody paid for is not an order and says

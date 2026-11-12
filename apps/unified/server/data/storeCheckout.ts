@@ -5,6 +5,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { discountCode, productReview, storeOrder, storeOrderItem, storeProductVariant } from '../db/schema/store.ts'
 import { reconcileVariant } from './storeStock.ts'
+import { shiftStock, type MoveWhy } from './storeStockMoves.ts'
 
 /** One more use of a discount code, counted by the database (two orders paid at once both count). */
 export async function countDiscountUse(db: any, companyId: string, code: string): Promise<void> {
@@ -17,10 +18,9 @@ export async function countDiscountUse(db: any, companyId: string, code: string)
  * orders paid at the same moment both read 10 and both write their own remainder — one sale never left the stock.
  * Untracked stock (inventory_qty NULL) is left alone; never below zero.
  */
-export async function decrementStock(db: any, variantId: string, quantity: number): Promise<void> {
-  await db.update(storeProductVariant)
-    .set({ inventoryQty: sql`GREATEST(0, ${storeProductVariant.inventoryQty} - ${quantity}::int)`, updatedAt: new Date() } as any)
-    .where(and(eq(storeProductVariant.id, variantId), sql`${storeProductVariant.inventoryQty} IS NOT NULL`))
+export async function decrementStock(db: any, variantId: string, quantity: number, why: MoveWhy = { reason: 'sold' }): Promise<void> {
+  // Kept in the stock history (data/storeStockMoves.ts), counted before → after under the row's lock.
+  await shiftStock(db, variantId, -quantity, why, true)
   // Stock by location (store_locations): the units come off the locations in order (data/storeStock.ts).
   await reconcileVariant(db, variantId)
 }

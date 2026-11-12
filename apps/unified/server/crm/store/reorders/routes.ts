@@ -23,6 +23,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
+import { createStockWho } from '../lib/stockWho.ts'
 
 const cents = z.number().int().min(0).max(100_000_000)
 const qty = z.number().int().min(0).max(1_000_000)
@@ -50,6 +51,7 @@ const totalOf = (lines: Array<{ quantity: number; unitCostCents: number }>) => l
 
 export function createReorderRoutes(d: CrmDeps, core: StoreCore) {
   const { db } = d
+  const stockWho = createStockWho(db)
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
   const own = (c: Context) => (c as any).get('user').companyId as string
@@ -216,7 +218,7 @@ export function createReorderRoutes(d: CrmDeps, core: StoreCore) {
     if (!po) return fail(c, 404, 'Not found')
     if (!['sent', 'partly_received'].includes(po.status)) return fail(c, 409, po.status === 'draft' ? `${po.number} has not been sent yet. Send it first, or edit the counts.` : `${po.number} is ${po.status === 'received' ? 'already fully received' : 'cancelled'}.`, 'wrong_state')
     if (!parsed.data.lines.some((l) => l.quantity > 0)) return fail(c, 400, 'Enter at least one count above zero.', 'validation_failed')
-    const result = await receiveAgainst(db, companyId, po.id, parsed.data.lines)
+    const result = await receiveAgainst(db, companyId, po.id, parsed.data.lines, await stockWho(c))
     if ('problem' in result) return fail(c, 409, result.problem, 'too_many')
     // The received lines' options have more on the shelf: told to the shop's webhooks (store_webhooks).
     await core.events.stock(companyId, (await linesOf(db, po.id)).filter((l: any) => parsed.data.lines.some((r) => r.lineId === l.id && r.quantity > 0)).map((l: any) => l.variantId))
