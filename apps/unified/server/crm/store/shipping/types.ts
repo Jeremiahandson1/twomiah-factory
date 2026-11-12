@@ -40,4 +40,12 @@ export interface ShippingProvider {
   getRates(input: { from: Address; to: Address; parcel: Parcel }): Promise<RateQuote[]>
   /** Buy one of those rates (or the cheapest, when rateId is omitted). */
   buyLabel(input: { from: Address; to: Address; parcel: Parcel; rateId?: string }): Promise<BoughtLabel>
+  /**
+   * Void a label bought on this shipment: the carrier is asked to refund the postage. A label the carrier has scanned
+   * cannot be voided — that is the carrier's refusal, passed on as it is said.
+   */
+  voidLabel(shipmentId: string): Promise<VoidedLabel>
 }
+
+/** The carrier's answer to a void: submitted (USPS takes some weeks to pay it back), refunded, or rejected. */
+export type VoidedLabel = { refundStatus: 'submitted' | 'refunded' | 'rejected' | string }

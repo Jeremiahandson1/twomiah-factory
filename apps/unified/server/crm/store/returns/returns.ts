@@ -231,10 +231,32 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       .where(and(eq(storeReturn.id, id), eq(storeReturn.companyId, companyId), inArray(storeReturn.status, ['requested', 'approved']))).returning()
     if (!moved) return no(409, 'This return can no longer be cancelled.', 'cannot_cancel')
     await log(companyId, { action: 'update', entity: 'order', entityId: ret.orderId, metadata: { description: `Return ${moved.returnNumber} cancelled${by.shopperContactId ? ' by the shopper' : ''}`, returnId: moved.id } }, c)
-    return { ok: true, ret: moved }
+    // A prepaid label for a return that will not happen is voided, so the shop gets its postage back (Shopify voids an
+    // unused return label the same way; live test 11/11). The return is cancelled whatever the carrier says.
+    const voided = await voidReturnLabel(companyId, moved, c)
+    return { ok: true, ret: voided ?? moved }
   }
 
   // ── The prepaid label ──────────────────────────────────────────────────────────────────────────────────────────────
+  /** The return's label voided with the carrier (refund asked) and taken off the return; null when there was none to void. */
+  async function voidReturnLabel(companyId: string, ret: Return, c?: Context | null): Promise<Return | null> {
+    if (!ret.labelUrl || !ret.labelShipmentId) return null
+    const active = await core.getActiveShipping(companyId).catch(() => null)
+    let status = ''
+    try {
+      if (!active) throw new Error('no carrier account connected')
+      status = (await active.provider.voidLabel(ret.labelShipmentId)).refundStatus
+    } catch (e: any) {
+      logger.warn('[store] return label not voided', { returnId: ret.id, error: e?.message })
+      await log(companyId, { action: 'update', entity: 'order', entityId: ret.orderId, metadata: { description: `Return ${ret.returnNumber}: its label could not be voided (${String(e?.message || 'no reason given').slice(0, 200)}) — void it in the carrier account`, returnId: ret.id } }, c)
+      return null
+    }
+    const [now]: Return[] = await db.update(storeReturn).set({ labelUrl: null, labelTracking: null, labelCarrier: null, labelShipmentId: null, labelVoidedAt: new Date(), labelRefundStatus: status, updatedAt: new Date() })
+      .where(and(eq(storeReturn.id, ret.id), eq(storeReturn.companyId, companyId))).returning()
+    await log(companyId, { action: 'update', entity: 'order', entityId: ret.orderId, metadata: { description: `Return ${ret.returnNumber}: its ${ret.labelCarrier ?? ''} label voided, refund ${status}`.replace(/\s+/g, ' '), returnId: ret.id } }, c)
+    return now ?? null
+  }
+
   /** Buy the shopper a return label (the parcel goes from where the order was sent back to the shop). Once: claimed first. */
   async function buyLabel(companyId: string, id: string): Promise<{ ok: true } | Refusal> {
     const ret = await returnOf(id, companyId)
@@ -253,7 +275,7 @@ export function createStoreReturns(d: CrmDeps, core: StoreCore, refunds: OrderRe
       const label = await active.provider.buyLabel({
         from: { ...home, name: home.name || order.customerName || '', phone: home.phone || order.customerPhone || undefined }, to: active.fromAddress, parcel: active.parcel,
       })
-      await db.update(storeReturn).set({ labelUrl: label.labelUrl, labelTracking: label.trackingCode, labelCarrier: label.carrier, labelCostCents: label.costCents, updatedAt: new Date() }).where(eq(storeReturn.id, id))
+      await db.update(storeReturn).set({ labelUrl: label.labelUrl, labelTracking: label.trackingCode, labelCarrier: label.carrier, labelCostCents: label.costCents, labelShipmentId: label.shipmentId ?? null, updatedAt: new Date() }).where(eq(storeReturn.id, id))
       return { ok: true }
     } catch (e: any) {
       await db.update(storeReturn).set({ labelClaimedAt: null }).where(eq(storeReturn.id, id))

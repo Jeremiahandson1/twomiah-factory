@@ -3,7 +3,7 @@
 // label. Errors surface verbatim — a carrier refusing an address is something
 // the merchant needs to read, not a generic failure.
 import type { StoreAddress as Address } from '../../../db/schema/store.ts'
-import type { BoughtLabel, Parcel, RateQuote, ShippingCredentials, ShippingProvider } from './types.ts'
+import type { BoughtLabel, Parcel, RateQuote, ShippingCredentials, ShippingProvider, VoidedLabel } from './types.ts'
 
 const API = 'https://api.easypost.com/v2'
 
@@ -97,5 +97,11 @@ export class EasyPostProvider implements ShippingProvider {
       costCents: Math.round(Number(bought.selected_rate?.rate ?? chosen.rate) * 100),
       shipmentId: bought.id,
     }
+  }
+
+  /** EasyPost's refund of a shipment's postage (POST /shipments/:id/refund); its refund_status is the answer. */
+  async voidLabel(shipmentId: string): Promise<VoidedLabel> {
+    const r = await this.call(`/shipments/${encodeURIComponent(shipmentId)}/refund`, {})
+    return { refundStatus: String(r?.refund_status || 'submitted') }
   }
 }

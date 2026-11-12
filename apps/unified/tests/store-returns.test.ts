@@ -29,6 +29,7 @@ let ann: any, bob: any
 let seq = 0
 let easypostMode: 'ok' | 'fail' = 'ok'
 const bought: string[] = []
+const voided: string[] = []
 
 async function order(who: any, o: { number: string; lines: Array<[any, number]>; shipping?: number; shippedDaysAgo?: number; placedDaysAgo?: number }) {
   const subtotal = o.lines.reduce((n, [p, q]) => n + q * p.variant.priceCents, 0)
@@ -88,6 +89,7 @@ beforeAll(async () => {
       const ok = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } })
       if (easypostMode === 'fail') return ok({ error: { message: 'Address could not be verified' } }, 422)
       if (url.endsWith('/v2/shipments') && String(init?.method).toUpperCase() === 'POST') return ok({ id: 'shp_ret', rates: [{ id: 'rate_ret', shipment_id: 'shp_ret', carrier: 'USPS', service: 'Ground', rate: '6.20', currency: 'USD', delivery_days: 3 }] })
+      if (url.endsWith('/v2/shipments/shp_ret/refund')) { voided.push(url); return ok({ id: 'shp_ret', refund_status: 'submitted' }) }
       if (url.endsWith('/v2/shipments/shp_ret/buy')) { bought.push(url); return ok({ id: 'shp_ret', tracking_code: 'RET-TRK-1', postage_label: { label_url: 'https://labels.test/return-1.png' }, selected_rate: { carrier: 'USPS', service: 'Ground', rate: '6.20' } }) }
       return ok({ error: { message: 'not answered here' } }, 404)
     }
@@ -467,6 +469,15 @@ describe('the return label', () => {
     expect(second.json.labelProblem).toContain('Address could not be verified')
     // …and it can be bought afterwards.
     expect((await k.M('POST', `${R}/${ask2.id}/label`, {})).json.labelUrl).toBe('https://labels.test/return-1.png')
+    // Cancelled with its label bought: the label is voided, so the shop gets the postage back (Shopify; live test 11/11).
+    const v0 = voided.length
+    const gone = await shopper(cookie)('POST', `/returns/${ask2.id}/cancel`, {})
+    expect(gone.status).toBe(200)
+    expect(voided.length).toBe(v0 + 1)
+    const row = (await db().select().from(k.S.storeReturn).where(eq(k.S.storeReturn.id, ask2.id)))[0]
+    expect(row).toMatchObject({ status: 'cancelled', labelUrl: null, labelShipmentId: null, labelRefundStatus: 'submitted' })
+    expect(row.labelVoidedAt).toBeTruthy()
+    expect((await shopper(cookie)('GET', '/returns')).json.data.find((x: any) => x.id === ask2.id).label).toBeNull()
     await k.O('PUT', `${R}/settings`, { windowDays: 30, restockingFeePercent: 10, returnShippingFeeCents: 500, labels: false, shopperReturns: true })
   })
 })

@@ -13,6 +13,7 @@ import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { cents } from './lib'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { formatDate } from '../../../date'
 
 interface Line { orderItemId: string; quantity: number; productName: string; variantName: string; unitPriceCents: number }
 interface Ret {
@@ -20,6 +21,8 @@ interface Ret {
   preferCredit: boolean; staffNote: string | null; declineReason: string | null; late: boolean
   lineValueCents: number; restockingFeeCents: number; returnShippingFeeCents: number; refundCents: number; creditCents: number
   labelUrl: string | null; labelTracking: string | null; labelCarrier: string | null; createdAt: string
+  /** A prepaid label voided when the return was cancelled, and the carrier's refund answer. */
+  labelVoidedAt?: string | null; labelRefundStatus?: string | null
   order: { id: string; orderNumber: string | null; customerName: string | null; customerEmail: string; currency: string; paidBy?: 'card' | 'in_person' | 'gift_card' } | null
   lines: Line[]; refund: { status: string; amountCents: number; creditCents: number; error: string | null } | null; exchangeOrder: { orderNumber: string | null } | null
 }
@@ -72,6 +75,7 @@ function Card({ ret, onChange, onError }: { ret: Ret; onChange: () => void; onEr
       </p>
       {ret.declineReason && <p className="text-sm text-gray-700 dark:text-slate-300">Declined: {ret.declineReason}</p>}
       {ret.labelUrl && <p className="text-sm"><a className="underline text-orange-900 dark:text-orange-200" href={ret.labelUrl} target="_blank" rel="noreferrer">Return label</a> ({ret.labelCarrier} {ret.labelTracking})</p>}
+      {!ret.labelUrl && ret.labelVoidedAt && <p className="text-sm text-gray-500 dark:text-slate-400">Return label voided {formatDate(ret.labelVoidedAt)} — postage refund {ret.labelRefundStatus === 'refunded' ? 'paid' : ret.labelRefundStatus === 'rejected' ? 'refused by the carrier' : 'requested'}.</p>}
       {ret.refund && <p className="text-sm text-gray-700 dark:text-slate-300">Money: {cents(ret.refund.amountCents - ret.refund.creditCents)} {BACK_TO[ret.order?.paidBy ?? 'card']}{ret.refund.creditCents ? `, ${cents(ret.refund.creditCents)} as store credit` : ''} — {codeLabel(ret.refund.status)}{ret.refund.error ? ` (${ret.refund.error})` : ''}</p>}
       {ret.exchangeOrder && <p className="text-sm text-gray-700 dark:text-slate-300">Exchange sent as order {ret.exchangeOrder.orderNumber}.</p>}
 
