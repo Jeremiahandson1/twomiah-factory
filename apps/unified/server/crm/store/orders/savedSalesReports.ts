@@ -12,16 +12,17 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { companyRowTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { company } from '../../../db/schema/index.ts'
-import { salesOverTime, topProducts, salesByVariant, discountCodes, salesByCustomer, salesByChannel, salesByPlace, taxesByMonth, refundsGiven, inventoryValue, type Bucket, type Window } from '../../../data/storeReports.ts'
+import { salesOverTime, topProducts, salesByVariant, discountCodes, salesByCustomer, salesByChannel, salesByPlace, taxesByMonth, refundsGiven, inventoryValue, inventoryFlow, sellThroughPercent, daysOfStockLeft, abcGrades, windowInstants, type Bucket, type Window } from '../../../data/storeReports.ts'
+import { STOCK_REASON_WORDS, historyStarts, movesBetween, type StockReason } from '../../../data/storeStockMoves.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createSavedReports } from '../../field/savedReports.ts'
 import { PERIOD_IDS, chooseColumns, resolvePeriod, type Col, type ReportTable } from '../../field/reportTables.ts'
 
 export const STORE_REPORT_SCHEDULES = 'store_report_schedules'
-export const STORE_TABS = ['over_time', 'products', 'variants', 'discounts', 'customers', 'channels', 'places', 'taxes', 'refunds', 'inventory'] as const
+export const STORE_TABS = ['over_time', 'products', 'variants', 'discounts', 'customers', 'channels', 'places', 'taxes', 'refunds', 'inventory', 'sell_through', 'days_left', 'abc', 'stock_moves'] as const
 export type StoreTab = typeof STORE_TABS[number]
 /** The further reports (store_report_schedules): shown on Store › Sales only where that switch is on. */
-export const MORE_TABS: StoreTab[] = ['customers', 'channels', 'places', 'taxes', 'refunds', 'inventory']
+export const MORE_TABS: StoreTab[] = ['customers', 'channels', 'places', 'taxes', 'refunds', 'inventory', 'sell_through', 'days_left', 'abc', 'stock_moves']
 export const CHANNEL_WORDS: Record<string, string> = { storefront: 'Online store', counter: 'At the counter', draft: 'Draft orders (sent to pay)' }
 const DAY = 86_400_000
 const dollars = (cents: number | null | undefined) => (cents == null ? null : Math.round(Number(cents)) / 100)
@@ -84,6 +85,43 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
   if (tab === 'refunds') {
     const rows = (await refundsGiven(db, companyId, w)).map((x) => ({ order: x.orderNumber ? `#${String(x.orderNumber).replace(/^#/, '')}` : '', name: x.name || x.email || 'No name given', on: x.on, placed: x.placed, total: dollars(x.totalCents), refunded: dollars(x.refundedCents), kind: x.full ? 'Full' : 'Part' }))
     return { tab, title: 'Refunds given', columns: [text('order', 'Order'), text('name', 'Customer'), { key: 'on', label: 'Refunded on', kind: 'date', default: true }, { key: 'placed', label: 'Ordered on', kind: 'date', default: true }, money('total', 'Order total'), money('refunded', 'Refunded'), text('kind', 'Full or part')], rows }
+  }
+  if (tab === 'sell_through' || tab === 'days_left' || tab === 'abc') {
+    const flow = await inventoryFlow(db, companyId, w)
+    const days = Math.round((Date.parse(`${w.to}T00:00:00Z`) - Date.parse(`${w.from}T00:00:00Z`)) / DAY) + 1
+    const started = await historyStarts(db, companyId)
+    const { startUtc } = await windowInstants(db, w)
+    const early = !started || started > startUtc
+      ? ` The stock history began ${started ? `on ${storeDateString(started, w.timeZone)}` : 'with this release'}; before that, a count is the earliest one kept.` : ''
+    const opt = [text('product', 'Product'), text('option', 'Option'), text('sku', 'SKU')]
+    if (tab === 'sell_through') {
+      const rows = flow.filter((r) => r.sold > 0 || (r.ending ?? 0) > 0 || (r.starting ?? 0) > 0)
+        .map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, starting: r.starting, sold: r.sold, ending: r.ending, rate: sellThroughPercent(r.sold, r.ending), ofStarting: r.starting && r.starting > 0 ? Math.round((r.sold / r.starting) * 1000) / 10 : null }))
+        .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1) || a.product.localeCompare(b.product))
+      const sold = rows.reduce((n, r) => n + r.sold, 0), ending = rows.reduce((n, r) => n + Math.max(0, r.ending ?? 0), 0)
+      return { tab, title: 'Sell-through rate', columns: [...opt, num('starting', 'Starting stock'), num('sold', 'Units sold'), num('ending', 'Ending stock'), { key: 'rate', label: 'Sell-through', kind: 'percent', default: true }, { key: 'ofStarting', label: 'Of starting stock sold', kind: 'percent' }], rows,
+        totals: { product: 'Total', sold, ending, rate: sellThroughPercent(sold, ending) },
+        note: `Sell-through is units sold ÷ (units sold + ending stock), as Shopify works it out. Units sold are what stayed sold (returns off).${early}` }
+    }
+    if (tab === 'days_left') {
+      const rows = flow.filter((r) => (r.ending ?? 0) > 0 || r.sold > 0)
+        .map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, ending: r.ending, sold: r.sold, perDay: Math.round((r.sold / days) * 100) / 100, daysLeft: daysOfStockLeft(r.sold, r.ending, days) }))
+        .sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity) || a.product.localeCompare(b.product))
+      return { tab, title: 'Days of inventory remaining', columns: [...opt, num('ending', 'Ending stock'), num('sold', 'Units sold'), num('perDay', 'Sold a day'), num('daysLeft', 'Days left')], rows,
+        note: `Days left is ending stock ÷ the units sold a day over these ${days} day${days === 1 ? '' : 's'}; blank when it sold nothing. Shortest first.${early}` }
+    }
+    const graded = abcGrades(flow.map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, ending: r.ending, sold: r.sold, salesCents: r.salesCents })))
+    const rows = graded.map((g) => ({ product: g.product, option: g.option, sku: g.sku, grade: g.grade, sales: dollars(g.salesCents), share: g.sharePercent, cumulative: g.cumulativePercent, sold: g.sold, ending: g.ending }))
+    return { tab, title: 'ABC analysis', columns: [...opt, text('grade', 'Grade'), money('sales', 'Net sales'), { key: 'share', label: 'Share of sales', kind: 'percent', default: true }, { key: 'cumulative', label: 'Running share', kind: 'percent' }, num('sold', 'Units sold'), num('ending', 'Ending stock')], rows,
+      note: 'A: the best sellers making up the first 80% of sales; B: the next 15%; C: the rest, and every counted option that sold nothing. Sales are what stayed sold, before shipping and tax.' }
+  }
+  if (tab === 'stock_moves') {
+    const { startUtc, endUtc } = await windowInstants(db, w)
+    const moves = await movesBetween(db, companyId, startUtc, endUtc)
+    const rows = moves.map((m) => ({ at: new Date(m.createdAt as any).toISOString(), product: m.productName, option: m.variantName, sku: m.sku, what: STOCK_REASON_WORDS[m.reason as StockReason] ?? m.reason, change: m.delta, after: m.quantityAfter, by: m.byName, detail: m.note }))
+    const opt = [text('product', 'Product'), text('option', 'Option'), text('sku', 'SKU')]
+    return { tab, title: 'Stock changes', columns: [{ key: 'at', label: 'When', kind: 'datetime', default: true }, ...opt, text('what', 'What happened'), num('change', 'Change'), num('after', 'Count after'), text('by', 'By'), text('detail', 'Detail')], rows,
+      note: rows.length >= 5000 ? 'The newest 5,000 changes; choose a shorter period for the rest.' : "Every change to a counted option's stock, newest first." }
   }
   // inventory — now, whatever the period.
   const items = await inventoryValue(db, companyId)

@@ -9,6 +9,8 @@ import { sql } from 'drizzle-orm'
 import { storeOrder, storeOrderItem, storeProduct, storeProductVariant } from '../db/schema/store.ts'
 import { contact } from '../db/schema/index.ts'
 import { countedOrderCondition } from '../crm/store/tileConditions.ts'
+import { rowsOf } from '@twomiah/tenant-backend'
+import { stockAt } from './storeStockMoves.ts'
 
 export type Bucket = 'day' | 'week' | 'month'
 
@@ -310,4 +312,73 @@ export async function inventoryValue(db: any, companyId: string): Promise<StockV
     .where(sql`${storeProduct.companyId} = ${companyId} and ${storeProductVariant.inventoryQty} is not null and ${storeProductVariant.inventoryQty} > 0`)
     .orderBy(sql`${storeProductVariant.inventoryQty} * coalesce(${storeProductVariant.costCents}, ${storeProductVariant.priceCents}) desc`, sql`${storeProduct.name} asc`, sql`${storeProductVariant.name} asc`)
   return rows.map((r: any) => ({ product: String(r.product), option: String(r.option), sku: String(r.sku), status: String(r.status ?? ''), onHand: Number(r.onHand), costCents: r.costCents == null ? null : Number(r.costCents), priceCents: Number(r.priceCents ?? 0) }))
+}
+
+// ── Inventory reports (Shopify's sell-through, days of inventory remaining, ABC analysis, adjustment history) ───────────
+// Stock at a moment comes from the stock history (./storeStockMoves.ts stockAt); units sold are the kept units of counted orders,
+// exactly as Sales by option counts them, so the two never disagree about the same days.
+
+/** The window's first and last instant, in UTC (the shop's midnight at `from`, and its midnight after `to`). */
+export async function windowInstants(db: any, w: Window): Promise<{ startUtc: Date; endUtc: Date }> {
+  const fmt = `'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'`
+  const [r] = rowsOf(await db.execute(sql`select
+    to_char(((${w.from}::date)::timestamp at time zone ${w.timeZone}) at time zone 'UTC', ${sql.raw(fmt)}) as s,
+    to_char(((${w.to}::date + 1)::timestamp at time zone ${w.timeZone}) at time zone 'UTC', ${sql.raw(fmt)}) as e`)) as any[]
+  return { startUtc: new Date(String(r.s)), endUtc: new Date(String(r.e)) }
+}
+
+export interface InventoryFlow {
+  variantId: string; productName: string; variantName: string; sku: string
+  /** Counted stock at the window's start and end; null = not counted then. */
+  starting: number | null; ending: number | null
+  /** Kept units sold in the window. */
+  sold: number
+  salesCents: number
+}
+
+/** Every option counted at the window's start or end (or now), with what it sold in the window. */
+export async function inventoryFlow(db: any, companyId: string, w: Window): Promise<InventoryFlow[]> {
+  const { startUtc, endUtc } = await windowInstants(db, w)
+  const variants: any[] = await db.select({ id: storeProductVariant.id, productName: storeProduct.name, variantName: storeProductVariant.name, sku: storeProductVariant.sku, qty: storeProductVariant.inventoryQty })
+    .from(storeProductVariant).innerJoin(storeProduct, sql`${storeProduct.id} = ${storeProductVariant.productId}`)
+    .where(sql`${storeProduct.companyId} = ${companyId} and (${storeProductVariant.inventoryQty} is not null or exists (select 1 from store_stock_moves m where m.variant_id = ${storeProductVariant.id}))`)
+    .orderBy(sql`${storeProduct.name} asc`, sql`${storeProductVariant.name} asc`)
+  if (!variants.length) return []
+  const ids = variants.map((v) => v.id)
+  const [starting, ending] = await Promise.all([stockAt(db, companyId, ids, startUtc), stockAt(db, companyId, ids, endUtc)])
+  const kept = sql`(${storeOrderItem.quantity} - ${storeOrderItem.refundedQuantity})`
+  const sold: any[] = await db.select({ variantId: storeOrderItem.variantId, units: sql<number>`coalesce(sum(${kept}), 0)`, cents: sql<number>`coalesce(sum(${storeOrderItem.unitPriceCents} * ${kept}), 0)` })
+    .from(storeOrderItem).innerJoin(storeOrder, sql`${storeOrder.id} = ${storeOrderItem.orderId}`)
+    .where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)} and ${storeOrderItem.variantId} is not null`)
+    .groupBy(storeOrderItem.variantId)
+  const soldBy = new Map(sold.map((s) => [String(s.variantId), { units: Number(s.units), cents: Number(s.cents) }]))
+  return variants
+    .map((v) => ({ variantId: v.id, productName: String(v.productName), variantName: String(v.variantName), sku: String(v.sku), starting: starting.get(v.id) ?? null, ending: ending.get(v.id) ?? null, sold: soldBy.get(v.id)?.units ?? 0, salesCents: soldBy.get(v.id)?.cents ?? 0 }))
+    .filter((r) => r.starting !== null || r.ending !== null)
+}
+
+/** Shopify's sell-through rate: sold ÷ (sold + ending stock), as a percent to one place; null when there was neither. */
+export const sellThroughPercent = (sold: number, ending: number | null) => {
+  const left = Math.max(0, ending ?? 0)
+  return sold + left > 0 ? Math.round((sold / (sold + left)) * 1000) / 10 : null
+}
+
+/** Shopify's days of inventory remaining: ending stock ÷ the window's average units sold a day; null when nothing sold. */
+export const daysOfStockLeft = (sold: number, ending: number | null, days: number) =>
+  sold > 0 && days > 0 ? Math.round((Math.max(0, ending ?? 0) / (sold / days)) * 10) / 10 : null
+
+/**
+ * ABC analysis (Shopify's grades): options ranked by what they brought in over the window; A = the best sellers that make up the
+ * first 80% of it, B = the next 15%, C = the rest — every counted option that sold nothing is C. An option is A while the share
+ * BEFORE it is under 80% (so the one that crosses the line is A), and B while it is under 95%.
+ */
+export function abcGrades<T extends { salesCents: number }>(rows: T[]): Array<T & { sharePercent: number; cumulativePercent: number; grade: 'A' | 'B' | 'C' }> {
+  const total = rows.reduce((n, r) => n + Math.max(0, r.salesCents), 0)
+  let before = 0
+  return [...rows].sort((a, b) => b.salesCents - a.salesCents).map((r) => {
+    const share = total > 0 ? (Math.max(0, r.salesCents) / total) * 100 : 0
+    const grade: 'A' | 'B' | 'C' = r.salesCents <= 0 || total <= 0 ? 'C' : before < 80 ? 'A' : before < 95 ? 'B' : 'C'
+    before += share
+    return { ...r, sharePercent: Math.round(share * 10) / 10, cumulativePercent: Math.round(before * 10) / 10, grade }
+  })
 }

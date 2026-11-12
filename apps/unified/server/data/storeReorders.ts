@@ -7,6 +7,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { storeProduct, storeProductVariant, storePurchaseOrder, storePurchaseOrderLine, storeSupplier } from '../db/schema/store.ts'
 import { reconcileVariant } from './storeStock.ts'
+import { shiftStock, type MoveWhy } from './storeStockMoves.ts'
 
 export const OPEN_STATUSES = ['draft', 'sent', 'partly_received'] as const
 
@@ -58,7 +59,7 @@ export const linesOf = (db: any, purchaseOrderId: string) =>
  * up by the same (an option that does not track its stock is left untracked), and the order becomes partly_received or
  * received. Refused whole if any line would be received past what was ordered. Returns the order's new status.
  */
-export async function receiveAgainst(db: any, companyId: string, purchaseOrderId: string, receipts: Array<{ lineId: string; quantity: number }>): Promise<{ status: 'partly_received' | 'received'; booked: number } | { problem: string }> {
+export async function receiveAgainst(db: any, companyId: string, purchaseOrderId: string, receipts: Array<{ lineId: string; quantity: number }>, who: Pick<MoveWhy, 'byUserId' | 'byName'> = {}): Promise<{ status: 'partly_received' | 'received'; booked: number } | { problem: string }> {
   return db.transaction(async (tx: any) => {
     const lines: any[] = await tx.select().from(storePurchaseOrderLine).where(eq(storePurchaseOrderLine.purchaseOrderId, purchaseOrderId)).for('update')
     const byId = new Map(lines.map((l) => [l.id, l]))
@@ -74,8 +75,8 @@ export async function receiveAgainst(db: any, companyId: string, purchaseOrderId
       await tx.update(storePurchaseOrderLine).set({ receivedQuantity: sql`${storePurchaseOrderLine.receivedQuantity} + ${r.quantity}` }).where(eq(storePurchaseOrderLine.id, line.id))
       line.receivedQuantity += r.quantity; booked += r.quantity
       if (line.variantId) {
-        await tx.update(storeProductVariant).set({ inventoryQty: sql`${storeProductVariant.inventoryQty} + ${r.quantity}`, updatedAt: new Date() })
-          .where(and(eq(storeProductVariant.id, line.variantId), sql`${storeProductVariant.inventoryQty} is not null`))
+        // Kept in the stock history (data/storeStockMoves.ts), the purchase order named.
+        await shiftStock(tx, line.variantId, r.quantity, { reason: 'received', refId: purchaseOrderId, ...who })
         // Stock by location (store_locations): the delivery goes to the first location (data/storeStock.ts).
         await reconcileVariant(tx, line.variantId)
       }

@@ -33,6 +33,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, Plus, Star, Trash2, Upload } from 'lucide-react'
 import { api } from '../../../../api'
+import { StockHistory } from './StockHistory'
 import { PageError, errorText, useAuth, useConfirm, useKnownPermission, useMayWrite, useToast } from '../../../../shared'
 import {
   formatMoney, fromHundredths, listOf, refusalOf, toHundredths, toWhole, useStoreCurrency,
@@ -535,6 +536,12 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, suppliers, supplierCon
   })
   const [edit, setEdit] = useState<RowEdit>(fromVariant)
   const [saving, setSaving] = useState(false)
+  const [history, setHistory] = useState(false)
+  const historyToggle = (
+    <button type="button" aria-expanded={history} onClick={() => setHistory(!history)} className="text-xs font-medium text-brand-700 hover:underline dark:text-brand-200">
+      {history ? 'Hide stock history' : 'Stock history'}
+    </button>
+  )
 
   // Re-sync when the variant changes underneath (a reload after a save, or the stock moved).
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -563,6 +570,8 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, suppliers, supplierCon
           {v.compareAtPriceCents != null && <span className="ml-1 text-xs text-gray-600 line-through dark:text-slate-400">{formatMoney(v.compareAtPriceCents, currency)}</span>}
         </div>
         <div className="text-gray-700 dark:text-slate-300">{v.inventoryQty == null ? 'Not tracked' : `${v.inventoryQty} in stock`}</div>
+        <div className="w-full">{historyToggle}</div>
+        {history && <div className="w-full"><StockHistory variantId={v.id} sku={v.sku} /></div>}
       </div>
     )
   }
@@ -626,7 +635,11 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, suppliers, supplierCon
           </label>
         )}
       </div>
-      <button type="button" onClick={save} disabled={!dirty || saving} className="btn btn-primary text-xs px-3 py-1.5">{saving ? 'Saving…' : 'Save'}</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={save} disabled={!dirty || saving} className="btn btn-primary text-xs px-3 py-1.5">{saving ? 'Saving…' : 'Save'}</button>
+        {historyToggle}
+      </div>
+      {history && <StockHistory variantId={v.id} sku={v.sku} />}
     </div>
   )
 }

@@ -19,6 +19,7 @@ import { invalid } from '../../../http/errors.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { addStoreLocation, levelsFor, moveOrderTakes, setLevel, storeLocations, transfer } from '../../../data/storeStock.ts'
+import { createStockWho } from '../lib/stockWho.ts'
 
 const count = z.number({ error: 'Enter a whole number' }).int('Enter a whole number').min(0, 'A count cannot be below 0').max(1_000_000, 'At most 1,000,000')
 const locationBody = z.object({ name: z.string({ error: 'Name the location' }).trim().min(1, 'Name the location').max(80, 'At most 80 characters'), address: z.string().trim().max(300).optional().nullable() })
@@ -27,6 +28,7 @@ const transferBody = z.object({ fromId: z.string().min(1, 'Choose where from'), 
 
 export function createStockLocationRoutes(d: CrmDeps, core: StoreCore) {
   const { db, audit } = d
+  const stockWho = createStockWho(db)
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
 
@@ -106,7 +108,8 @@ export function createStockLocationRoutes(d: CrmDeps, core: StoreCore) {
     if (!opt) return fail(c, 404, 'Not found')
     if (opt.qty == null) return fail(c, 400, "This option's stock is not counted. Switch counting on for it on the product first.")
     if (!(await locationOk(companyId, parsed.data.locationId))) return fail(c, 400, 'Choose one of your locations.')
-    const r = await db.transaction((tx: any) => setLevel(tx, companyId, opt.id, parsed.data.locationId, parsed.data.quantity))
+    const who = await stockWho(c)
+    const r = await db.transaction((tx: any) => setLevel(tx, companyId, opt.id, parsed.data.locationId, parsed.data.quantity, who))
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: opt.id, entityName: opt.sku, metadata: { stockAt: parsed.data, total: r.total }, req: c })
     await core.events.stock(companyId, [opt.id])
     return one(c, { id: opt.id, total: r.total })
@@ -121,7 +124,9 @@ export function createStockLocationRoutes(d: CrmDeps, core: StoreCore) {
     const opt = await optionOf(companyId, c.req.param('variantId'))
     if (!opt) return fail(c, 404, 'Not found')
     if (!(await locationOk(companyId, fromId)) || !(await locationOk(companyId, toId))) return fail(c, 400, 'Choose two of your locations.')
-    const r = await db.transaction((tx: any) => transfer(tx, companyId, opt.id, fromId, toId, quantity))
+    const who = await stockWho(c)
+    const names = new Map((await storeLocations(db, companyId)).map((l) => [l.id, l.name]))
+    const r = await db.transaction((tx: any) => transfer(tx, companyId, opt.id, fromId, toId, quantity, { ...who, note: `${quantity} moved from ${names.get(fromId) ?? 'one location'} to ${names.get(toId) ?? 'another'}` }))
     if (!r) return fail(c, 400, `There are not ${quantity} there to move.`)
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: opt.id, entityName: opt.sku, metadata: { moved: parsed.data }, req: c })
     return one(c, { id: opt.id, total: r.total })

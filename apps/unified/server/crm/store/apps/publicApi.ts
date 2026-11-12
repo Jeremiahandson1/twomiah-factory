@@ -113,13 +113,13 @@ export function createStoreApi(d: CrmDeps, core: StoreCore, keys: ApiKeys, over:
     if (!parsed.success) return fail(c, 400, 'Send { "quantity": 12 } to set the count, or { "adjustBy": -2 } to move it. "from" is the count you last saw.', 'validation_failed')
     const companyId = companyOf(c)
     const w = 'quantity' in parsed.data ? { set: parsed.data.quantity } : { adjustBy: parsed.data.adjustBy }
-    const r = await writeStock(db, companyId, String(c.req.param('variantId')), w, parsed.data.from)
+    const key = c.get('key') as ApiKeyRow
+    const r = await writeStock(db, companyId, String(c.req.param('variantId')), w, parsed.data.from, { id: key.id, name: key.name })
     if (!r.ok) {
       if (r.reason === 'not_found') return fail(c, 404, 'Not found', 'not_found')
       if (r.reason === 'untracked') return fail(c, 409, 'This option does not count its stock, so a count cannot be set. Switch on stock counting for it in the shop first.', 'stock_not_tracked')
       return fail(c, 409, `The count is ${r.now} now, not ${parsed.data.from}: nothing was changed. Read it again and retry.`, 'inventory_changed')
     }
-    const key = c.get('key') as ApiKeyRow
     await d.audit.log({ action: 'update', entity: 'product_variant', entityId: r.id, entityName: r.sku, companyId, metadata: { description: `Stock of ${r.productName} (${r.sku}) set to ${r.after} (was ${r.before}) through the store API key "${key.name}"` } }).catch(() => {})
     await core.events.stock(companyId, [r.id])
     return one(c, { data: { variantId: r.id, sku: r.sku, inventoryQty: r.after, previous: r.before } })

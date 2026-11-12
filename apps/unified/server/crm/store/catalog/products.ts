@@ -34,7 +34,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import crypto from 'node:crypto'
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
-import { storeProduct, storeProductImage, storeProductVariant, storeSupplier } from '../../../db/schema/store.ts'
+import { storeOrder, storeProduct, storeProductImage, storeProductVariant, storeSupplier } from '../../../db/schema/store.ts'
 import { makeOnlyPrimaryImage } from '../../../data/storeCatalog.ts'
 import { cleanText } from '../../../core/sanitize.ts'
 import { invalid } from '../../../http/errors.ts'
@@ -48,6 +48,8 @@ import { productSearchCondition, lowStockProductCondition } from '../tileConditi
 import { changedKeys } from './audit.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 import { reconcile } from '../../../data/storeStock.ts'
+import { STOCK_REASON_WORDS, lockedCount, movesOfVariant, recordMove } from '../../../data/storeStockMoves.ts'
+import { createStockWho } from '../lib/stockWho.ts'
 
 function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -151,6 +153,7 @@ const uploadedKey = (url: string, companyId: string, productId: string): string 
 
 export function createProductRoutes(d: CrmDeps, core: StoreCore) {
   const { db, audit } = d
+  const stockWho = createStockWho(db)
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
   // Staff add and edit products, variants, stock and images (products:create / products:update).
@@ -286,6 +289,8 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const reorderProblem = await reorderFieldsProblem(u.companyId, parsed.data)
     if (reorderProblem) return reorderProblem(c)
     const [created] = await db.insert(storeProductVariant).values({ ...parsed.data, productId: product.id }).returning()
+    // The stock history's first row (data/storeStockMoves.ts): what it started with.
+    if (created.inventoryQty !== null) await recordMove(db, u.companyId, created.id, null, created.inventoryQty, { reason: 'created', ...(await stockWho(c)) })
     // Its own row: the floor would file this under the product the URL names (create product TEA-1).
     await audit.log({ action: audit.ACTIONS.CREATE, entity: 'product_variant', entityId: created.id, entityName: created.sku, metadata: { description: `Variant ${created.sku} added — ${formatCents(created.priceCents, await currency(u.companyId))}, ${created.inventoryQty === null ? 'stock not tracked' : `${created.inventoryQty} in stock`}`, productId: created.productId }, req: c })
     await core.events.product(u.companyId, product.id); await core.events.stock(u.companyId, [created.id])
@@ -309,7 +314,21 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
     const where = guarded
       ? and(eq(storeProductVariant.id, before.id), inventoryFrom === null ? isNull(storeProductVariant.inventoryQty) : eq(storeProductVariant.inventoryQty, inventoryFrom))
       : eq(storeProductVariant.id, before.id)
-    const [updated] = await db.update(storeProductVariant).set({ ...fields, updatedAt: new Date() }).where(where).returning()
+    // A count typed here is read under the row's lock first, so the stock history (data/storeStockMoves.ts) keeps its exact
+    // before → after; counting switched off is kept too ('untracked').
+    const counting = fields.inventoryQty !== undefined
+    const who = counting ? await stockWho(c) : null
+    const updated = await db.transaction(async (tx: any) => {
+      const was = counting ? await lockedCount(tx, before.id) : null
+      const [row] = await tx.update(storeProductVariant).set({ ...fields, updatedAt: new Date() }).where(where).returning()
+      if (!row) return null
+      if (counting) {
+        await recordMove(tx, u.companyId, row.id, was?.qty ?? null, row.inventoryQty, { reason: row.inventoryQty === null ? 'untracked' : was?.qty == null ? 'created' : 'adjusted', ...who })
+        // Stock by location (store_locations): a count typed here moves the difference onto the locations (data/storeStock.ts).
+        await reconcile(tx, u.companyId, row.id)
+      }
+      return row
+    })
     if (!updated) {
       const now = await variantOf(u.companyId, before.id)
       if (!now) return fail(c, 404, 'Not found')
@@ -317,12 +336,36 @@ export function createProductRoutes(d: CrmDeps, core: StoreCore) {
       // (The template also sent the count as inventoryQty; the sentence names it.)
       return fail(c, 409, `The stock changed to ${stands} since this page loaded (a sale, or someone else's count), so nothing was saved. Check the count and save again.`, 'inventory_changed')
     }
-    // Stock by location (store_locations): a count typed here moves the difference onto the locations (data/storeStock.ts).
-    if (fields.inventoryQty !== undefined) await reconcile(db, u.companyId, updated.id)
     const from = guarded ? { ...before, inventoryQty: inventoryFrom } : before
     await audit.log({ action: audit.ACTIONS.UPDATE, entity: 'product_variant', entityId: updated.id, entityName: updated.sku, changes: changedKeys(from, updated, Object.keys(fields)), req: c })
     await core.events.product(u.companyId, updated.productId); if (fields.inventoryQty !== undefined) await core.events.stock(u.companyId, [updated.id])
     return one(c, stripCost([updated], await mayMargin(c))[0])
+  })
+
+  /**
+   * An option's STOCK HISTORY (Shopify's inventory adjustment history; data/storeStockMoves.ts): every change to its count, newest
+   * first, 50 at a time (?before=<the last row's at> for the next page) — what happened, by how much, the count after, who, and the
+   * order behind a sale or a refund. Whoever may see the product may see it (products:read, the router's floor).
+   */
+  app.get('/variants/:variantId/stock-history', async (c) => {
+    const u = c.get('user')
+    const v = await variantOf(u.companyId, c.req.param('variantId'))
+    if (!v) return fail(c, 404, 'Not found')
+    const q = c.req.query('before')
+    const beforeAt = q && !Number.isNaN(Date.parse(q)) ? new Date(q) : undefined
+    const rows = await movesOfVariant(db, u.companyId, v.id, 51, beforeAt)
+    const page = rows.slice(0, 50)
+    const orderIds = [...new Set(page.map((m) => m.orderId).filter(Boolean))] as string[]
+    const numbers = new Map<string, string>(orderIds.length
+      ? (await db.select({ id: storeOrder.id, n: storeOrder.orderNumber }).from(storeOrder).where(and(eq(storeOrder.companyId, u.companyId), inArray(storeOrder.id, orderIds)))).map((o: any) => [o.id, o.n])
+      : [])
+    return one(c, {
+      data: page.map((m) => ({
+        id: m.id, at: m.createdAt, reason: m.reason, what: STOCK_REASON_WORDS[m.reason] ?? m.reason, change: m.delta, before: m.quantityBefore, after: m.quantityAfter,
+        by: m.byName, note: m.note, orderId: m.orderId, orderNumber: m.orderId ? numbers.get(m.orderId) ?? null : null,
+      })),
+      more: rows.length > 50,
+    })
   })
 
   app.delete('/variants/:variantId', requirePermission('products:delete'), async (c) => {
