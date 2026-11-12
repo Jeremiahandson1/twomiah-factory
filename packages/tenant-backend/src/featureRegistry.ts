@@ -414,7 +414,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'pipeline_board', name: 'Pipeline Board', description: 'Visual Kanban pipeline for roofing jobs', category: 'Roofing', core: true, templates: ['crm-roof'] },
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
-  { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'roof_material_list', name: 'Material List Calculator', description: 'Work out the shingles, underlayment and trim from a roof\'s squares, then order them', category: 'Roofing', core: false, templates: ['crm-roof'] },
   // NOT READY (on top of consumer_financing, itself not ready until the lender partner agreement): financing beside each proposal option (roofing parity row 30; apps/unified server/crm/financing/).
   { id: 'proposal_financing', name: 'Financing on each proposal option', description: 'Each Good / Better / Best option shows its own estimated monthly payment, and the customer applies once they have chosen', category: 'Finance', core: false, templates: ['crm-roof'], hidden: true },
   // NOT READY until the owner has tested it: the crew's work orders in the phone app (roofing parity row 29; apps/unified server/crm/roof/crewOrders.ts).
@@ -447,13 +447,13 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'invoice_text_requests', name: 'Text invoices and payment receipts', description: 'Text an invoice’s pay link now or on a schedule, again every few days until it is paid, and email a receipt to the homeowner and the rep for every payment', category: 'Roofing', core: false, templates: ['crm-roof', 'crm'] },
   // NOT READY until the owner has tested it: pay part of an invoice and pay toward an approved estimate from the customer's page (roofing parity row 16; tenant-backend portal.ts payOptions).
   { id: 'portal_pay_options', name: 'Pay any amount, pay from the estimate', description: 'The homeowner chooses how much to pay on an invoice, and pays toward an approved estimate from its page', category: 'Roofing', core: false, templates: ['crm-roof', 'crm'] },
-  { id: 'material_supply', name: 'Supplier Ordering', description: 'Send a material order to the supplier by email, with the supplier\'s own price list locked to it — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
-  { id: 'roof_permits', name: 'Permit Tracking', description: 'Track the permits on a job — type, number, fee and status — and see every job\'s permits on one board — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
-  { id: 'roof_work_orders', name: 'Crew & Sub Work Orders', description: 'Text a crew or subcontractor a work order they accept, reject or complete from a private link — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'material_supply', name: 'Supplier Ordering', description: 'Send a material order to the supplier by email, with the supplier\'s own price list locked to it', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'roof_permits', name: 'Permit Tracking', description: 'Track the permits on a job — type, number, fee and status — and see every job\'s permits on one board', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'roof_work_orders', name: 'Crew & Sub Work Orders', description: 'Text a crew or subcontractor a work order they accept, reject or complete from a private link', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
-  { id: 'storm_customer_map', name: 'Storm Map', description: 'Past customers inside a storm’s path — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
-  { id: 'canvass_territories', name: 'Canvass Territories', description: 'Draw territories and assign them to reps — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_customer_map', name: 'Storm Map', description: 'Past customers inside a storm’s path', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'canvass_territories', name: 'Canvass Territories', description: 'Draw territories and assign them to reps', category: 'Roofing', core: false, templates: ['crm-roof'] },
 
   // Dispensary — POS & Sales
   { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
@@ -569,7 +569,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'gantt_charts', name: 'Gantt Chart', description: 'Project schedule as a Gantt chart with dependencies', category: 'Construction', core: false, templates: ['crm'] },
 
   // Roofing
-  { id: 'storm_radar_overlay', name: 'Storm Radar', description: 'Live storm radar overlay on the service-area map — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_radar_overlay', name: 'Storm Radar', description: 'Live storm radar overlay on the service-area map', category: 'Roofing', core: false, templates: ['crm-roof'] },
 
   // Dispensary — sidebar modules that had no registry entry
   { id: 'checkin', name: 'Customer Check-In', description: 'Front-desk check-in with ID capture', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
