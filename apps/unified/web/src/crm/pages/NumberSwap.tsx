@@ -72,6 +72,7 @@ export function NumberSwapEmbed() {
     <div className="card p-5 space-y-2">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Show tracking numbers on your website</h3>
       <p className="text-sm text-gray-600 dark:text-slate-400">Your Twomiah website swaps in your tracking numbers by itself. For another website, paste this line into its pages, just before <code>&lt;/body&gt;</code>. Visitors then see the number set for where they came from (above, on each number), and your own number everywhere else.</p>
+      <p className="text-sm text-gray-600 dark:text-slate-400">Tip for ads: add campaign tags to your ads (in Google Ads, Account settings › Tracking › Final URL suffix: <code>utm_source=google&amp;utm_medium=cpc&amp;utm_campaign={'{campaignid}'}</code>). Some browsers and privacy tools strip Google's own click id from the address, and the tags make sure those visitors still count as Google Ads.</p>
       <textarea readOnly aria-label="Website number swap script" className="input font-mono text-xs" rows={2} value={snippet} onFocus={(e) => e.currentTarget.select()} />
       <button type="button" onClick={copy} className="btn btn-secondary text-xs px-3 py-1.5">{copied ? 'Copied' : 'Copy'}</button>
     </div>

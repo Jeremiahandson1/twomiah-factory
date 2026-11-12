@@ -160,6 +160,10 @@ test('the inventory reports on Store › Sales: sell-through, days left, ABC, st
   expect(fastMoves[0].order).toMatch(/^ORD-H\d+$/)
   expect(fastMoves[0].by).toBe('Online store')
   expect((await table('days_left')).title).toBe('Days of inventory left')
+  // The order is a link, as on the product's stock history; Days left carries no sell-through sentence (retest 11/12).
+  expect(sm.columns.find((c: any) => c.key === 'order')).toMatchObject({ link: 'order', idKey: 'orderId' })
+  expect(fastMoves[0].orderId).toBeTruthy()
+  expect((await table('days_left')).note).not.toMatch(/starting stock/)
   expect(sm.columns.find((c: any) => c.key === 'at').kind).toBe('datetime')
 
   // The spreadsheet too.

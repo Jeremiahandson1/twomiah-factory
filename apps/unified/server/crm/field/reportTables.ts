@@ -7,7 +7,7 @@ export type ColKind = 'text' | 'money' | 'number' | 'date' | 'datetime' | 'perce
 export interface Col {
   key: string; label: string; kind?: ColKind
   /** The cell opens a record: which kind, and the row key that holds its id. */
-  link?: 'contact' | 'agreement' | 'invoice' | 'job' | 'quote'; idKey?: string
+  link?: 'contact' | 'agreement' | 'invoice' | 'job' | 'quote' | 'order'; idKey?: string
   /** Shown unless the person has chosen their own columns. */
   default?: boolean
 }
