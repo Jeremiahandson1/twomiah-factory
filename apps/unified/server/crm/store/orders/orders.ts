@@ -50,6 +50,7 @@ import { createStoreGiftCards } from '../giftCards.ts'
 import { ORDER_TILES, toPackCondition, atSupplierCondition, countedOrderCondition, pendingReviewCondition, lowStockProductCondition } from '../tileConditions.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { holdsRefund, quoteRefund, type MoneyBack, type OrderRefunds } from './refunds.ts'
+import { SHIP_TO_EDITABLE, keptShipTo, shipToSchema } from './shipTo.ts'
 
 type Order = typeof storeOrder.$inferSelect
 
@@ -366,6 +367,34 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     const { money } = await refunds.sendPart(order, row, c, 'Part refund (tried again)')
     if (money.kind === 'failed') return fail(c, 502, `The refund still has not gone through. ${money.reason}`, money.refused ? 'refund_failed' : 'refund_unconfirmed')
     return one(c, { order: orderForSeat(seat, await refunds.orderWithRefunds(order.id, companyId)), refund: money })
+  })
+
+  // ── Where it ships ─────────────────────────────────────────────────────────
+  /**
+   * PUT /:id/shipping-address — change where the order goes (Shopify: an unfulfilled order's address can be edited; live test
+   * 11/11 — an order made for a customer could not take one). Until it is on its way: pending, paid or packed, going by post,
+   * no label bought (void it first — the label was printed for the old address). The shipping charged is not changed.
+   */
+  app.put('/:id/shipping-address', requirePermission('orders:update'), async (c) => {
+    const companyId = own(c)
+    const parsed = shipToSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return badBody(c, 'Check the address', parsed.error)
+    const prev = await refunds.orderOf(c.req.param('id'), companyId)
+    if (!prev) return fail(c, 404, 'Not found')
+    if ((prev.fulfillment || 'ship') !== 'ship') return fail(c, 409, 'This order is not going by post, so it has no address to ship to.', 'not_shipping')
+    if (!SHIP_TO_EDITABLE.includes(prev.status)) return fail(c, 409, `This order is ${prev.status}, so where it goes can no longer be changed.`, 'ship_to_locked')
+    if (prev.labelUrl) return fail(c, 409, 'A label was bought for the old address — void it first, then change the address.', 'label_bought')
+    const addr = keptShipTo(parsed.data)
+    const [updated]: Order[] = await db.update(storeOrder).set({ shippingAddress: addr as any, updatedAt: new Date() })
+      .where(and(eq(storeOrder.id, prev.id), eq(storeOrder.companyId, companyId), inArray(storeOrder.status, SHIP_TO_EDITABLE))).returning()
+    if (!updated) return changedUnderYou(c, await statusOf(prev.id, companyId), 'shipped', 'the address was not saved')
+    await audit.log({
+      action: 'update', entity: 'order', entityId: prev.id, entityName: prev.orderNumber,
+      metadata: { description: `Ship-to address ${prev.shippingAddress ? 'changed' : 'added'}: ${addr.line1}, ${addr.city}, ${addr.state} ${addr.postalCode}` },
+      req: c,
+    })
+    const seat = await seatOf(d.permissions, c)
+    return one(c, { order: orderForSeat(seat, await refunds.orderWithRefunds(prev.id, companyId)) })
   })
 
   // ── Fulfilment ─────────────────────────────────────────────────────────────
