@@ -33,7 +33,10 @@ const LISTS: Record<string, string> = {
   // Launched 11/12: a project's client portal, figures and details; a contact's credit; an invoice's plan and text
   // requests; a quote's formula parameters.
   '/api/client-portal': '/api/projects', '/api/project-details': '/api/projects', '/api/customer-credit': '/api/contacts',
-  '/api/invoice-payments': '/api/invoices', '/api/invoice-requests': '/api/invoices', '/api/project-parameters': '/api/quotes',
+  '/api/invoice-payments': '/api/invoices', '/api/invoice-requests': '/api/invoices',
+  // A quote's formula parameters are its PROJECT's (QuotesPage asks /api/project-parameters/<form.projectId>); the storm map's
+  // events are the storm list's.
+  '/api/project-parameters': '/api/projects', '/api/storm-map/events': '/api/storms/events',
 }
 /** ?<name>=:id where the name does not say the list (spaceId is an event space). */
 const QUERY_LISTS: Record<string, string> = { spaceId: '/api/event-spaces' }
@@ -142,7 +145,9 @@ export async function recordKit(kit: Kit, manifest: RouteManifest): Promise<Demo
   // (/api/jobs/:id → /api/jobs); where the part before it is a feature and not the thing (/api/comments/job/:id, a job's
   // comments), the thing is named by the last word, or by LISTS below when the word does not say.
   const plural = (name: string) => (name.endsWith('s') ? name : name.endsWith('y') ? `${name.slice(0, -1)}ies` : `${name}s`)
-  for (const template of manifest.routes.filter(hasPathId)) {
+  // Addresses whose rows come from answers already recorded (FROM_ANSWERS) go last, whatever their name sorts as: a claim's
+  // depreciation (/api/insurance-extras/…) sorts before the claims (/api/insurance/…) it is read from.
+  for (const template of [...manifest.routes.filter(hasPathId)].sort((a, b) => Number(!!FROM_ANSWERS[a.split('?')[0]]) - Number(!!FROM_ANSWERS[b.split('?')[0]]))) {
     const [p, q] = template.split('?')
     const segs = p.split('/')
     const first = segs.indexOf(':id')
