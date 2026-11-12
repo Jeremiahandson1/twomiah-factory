@@ -18,7 +18,9 @@ export function templateKey(key: string): string {
   const q = query.split('&').filter(Boolean).map((kv) => {
     const [k, v = ''] = kv.split('=')
     const value = decodeURIComponent(v)
-    return `${k}=${looksLikeId(value) ? ':id' : DATE_LIKE.test(value) ? ':date' : value}`
+    // A list of ids (?ids=a,b,c — a screen naming every row it shows) is the same request whatever rows it names.
+    const ids = value.includes(',') && value.split(',').every((x) => looksLikeId(x))
+    return `${k}=${ids ? ':ids' : looksLikeId(value) ? ':id' : DATE_LIKE.test(value) ? ':date' : value}`
   })
   q.sort()
   return `${method} ${p}${q.length ? '?' + q.join('&') : ''}`
