@@ -67,6 +67,7 @@ import { attachedChecklistFiles } from '../crm/field/checklistLife.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { createTrackingLineRoutes } from '../crm/comms/trackingLines.ts'
+import { createNumberSwapRoutes } from '../crm/comms/numberSwap.ts'
 import { createSmsMediaRoutes, SMS_MEDIA_PATH, pictureToken } from '../crm/comms/smsMedia.ts'
 import { visitsForCustomer } from '../data/visitReports.ts'
 import { createScheduledTextRoutes } from '../crm/comms/scheduledTexts.ts'
@@ -592,6 +593,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/texting', access: 'user', router: createTextingRoutes(own, factoryApiClient) },
     // Call tracking numbers Twomiah sells (crm/comms/trackingLines.ts; the Factory buys and bills them). Not ready.
     { path: '/api/calltracking-lines', access: 'user', feature: 'call_tracking_numbers', router: createTrackingLineRoutes(own, factoryApiClient) },
+    // The website number swap (crm/comms/numberSwap.ts): asked by the business's pages and the script it embeds elsewhere.
+    { path: '/api/public/number-swap', access: 'public', router: createNumberSwapRoutes(own) },
     // Pictures in texts (crm/comms/smsMedia.ts): the signed-link door is public (the carrier has no sign-in); its router
     // signs everyone else in and asks Two-Way Texting itself. Scheduled texts are Two-Way Texting's (comms/scheduledTexts.ts).
     { path: SMS_MEDIA_PATH, access: 'public', router: createSmsMediaRoutes(own) },

@@ -10,6 +10,7 @@ import { api } from '../../api'
 import { CallTrackingSettings, usePermissions, useAuth } from '../../shared'
 import TrackingLines from './TrackingLines'
 import { RecordingPlayer, RecordingSettings } from './CallRecording'
+import { NumberSwapEmbed, WebsiteSwapCell } from './NumberSwap'
 import type { LucideIcon } from 'lucide-react'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
@@ -62,6 +63,9 @@ interface TrackingNumber {
   source: string;
   forwardTo: string;
   callCount?: number;
+  /** The website number swap: which visitors see it on the website (null = not shown), and whether it is one of a visitor pool. */
+  swapSource?: string | null;
+  inPool?: boolean;
 }
 
 interface StatCardProps {
@@ -217,7 +221,8 @@ export default function CallTrackingPage() {
           {tab === 'numbers' && (
             <div className="space-y-6">
               {ownNumbers && <TrackingLines />}
-              <TrackingNumbersTab />
+              <TrackingNumbersTab ownNumbers={ownNumbers} />
+              {ownNumbers && maySetUp && <NumberSwapEmbed />}
             </div>
           )}
           {tab === 'settings' && maySetUp && (
@@ -478,7 +483,8 @@ function AttributionTab({ report }: AttributionTabProps) {
   );
 }
 
-function TrackingNumbersTab() {
+function TrackingNumbersTab({ ownNumbers }: { ownNumbers: boolean }) {
+  const { known, can } = usePermissions();
   const [numbers, setNumbers] = useState<TrackingNumber[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -529,6 +535,7 @@ function TrackingNumbersTab() {
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Name</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Source</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Forwards To</th>
+              {ownNumbers && <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">On your website</th>}
               <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Calls</th>
             </tr>
           </thead>
@@ -543,6 +550,11 @@ function TrackingNumbersTab() {
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-gray-500 dark:text-slate-400">{num.forwardTo}</td>
+                {ownNumbers && (
+                  <td className="px-4 py-3">
+                    {num.forwardTo ? <WebsiteSwapCell id={num.id} swapSource={num.swapSource ?? null} inPool={!!num.inPool} mayChange={known && can('calltracking:update')} onSaved={loadNumbers} /> : <span className="text-sm text-gray-600 dark:text-slate-400">Rings nowhere yet</span>}
+                  </td>
+                )}
                 <td className="px-4 py-3 text-right font-medium tabular-nums">{Number(num.callCount || 0)}</td>
               </tr>
             ))}

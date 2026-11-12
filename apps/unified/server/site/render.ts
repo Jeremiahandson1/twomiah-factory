@@ -136,6 +136,8 @@ async function wrap(ctx: SiteContext, body: string, settings: Record<string, any
     siteOptions: ctx.options,
     // Website chat-to-text (chat_to_text with two_way_texting; crm/comms/chatToText.ts): the "Text us" box on every page.
     chatToText: Array.isArray(ctx.features) && ctx.features.includes('chat_to_text') && ctx.features.includes('two_way_texting'),
+    // The website number swap (crm/comms/numberSwap.ts): the company's slug, which the script asks by; '' = off.
+    numberSwap: ctx.numberSwap ? ctx.slug : '',
     // A/B experiments (scripts/ab.js) are a CRM ads feature; they return with the ads module (CUTOVER_LEDGER).
     crmApiUrl: '',
   }) as string

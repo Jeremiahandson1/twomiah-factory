@@ -451,5 +451,6 @@
   </script>
   <% } %>
   <% if (typeof chatToText !== 'undefined' && chatToText && !_embed) { %><script src="/scripts/chat.js" defer></script><% } %>
+  <% if (typeof numberSwap !== 'undefined' && numberSwap && !_embed) { %><script src="/scripts/number-swap.js" data-slug="<%= numberSwap %>" defer></script><% } %>
 </body>
 </html>

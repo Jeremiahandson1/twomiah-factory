@@ -17,6 +17,7 @@ import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingService } from './calltrackingService.ts'
 import { attachRecording, clearRecording, expiredRecordings, recordingOf } from '../../data/calltracking.ts'
+import { isSwapSource } from './numberSwapRules.ts'
 import { DEFAULT_RECORDING_NOTICE, deleteRecordingAt, fetchCall, fetchRecordingAudio, parseRecordingUrl } from './recordings.ts'
 
 const trackingNumberSchema = z.object({
@@ -200,7 +201,15 @@ export function createCalltrackingRoutes(d: CrmDeps) {
 
   app.put('/numbers/:id', requirePermission('calltracking:update'), async (c) => {
     const user = c.get('user')
-    const body = await c.req.json()
+    const body = await c.req.json().catch(() => null)
+    if (!body || typeof body !== 'object') return fail(c, 400, 'Send the fields to change')
+    // The website number swap (./numberSwap.ts): which visitors see this number, and whether it is one of a visitor pool.
+    if ('swapSource' in body) {
+      const v = body.swapSource === '' ? null : typeof body.swapSource === 'string' ? body.swapSource.trim().toLowerCase() : body.swapSource
+      if (v !== null && !isSwapSource(v)) return fail(c, 400, 'Choose which visitors see this number on your website.', 'validation_failed', { swapSource: 'Not one of the choices' })
+      body.swapSource = v
+    }
+    if ('inPool' in body && typeof body.inPool !== 'boolean') return fail(c, 400, 'Say whether this number is one of a visitor pool.', 'validation_failed', { inPool: 'Yes or no' })
     await calltracking.updateTrackingNumber(c.req.param('id'), user.companyId, body)
     return done(c)
   })
@@ -298,6 +307,8 @@ export function createCalltrackingRoutes(d: CrmDeps) {
       callRecording: !!row?.callRecording,
       callRecordingNotice: row?.callRecordingNotice || DEFAULT_RECORDING_NOTICE,
       callRecordingKeepDays: row?.callRecordingKeepDays ?? null,
+      // The website number swap's line to paste on a website Twomiah did not build (./numberSwap.ts).
+      numberSwapScript: row?.slug ? `<script src="${webhookOrigin(c)}/scripts/number-swap.js" data-slug="${row.slug}" defer></script>` : null,
     })
   })
 
