@@ -9,6 +9,7 @@ import {
 import { api } from '../../api'
 import { CallTrackingSettings, usePermissions, useAuth } from '../../shared'
 import TrackingLines from './TrackingLines'
+import { RecordingPlayer, RecordingSettings } from './CallRecording'
 import type { LucideIcon } from 'lucide-react'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
@@ -30,6 +31,8 @@ interface Call {
   duration: number;
   status: string;
   recordingUrl?: string;
+  /** A recording of a call to a number Twomiah sold: played through the app (its length in seconds). */
+  recording?: { seconds: number | null } | null;
 }
 
 interface SourceReport {
@@ -77,6 +80,7 @@ interface CallsTabProps {
 
 interface CallRowProps {
   call: Call;
+  onRefresh: () => void;
 }
 
 interface AttributionTabProps {
@@ -217,7 +221,10 @@ export default function CallTrackingPage() {
             </div>
           )}
           {tab === 'settings' && maySetUp && (
-            <CallTrackingSettings />
+            <div className="space-y-6">
+              {ownNumbers && <RecordingSettings />}
+              <CallTrackingSettings />
+            </div>
           )}
         </>
       )}
@@ -339,7 +346,7 @@ function CallsTab({ calls, filters, setFilters, onRefresh }: CallsTabProps) {
           </thead>
           <tbody className="divide-y">
             {calls.map((call: Call) => (
-              <CallRow key={call.id} call={call} />
+              <CallRow key={call.id} call={call} onRefresh={onRefresh} />
             ))}
           </tbody>
         </table>
@@ -351,7 +358,7 @@ function CallsTab({ calls, filters, setFilters, onRefresh }: CallsTabProps) {
   );
 }
 
-function CallRow({ call }: CallRowProps) {
+function CallRow({ call, onRefresh }: CallRowProps) {
   const StatusIcon = call.status === 'completed' ? PhoneIncoming :
                      call.status === 'missed' ? PhoneMissed : Phone;
 
@@ -399,7 +406,8 @@ function CallRow({ call }: CallRowProps) {
         </span>
       </td>
       <td className="px-4 py-3">
-        {call.recordingUrl && (
+        {call.recording && <RecordingPlayer callId={call.id} seconds={call.recording.seconds} onDeleted={onRefresh} />}
+        {!call.recording && call.recordingUrl && (
           <a
             href={call.recordingUrl}
             target="_blank"

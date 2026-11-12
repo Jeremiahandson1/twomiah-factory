@@ -20,6 +20,7 @@ type Call = { method: string; url: string; form: URLSearchParams }
 let calls: Call[] = []
 let twilioCalls: Record<string, any[]> = {}
 let kids: Record<string, any[]> = {}
+let recs: Record<string, any[]> = {}
 const PN = (c: string) => 'PN' + c.repeat(32)
 const realFetch = globalThis.fetch
 beforeEach(() => {
@@ -27,7 +28,7 @@ beforeEach(() => {
   supabase.tables.tenants = [{ id: 't-1', name: 'Acme HVAC', render_backend_url: 'https://acme-app.test', domain: 'acmehvac.com', factory_sync_key: 'k', calltrack_sub_id: null }]
   supabase.tables.call_tracking_numbers = []
   supabase.tables.messaging_ledger = []
-  calls = []; debits.length = 0; twilioCalls = {}; kids = {}
+  calls = []; debits.length = 0; twilioCalls = {}; kids = {}; recs = {}
   globalThis.fetch = (async (input: any, init: any = {}) => {
     const url = String(input), method = init.method || 'GET'
     calls.push({ method, url, form: new URLSearchParams(typeof init.body === 'string' ? init.body : '') })
@@ -36,6 +37,7 @@ beforeEach(() => {
     if (method === 'POST' && url.endsWith('/IncomingPhoneNumbers.json')) return ok({ sid: PN('a'), phone_number: '+17155550123' })
     if (method === 'DELETE' && url.includes('/IncomingPhoneNumbers/')) return new Response(null, { status: 204 })
     if (url.includes('/Calls.json?ParentCallSid=')) return ok({ calls: kids[/ParentCallSid=(\w+)/.exec(url)![1]] || [] })
+    if (url.includes('/Recordings.json?CallSid=')) return ok({ recordings: recs[/CallSid=(\w+)/.exec(url)![1]] || [] })
     if (url.includes('/Calls.json?To=')) return ok({ calls: twilioCalls[decodeURIComponent(/To=([^&]+)/.exec(url)![1])] || [] })
     return new Response(JSON.stringify({ message: 'unexpected ' + method + ' ' + url }), { status: 404 })
   }) as any
@@ -110,6 +112,17 @@ test("each call is charged once, at Twilio's price for the call in and the forwa
   kids.CA2 = [{ sid: 'CA2-out', status: 'completed', price: '-0.02800' }]
   expect(await svc.billCalls()).toEqual({ calls: 1, hc: 170 + 280 })
   expect(debits.map((d) => d.ref)).toEqual(['call:CA1', 'call:CA2'])
+})
+
+test("a recorded call is charged its recording too, at Twilio's price; a recording not priced yet keeps the call for the next pass", async () => {
+  await svc.buyLine('t-1', REQ)
+  twilioCalls['+17155550123'] = [{ sid: 'CA9', status: 'completed', price: '-0.00850' }]
+  kids.CA9 = [{ sid: 'CA9-out', status: 'completed', price: '-0.01400' }]
+  recs.CA9 = [{ sid: 'RE9', status: 'completed', price: null }]
+  expect(await svc.billCalls()).toEqual({ calls: 0, hc: 0 })
+  recs.CA9[0].price = '-0.00250'
+  expect(await svc.billCalls()).toEqual({ calls: 1, hc: 85 + 140 + 25 })
+  expect(debits).toEqual([{ tenantId: 't-1', hc: 250, reason: 'call_tracking_call', ref: 'call:CA9' }])
 })
 
 test('Twilio prices to hundredths of a cent, exactly', () => {

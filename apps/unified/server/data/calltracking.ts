@@ -241,3 +241,37 @@ export async function insertCallerClient(db: any, companyId: string, c: { firstN
     INSERT INTO clients (id, company_id, first_name, last_name, phone, notes)
     VALUES (${createId()}, ${companyId}, ${c.firstName}, ${c.lastName}, ${c.phone}, ${c.notes})`)
 }
+
+// ── Call recordings (CallRail's call recording, on the numbers Twomiah sells) ─────────────────────────────────────────────
+
+/** Twilio's finished recording, attached to its call (by the call's sid). Null when the call is not in the log yet. */
+export async function attachRecording(db: any, companyId: string, callSid: string, r: { sid: string; url: string; seconds: number }) {
+  return camelFirst(await db.execute(sql`
+    UPDATE call_log SET recording_sid = ${r.sid}, recording_url = ${r.url}, recording_seconds = ${r.seconds}
+    WHERE company_id = ${companyId} AND provider_id = ${callSid}
+    RETURNING id
+  `))
+}
+
+/** One call's Twilio recording: its sid and address (null when the call has none, or a CallRail one). */
+export async function recordingOf(db: any, companyId: string, callId: string): Promise<{ id: string; recordingSid: string; recordingUrl: string } | null> {
+  const row = camelFirst(await db.execute(sql`
+    SELECT id, recording_sid, recording_url FROM call_log WHERE id = ${callId} AND company_id = ${companyId} AND recording_sid IS NOT NULL LIMIT 1
+  `)) as any
+  return row ? { id: row.id, recordingSid: row.recordingSid, recordingUrl: row.recordingUrl } : null
+}
+
+/** The recording taken off a call (deleted at Twilio first). */
+export async function clearRecording(db: any, companyId: string, callId: string) {
+  await db.execute(sql`UPDATE call_log SET recording_sid = NULL, recording_url = NULL, recording_seconds = NULL WHERE id = ${callId} AND company_id = ${companyId}`)
+}
+
+/** Recordings older than their company's days kept (call_recording_keep_days; null = kept until deleted by hand). */
+export async function expiredRecordings(db: any, limit = 200): Promise<Array<{ id: string; companyId: string; recordingSid: string; recordingUrl: string }>> {
+  return camelRows(await db.execute(sql`
+    SELECT cl.id, cl.company_id, cl.recording_sid, cl.recording_url FROM call_log cl JOIN company co ON co.id = cl.company_id
+    WHERE cl.recording_sid IS NOT NULL AND co.call_recording_keep_days IS NOT NULL
+      AND COALESCE(cl.start_time, cl.created_at) < NOW() - (co.call_recording_keep_days || ' days')::interval
+    LIMIT ${limit}
+  `)) as any
+}
