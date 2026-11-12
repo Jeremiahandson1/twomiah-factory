@@ -135,3 +135,22 @@ test('older than the days kept: deleted by the daily sweep; a newer one stays', 
   expect((await callRow(CA(4))).recordingSid).toBe(RE(4))
   expect(twilioAsked.some((x) => x.method === 'DELETE' && x.url.endsWith(`/Recordings/${RE(3)}.json`))).toBe(true)
 })
+
+test('the call whisper: the person answering hears it before the caller is put through; set per number, checked; none, no whisper', async () => {
+  const [n] = await (t.db as any).select().from(t.schema.trackingNumber).where(eq(t.schema.trackingNumber.companyId, companyId))
+  expect((await call(`/api/calltracking/numbers/${n.id}`, { method: 'PUT', json: { whisper: 'x'.repeat(201) } })).status).toBe(400)
+  expect((await call(`/api/calltracking/numbers/${n.id}`, { method: 'PUT', json: { whisper: 5 } })).status).toBe(400)
+  expect((await call(`/api/calltracking/numbers/${n.id}`, { method: 'PUT', json: { whisper: '  Call from Google Ads  ' } })).status).toBe(200)
+  const x = await (await twilio(`/api/calltracking/voice/${companyId}`, { From: '+16085550199', To: '+17155550123', CallSid: CA(5) })).text()
+  expect(x).toContain(`<Number url="https://localhost/api/calltracking/voice/${companyId}/whisper/${n.id}" method="POST">+17155550100</Number>`)
+  // Twilio asks for it when the line answers: the whisper alone.
+  const w = await twilio(`/api/calltracking/voice/${companyId}/whisper/${n.id}`, { CallSid: CA(6) })
+  expect(w.status).toBe(200)
+  expect(await w.text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Call from Google Ads</Say></Response>')
+  expect((await twilio(`/api/calltracking/voice/${companyId}/whisper/${n.id}`, { CallSid: CA(6) }, 'wrong-token')).status).toBe(403)
+  // Another company's number, or an unknown one: nothing said.
+  expect(await (await twilio(`/api/calltracking/voice/${companyId}/whisper/nope`, { CallSid: CA(6) })).text()).toBe('<?xml version="1.0" encoding="UTF-8"?><Response></Response>')
+  // Cleared: the call rings through with no whisper.
+  expect((await call(`/api/calltracking/numbers/${n.id}`, { method: 'PUT', json: { whisper: '' } })).status).toBe(200)
+  expect(await (await twilio(`/api/calltracking/voice/${companyId}`, { From: '+16085550199', To: '+17155550123', CallSid: CA(7) })).text()).toContain('<Number>+17155550100</Number>')
+})

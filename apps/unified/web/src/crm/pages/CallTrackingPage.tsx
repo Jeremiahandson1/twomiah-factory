@@ -10,7 +10,7 @@ import { api } from '../../api'
 import { CallTrackingSettings, usePermissions, useAuth } from '../../shared'
 import TrackingLines from './TrackingLines'
 import { RecordingPlayer, RecordingSettings } from './CallRecording'
-import { NumberSwapEmbed, WebsiteSwapCell } from './NumberSwap'
+import { NumberSwapEmbed, WebsiteSwapCell, WhisperCell } from './NumberSwap'
 import type { LucideIcon } from 'lucide-react'
 import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
@@ -66,6 +66,8 @@ interface TrackingNumber {
   /** The website number swap: which visitors see it on the website (null = not shown), and whether it is one of a visitor pool. */
   swapSource?: string | null;
   inPool?: boolean;
+  /** What the person answering hears before the caller is put through. */
+  whisper?: string | null;
 }
 
 interface StatCardProps {
@@ -536,6 +538,7 @@ function TrackingNumbersTab({ ownNumbers }: { ownNumbers: boolean }) {
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Source</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Forwards To</th>
               {ownNumbers && <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">On your website</th>}
+              {ownNumbers && <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400" title="What the person answering hears before the caller is put through">Whisper</th>}
               <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Calls</th>
             </tr>
           </thead>
@@ -553,6 +556,11 @@ function TrackingNumbersTab({ ownNumbers }: { ownNumbers: boolean }) {
                 {ownNumbers && (
                   <td className="px-4 py-3">
                     {num.forwardTo ? <WebsiteSwapCell id={num.id} swapSource={num.swapSource ?? null} inPool={!!num.inPool} mayChange={known && can('calltracking:update')} onSaved={loadNumbers} /> : <span className="text-sm text-gray-600 dark:text-slate-400">Rings nowhere yet</span>}
+                  </td>
+                )}
+                {ownNumbers && (
+                  <td className="px-4 py-3">
+                    <WhisperCell id={num.id} whisper={num.whisper ?? null} name={num.name ?? null} mayChange={known && can('calltracking:update')} onSaved={loadNumbers} />
                   </td>
                 )}
                 <td className="px-4 py-3 text-right font-medium tabular-nums">{Number(num.callCount || 0)}</td>

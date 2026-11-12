@@ -1,0 +1,1 @@
+ALTER TABLE "tracking_number" ADD COLUMN "whisper" text;

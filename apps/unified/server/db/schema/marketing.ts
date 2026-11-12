@@ -360,6 +360,11 @@ export const trackingNumber = pgTable('tracking_number', {
   swapSource: text('swap_source'),
   /** One of a visitor pool (CallRail's visitor tracking): handed out a visitor at a time, so a call is tied to that visit. */
   inPool: boolean('in_pool').notNull().default(false),
+  /**
+   * The CALL WHISPER (CallRail's whisper message): what the person answering hears before the caller is put through — "Call from
+   * Google Ads" — so they know where it came from before they say hello. The caller never hears it. Null = none.
+   */
+  whisper: text('whisper'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 

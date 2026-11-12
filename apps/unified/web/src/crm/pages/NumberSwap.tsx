@@ -77,3 +77,30 @@ export function NumberSwapEmbed() {
     </div>
   )
 }
+
+/**
+ * The CALL WHISPER on a tracking number (CallRail's whisper message; server crm/comms/calltracking.ts voice): what the person
+ * answering hears before the caller is put through, so they know where the call came from. The caller never hears it.
+ */
+export function WhisperCell({ id, whisper, name, mayChange, onSaved }: { id: string; whisper: string | null; name: string | null; mayChange: boolean; onSaved: () => void }) {
+  const toast = useToast()
+  const [text, setText] = useState(whisper || '')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setText(whisper || '') }, [whisper])
+  if (!mayChange) return <span className="text-sm text-gray-700 dark:text-slate-300">{whisper || 'None'}</span>
+  const dirty = text.trim() !== (whisper || '')
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.put(`/api/calltracking/numbers/${id}`, { whisper: text.trim() || null })
+      toast.success(text.trim() ? 'Whisper saved' : 'Whisper removed')
+      onSaved()
+    } catch (e) { toast.error(errorText(e, "Couldn't save the whisper")) } finally { setSaving(false) }
+  }
+  return (
+    <div className="flex flex-col gap-1 text-sm">
+      <input aria-label="What the person answering hears" className="input py-1 text-sm" maxLength={200} placeholder={`e.g. Call from ${name || 'Google Ads'}`} value={text} onChange={(e) => setText(e.target.value)} />
+      {dirty && <button type="button" onClick={save} disabled={saving} className="btn btn-primary self-start px-2 py-1 text-xs">{saving ? 'Saving…' : 'Save'}</button>}
+    </div>
+  )
+}

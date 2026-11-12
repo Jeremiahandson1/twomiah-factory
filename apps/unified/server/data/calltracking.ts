@@ -37,7 +37,7 @@ export async function listTrackingNumbers(db: any, companyId: string, { source, 
 
 // The columns an edit may change. The template also listed whisper_message and recording_enabled, which are not
 // columns of tracking_number, so an edit carrying either answered 500; they are left out.
-const TRACKING_NUMBER_COLUMNS = ['name', 'phone_number', 'forward_to', 'source', 'active', 'swap_source', 'in_pool']
+const TRACKING_NUMBER_COLUMNS = ['name', 'phone_number', 'forward_to', 'source', 'active', 'swap_source', 'in_pool', 'whisper']
 
 /** Change the allowed columns of one of this company's tracking numbers; camelCase keys in, unknown keys skipped. */
 export async function updateTrackingNumber(db: any, numberId: string, companyId: string, data: Record<string, unknown>) {
