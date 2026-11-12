@@ -40,6 +40,9 @@ const rateIndex = new Map<string, { carrier: string; service: string; rate: stri
 const SERVICES = [['USPS', 'GroundAdvantage', '6.57'], ['USPS', 'Priority', '8.01']]
 let shipments = 0
 const boughtOn: { shipment: string; rate: string; service: string }[] = []
+/** Shipments the carrier was asked to refund (a voided label), and the ones it says were already scanned. */
+const voidedOn: string[] = []
+const scanned = new Set<string>()
 const printfulOrders: any[] = []
 const realFetch = globalThis.fetch
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
@@ -79,6 +82,12 @@ globalThis.fetch = (async (input: any, init?: any) => {
       if (!x || x.shipment !== b[1]) return json({ error: { message: 'Rate not found for this shipment' } }, 422)
       boughtOn.push({ shipment: b[1], rate: rid, service: x.service })
       return json({ id: b[1], tracking_code: `TRK-${rid}`, postage_label: { label_url: `https://labels.test/${rid}.png` }, selected_rate: { carrier: x.carrier, service: x.service, rate: x.rate } })
+    }
+    const v = url.match(/\/v2\/shipments\/([^/]+)\/refund$/)
+    if (v && method === 'POST') {
+      if (scanned.has(v[1])) return json({ error: { message: 'This shipment has already been scanned by the carrier and cannot be refunded.' } }, 422)
+      voidedOn.push(v[1])
+      return json({ id: v[1], refund_status: 'submitted' })
     }
     return json({ error: { message: 'not answered here' } }, 404)
   }
@@ -489,6 +498,53 @@ describe('labels', () => {
     expect(r.status).toBe(409)
     expect(r.json.code).toBe('no_parcel')
     expect(boughtOn.length).toBe(b0 + 1)
+  })
+
+  // Shopify's "Void label" (live test 11/11: a label could not be undone, and its postage was lost).
+  test('a label is voided: the carrier refunds it, it comes off the order, the order is back to paid, and a new one can be bought', async () => {
+    const { o } = await mkOrder()
+    expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label`, { markShipped: true })).status).toBe(200)
+    const bought = await orderNow(o.id)
+    expect(bought).toMatchObject({ status: 'shipped' })
+    expect(bought.labelShipmentId).toMatch(/^shp_/)
+    const v = await ST('POST', `/api/admin/shipping/orders/${o.id}/label/void`, {})
+    expect(v.status).toBe(200)
+    expect(v.json.refundStatus).toBe('submitted')
+    expect(voidedOn.at(-1)).toBe(bought.labelShipmentId)
+    const now = await orderNow(o.id)
+    expect(now).toMatchObject({ status: 'paid', labelUrl: null, labelCostCents: null, labelShipmentId: null, trackingNumber: null, trackingCarrier: null, fulfilledAt: null, labelRefundStatus: 'submitted' })
+    expect(now.labelVoidedAt).toBeTruthy()
+    const row = (await auditFor(o.id)).at(-1)
+    expect((row?.metadata as any).description).toMatch(/^Shipping label voided — USPS tracking TRK-rate_\d+_\d, \$\d+\.\d\d refund submitted; back to paid$/)
+    // Nothing left to void; and the order can have a new label, which clears the void note.
+    expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label/void`, {})).json.code).toBe('no_label')
+    expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label`, { markShipped: true })).status).toBe(200)
+    expect(await orderNow(o.id)).toMatchObject({ status: 'shipped', labelVoidedAt: null, labelRefundStatus: null })
+  })
+
+  test('packed before the label: back to fulfilled; a scanned label is the carrier refusal and stays; a delivered one is refused; one bought before voiding existed is voided in the carrier account', async () => {
+    const packed = new Date(Date.now() - 60 * 60_000)
+    const { o } = await mkOrder({ status: 'fulfilled', fulfilledAt: packed })
+    expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label`, { markShipped: true })).status).toBe(200)
+    expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label/void`, {})).status).toBe(200)
+    const back = await orderNow(o.id)
+    expect(back.status).toBe('fulfilled')
+    expect(new Date(back.fulfilledAt).getTime()).toBe(packed.getTime())
+
+    const s = await mkOrder()
+    expect((await ST('POST', `/api/admin/shipping/orders/${s.o.id}/label`, { markShipped: true })).status).toBe(200)
+    const sent = await orderNow(s.o.id)
+    scanned.add(sent.labelShipmentId)
+    const refused = await ST('POST', `/api/admin/shipping/orders/${s.o.id}/label/void`, {})
+    expect([refused.status, refused.json.code]).toEqual([502, 'void_refused'])
+    expect(refused.json.error).toContain('already been scanned')
+    expect(await orderNow(s.o.id)).toMatchObject({ status: 'shipped', labelUrl: sent.labelUrl, labelShipmentId: sent.labelShipmentId })
+
+    const d = await mkOrder({ status: 'delivered', labelUrl: 'https://labels.test/x.png', labelShipmentId: 'shp_delivered' })
+    expect((await ST('POST', `/api/admin/shipping/orders/${d.o.id}/label/void`, {})).json.code).toBe('label_used')
+    const old = await mkOrder({ status: 'shipped', labelUrl: 'https://labels.test/y.png' })
+    expect((await ST('POST', `/api/admin/shipping/orders/${old.o.id}/label/void`, {})).json.code).toBe('void_elsewhere')
+    expect(voidedOn).not.toContain('shp_delivered')
   })
 
   // The carrier's API key is a credential: the owner's (integrations:update), not the manager's or staff's (store live

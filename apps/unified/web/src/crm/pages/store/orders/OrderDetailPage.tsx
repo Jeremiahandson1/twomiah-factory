@@ -423,6 +423,7 @@ function BackLink() {
 function LabelPanel({ order, onBought }: { order: Order; onBought: (o: Order | null) => void }) {
   const toast = useToast()
   const may = useMay()
+  const confirm = useConfirm()
   const [connected, setConnected] = useState<boolean | null>(null)
   const [rates, setRates] = useState<RateQuote[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -476,9 +477,34 @@ function LabelPanel({ order, onBought }: { order: Order; onBought: (o: Order | n
     }
   }
 
+  // Void (Shopify's "Void label"): the carrier refunds the postage, the label comes off, another can be bought.
+  const voidLabel = async () => {
+    const shipped = order.status === 'shipped'
+    const ask = `The carrier is asked to refund ${typeof order.labelCostCents === 'number' ? cents(order.labelCostCents, order.currency) : 'the postage'} (USPS takes a few weeks). Don't use the printed label after this.${shipped ? ' The order goes back to not shipped, so a new label can be bought.' : ''}`
+    if (!(await confirm(ask, { title: 'Void this label?', confirmText: 'Void label' }))) return
+    setBusy(true)
+    try {
+      const res = await api.post(`/api/admin/shipping/orders/${encodeURIComponent(order.id)}/label/void`, {}) as { refundStatus: string; order: Order }
+      toast.success(res.refundStatus === 'refunded' ? 'Label voided — postage refunded' : 'Label voided — refund requested from the carrier')
+      setRates(null)
+      onBought(res.order)
+    } catch (e) {
+      toast.error(errorText(e, 'Could not void the label'))
+      const s = statusOf(e)
+      if (s !== undefined && s >= 400 && s < 500) onBought(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="card p-5 space-y-3">
       <h2 className="font-semibold text-gray-900 dark:text-slate-100">Shipping label</h2>
+      {!order.labelUrl && order.labelVoidedAt && (
+        <p className="text-sm text-gray-500 dark:text-slate-400">
+          A label was voided {formatDate(order.labelVoidedAt)} — refund {order.labelRefundStatus === 'refunded' ? 'paid' : order.labelRefundStatus === 'rejected' ? 'refused by the carrier' : 'requested'}.
+        </p>
+      )}
 
       {order.labelUrl ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -486,7 +512,12 @@ function LabelPanel({ order, onBought }: { order: Order; onBought: (o: Order | n
             {order.trackingCarrier} {order.trackingNumber}
             {typeof order.labelCostCents === 'number' && <span className="text-gray-500 dark:text-slate-400"> · {cents(order.labelCostCents, order.currency)}</span>}
           </p>
-          <a href={order.labelUrl} target="_blank" rel="noreferrer" className="btn btn-secondary">Print label</a>
+          <span className="flex items-center gap-2">
+            <a href={order.labelUrl} target="_blank" rel="noreferrer" className="btn btn-secondary">Print label</a>
+            {may('shipping:label') && order.status !== 'delivered' && order.labelShipmentId && (
+              <button onClick={voidLabel} disabled={busy} className="btn btn-secondary">{busy ? 'Voiding…' : 'Void label'}</button>
+            )}
+          </span>
         </div>
       ) : !order.shippingAddress ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">This order has no shipping address, so a label cannot be bought.</p>

@@ -143,6 +143,11 @@ export const storeOrder = pgTable('orders', {
   labelUrl: text('label_url'),
   labelCostCents: integer('label_cost_cents'),
   labelPurchasedAt: timestamp('label_purchased_at'),
+  /** The carrier's shipment the label was bought on — what voiding it asks the carrier to refund. */
+  labelShipmentId: text('label_shipment_id'),
+  /** The last label voided on this order: when, and the carrier's refund answer (submitted | refunded | rejected). */
+  labelVoidedAt: timestamp('label_voided_at'),
+  labelRefundStatus: text('label_refund_status'),
   /** ship | pickup | digital (gift cards only: nothing to send). A pickup order is never shipped, nor a shipped one picked up. */
   fulfillment: text('fulfillment').notNull().default('ship'),
   /** storefront | draft (made by the owner for a customer, paid from the emailed link). */
@@ -270,6 +275,10 @@ export const storeReturn = pgTable('store_returns', {
   labelCarrier: text('label_carrier'),
   labelCostCents: integer('label_cost_cents'),
   labelClaimedAt: timestamp('label_claimed_at'),
+  labelShipmentId: text('label_shipment_id'),
+  /** A prepaid label voided because the return was cancelled: when, and the carrier's refund answer. */
+  labelVoidedAt: timestamp('label_voided_at'),
+  labelRefundStatus: text('label_refund_status'),
   /** The order_refunds row that sent the money back, and the order an exchange made. */
   refundRowId: text('refund_row_id'),
   exchangeOrderId: text('exchange_order_id'),

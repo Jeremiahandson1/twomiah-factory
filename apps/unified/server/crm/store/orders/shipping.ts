@@ -191,6 +191,9 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
         labelUrl: label.labelUrl,
         labelCostCents: label.costCents,
         labelPurchasedAt: new Date(),
+        labelShipmentId: label.shipmentId ?? null,
+        labelVoidedAt: null,
+        labelRefundStatus: null,
         // Same fields manual fulfilment writes, so the shipped email is unchanged.
         trackingCarrier: label.carrier,
         trackingNumber: label.trackingCode,
@@ -222,6 +225,48 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
       logger.error('[store] label purchase failed', { orderId: order.id, error: err?.message })
       return fail(c, 502, err?.message || 'Could not buy that label')
     }
+  })
+
+  /**
+   * VOID A LABEL (Shopify's "Void label"; live test 11/11 — a label bought by mistake, or for a parcel that will not go,
+   * could not be undone, and its postage was lost). The carrier is asked to refund it; a label it has scanned cannot be
+   * voided and its refusal is said as it is. Then the label comes off the order, so another can be bought: its link and
+   * tracking are cleared, and an order the label marked shipped goes back to where it stood — paid, or fulfilled when it
+   * was packed before the label. A delivered order's label was used. Who may: whoever may buy one (shipping:label).
+   */
+  app.post('/orders/:id/label/void', requirePermission('shipping:label'), async (c) => {
+    const companyId = own(c)
+    const order = await orderOf(c.req.param('id'), companyId)
+    if (!order) return fail(c, 404, 'Order not found')
+    if (!order.labelUrl) return fail(c, 409, 'This order has no label to void.', 'no_label')
+    if (order.status === 'delivered') return fail(c, 409, 'This order was delivered, so its label was used and cannot be voided.', 'label_used')
+    if (!order.labelShipmentId) return fail(c, 409, 'This label was bought before labels could be voided here — void it in your carrier account.', 'void_elsewhere')
+    const active = await core.getActiveShipping(companyId)
+    if (!active) return fail(c, 400, 'No carrier account connected')
+    let voided
+    try {
+      voided = await active.provider.voidLabel(order.labelShipmentId)
+    } catch (err: any) {
+      logger.warn('[store] label void refused', { orderId: order.id, error: err?.message })
+      return fail(c, 502, `The carrier said: ${String(err?.message || 'no reason given').slice(0, 300)}`, 'void_refused')
+    }
+    if (voided.refundStatus === 'rejected') return fail(c, 409, 'The carrier would not refund this label — it may already have been scanned.', 'void_refused')
+    // Shipped by this label (fulfilled no earlier than the label was bought): back to paid. Packed before it: fulfilled.
+    const packedBefore = !!order.fulfilledAt && !!order.labelPurchasedAt && order.fulfilledAt < order.labelPurchasedAt
+    const back = order.status === 'shipped' ? (packedBefore ? 'fulfilled' : 'paid') : order.status
+    const patch: Record<string, unknown> = {
+      labelUrl: null, labelCostCents: null, labelPurchasedAt: null, labelShipmentId: null, trackingCarrier: null, trackingNumber: null,
+      labelVoidedAt: new Date(), labelRefundStatus: voided.refundStatus, status: back, updatedAt: new Date(),
+      ...(back === 'paid' ? { fulfilledAt: null } : {}),
+    }
+    const [updated]: Order[] = await db.update(storeOrder).set(patch).where(and(eq(storeOrder.id, order.id), eq(storeOrder.companyId, companyId))).returning()
+    await audit.log({
+      action: 'update', entity: 'order', entityId: order.id, entityName: order.orderNumber,
+      metadata: { description: `Shipping label voided — ${order.trackingCarrier ?? 'carrier'} tracking ${order.trackingNumber ?? ''}, ${formatCents(order.labelCostCents ?? 0, 'usd')} refund ${voided.refundStatus}${back !== order.status ? `; back to ${back}` : ''}`.replace(/\s+,/g, ','), refundStatus: voided.refundStatus },
+      req: c,
+    })
+    const seat = await seatOf(d.permissions, c)
+    return one(c, { refundStatus: voided.refundStatus, order: orderForSeat(seat, updated) })
   })
 
   return app

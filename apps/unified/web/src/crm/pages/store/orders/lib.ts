@@ -36,6 +36,8 @@ export interface Order {
   refundedCents?: number
   supplierOrderId?: string | null; supplierStatus?: string | null; supplierCostCents?: number | null; supplierError?: string | null
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
+  /** The last label voided on this order, and the carrier's refund answer (submitted | refunded | rejected). */
+  labelShipmentId?: string | null; labelVoidedAt?: string | null; labelRefundStatus?: string | null
   /** ship | pickup | digital (gift cards only); storefront | draft (made for a customer); Stripe Tax worked the tax out. */
   fulfillment?: string; source?: string; taxAutomatic?: boolean
   /** What a gift card paid, and what has gone back on it. */
