@@ -20,12 +20,18 @@ import { createCheckoutService, requestOrigin } from '../checkout/checkoutServic
 import { createOrderStarter } from '../checkout/placeOrder.ts'
 import { emailItems, emailOrder } from '../emails.ts'
 import { createStoreGiftCards } from '../giftCards.ts'
+import { contactShipTo, keptShipTo, shipToSchema } from './shipTo.ts'
 
 const draftSchema = z.object({
   contactId: z.string().min(1, 'Choose the customer'),
   items: z.array(z.object({ sku: z.string().min(1), quantity: z.number().int().positive().max(9999) })).min(1, 'Add at least one item').max(100),
   delivery: z.enum(['ship', 'pickup']).default('ship'),
   shipTo: z.object({ country: z.string().max(2), state: z.string().max(16) }).partial().optional(),
+  /**
+   * Where it goes (Shopify's draft order address; live test 11/11 — an order paid in person had none, so no label could be
+   * bought). Left out: the customer's saved address, when it is whole. A link to pay still lets the customer give theirs.
+   */
+  shippingAddress: shipToSchema.optional(),
   note: z.string().trim().max(1000).optional().nullable(),
   /** Email the customer the link to pay now (default), or only make the order. */
   send: z.boolean().default(true),
@@ -53,18 +59,25 @@ export function createDraftOrderRoutes(d: CrmDeps, core: StoreCore) {
     const parsed = draftSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const companyId = c.get('user').companyId
-    const [who] = await db.select({ id: contact.id, name: contact.name, email: contact.email }).from(contact)
+    const [who] = await db.select({ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone, address: contact.address, city: contact.city, state: contact.state, zip: contact.zip }).from(contact)
       .where(and(eq(contact.id, parsed.data.contactId), eq(contact.companyId, companyId))).limit(1)
     if (!who) return fail(c, 404, 'That customer was not found.')
     const inPerson = parsed.data.paidInPerson
     // Paid in person needs no link, so no email: the receipt goes to one only when they have one.
     if (!who.email && !inPerson) return fail(c, 400, `${who.name} has no email address to send the order to. Add one on their page first.`, 'validation_failed', { contactId: 'This customer has no email' })
     const pricing = await pricingForContact(db, companyId, who.id)
+    const shipsTo = parsed.data.delivery === 'ship' ? (parsed.data.shippingAddress ? keptShipTo(parsed.data.shippingAddress) : contactShipTo(who)) : null
+    // The shipping rate and tax follow the address when there is one (the region boxes are for an order with none).
+    const region = shipsTo ? { country: shipsTo.country, state: shipsTo.state } : parsed.data.shipTo
     const r = await starter.start({
-      companyId, items: parsed.data.items, customerEmail: who.email || undefined, delivery: parsed.data.delivery, shipTo: parsed.data.shipTo,
+      companyId, items: parsed.data.items, customerEmail: who.email || undefined, delivery: parsed.data.delivery, shipTo: region,
       origin: requestOrigin(c), draft: { contactId: who.id, customerName: who.name, pricing, note: parsed.data.note ?? null, ...(inPerson ? { paidInPerson: inPerson } : {}) },
     })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
+    if (shipsTo) {
+      await db.update(storeOrder).set({ shippingAddress: { ...shipsTo, name: shipsTo.name || who.name } as any, updatedAt: new Date() })
+        .where(and(eq(storeOrder.id, r.orderId), eq(storeOrder.companyId, companyId)))
+    }
     const [order] = await db.select().from(storeOrder).where(and(eq(storeOrder.id, r.orderId), eq(storeOrder.companyId, companyId))).limit(1)
     const sent = parsed.data.send && !inPerson ? await sendInvoice(order.id, companyId, r.url) : false
     await audit.log({

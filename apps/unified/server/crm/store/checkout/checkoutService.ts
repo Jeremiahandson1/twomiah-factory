@@ -124,9 +124,11 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
       orderNumber,
       providerPaymentId: result.providerPaymentId ?? null,
       customerEmail: result.customerEmail ?? order.customerEmail,
-      customerName: result.customerName ?? null,
-      customerPhone: result.customerPhone ?? null,
-      shippingAddress: result.shippingAddress ?? null,
+      // What the payment page collected, else what the order already had (a draft order made for a customer carries their
+      // name and the address staff gave it — live test 11/11 — and a payment that asks for neither must not wipe them).
+      customerName: result.customerName ?? order.customerName ?? null,
+      customerPhone: result.customerPhone ?? order.customerPhone ?? null,
+      shippingAddress: result.shippingAddress ?? order.shippingAddress ?? null,
       billingAddress: result.billingAddress ?? null,
       // Stripe Tax worked the tax out at the payment page: the order takes what was charged - the tax, and the total
       // (what the provider took, plus what the gift card paid).

@@ -10,6 +10,7 @@ import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite, useToast } from '../../../../shared'
 import { cents, listOf } from './lib'
 import { CustomerPicker, type PickedCustomer } from './CustomerPicker'
+import { ShipToFields, EMPTY_SHIP_TO, shipToProblem, type ShipToForm } from './ShipToFields'
 
 interface Option { sku: string; label: string; priceCents: number }
 interface Line { sku: string; quantity: string }
@@ -23,8 +24,8 @@ export default function NewOrderPage() {
   const [chosen, setChosen] = useState<PickedCustomer | null>(null)
   const [lines, setLines] = useState<Line[]>([{ sku: '', quantity: '1' }])
   const [delivery, setDelivery] = useState<'ship' | 'pickup'>('ship')
-  const [country, setCountry] = useState('US')
-  const [state, setState] = useState('')
+  // Where it goes (live test 11/11: a phone order had no address, so no label): the customer's saved one, changeable.
+  const [shipTo, setShipTo] = useState<ShipToForm>(EMPTY_SHIP_TO)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -38,6 +39,17 @@ export default function NewOrderPage() {
     api.get('/api/admin/settings').then((s: any) => setPickup(!!s?.pickupEnabled)).catch(() => setPickup(false))
   }, [])
 
+  // Picking the customer fills the address from their record (what they had typed is kept when they have none).
+  useEffect(() => {
+    if (!chosen) return
+    let live = true
+    api.get(`/api/contacts/${encodeURIComponent(chosen.id)}`).then((c: any) => {
+      if (!live || !c?.address) return
+      setShipTo({ name: c.name || '', line1: c.address || '', line2: '', city: c.city || '', state: c.state || '', postalCode: c.zip || '', country: 'US', phone: c.phone || '' })
+    }).catch(() => {})
+    return () => { live = false }
+  }, [chosen])
+
   const listTotal = useMemo(() => lines.reduce((a, l) => a + (options.find((o) => o.sku === l.sku)?.priceCents || 0) * (Number(l.quantity) || 0), 0), [lines, options])
   const setLine = (i: number, k: keyof Line, v: string) => setLines(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
 
@@ -48,11 +60,15 @@ export default function NewOrderPage() {
     const items = lines.filter((l) => l.sku).map((l) => ({ sku: l.sku, quantity: Number(l.quantity) }))
     if (!items.length) { setError('Add at least one item.'); return }
     if (items.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1)) { setError('Each quantity is a whole number, 1 or more.'); return }
+    // Paid in person and shipped: the address is needed now (no payment page will ask for it). A link to pay may leave it
+    // for the customer to give.
+    const typed = delivery === 'ship' && Object.entries(shipTo).some(([k, v]) => k !== 'country' && String(v).trim())
+    if (delivery === 'ship' && (typed || paidBy !== 'link')) { const p = shipToProblem(shipTo); if (p) { setError(p); return } }
     setSaving(true)
     try {
       const r = await api.post('/api/admin/draft-orders', {
         contactId: chosen.id, items, delivery, note: note.trim() || null, ...(paidBy !== 'link' ? { paidInPerson: paidBy } : {}),
-        ...(delivery === 'ship' && (country.trim() || state.trim()) ? { shipTo: { country: country.trim().toUpperCase(), state: state.trim().toUpperCase() } } : {}),
+        ...(delivery === 'ship' && !shipToProblem(shipTo) ? { shippingAddress: { ...shipTo, state: shipTo.state.trim().toUpperCase(), country: shipTo.country.trim().toUpperCase() || 'US' } } : {}),
       }) as { order: { id: string; totalCents: number; currency: string }; sent: boolean; group: { name: string } | null }
       toast.success(`Order made${r.group ? ` at ${r.group.name} prices` : ''} — ${cents(r.order.totalCents, r.order.currency)}${paidBy !== 'link' ? ', paid' : r.sent ? `, link to pay emailed to ${chosen.email}` : ''}`)
       navigate(`/crm/orders/${r.order.id}`)
@@ -95,10 +111,11 @@ export default function NewOrderPage() {
             </fieldset>
           )}
           {delivery === 'ship' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="label" htmlFor="no-c">Ship to country</label><input id="no-c" className="input" maxLength={2} value={country} onChange={(e) => setCountry(e.target.value)} /></div>
-              <div><label className="label" htmlFor="no-s">State</label><input id="no-s" className="input" maxLength={16} value={state} onChange={(e) => setState(e.target.value)} placeholder="WI" /></div>
-            </div>
+            <fieldset className="space-y-2">
+              <legend className="label">Ship to</legend>
+              <ShipToFields idPrefix="no" value={shipTo} onChange={setShipTo} />
+              <p className="text-xs text-gray-600 dark:text-slate-400">{paidBy === 'link' ? 'Optional with a link to pay — the customer can give it when they pay.' : 'Needed to buy a shipping label.'}</p>
+            </fieldset>
           )}
           <fieldset className="space-y-1">
             <legend className="label">Payment</legend>

@@ -40,6 +40,7 @@ import { PageError, errorText, useConfirm, usePermissions, useToast } from '../.
 import { formatDate } from '../../../date'
 import { cents, codeOf, listOf, statusBadge, statusOf, type MoneyBack, type Order } from './lib'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
+import { ShipToFields, shipToForm, shipToProblem, type ShipToForm } from './ShipToFields'
 
 // The SERVER's table (server/crm/store/orders/rules.ts NEXT_STATUS): only these moves are offered.
 const NEXT_STATUS: Record<string, string[]> = {
@@ -105,6 +106,10 @@ export default function OrderDetailPage() {
   const [note, setNote] = useState('')
   const [refunding, setRefunding] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Where it ships, changed or added here (server PUT /:id/shipping-address — until it is on its way, no label bought).
+  const [editingShipTo, setEditingShipTo] = useState(false)
+  const [shipTo, setShipTo] = useState<ShipToForm>(shipToForm(null))
+  const [shipToError, setShipToError] = useState<string | null>(null)
 
   /** The order as saved; the boxes become what was saved. */
   const show = useCallback((o: Order) => {
@@ -126,6 +131,23 @@ export default function OrderDetailPage() {
   }, [id, show])
 
   useEffect(() => { void load() }, [load])
+
+  const saveShipTo = async () => {
+    if (!order) return
+    const problem = shipToProblem(shipTo)
+    if (problem) { setShipToError(problem); return }
+    setBusy(true)
+    try {
+      const r = await api.put(`/api/admin/orders/${encodeURIComponent(order.id)}/shipping-address`, { ...shipTo, state: shipTo.state.trim().toUpperCase(), country: shipTo.country.trim().toUpperCase() }) as { order: Order }
+      merge(r.order)
+      setEditingShipTo(false)
+      toast.success('Address saved')
+    } catch (e) {
+      setShipToError(errorText(e, 'Could not save the address'))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // Someone else moved this order while it was open (409 order_changed), or the provider refused: nothing of ours was
   // applied, so show the order as it now stands rather than the buttons for a status it has left.
@@ -367,13 +389,28 @@ export default function OrderDetailPage() {
         )}
 
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">{ships ? 'Ship to' : order.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}</h2>
-          {!ships ? (
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">{ships ? 'Ship to' : order.fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}</h2>
+            {ships && !editingShipTo && may('orders:update') && ['pending', 'paid', 'fulfilled'].includes(order.status) && !order.labelUrl && (
+              <button type="button" className="btn btn-secondary px-3 py-1.5 text-xs" onClick={() => { setShipTo(shipToForm(order.shippingAddress as any)); setShipToError(null); setEditingShipTo(true) }}>{order.shippingAddress ? 'Edit' : 'Add address'}</button>
+            )}
+          </div>
+          {ships && editingShipTo ? (
+            <div className="space-y-3">
+              <ShipToFields idPrefix="od-ship" value={shipTo} onChange={setShipTo} />
+              <PageError message={shipToError} />
+              <div className="flex gap-2">
+                <button type="button" className="btn btn-primary px-3 py-1.5 text-sm" disabled={busy} onClick={saveShipTo}>Save address</button>
+                <button type="button" className="btn btn-secondary px-3 py-1.5 text-sm" disabled={busy} onClick={() => setEditingShipTo(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : !ships ? (
             <p className="text-sm text-gray-600 dark:text-slate-300">{order.fulfillment === 'pickup'
               ? (order.pickedUpAt ? `Picked up ${formatDate(order.pickedUpAt)}.` : order.readyForPickupAt ? `Ready since ${formatDate(order.readyForPickupAt)} — the customer was emailed.` : 'The customer collects it from the shop. Mark it ready for pickup to email them.')
               : 'Gift cards only — emailed to the customer when the order was paid.'}</p>
           ) : order.shippingAddress ? (
             <address className="not-italic text-sm text-gray-600 leading-relaxed dark:text-slate-300">
+              {(order.shippingAddress as any).name && <>{(order.shippingAddress as any).name}<br /></>}
               {order.shippingAddress.line1}<br />
               {order.shippingAddress.line2 && <>{order.shippingAddress.line2}<br /></>}
               {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}<br />
