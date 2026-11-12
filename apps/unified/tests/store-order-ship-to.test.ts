@@ -77,7 +77,13 @@ describe('an order\'s address is changed until it is on its way', () => {
     const moved = await put('M', { ...ADDR, line1: '40 Elm Rd', line2: null })
     expect(moved.status).toBe(200)
     expect((await k.order(id)).shippingAddress).toEqual({ name: 'Lee Parcel', line1: '40 Elm Rd', city: 'Akron', state: 'OH', postalCode: '44301', country: 'US', phone: '3305550100' })
-    expect(await lastLog(id)).toBe('Ship-to address changed: 40 Elm Rd, Akron, OH 44301')
+    expect(await lastLog(id)).toBe('Ship-to address changed from 12 Pine St, Akron, OH 44301 to 40 Elm Rd, Akron, OH 44301')
+    // The order page's history has it, newest first, with who (live test 11/12: it was only in the Audit Log).
+    const history = await k.ST('GET', `/api/admin/orders/${id}/history`)
+    expect(history.status).toBe(200)
+    expect(history.json.data[0]).toMatchObject({ what: 'Ship-to address changed from 12 Pine St, Akron, OH 44301 to 40 Elm Rd, Akron, OH 44301', who: expect.any(String) })
+    expect(history.json.data.map((h: any) => h.what)).toContain('Ship-to address added: 12 Pine St, Akron, OH 44301')
+    expect((await k.ST('GET', '/api/admin/orders/nope/history')).status).toBe(404)
     expect((await put('M', { ...ADDR, postalCode: '' })).status).toBe(400)
 
     await (k.t.db as any).update(k.S.storeOrder).set({ labelUrl: 'https://labels.test/x.png' }).where(eq(k.S.storeOrder.id, id))

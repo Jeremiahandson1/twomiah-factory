@@ -122,6 +122,8 @@ export async function seatOf(permissions: any, c: Context): Promise<Seat> {
 export function orderForSeat<T extends Record<string, any> | null | undefined>(seat: Seat, order: T): T {
   if (!order) return order
   let out: any = order
+  // A walk-in's order is stored with a stand-in email (checkout NO_EMAIL_YET): no one's address, so it is not shown (live test 11/12).
+  if (out.customerEmail === 'pending@checkout') out = { ...out, customerEmail: null }
   // …and what the shop paid for the shipping label, the same kind of figure (live role check sweep, 2026-10-23).
   if (!seat.margin) { const { supplierCostCents: _cost, labelCostCents: _label, ...rest } = out; out = rest }
   if (!seat.refund) { const { providerSessionId: _s, providerPaymentId: _p, refundId: _r, ...rest } = out; out = rest }

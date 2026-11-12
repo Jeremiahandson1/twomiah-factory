@@ -41,6 +41,7 @@ import { formatDate } from '../../../date'
 import { cents, codeOf, listOf, statusBadge, statusOf, type MoneyBack, type Order } from './lib'
 import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 import { ShipToFields, shipToForm, shipToProblem, type ShipToForm } from './ShipToFields'
+import { OrderHistory } from './OrderHistory'
 
 // The SERVER's table (server/crm/store/orders/rules.ts NEXT_STATUS): only these moves are offered.
 const NEXT_STATUS: Record<string, string[]> = {
@@ -447,6 +448,9 @@ export default function OrderDetailPage() {
 
       {/* Shipping label */}
       {ships && <LabelPanel order={order} onBought={(o) => { if (o) merge(o); void load() }} />}
+
+      {/* What happened to it, and who did it (live test 11/12: an address change could only be found in the Audit Log). */}
+      <OrderHistory orderId={order.id} version={order.updatedAt} />
     </div>
   )
 }

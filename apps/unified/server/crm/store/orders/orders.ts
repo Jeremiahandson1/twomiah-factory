@@ -36,6 +36,7 @@ import { z } from 'zod'
 import { and, count, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { storeOrder, storeOrderRefund, productReview, storeProduct, storeProductVariant, type RefundLine } from '../../../db/schema/store.ts'
+import { auditLog } from '../../../db/schema/index.ts'
 import { orderStats, storeCustomers, moveOrderFrom, reservePartMoney, reserveLineUnits, shippingRefundedCents } from '../../../data/storeOrders.ts'
 import { checkFilter } from '@twomiah/tenant-backend'
 import { requestScope } from '../../../core/audit.ts'
@@ -185,6 +186,25 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     const order = await refunds.orderWithRefunds(c.req.param('id'), own(c))
     if (!order) return fail(c, 404, 'Not found')
     return one(c, orderForSeat(await seatOf(d.permissions, c), order))
+  })
+
+  /**
+   * The order's HISTORY (Shopify's order timeline; live test 11/12 — a ship-to change could only be found in Account › Audit Log):
+   * what happened to it, newest first, from the audit log — made, paid, packed, shipped, refunded, its address changed, its label
+   * bought or voided, a return. Who did it, where a person did. A seat that does not see costs (margin:read) is not shown the label
+   * rows, which name what the postage cost.
+   */
+  app.get('/:id/history', async (c) => {
+    const companyId = own(c)
+    const [o] = await db.select({ id: storeOrder.id }).from(storeOrder).where(and(eq(storeOrder.id, c.req.param('id')), eq(storeOrder.companyId, companyId))).limit(1)
+    if (!o) return fail(c, 404, 'Not found')
+    const seat = await seatOf(d.permissions, c)
+    const rows: any[] = await db.select({ id: auditLog.id, at: auditLog.createdAt, action: auditLog.action, metadata: auditLog.metadata, who: auditLog.userName, userId: auditLog.userId })
+      .from(auditLog).where(and(eq(auditLog.companyId, companyId), eq(auditLog.entityId, o.id))).orderBy(desc(auditLog.createdAt), desc(auditLog.id)).limit(200)
+    const data = rows
+      .map((r) => ({ id: r.id, at: r.at, what: String(r.metadata?.description || r.action || '').trim(), who: r.userId ? r.who || null : null }))
+      .filter((r) => r.what && (seat.margin || !/label/i.test(r.what)))
+    return listAll(c, data)
   })
 
   /** Never throws and never delays the status change: a review request is a courtesy. */
@@ -390,7 +410,7 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
     if (!updated) return changedUnderYou(c, await statusOf(prev.id, companyId), 'shipped', 'the address was not saved')
     await audit.log({
       action: 'update', entity: 'order', entityId: prev.id, entityName: prev.orderNumber,
-      metadata: { description: `Ship-to address ${prev.shippingAddress ? 'changed' : 'added'}: ${addr.line1}, ${addr.city}, ${addr.state} ${addr.postalCode}` },
+      metadata: { description: prev.shippingAddress?.line1 ? `Ship-to address changed from ${[prev.shippingAddress.line1, prev.shippingAddress.city, `${prev.shippingAddress.state ?? ''} ${prev.shippingAddress.postalCode ?? ''}`.trim()].filter(Boolean).join(', ')} to ${addr.line1}, ${addr.city}, ${addr.state} ${addr.postalCode}` : `Ship-to address added: ${addr.line1}, ${addr.city}, ${addr.state} ${addr.postalCode}` },
       req: c,
     })
     const seat = await seatOf(d.permissions, c)

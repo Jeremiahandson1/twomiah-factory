@@ -13,7 +13,9 @@ export interface Col {
 }
 /** A row: its cells by column key, and `drill` — the cells that open another view of the report, with that view's filters. */
 export type Row = Record<string, any> & { drill?: Record<string, Record<string, string>> }
-export interface ReportTable { tab: string; title: string; columns: Col[]; rows: Row[]; totals?: Row | null; note?: string }
+export interface ReportTable { tab: string; title: string; columns: Col[]; rows: Row[]; totals?: Row | null; note?: string
+  /** A datetime column's spreadsheet text is on this clock (YYYY-MM-DD HH:MM), not UTC (store live test 11/12). */
+  timeZone?: string }
 
 export const PERIOD_IDS = ['month', 'last_month', '30', 'quarter', 'year', 'all'] as const
 export type PeriodId = typeof PERIOD_IDS[number]
@@ -38,8 +40,15 @@ export const monthOf = (when: Date, tz: string) => storeDateString(when, tz).sli
 export const monthStartIn = (tz: string) => (ym: string) => storeDayStart(`${ym}-01`, tz)
 
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-const cellText = (c: Col, v: unknown): string => {
+const localStamp = (iso: string, tz: string) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map((x) => [x.type, x.value]))
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`
+}
+const cellText = (c: Col, v: unknown, tz?: string): string => {
   if (v == null || v === '') return ''
+  if (c.kind === 'datetime' && tz && typeof v === 'string') return localStamp(v, tz)
   if (c.kind === 'money' && typeof v === 'number') return v.toFixed(2)
   if (c.kind === 'percent' && typeof v === 'number') return String(Math.round(v * 100) / 100)
   return String(v)
@@ -57,7 +66,7 @@ export function chooseColumns(all: Col[], keys?: string[] | null): Col[] {
 /** CSV, one line a row and a total line when the report has one; CRLF, every cell quoted, as the other downloads. */
 export function csvOf(table: ReportTable, columns: Col[]): string {
   const lines = [columns.map((c) => csvCell(c.label)).join(',')]
-  for (const r of table.rows) lines.push(columns.map((c) => csvCell(cellText(c, r[c.key]))).join(','))
-  if (table.totals) lines.push(columns.map((c) => csvCell(cellText(c, table.totals![c.key]))).join(','))
+  for (const r of table.rows) lines.push(columns.map((c) => csvCell(cellText(c, r[c.key], table.timeZone))).join(','))
+  if (table.totals) lines.push(columns.map((c) => csvCell(cellText(c, table.totals![c.key], table.timeZone))).join(','))
   return lines.join('\r\n')
 }

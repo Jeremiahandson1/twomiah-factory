@@ -58,7 +58,7 @@ export const nav: NavItem[] = [
   // GET /api/admin/loyalty/config, /members and /rewards ask loyalty:read.
   { to: '/crm/store-loyalty', icon: Gift, label: 'Loyalty', permission: 'loyalty:read' },
   // GET /api/admin/reviews asks reviews:read.
-  { to: '/crm/product-reviews', icon: Star, label: 'Reviews', permission: 'reviews:read' },
+  { to: '/crm/product-reviews', icon: Star, label: 'Product reviews', permission: 'reviews:read' },
   // GET /api/admin/gift-cards asks orders:refund (a card's number is money); /customer-groups asks discounts:read.
   { to: '/crm/gift-cards', icon: CreditCard, label: 'Gift cards', permission: 'orders:refund' },
   { to: '/crm/customer-groups', icon: Users, label: 'Customer groups', permission: 'discounts:read' },

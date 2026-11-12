@@ -29,8 +29,8 @@ export function ShipToFields({ idPrefix, value, onChange }: { idPrefix: string; 
   )
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {box('name', 'Name on the parcel', { autoComplete: 'name' })}
-      {box('phone', 'Phone (for the carrier)', { type: 'tel', autoComplete: 'tel' })}
+      <div className="sm:col-span-2">{box('name', 'Name on the parcel', { autoComplete: 'name' })}</div>
+      <div className="sm:col-span-2">{box('phone', 'Phone (for the carrier)', { type: 'tel', autoComplete: 'tel' })}</div>
       <div className="sm:col-span-2">{box('line1', 'Street address', { autoComplete: 'address-line1' })}</div>
       <div className="sm:col-span-2">{box('line2', 'Apartment, suite (optional)', { autoComplete: 'address-line2' })}</div>
       {box('city', 'City', { autoComplete: 'address-level2' })}
