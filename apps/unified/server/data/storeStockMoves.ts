@@ -8,7 +8,7 @@
 // the same lock in their transaction and call recordMove with it.
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { rowsOf } from '@twomiah/tenant-backend'
-import { storeProduct, storeProductVariant, storeStockMove } from '../db/schema/store.ts'
+import { storeOrder, storeProduct, storeProductVariant, storeStockMove } from '../db/schema/store.ts'
 
 export type StockReason = 'sold' | 'restocked' | 'received' | 'adjusted' | 'counted' | 'transferred' | 'created' | 'untracked' | 'exchanged'
 export const STOCK_REASONS: readonly StockReason[] = ['sold', 'restocked', 'received', 'adjusted', 'counted', 'transferred', 'created', 'untracked', 'exchanged']
@@ -80,15 +80,16 @@ export async function movesOfVariant(db: any, companyId: string, variantId: stri
     .orderBy(desc(storeStockMove.createdAt), desc(storeStockMove.id)).limit(limit)
 }
 
-export interface MoveInWindow extends StockMoveRow { productName: string; variantName: string; sku: string }
+export interface MoveInWindow extends StockMoveRow { productName: string; variantName: string; sku: string; orderNumber: string | null; orderSource: string | null; staffName: string | null }
 
 /** Every move from `fromUtc` up to (not including) `toUtc`, newest first, with the product and option named (the adjustments report). */
 export async function movesBetween(db: any, companyId: string, fromUtc: Date, toUtc: Date, limit = 5000): Promise<MoveInWindow[]> {
-  const rows = await db.select({ m: storeStockMove, productName: storeProduct.name, variantName: storeProductVariant.name, sku: storeProductVariant.sku })
+  const rows = await db.select({ m: storeStockMove, productName: storeProduct.name, variantName: storeProductVariant.name, sku: storeProductVariant.sku, orderNumber: storeOrder.orderNumber, orderSource: storeOrder.source, staffName: storeOrder.staffName })
     .from(storeStockMove).innerJoin(storeProductVariant, eq(storeProductVariant.id, storeStockMove.variantId)).innerJoin(storeProduct, eq(storeProduct.id, storeProductVariant.productId))
+    .leftJoin(storeOrder, and(eq(storeOrder.id, storeStockMove.orderId), eq(storeOrder.companyId, storeStockMove.companyId)))
     .where(and(eq(storeStockMove.companyId, companyId), sql`${storeStockMove.createdAt} >= ${fromUtc.toISOString()}::timestamp`, sql`${storeStockMove.createdAt} < ${toUtc.toISOString()}::timestamp`))
     .orderBy(desc(storeStockMove.createdAt), desc(storeStockMove.id)).limit(limit)
-  return rows.map((r: any) => ({ ...r.m, productName: String(r.productName), variantName: String(r.variantName), sku: String(r.sku) }))
+  return rows.map((r: any) => ({ ...r.m, productName: String(r.productName), variantName: String(r.variantName), sku: String(r.sku), orderNumber: r.orderNumber ?? null, orderSource: r.orderSource ?? null, staffName: r.staffName ?? null }))
 }
 
 /**

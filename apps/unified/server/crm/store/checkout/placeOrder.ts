@@ -304,7 +304,9 @@ export function createOrderStarter(d: CrmDeps, core: StoreCore, checkout: Checko
     })))
     // The audit log: an order begun (store live test, 2026-10-26: orders left no record there). Unpaid until the provider
     // says so (checkoutService.ts finalizeOrder records "paid").
-    await d.audit.log({ action: d.audit.ACTIONS.CREATE, entity: 'store_order', entityId: order.id, entityName: order.orderNumber, companyId,
+    // Paid in person (a draft marked paid, a counter sale): the route writes the one "made" row itself (live test 11/12: two
+    // "create" rows, the first saying "not paid yet" for an order paid there and then).
+    if (!inPerson) await d.audit.log({ action: d.audit.ACTIONS.CREATE, entity: 'order', entityId: order.id, entityName: order.orderNumber, companyId,
       metadata: { description: `Order ${order.orderNumber} ${input.draft ? 'made for ' + (input.draft.customerName || 'a customer') : 'started at checkout'} — ${formatCents(totalCents, currency)}, not paid yet` } })
     let heldCents = 0
     const forget = async (why: string) => {

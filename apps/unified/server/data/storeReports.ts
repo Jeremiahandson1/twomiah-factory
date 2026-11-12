@@ -9,6 +9,8 @@ import { sql } from 'drizzle-orm'
 import { storeOrder, storeOrderItem, storeProduct, storeProductVariant } from '../db/schema/store.ts'
 import { contact } from '../db/schema/index.ts'
 import { countedOrderCondition } from '../crm/store/tileConditions.ts'
+/** The email a walk-in's order is stored with (crm/store/checkout/checkoutService.ts NO_EMAIL_YET): no one's address. */
+const WALK_IN_EMAIL = 'pending@checkout'
 import { rowsOf } from '@twomiah/tenant-backend'
 import { stockAt } from './storeStockMoves.ts'
 
@@ -49,7 +51,7 @@ export interface Totals { orders: number; customers: number; grossCents: number;
 export async function salesTotals(db: any, companyId: string, w: Window): Promise<Totals> {
   const [r] = await db.select({
     orders: sql<number>`count(*)`,
-    customers: sql<number>`count(distinct coalesce(${storeOrder.contactId}, lower(${storeOrder.customerEmail})))`,
+    customers: sql<number>`count(distinct coalesce(${storeOrder.contactId}, lower(nullif(${storeOrder.customerEmail}, ${WALK_IN_EMAIL}))))`,
     grossCents: sql<number>`coalesce(sum(${storeOrder.totalCents}), 0)`,
     refundedCents: sql<number>`coalesce(sum(${storeOrder.refundedCents}), 0)`,
   }).from(storeOrder).where(sql`${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)} and ${inWindow(w)}`)
@@ -148,6 +150,8 @@ export async function repeatCustomers(db: any, companyId: string, w: Window): Pr
         from ${storeOrder}
        where ${storeOrder.companyId} = ${companyId} and ${countedOrderCondition(storeOrder)}
          and ${localAt(w.timeZone)} < (${w.to}::date + 1)
+         -- a walk-in at the counter with no customer is no one to come back (live test 11/12)
+         and not (${storeOrder.contactId} is null and ${storeOrder.customerEmail} = ${WALK_IN_EMAIL})
     ), mine as (
       select who, count(*) filter (where at >= ${w.from}::date) as in_window,
              count(*) filter (where at < ${w.from}::date) as before,
@@ -230,11 +234,11 @@ export interface CustomerSales { customer: string; name: string | null; email: s
 /** Sales by customer: a shopper is the contact on the order, else its email in lower case. Biggest spender first. */
 export async function salesByCustomer(db: any, companyId: string, w: Window, limit = 500): Promise<CustomerSales[]> {
   const rows = await db.select({
-    customer: sql<string>`coalesce(${storeOrder.contactId}, lower(${storeOrder.customerEmail}), 'no-email')`,
+    customer: sql<string>`case when ${storeOrder.contactId} is null and ${storeOrder.customerEmail} = ${WALK_IN_EMAIL} then 'walk-in' else coalesce(${storeOrder.contactId}, lower(${storeOrder.customerEmail}), 'no-email') end`,
     // The customer record's name; else any order's own name but "Walk-in" (live test 11/11: an old walk-in order of a customer
     // later known by their email labelled the whole row "Walk-in").
     name: sql<string | null>`coalesce(max(${contact.name}), max(nullif(${storeOrder.customerName}, 'Walk-in')), max(${storeOrder.customerName}))`,
-    email: sql<string | null>`max(lower(${storeOrder.customerEmail}))`,
+    email: sql<string | null>`max(lower(nullif(${storeOrder.customerEmail}, ${WALK_IN_EMAIL})))`,
     orders: sql<number>`count(*)`,
     grossCents: sql<number>`coalesce(sum(${storeOrder.totalCents}), 0)`,
     refundedCents: sql<number>`coalesce(sum(${storeOrder.refundedCents}), 0)`,

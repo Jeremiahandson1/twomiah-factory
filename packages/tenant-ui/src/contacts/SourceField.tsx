@@ -17,6 +17,7 @@
 // flipped between a dropdown and a text box with how fast two requests came back. Now it is always the dropdown: the
 // last list fetched is shown at once (sourceOptionsCache) while it is fetched again, "Loading…" before any has come,
 // and Edit choices is offered only on a KNOWN leads:update.
+import { codeLabel } from '../labels/codes'
 import { useState, useEffect } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Field, inputCls, errMsg } from '../invoicing/ui'
@@ -60,9 +61,12 @@ export function SourceField({ api, value, onChange, toast }: SourceFieldProps) {
   }
 
   const match = options.find((o) => o.toLowerCase() === String(value || '').trim().toLowerCase())
+  // A source the app set itself (a code like 'online_store' or 'counter' — the store's checkout, the phone line): shown as its own
+  // choice in words, kept as it is unless another is picked (store live test 11/12: it read as "Other…" with the raw code).
+  const systemCode = !pickedOther && !match && /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(String(value || '')) ? String(value) : null
   // No choices to pick from (none saved, or the list could not be read): Other, with its box, is the field.
-  const isOther = pickedOther || (!!value && !match) || options.length === 0
-  const selectValue = isOther ? OTHER : (match || '')
+  const isOther = !systemCode && (pickedOther || (!!value && !match) || options.length === 0)
+  const selectValue = systemCode ?? (isOther ? OTHER : (match || ''))
 
   const pick = (v: string) => {
     if (v === OTHER) { setPickedOther(true); onChange(match ? '' : value); return }
@@ -95,6 +99,7 @@ export function SourceField({ api, value, onChange, toast }: SourceFieldProps) {
       <Field label="Source">
         <select value={selectValue} onChange={(e) => pick(e.target.value)} className={inputCls}>
           <option value="">Choose a source…</option>
+          {systemCode && <option value={systemCode}>{codeLabel(systemCode)}</option>}
           {options.map((o) => <option key={o} value={o}>{o}</option>)}
           <option value={OTHER}>Other…</option>
         </select>

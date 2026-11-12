@@ -144,9 +144,12 @@ export function diff(oldData: Record<string, unknown> | null, newData: Record<st
   if (!oldData || !newData) return null
   const changes: Record<string, { old: unknown; new: unknown }> = {}
   const skipFields = ['id', 'createdAt', 'updatedAt', 'companyId', 'passwordHash', 'refreshToken', 'resetToken']
+  // An empty box and no value are the same nothing (store live test 11/12: an edit saving '' over null listed every untouched
+  // empty field — "Company: - to -, Phone: - to -…" — and the change that was made was cut off behind them).
+  const blank = (v: unknown) => (v === '' || v === undefined ? null : v)
   for (const key of Object.keys(newData)) {
     if (skipFields.includes(key)) continue
-    if (JSON.stringify(oldData[key] ?? null) !== JSON.stringify(newData[key] ?? null)) {
+    if (JSON.stringify(blank(oldData[key])) !== JSON.stringify(blank(newData[key]))) {
       changes[key] = { old: oldData[key] ?? null, new: newData[key] ?? null }
     }
   }

@@ -12,7 +12,8 @@ interface Move {
   by: string | null; note: string | null; orderId: string | null; orderNumber: string | null
 }
 
-export function StockHistory({ variantId, sku }: { variantId: string; sku: string }) {
+/** `count`: the option's count now — when a save changes it, the history is read again (live test 11/12: it stayed as it was). */
+export function StockHistory({ variantId, sku, count }: { variantId: string; sku: string; count?: number | null }) {
   const [rows, setRows] = useState<Move[] | null>(null)
   const [more, setMore] = useState(false)
   const [error, setError] = useState('')
@@ -29,7 +30,7 @@ export function StockHistory({ variantId, sku }: { variantId: string; sku: strin
     } finally { setLoading(false) }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void load() }, [variantId])
+  useEffect(() => { void load() }, [variantId, count])
 
   if (error) return <p role="alert" className="text-xs text-red-700 dark:text-red-300">{error}</p>
   if (!rows) return <p className="text-xs text-gray-600 dark:text-slate-400">Loading the stock history…</p>
