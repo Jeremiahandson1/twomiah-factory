@@ -19,6 +19,7 @@ import { bootTenant, seedOwner } from './harness.ts'
 import { createStoreCore } from '../server/crm/store/core.ts'
 import { createOrderRefunds } from '../server/crm/store/orders/refunds.ts'
 import { createOrderHooks } from '../server/crm/store/orders/index.ts'
+import { createLabelRefundSweep } from '../server/crm/store/orders/labelRefunds.ts'
 import { encryptJSON, encrypt } from '../server/core/crypto.ts'
 import { loadVertical } from '../server/core/vertical.ts'
 
@@ -26,6 +27,7 @@ let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = '', otherCompanyId = ''
 let refunds: ReturnType<typeof createOrderRefunds>
 let hooks: ReturnType<typeof createOrderHooks>
+let labelRefunds: ReturnType<typeof createLabelRefundSweep>
 const tokens: Record<string, string> = {}
 const mails: { to: string; template: string; data: any }[] = []
 const S = () => t.schema as any
@@ -43,6 +45,9 @@ const boughtOn: { shipment: string; rate: string; service: string }[] = []
 /** Shipments the carrier was asked to refund (a voided label), and the ones it says were already scanned. */
 const voidedOn: string[] = []
 const scanned = new Set<string>()
+/** The voided-label refund follow-up: the carrier's later answer per shipment, and the shipments it was asked about. */
+const settledAs = new Map<string, string>()
+const shipmentReads: string[] = []
 const printfulOrders: any[] = []
 const realFetch = globalThis.fetch
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
@@ -88,6 +93,12 @@ globalThis.fetch = (async (input: any, init?: any) => {
       if (scanned.has(v[1])) return json({ error: { message: 'This shipment has already been scanned by the carrier and cannot be refunded.' } }, 422)
       voidedOn.push(v[1])
       return json({ id: v[1], refund_status: 'submitted' })
+    }
+    // The shipment read again: where its refund stands (settledAs, set by a test), else still submitted.
+    const g = url.match(/\/v2\/shipments\/([^/?]+)$/)
+    if (g && method === 'GET') {
+      shipmentReads.push(g[1])
+      return json({ id: g[1], refund_status: voidedOn.includes(g[1]) ? (settledAs.get(g[1]) || 'submitted') : null })
     }
     return json({ error: { message: 'not answered here' } }, 404)
   }
@@ -158,6 +169,7 @@ beforeAll(async () => {
   const core = createStoreCore(deps)
   refunds = createOrderRefunds(deps, core)
   hooks = createOrderHooks(deps, core)
+  labelRefunds = createLabelRefundSweep(deps, core)
 }, 120_000)
 
 describe('part refunds', () => {
@@ -512,7 +524,7 @@ describe('labels', () => {
     expect(v.json.refundStatus).toBe('submitted')
     expect(voidedOn.at(-1)).toBe(bought.labelShipmentId)
     const now = await orderNow(o.id)
-    expect(now).toMatchObject({ status: 'paid', labelUrl: null, labelCostCents: null, labelShipmentId: null, trackingNumber: null, trackingCarrier: null, fulfilledAt: null, labelRefundStatus: 'submitted' })
+    expect(now).toMatchObject({ status: 'paid', labelUrl: null, labelCostCents: null, labelShipmentId: bought.labelShipmentId, trackingNumber: null, trackingCarrier: null, fulfilledAt: null, labelRefundStatus: 'submitted' })
     expect(now.labelVoidedAt).toBeTruthy()
     const row = (await auditFor(o.id)).at(-1)
     expect((row?.metadata as any).description).toMatch(/^Shipping label voided — USPS tracking TRK-rate_\d+_\d, \$\d+\.\d\d refund submitted; back to paid$/)
@@ -545,6 +557,43 @@ describe('labels', () => {
     const old = await mkOrder({ status: 'shipped', labelUrl: 'https://labels.test/y.png' })
     expect((await ST('POST', `/api/admin/shipping/orders/${old.o.id}/label/void`, {})).json.code).toBe('void_elsewhere')
     expect(voidedOn).not.toContain('shp_delivered')
+  })
+
+  // Live test 11/12: a real USPS label voided answered "submitted", and nothing asked again — "refund requested" for good.
+  test("a voided label's refund is followed: refunded or refused is written back once, with a line on the order; a new label or an old void is not asked", async () => {
+    const voidOne = async () => {
+      const { o } = await mkOrder()
+      expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label`, { markShipped: false })).status).toBe(200)
+      const shp = (await orderNow(o.id)).labelShipmentId
+      expect((await ST('POST', `/api/admin/shipping/orders/${o.id}/label/void`, {})).status).toBe(200)
+      return { o, shp }
+    }
+    const paid = await voidOne(), refused = await voidOne(), waiting = await voidOne(), rebought = await voidOne(), old = await voidOne()
+    settledAs.set(paid.shp, 'refunded'); settledAs.set(refused.shp, 'rejected'); settledAs.set(rebought.shp, 'refunded'); settledAs.set(old.shp, 'refunded')
+    // A new label bought since: the void is over and is not asked about. Voided 61 days ago: past following.
+    expect((await ST('POST', `/api/admin/shipping/orders/${rebought.o.id}/label`, { markShipped: false })).status).toBe(200)
+    await (t.db as any).update(S().storeOrder).set({ labelVoidedAt: new Date(Date.now() - 61 * 24 * 60 * 60_000) }).where(eq(S().storeOrder.id, old.o.id))
+
+    const reads0 = shipmentReads.length
+    expect(await labelRefunds.pass()).toBe(2)
+    expect(await orderNow(paid.o.id)).toMatchObject({ labelRefundStatus: 'refunded', labelUrl: null })
+    expect(await orderNow(refused.o.id)).toMatchObject({ labelRefundStatus: 'rejected' })
+    expect(await orderNow(waiting.o.id)).toMatchObject({ labelRefundStatus: 'submitted' })
+    expect(await orderNow(old.o.id)).toMatchObject({ labelRefundStatus: 'submitted' })
+    expect((await orderNow(rebought.o.id)).labelRefundStatus).toBeNull()
+    const asked = shipmentReads.slice(reads0)
+    expect(asked).toContain(waiting.shp)
+    expect(asked).not.toContain(old.shp)
+    expect(asked).not.toContain(rebought.shp)
+    expect(((await auditFor(paid.o.id)).at(-1)?.metadata as any).description).toBe("Voided label's postage refunded by the carrier")
+    expect(((await auditFor(refused.o.id)).at(-1)?.metadata as any).description).toBe("Voided label's postage refused by the carrier — the postage was not paid back")
+    // Settled ones are not asked again; nothing settles twice.
+    const reads1 = shipmentReads.length
+    expect(await labelRefunds.pass()).toBe(0)
+    const again = shipmentReads.slice(reads1)
+    expect(again).toContain(waiting.shp)
+    expect(again).not.toContain(paid.shp)
+    expect(again).not.toContain(refused.shp)
   })
 
   // The carrier's API key is a credential: the owner's (integrations:update), not the manager's or staff's (store live

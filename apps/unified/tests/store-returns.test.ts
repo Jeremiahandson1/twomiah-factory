@@ -475,7 +475,7 @@ describe('the return label', () => {
     expect(gone.status).toBe(200)
     expect(voided.length).toBe(v0 + 1)
     const row = (await db().select().from(k.S.storeReturn).where(eq(k.S.storeReturn.id, ask2.id)))[0]
-    expect(row).toMatchObject({ status: 'cancelled', labelUrl: null, labelShipmentId: null, labelRefundStatus: 'submitted' })
+    expect(row).toMatchObject({ status: 'cancelled', labelUrl: null, labelShipmentId: 'shp_ret', labelRefundStatus: 'submitted' })
     expect(row.labelVoidedAt).toBeTruthy()
     expect((await shopper(cookie)('GET', '/returns')).json.data.find((x: any) => x.id === ask2.id).label).toBeNull()
     await k.O('PUT', `${R}/settings`, { windowDays: 30, restockingFeePercent: 10, returnShippingFeeCents: 500, labels: false, shopperReturns: true })

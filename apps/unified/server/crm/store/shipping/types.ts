@@ -45,6 +45,8 @@ export interface ShippingProvider {
    * cannot be voided — that is the carrier's refusal, passed on as it is said.
    */
   voidLabel(shipmentId: string): Promise<VoidedLabel>
+  /** Where a voided label's refund stands now (USPS answers 'submitted' at the void and settles it weeks later). */
+  labelRefundStatus(shipmentId: string): Promise<VoidedLabel>
 }
 
 /** The carrier's answer to a void: submitted (USPS takes some weeks to pay it back), refunded, or rejected. */

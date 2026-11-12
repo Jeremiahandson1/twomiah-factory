@@ -251,11 +251,12 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
       return fail(c, 502, `The carrier said: ${String(err?.message || 'no reason given').slice(0, 300)}`, 'void_refused')
     }
     if (voided.refundStatus === 'rejected') return fail(c, 409, 'The carrier would not refund this label — it may already have been scanned.', 'void_refused')
+    // The shipment id stays (labelUrl is what says a label is on the order): ./labelRefunds.ts asks after the refund with it.
     // Shipped by this label (fulfilled no earlier than the label was bought): back to paid. Packed before it: fulfilled.
     const packedBefore = !!order.fulfilledAt && !!order.labelPurchasedAt && order.fulfilledAt < order.labelPurchasedAt
     const back = order.status === 'shipped' ? (packedBefore ? 'fulfilled' : 'paid') : order.status
     const patch: Record<string, unknown> = {
-      labelUrl: null, labelCostCents: null, labelPurchasedAt: null, labelShipmentId: null, trackingCarrier: null, trackingNumber: null,
+      labelUrl: null, labelCostCents: null, labelPurchasedAt: null, trackingCarrier: null, trackingNumber: null,
       labelVoidedAt: new Date(), labelRefundStatus: voided.refundStatus, status: back, updatedAt: new Date(),
       ...(back === 'paid' ? { fulfilledAt: null } : {}),
     }

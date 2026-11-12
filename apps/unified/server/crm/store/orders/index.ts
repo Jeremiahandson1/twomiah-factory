@@ -10,7 +10,8 @@
 //   · resumePendingRefunds: 90 seconds after boot, then every 5 minutes (a refund interrupted between moving the order
 //     and hearing from the provider is finished under the same idempotency key);
 //   · core.sweepSupplierOrders: at boot, then hourly (retry un-forwarded paid orders, poll tracking for CJ);
-//   · repairFulfilmentStamps: once at boot (the template ran it when routes/orders.ts loaded).
+//   · repairFulfilmentStamps: once at boot (the template ran it when routes/orders.ts loaded);
+//   · the voided-label refund follow-up (./labelRefunds.ts): 4 minutes after boot, then every 6 hours.
 //
 // createOrderHooks hands the checkout group's webhooks what they need of the orders (the lead wires it into
 // ../index.ts): the status table, a refund made in the provider's own dashboard, and the provider's word on one refund.
@@ -30,6 +31,7 @@ import { createStoreBooks } from '../books.ts'
 import { createStoreReturns } from '../returns/returns.ts'
 import { createReturnRoutes } from '../returns/routes.ts'
 import { createCounterSaleRoutes } from './counterSales.ts'
+import { createLabelRefundSweep } from './labelRefunds.ts'
 
 /** What the checkout group's webhooks need of the orders (checkout/index.ts OrderHooks, matched structurally). */
 export interface OrderHooks {
@@ -60,6 +62,10 @@ export function ordersMounts(d: CrmDeps, core: StoreCore): Mount[] {
     const resume = () => refunds.resumePendingRefunds().catch((err: any) => d.logger.error('[orders] refund resume failed', { error: err?.message }))
     setTimeout(resume, 90_000)
     setInterval(resume, 5 * 60 * 1000)
+    const labelRefunds = createLabelRefundSweep(d, core)
+    const followRefunds = () => labelRefunds.pass().catch((err: any) => d.logger.warn('[orders] voided-label refund follow-up failed', { error: err?.message }))
+    setTimeout(followRefunds, 4 * 60_000)
+    setInterval(followRefunds, 6 * 60 * 60 * 1000)
     const sweep = () => void core.sweepSupplierOrders()
     sweep()
     setInterval(sweep, 60 * 60 * 1000)

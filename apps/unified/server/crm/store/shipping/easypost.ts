@@ -104,4 +104,10 @@ export class EasyPostProvider implements ShippingProvider {
     const r = await this.call(`/shipments/${encodeURIComponent(shipmentId)}/refund`, {})
     return { refundStatus: String(r?.refund_status || 'submitted') }
   }
+
+  /** The shipment read again (GET /shipments/:id): its refund_status moves from submitted to refunded or rejected. */
+  async labelRefundStatus(shipmentId: string): Promise<VoidedLabel> {
+    const s = await this.call(`/shipments/${encodeURIComponent(shipmentId)}`, undefined, 'GET')
+    return { refundStatus: String(s?.refund_status || 'submitted') }
+  }
 }
