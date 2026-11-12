@@ -102,3 +102,19 @@ test('Sales by staff: each person\'s lines, a line\'s own staff first, returns o
   const after = await json(await call('/api/admin/sales-reports/table?tab=staff'))
   expect(after.body.rows.find((x: any) => x.name === 'Mara Seat')).toMatchObject({ units: 1, gross: 40, returned: 20, net: 20 })
 })
+
+test("a walk-in's order shows no stand-in email, and is logged once, in plain words (live test 11/12)", async () => {
+  const r = await sell({ items: [{ sku: 'BOWL-1', quantity: 1 }], paidBy: 'cash' })
+  expect(r.status).toBe(201)
+  const order = await json(await call(`/api/admin/orders/${r.body.order.id}`))
+  expect(order.body.customerEmail).toBeNull()
+  const history = await json(await call(`/api/admin/orders/${r.body.order.id}/history`))
+  const what = history.body.data.map((h: any) => h.what)
+  expect(what.some((w: string) => /^Sold at the counter by Olive Owner, paid by cash$/.test(w))).toBe(true)
+  expect(what.some((w: string) => /not paid yet/.test(w))).toBe(false)
+  expect(what.some((w: string) => /paid — \$15\.00 in person$/.test(w))).toBe(true)
+  expect(what.join(' ')).not.toContain('in_person')
+  // Sales by customer: walk-ins are one row with no email; the store's customers do not count them as someone who came back.
+  const byCustomer = await json(await call('/api/admin/sales-reports/table?tab=customers'))
+  expect(JSON.stringify(byCustomer.body)).not.toContain('pending@checkout')
+})

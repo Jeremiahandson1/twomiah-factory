@@ -85,7 +85,7 @@ export function createStockLocationRoutes(d: CrmDeps, core: StoreCore) {
       return { status: 200 as const, order: u, moved: Object.keys(takes) }
     })
     if (r.status !== 200) return fail(c, r.status, r.error)
-    audit.log({ action: audit.ACTIONS.UPDATE, entity: 'store_order', entityId: r.order.id, entityName: r.order.orderNumber, metadata: { locationId: to }, req: c })
+    audit.log({ action: audit.ACTIONS.UPDATE, entity: 'order', entityId: r.order.id, entityName: r.order.orderNumber, metadata: { locationId: to }, req: c })
     if (r.moved?.length) await core.events.stock(companyId, r.moved)
     return one(c, { locationId: to })
   })

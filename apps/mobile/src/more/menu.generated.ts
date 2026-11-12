@@ -523,7 +523,7 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Marketing","path":"/crm/marketing","group":"Customers","icon":"megaphone","permission":"marketing:read","features":["email_marketing"]},
     {"label":"Reviews","path":"/crm/reviews","group":"Customers","icon":"star","features":["google_reviews"]},
     {"label":"Messages","path":"/crm/messages","group":"Sell","icon":"chatbubbles","permission":"sms:send","features":["two_way_texting"],"native":[{"route":"/(details)/texts"}]},
-    {"label":"Reviews","path":"/crm/product-reviews","group":"Customers","icon":"ellipse","permission":"reviews:read","routePermission":"reviews:read","native":[{"route":"/(tabs)/store-reviews"}]},
+    {"label":"Product reviews","path":"/crm/product-reviews","group":"Customers","icon":"ellipse","permission":"reviews:read","routePermission":"reviews:read","native":[{"route":"/(tabs)/store-reviews"}]},
     {"label":"Google Reviews","path":"/crm/google-reviews","group":"Customers","icon":"logo-google","minRole":"admin","routeRole":"admin","features":["google_business"],"native":[{"route":"/(details)/office-google-reviews"}]},
     {"label":"Email Inbox","path":"/crm/email","group":"Business & website","icon":"mail","minRole":"admin","routeRole":"admin","features":["branded_email"],"native":[{"route":"/(details)/email"}]},
     {"label":"Payments","path":"/crm/payments","group":"Money & reports","icon":"ellipse","permission":"payments:update","routePermission":"payments:update"},

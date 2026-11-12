@@ -135,6 +135,10 @@ test('the inventory reports on Store › Sales: sell-through, days left, ABC, st
   const st = await table('sell_through')
   expect(st.title).toBe('Sell-through rate')
   expect(row(st, 'FAST')).toMatchObject({ sold: 8, ending: 2, rate: 80 })
+  // The history began inside the window: the share of starting stock sold is blank, never "300%" (live test 11/12, M1).
+  expect(row(st, 'FAST').ofStarting).toBeNull()
+  expect(st.note).toMatch(/Stock history began on [A-Z][a-z]{2} \d{1,2}, \d{4}/)
+  expect(st.note).not.toMatch(/Shopify/)
   expect(row(st, 'SLOW')).toMatchObject({ sold: 1, ending: 9, rate: 10 })
   expect(row(st, 'STILL')).toMatchObject({ sold: 0, ending: 5, rate: 0 })
   expect(st.note).toMatch(/units sold ÷ \(units sold \+ ending stock\)/)
@@ -151,12 +155,19 @@ test('the inventory reports on Store › Sales: sell-through, days left, ABC, st
   const sm = await table('stock_moves')
   expect(sm.title).toBe('Stock changes')
   const fastMoves = sm.rows.filter((r: any) => r.sku === 'FAST')
-  expect(fastMoves.map((r: any) => [r.what, r.change, r.after])).toEqual([['Sold', -8, 2], ['Started counting', 10, 10]])
+  expect(fastMoves.map((r: any) => [r.what, r.change, r.after])).toEqual([['Sold', '-8', 2], ['Started counting', '+10', 10]])
+  // A sale names its order and who sold it — here the online store (live test 11/12, M2).
+  expect(fastMoves[0].order).toMatch(/^ORD-H\d+$/)
+  expect(fastMoves[0].by).toBe('Online store')
+  expect((await table('days_left')).title).toBe('Days of inventory left')
   expect(sm.columns.find((c: any) => c.key === 'at').kind).toBe('datetime')
 
   // The spreadsheet too.
   const csv = await call('/api/admin/sales-reports/export?report=sell_through')
   expect(csv.status).toBe(200)
   expect(await csv.text()).toContain('FAST')
+  // The stock changes spreadsheet's times are the shop's, not UTC (live test 11/12, L3).
+  const moves = await (await call('/api/admin/sales-reports/export?report=stock_moves')).text()
+  expect(moves.split(/\r?\n/)[1]).toMatch(/^"\d{4}-\d{2}-\d{2} \d{2}:\d{2}"/)
 })
 

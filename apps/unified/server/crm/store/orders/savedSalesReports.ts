@@ -91,24 +91,27 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
     const days = Math.round((Date.parse(`${w.to}T00:00:00Z`) - Date.parse(`${w.from}T00:00:00Z`)) / DAY) + 1
     const started = await historyStarts(db, companyId)
     const { startUtc } = await windowInstants(db, w)
+    // Live test 11/12 (M1): a window that starts before the history began compares sales from before it with a starting count
+    // from after it ("300% of starting stock sold") — so that share is left blank then, and the caption says why.
     const early = !started || started > startUtc
-      ? ` The stock history began ${started ? `on ${storeDateString(started, w.timeZone)}` : 'with this release'}; before that, a count is the earliest one kept.` : ''
+    const began = started ? new Intl.DateTimeFormat('en-US', { timeZone: w.timeZone, month: 'short', day: 'numeric', year: 'numeric' }).format(started) : null
+    const earlyNote = early ? ` Stock history began ${began ? `on ${began}` : 'with this release'}; before that, a count is the earliest one kept, and the share of starting stock sold is left blank.` : ''
     const opt = [text('product', 'Product'), text('option', 'Option'), text('sku', 'SKU')]
     if (tab === 'sell_through') {
       const rows = flow.filter((r) => r.sold > 0 || (r.ending ?? 0) > 0 || (r.starting ?? 0) > 0)
-        .map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, starting: r.starting, sold: r.sold, ending: r.ending, rate: sellThroughPercent(r.sold, r.ending), ofStarting: r.starting && r.starting > 0 ? Math.round((r.sold / r.starting) * 1000) / 10 : null }))
+        .map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, starting: r.starting, sold: r.sold, ending: r.ending, rate: sellThroughPercent(r.sold, r.ending), ofStarting: !early && r.starting && r.starting > 0 ? Math.round((r.sold / r.starting) * 1000) / 10 : null }))
         .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1) || a.product.localeCompare(b.product))
       const sold = rows.reduce((n, r) => n + r.sold, 0), ending = rows.reduce((n, r) => n + Math.max(0, r.ending ?? 0), 0)
       return { tab, title: 'Sell-through rate', columns: [...opt, num('starting', 'Starting stock'), num('sold', 'Units sold'), num('ending', 'Ending stock'), { key: 'rate', label: 'Sell-through', kind: 'percent', default: true }, { key: 'ofStarting', label: 'Of starting stock sold', kind: 'percent' }], rows,
         totals: { product: 'Total', sold, ending, rate: sellThroughPercent(sold, ending) },
-        note: `Sell-through is units sold ÷ (units sold + ending stock), as Shopify works it out. Units sold are what stayed sold (returns off).${early}` }
+        note: `Sell-through is units sold ÷ (units sold + ending stock). Units sold are what stayed sold (returns off).${earlyNote}` }
     }
     if (tab === 'days_left') {
       const rows = flow.filter((r) => (r.ending ?? 0) > 0 || r.sold > 0)
         .map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, ending: r.ending, sold: r.sold, perDay: Math.round((r.sold / days) * 100) / 100, daysLeft: daysOfStockLeft(r.sold, r.ending, days) }))
         .sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity) || a.product.localeCompare(b.product))
-      return { tab, title: 'Days of inventory remaining', columns: [...opt, num('ending', 'Ending stock'), num('sold', 'Units sold'), num('perDay', 'Sold a day'), num('daysLeft', 'Days left')], rows,
-        note: `Days left is ending stock ÷ the units sold a day over these ${days} day${days === 1 ? '' : 's'}; blank when it sold nothing. Shortest first.${early}` }
+      return { tab, title: 'Days of inventory left', columns: [...opt, num('ending', 'Ending stock'), num('sold', 'Units sold'), num('perDay', 'Sold a day'), num('daysLeft', 'Days left')], rows,
+        note: `Days left is ending stock ÷ the units sold a day over these ${days} day${days === 1 ? '' : 's'}; blank when it sold nothing. Shortest first.${earlyNote}` }
     }
     const graded = abcGrades(flow.map((r) => ({ product: r.productName, option: r.variantName, sku: r.sku, ending: r.ending, sold: r.sold, salesCents: r.salesCents })))
     const rows = graded.map((g) => ({ product: g.product, option: g.option, sku: g.sku, grade: g.grade, sales: dollars(g.salesCents), share: g.sharePercent, cumulative: g.cumulativePercent, sold: g.sold, ending: g.ending }))
@@ -127,9 +130,12 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
   if (tab === 'stock_moves') {
     const { startUtc, endUtc } = await windowInstants(db, w)
     const moves = await movesBetween(db, companyId, startUtc, endUtc)
-    const rows = moves.map((m) => ({ at: new Date(m.createdAt as any).toISOString(), product: m.productName, option: m.variantName, sku: m.sku, what: STOCK_REASON_WORDS[m.reason as StockReason] ?? m.reason, change: m.delta, after: m.quantityAfter, by: m.byName, detail: m.note }))
+    // Live test 11/12: a sale says its order (M2) and who sold it — the person, the order's "Sold by", or the online store; a change
+    // reads +2 / −1 as on the product's history (L2); the spreadsheet's times are the shop's (L3, the table's timeZone).
+    const by = (m: any) => m.byName || m.staffName || (m.orderSource === 'storefront' ? 'Online store' : m.orderId ? 'Checkout' : null)
+    const rows = moves.map((m: any) => ({ at: new Date(m.createdAt as any).toISOString(), product: m.productName, option: m.variantName, sku: m.sku, what: STOCK_REASON_WORDS[m.reason as StockReason] ?? m.reason, change: m.delta > 0 ? `+${m.delta}` : String(m.delta), after: m.quantityAfter, order: m.orderNumber ?? null, by: by(m), detail: m.note }))
     const opt = [text('product', 'Product'), text('option', 'Option'), text('sku', 'SKU')]
-    return { tab, title: 'Stock changes', columns: [{ key: 'at', label: 'When', kind: 'datetime', default: true }, ...opt, text('what', 'What happened'), num('change', 'Change'), num('after', 'Count after'), text('by', 'By'), text('detail', 'Detail')], rows,
+    return { tab, title: 'Stock changes', timeZone: w.timeZone, columns: [{ key: 'at', label: 'When', kind: 'datetime', default: true }, ...opt, text('what', 'What happened'), text('change', 'Change'), num('after', 'Count after'), text('order', 'Order'), text('by', 'By'), text('detail', 'Detail')], rows,
       note: rows.length >= 5000 ? 'The newest 5,000 changes; choose a shorter period for the rest.' : "Every change to a counted option's stock, newest first." }
   }
   // inventory — now, whatever the period.

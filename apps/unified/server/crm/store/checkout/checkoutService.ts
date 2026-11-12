@@ -44,6 +44,8 @@ import { formatCents } from '../lib/money.ts'
 export const STALE_PENDING_MS = 7 * 24 * 60 * 60 * 1000
 /** A guest checkout's email before the shopper has given one (checkout writes it; the provider fills the real one). */
 export const NO_EMAIL_YET = 'pending@checkout'
+/** How an order was paid, as the audit row says it (live test 11/12: "by in_person"). */
+const PAID_WITH: Record<string, string> = { in_person: 'in person', stripe: 'by card (Stripe)', square: 'by card (Square)', paypal: 'with PayPal', giftcard: 'with a gift card', exchange: 'as an exchange' }
 
 type Order = typeof storeOrder.$inferSelect
 
@@ -143,8 +145,8 @@ export function createCheckoutService(d: Pick<CrmDeps, 'db' | 'logger' | 'audit'
     // Never stops what follows: once the order is paid nothing retries the rest, so a failed audit write must not cost
     // the shopper their confirmation, the owner their new-order email, or the stock its count (store final check).
     try {
-      await d.audit.log({ action: d.audit.ACTIONS.PAYMENT, entity: 'store_order', entityId: flipped.id, entityName: orderNumber, companyId,
-        metadata: { description: `Order ${orderNumber} paid — ${formatCents(flipped.totalCents, flipped.currency)} by ${order.provider}` } })
+      await d.audit.log({ action: d.audit.ACTIONS.PAYMENT, entity: 'order', entityId: flipped.id, entityName: orderNumber, companyId,
+        metadata: { description: `Order ${orderNumber} paid — ${formatCents(flipped.totalCents, flipped.currency)}${PAID_WITH[order.provider] ? ` ${PAID_WITH[order.provider]}` : ` by ${order.provider}`}` } })
     } catch (e: any) { logger.error('[store] paid order not audited', { order: order.id, error: e?.message }) }
 
     // The shopper is a customer (decision 2): an order begun before they gave an address is given its contact now,

@@ -44,6 +44,8 @@ export interface Order {
   fulfillment?: string; source?: string; taxAutomatic?: boolean
   /** Who the sale is credited to (the counter's "Sold by", or whoever made a draft); null = no one (the online store). */
   staffName?: string | null
+  /** Last changed: the order's history is read again when it moves. */
+  updatedAt?: string
   /** What a gift card paid, and what has gone back on it. */
   giftCardCents?: number; giftCardRefundedCents?: number
   /** A chargeback's status at the provider, when there is one. */

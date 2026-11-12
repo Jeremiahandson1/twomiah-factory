@@ -571,7 +571,7 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, suppliers, supplierCon
         </div>
         <div className="text-gray-700 dark:text-slate-300">{v.inventoryQty == null ? 'Not tracked' : `${v.inventoryQty} in stock`}</div>
         <div className="w-full">{historyToggle}</div>
-        {history && <div className="w-full"><StockHistory variantId={v.id} sku={v.sku} /></div>}
+        {history && <div className="w-full"><StockHistory variantId={v.id} sku={v.sku} count={v.inventoryQty} /></div>}
       </div>
     )
   }
@@ -639,7 +639,7 @@ function VariantRow({ v, currency, mayUpdate, lowStockOn, suppliers, supplierCon
         <button type="button" onClick={save} disabled={!dirty || saving} className="btn btn-primary text-xs px-3 py-1.5">{saving ? 'Saving…' : 'Save'}</button>
         {historyToggle}
       </div>
-      {history && <StockHistory variantId={v.id} sku={v.sku} />}
+      {history && <StockHistory variantId={v.id} sku={v.sku} count={v.inventoryQty} />}
     </div>
   )
 }

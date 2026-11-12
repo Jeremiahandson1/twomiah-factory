@@ -21,7 +21,7 @@ const ON = ['contacts', 'jobs', 'call_tracking', 'call_tracking_numbers', 'websi
 const setFeatures = async (list: string[]) => { await t.db.update(S().company).set({ enabledFeatures: list } as any).where(eq(S().company.id, companyId)); t.services.features.forgetFeatures() }
 const call = (p: string, init: any = {}) => t.call(p, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
 const json = async (r: Response) => ({ status: r.status, body: await r.json() as any, headers: r.headers })
-const visit = (visitor: string, page: string, referrer = '') => t.app.request(`http://localhost/api/public/number-swap/${slug}/visit`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ visitor, page, referrer }) }).then(json)
+const visit = async (visitor: string, page: string, referrer = '') => json(await t.app.request(`http://localhost/api/public/number-swap/${slug}/visit`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ visitor, page, referrer }) }))
 const num = async (phoneNumber: string, swapSource: string | null, inPool = false, extra: Record<string, unknown> = {}) =>
   ((await (t.db as any).insert(S().trackingNumber).values({ companyId, phoneNumber, forwardTo: '+17155550100', name: phoneNumber, active: true, swapSource, inPool, provider: 'twomiah', ...extra }).returning())[0])
 const twilio = (path: string, params: Record<string, string>) => {

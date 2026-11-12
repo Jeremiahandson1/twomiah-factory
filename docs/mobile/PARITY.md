@@ -723,7 +723,7 @@ The store's own dashboard (pages/store/orders/DashboardPage.tsx): money tiles fo
 | Customers | Marketing | `/crm/marketing` | marketing:read | email_marketing (off by default (add-on or opt-in)) | owner, admin, manager | none | D — set-up, review and website building are desk jobs |
 | Customers | Reviews | `/crm/reviews` | — | google_reviews (off by default (add-on or opt-in)) | all | none | C |
 | Customers | Messages | `/crm/messages` | sms:send | two_way_texting (off by default (add-on or opt-in)) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | C |
-| Customers | Reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
+| Customers | Product reviews | `/crm/product-reviews` | reviews:read | — (core) | owner, admin, manager, staff | Reviews tab (approve, reject) | A — a small queue: approve or reject between orders |
 | Customers | Google Reviews | `/crm/google-reviews` | role ≥ admin | google_business (on by default) | owner, admin | Google reviews (More, owner/admin): read + reply (connecting Google stays on the desktop) | A — answering customers' email and reviews |
 | Customers | Email Inbox | `/crm/email` | role ≥ admin | branded_email (on by default) | owner, admin | none | A — answering customers' email and reviews |
 | Money | Payments | `/crm/payments` | payments:update | — (core) | owner, admin | none | D — moves or sets up money, carrier keys or price tables; not a phone job |
