@@ -118,3 +118,23 @@ test("a walk-in's order shows no stand-in email, and is logged once, in plain wo
   const byCustomer = await json(await call('/api/admin/sales-reports/table?tab=customers'))
   expect(JSON.stringify(byCustomer.body)).not.toContain('pending@checkout')
 })
+
+test('sales made before orders kept who made them are credited from the audit log (migration 0117; retest 11/12)', async () => {
+  const [old] = await (t.db as any).insert(S().storeOrder).values({ companyId, orderNumber: 'ORD-OLD1', provider: 'in_person', providerSessionId: 'old_1', status: 'picked_up', customerEmail: 'pending@checkout', subtotalCents: 2000, totalCents: 2000, currency: 'usd', source: 'counter' }).returning()
+  await (t.db as any).insert(S().storeOrderItem).values({ orderId: old.id, productName: 'mug', variantName: 'Default', sku: 'MUG-1', unitPriceCents: 2000, quantity: 1, lineTotalCents: 2000 })
+  const [web] = await (t.db as any).insert(S().storeOrder).values({ companyId, orderNumber: 'ORD-OLD2', provider: 'square', providerSessionId: 'old_2', status: 'paid', customerEmail: 'w@example.com', subtotalCents: 500, totalCents: 500, currency: 'usd', source: 'storefront' }).returning()
+  await (t.db as any).insert(S().auditLog).values([
+    { companyId, action: 'create', entity: 'order', entityId: old.id, userId: mara, userName: 'Mara Seat', metadata: { description: 'Sold at the counter, paid by cash' } },
+    { companyId, action: 'create', entity: 'order', entityId: web.id, userId: mara, userName: 'Mara Seat', metadata: { description: 'odd row' } },
+  ])
+  const fs = await import('node:fs'), path = await import('node:path')
+  const sqlText = fs.readFileSync(path.join(import.meta.dir, '..', 'server', 'db', 'migrations', '0117_store_staff_backfill.sql'), 'utf8')
+  await (t.db as any).execute(sqlText)
+  const [after] = await (t.db as any).select().from(S().storeOrder).where(eq(S().storeOrder.id, old.id))
+  expect(after).toMatchObject({ staffUserId: mara, staffName: 'Mara Seat' })
+  // An online-store order stays no one's, whatever the log says.
+  expect((await (t.db as any).select().from(S().storeOrder).where(eq(S().storeOrder.id, web.id)))[0].staffUserId).toBeNull()
+  // Run again: nothing changes (only orders with no one yet).
+  await (t.db as any).execute(sqlText)
+  expect((await (t.db as any).select().from(S().storeOrder).where(eq(S().storeOrder.id, old.id)))[0].staffName).toBe('Mara Seat')
+})

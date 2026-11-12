@@ -95,7 +95,9 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
     // from after it ("300% of starting stock sold") — so that share is left blank then, and the caption says why.
     const early = !started || started > startUtc
     const began = started ? new Intl.DateTimeFormat('en-US', { timeZone: w.timeZone, month: 'short', day: 'numeric', year: 'numeric' }).format(started) : null
-    const earlyNote = early ? ` Stock history began ${began ? `on ${began}` : 'with this release'}; before that, a count is the earliest one kept, and the share of starting stock sold is left blank.` : ''
+    const earlyNote = early ? ` Stock history began ${began ? `on ${began}` : 'with this release'}; before that, a count is the earliest one kept.` : ''
+    // Only sell-through has the share of starting stock (retest 11/12: the sentence was on Days left too).
+    const shareNote = early ? ' The share of starting stock sold is left blank.' : ''
     const opt = [text('product', 'Product'), text('option', 'Option'), text('sku', 'SKU')]
     if (tab === 'sell_through') {
       const rows = flow.filter((r) => r.sold > 0 || (r.ending ?? 0) > 0 || (r.starting ?? 0) > 0)
@@ -104,7 +106,7 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
       const sold = rows.reduce((n, r) => n + r.sold, 0), ending = rows.reduce((n, r) => n + Math.max(0, r.ending ?? 0), 0)
       return { tab, title: 'Sell-through rate', columns: [...opt, num('starting', 'Starting stock'), num('sold', 'Units sold'), num('ending', 'Ending stock'), { key: 'rate', label: 'Sell-through', kind: 'percent', default: true }, { key: 'ofStarting', label: 'Of starting stock sold', kind: 'percent' }], rows,
         totals: { product: 'Total', sold, ending, rate: sellThroughPercent(sold, ending) },
-        note: `Sell-through is units sold ÷ (units sold + ending stock). Units sold are what stayed sold (returns off).${earlyNote}` }
+        note: `Sell-through is units sold ÷ (units sold + ending stock). Units sold are what stayed sold (returns off).${earlyNote}${shareNote}` }
     }
     if (tab === 'days_left') {
       const rows = flow.filter((r) => (r.ending ?? 0) > 0 || r.sold > 0)
@@ -133,9 +135,9 @@ export async function storeTableFor(db: any, companyId: string, tab: StoreTab, w
     // Live test 11/12: a sale says its order (M2) and who sold it — the person, the order's "Sold by", or the online store; a change
     // reads +2 / −1 as on the product's history (L2); the spreadsheet's times are the shop's (L3, the table's timeZone).
     const by = (m: any) => m.byName || m.staffName || (m.orderSource === 'storefront' ? 'Online store' : m.orderId ? 'Checkout' : null)
-    const rows = moves.map((m: any) => ({ at: new Date(m.createdAt as any).toISOString(), product: m.productName, option: m.variantName, sku: m.sku, what: STOCK_REASON_WORDS[m.reason as StockReason] ?? m.reason, change: m.delta > 0 ? `+${m.delta}` : String(m.delta), after: m.quantityAfter, order: m.orderNumber ?? null, by: by(m), detail: m.note }))
+    const rows = moves.map((m: any) => ({ at: new Date(m.createdAt as any).toISOString(), product: m.productName, option: m.variantName, sku: m.sku, what: STOCK_REASON_WORDS[m.reason as StockReason] ?? m.reason, change: m.delta > 0 ? `+${m.delta}` : String(m.delta), after: m.quantityAfter, order: m.orderNumber ?? null, orderId: m.orderId ?? null, by: by(m), detail: m.note }))
     const opt = [text('product', 'Product'), text('option', 'Option'), text('sku', 'SKU')]
-    return { tab, title: 'Stock changes', timeZone: w.timeZone, columns: [{ key: 'at', label: 'When', kind: 'datetime', default: true }, ...opt, text('what', 'What happened'), text('change', 'Change'), num('after', 'Count after'), text('order', 'Order'), text('by', 'By'), text('detail', 'Detail')], rows,
+    return { tab, title: 'Stock changes', timeZone: w.timeZone, columns: [{ key: 'at', label: 'When', kind: 'datetime', default: true }, ...opt, text('what', 'What happened'), text('change', 'Change'), num('after', 'Count after'), { key: 'order', label: 'Order', default: true, link: 'order', idKey: 'orderId' }, text('by', 'By'), text('detail', 'Detail')], rows,
       note: rows.length >= 5000 ? 'The newest 5,000 changes; choose a shorter period for the rest.' : "Every change to a counted option's stock, newest first." }
   }
   // inventory — now, whatever the period.
