@@ -10,7 +10,7 @@ import { useConfirm, useMayWrite } from '../../shared'
 import { money, card, th, td, tdNum, Loading, Empty } from './reportBits'
 
 export type Kind = 'text' | 'money' | 'number' | 'date' | 'datetime' | 'percent'
-export interface Col { key: string; label: string; kind?: Kind; link?: 'contact' | 'agreement' | 'invoice' | 'job' | 'quote'; idKey?: string }
+export interface Col { key: string; label: string; kind?: Kind; link?: 'contact' | 'agreement' | 'invoice' | 'job' | 'quote' | 'order'; idKey?: string }
 export type Row = Record<string, any> & { drill?: Record<string, Record<string, string>> }
 export interface Table { tab: string; title: string; columns: Col[]; rows: Row[]; totals?: Row | null; note?: string; shown: string[] }
 
@@ -42,6 +42,7 @@ const hrefOf = (c: Col, row: Row): string | null => {
     case 'agreement': return `/crm/agreements?open=${id}`
     case 'job': return `/crm/jobs/${id}`
     case 'quote': return `/crm/quotes/${id}`
+    case 'order': return `/crm/orders/${id}`
     default: return null
   }
 }
