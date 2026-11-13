@@ -111,6 +111,12 @@ export interface PayrollLine {
    */
   bonusOvertimePay?: number
   baseRate: number
+  /**
+   * This person has NO pay rate on file, so the figures here are worked at FALLBACK_PAY_RATE (code review 05-1,
+   * 2026-11-13). Billing refuses a client with no rate; the pay run paid a caregiver with none $15.00 an hour and said
+   * nothing — under the minimum wage in many states. The pay run says so, and the screen shows it.
+   */
+  rateMissing?: boolean
   otRate: number
   regularPay: number
   overtimePay: number
@@ -222,6 +228,7 @@ export function createPayrollPay(d: CrmDeps) {
       const p: any = byId.get(id) || {}
       const prof = profileBy.get(id)
       const baseRate = Number(p.baseRate ?? p.defaultPayRate ?? FALLBACK_PAY_RATE) || FALLBACK_PAY_RATE
+      const rateMissing = !(Number(p.baseRate ?? p.defaultPayRate) > 0)
       const baseCents = cents(baseRate)
       const otOverride = p.overtimeRate != null && Number.isFinite(Number(p.overtimeRate)) ? cents(Number(p.overtimeRate)) : null
       const otCents = otOverride ?? Math.round(baseCents * multiplier)
@@ -318,6 +325,7 @@ export function createPayrollPay(d: CrmDeps) {
         cappedHours: hours2(unpaid), limitWarnings: warnings, limitBlocked: rules.limits.mode === 'block' && warnings.length > 0,
         ruleId: prof?.isFacilityStaff ? 'facility' : rule.id, hours: hoursRows,
         baseRate: baseCents / 100, otRate: otCents / 100,
+        ...(rateMissing ? { rateMissing: true } : {}),
         regularPay: regularPayC / 100, overtimePay: overtimePayC / 100,
         grossPay: (regularPayC + overtimePayC + doubleTimePayC + holidayPremiumC + breakPremiumC + sleepoverC) / 100, weeks,
       })
@@ -388,6 +396,7 @@ export function createPayrollPay(d: CrmDeps) {
       const mine = weeks.filter((w) => String(w.caregiverId) === id)
       const split = splitOvertime(mine.map((w) => Number(w.minutes)), threshold)
       const baseRate = Number(p.baseRate ?? p.defaultPayRate ?? FALLBACK_PAY_RATE) || FALLBACK_PAY_RATE
+      const rateMissing = !(Number(p.baseRate ?? p.defaultPayRate) > 0)
       const baseCents = cents(baseRate)
       const otCents = p.overtimeRate != null && Number.isFinite(Number(p.overtimeRate)) ? cents(Number(p.overtimeRate)) : Math.round(baseCents * multiplier)
       const regularPayCents = payCents(split.regularMinutes, baseCents)
@@ -407,6 +416,7 @@ export function createPayrollPay(d: CrmDeps) {
         travelHours: 0,
         baseRate: baseCents / 100,
         otRate: otCents / 100,
+        ...(rateMissing ? { rateMissing: true } : {}),
         regularPay: regularPayCents / 100,
         overtimePay: overtimePayCents / 100,
         grossPay: (regularPayCents + overtimePayCents) / 100,
