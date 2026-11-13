@@ -338,6 +338,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     description: 'The whole menu with real prices, grouped by section — live from your CRM, with what is 86ed tonight greyed out.',
     fields: [heading, intro, { key: 'kind', label: 'Show', kind: 'select', options: [{ value: 'all', label: 'Food and drink' }, { value: 'food', label: 'Food only' }, { value: 'drink', label: 'Drinks only' }] },
       { key: 'showSignatureLinks', label: 'Link signature items to their own page', kind: 'bool', defaultOn: true },
+      { key: 'hideWhenEmpty', label: 'Hide this section until the menu has items', kind: 'bool', hint: 'off: an empty menu says it is being typed up' },
       { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
     defaultData: { heading: 'The menu', kind: 'all', showSignatureLinks: true },
   },

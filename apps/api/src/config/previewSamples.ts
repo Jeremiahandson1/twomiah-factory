@@ -44,6 +44,10 @@ interface TradeSample {
   aboutEyebrow?: string
   faq: Array<{ question: string; answer: string }>
   pricing?: Array<{ service: string; priceLabel: string; includes?: string[] }>
+  /** A sample menu, drawn by the section a real site's live menu is (menu/sections): names and "Sample price", never a price. */
+  menu?: Array<{ name: string; items: Array<{ name: string; description: string }> }>
+  /** A sample week (schedule/week-strip): where a truck might be, each stop marked a sample. */
+  week?: Array<{ dayLabel: string; tag: string; location: string; hours?: string }>
 }
 
 const REVIEWS = [
@@ -194,6 +198,50 @@ const SAMPLES: Record<string, TradeSample> = {
       { question: 'Sample question: is a deposit needed?', answer: 'Sample answer. Your terms are yours to state.' },
     ],
   },
+  // A food truck: what it serves, where it is this week, and the events it takes — not a dining room (a food truck's
+  // preview used to borrow the restaurant's private-dining samples, 2026-11-12).
+  foodtruck: {
+    services: [
+      { title: 'At the window', description: 'Sample card: what you serve from the truck, with a photo of your own.', photo: ['foodtruck', 'foodtruck-05.jpg'] },
+      { title: 'Markets & festivals', description: 'Sample card: the markets, fairs and events people find you at.', photo: ['foodtruck', 'foodtruck-04.jpg'] },
+      { title: 'Catering & private events', description: 'Sample card: bringing the truck to a wedding, a party or an office, in your words.', photo: ['foodtruck', 'foodtruck-02.jpg'] },
+    ],
+    menu: [
+      { name: 'Sample menu — favourites', items: [
+        { name: 'Sample item one', description: 'Sample only: your own dish goes here, described in your words.' },
+        { name: 'Sample item two', description: 'Sample only: your real menu comes from the menu you enter, with your prices.' },
+        { name: 'Sample item three', description: 'Sample only: a photo of the dish can sit beside it.' },
+      ] },
+      { name: 'Sample menu — sides & drinks', items: [
+        { name: 'Sample side', description: 'Sample only: nothing here is on your menu.' },
+        { name: 'Sample drink', description: 'Sample only.' },
+      ] },
+    ],
+    week: [
+      { dayLabel: 'Mon', tag: 'Closed', location: 'Sample day off' },
+      { dayLabel: 'Tue', tag: 'Sample stop', location: 'Sample stop — a weekday lunch spot', hours: 'Sample hours' },
+      { dayLabel: 'Wed', tag: 'Sample stop', location: 'Sample stop — a brewery or a business park', hours: 'Sample hours' },
+      { dayLabel: 'Thu', tag: 'Sample stop', location: 'Sample stop — a weekday lunch spot', hours: 'Sample hours' },
+      { dayLabel: 'Fri', tag: 'Sample stop', location: 'Sample stop — an evening event', hours: 'Sample hours' },
+      { dayLabel: 'Sat', tag: 'Market', location: 'Sample stop — a farmers market', hours: 'Sample hours' },
+      { dayLabel: 'Sun', tag: 'Private Event', location: 'Sample booking — a private event' },
+    ],
+    gallery: [
+      { photo: ['foodtruck', 'foodtruck-01.jpg'], alt: 'Customers ordering at a food truck window', caption: 'Sample photo — at the window' },
+      { photo: ['foodtruck', 'foodtruck-02.jpg'], alt: 'People sitting by a food truck at night', caption: 'Sample photo — an evening stop' },
+      { photo: ['foodtruck', 'foodtruck-03.jpg'], alt: 'A red food truck', caption: 'Sample photo — the truck' },
+      { photo: ['foodtruck', 'foodtruck-04.jpg'], alt: 'People by a food truck at a fair', caption: 'Sample photo — a fair' },
+      { photo: ['foodtruck', 'foodtruck-05.jpg'], alt: 'A customer being served at a food truck', caption: 'Sample photo — service' },
+      { photo: ['foodtruck', 'foodtruck-06.jpg'], alt: 'Tacos on a plate', caption: 'Sample photo — the food' },
+    ],
+    galleryHeading: 'From the truck (sample)',
+    about: ['Sample about block: who is cooking, what you serve and how the truck got started.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: where can I find you?', answer: 'Sample answer. Your real site shows where you are and when, as you tell it.' },
+      { question: 'Sample question: do you cater events?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: can I order ahead?', answer: 'Sample answer. Your real site says how people order from you.' },
+    ],
+  },
   basic: {
     services: [
       { title: 'Service one', description: 'Sample card: a service with a photo and a short plain description.', photo: ['generic', 'generic-01.jpg'] },
@@ -209,7 +257,7 @@ const SAMPLES: Record<string, TradeSample> = {
   },
 }
 
-/** A trade the unified app names the same as a sample set (bar and a food truck take the restaurant's). */
+/** A trade the unified app names the same as a sample set (a bar takes the restaurant's; a food truck has its own, asked for by name: unified/preview.ts). */
 const SET_OF: Record<string, string> = { bar: 'restaurant', rv: 'basic', vet: 'basic', store: 'store' }
 
 const STORE_PRODUCTS: Array<{ slug: string; name: string; id: string; cents: number; was?: number; featured?: boolean }> = [
@@ -275,6 +323,13 @@ export function withPreviewSamples(real: any[], vertical: string, factoryBase = 
   if (gallery.length >= 3) extras.push(mark({ type: 'gallery', variant: 'grid', data: { heading: t.galleryHeading || 'Recent work (sample)', intro: 'Sample photos — your real site shows your own work.', photos: gallery } }))
   extras.push(mark({ type: 'about', variant: 'story', data: { eyebrow: 'Sample · About us', title: 'About us (sample)', paragraphs: t.about } }))
   extras.push(mark({ type: 'testimonials', variant: 'quotes', data: { heading: 'What customers say (sample reviews)', items: REVIEWS } }))
+  if (t.week) extras.unshift(mark({ type: 'schedule', variant: 'week-strip', data: { heading: 'This week (sample)', intro: 'Sample stops — your real site shows where you tell it you’ll be.', days: t.week } }))
+  // The sample menu, drawn by the section a real site's live menu is. It stands where the page's own live menu is (a food
+  // truck's home has one, empty until a menu is entered); a page with none gets it before the rest.
+  const menuSection = t.menu ? mark({ type: 'menu', variant: 'sections', data: { heading: 'Menu (sample)', intro: 'A sample menu — yours comes from the menu you enter, with your own prices.', showSignatureLinks: false,
+    sections: t.menu.map((s, si) => ({ slug: 'sample-' + (si + 1), name: s.name, kind: 'food', items: s.items.map((it, ii) => ({ slug: 'sample-' + (si + 1) + '-' + (ii + 1), name: it.name, description: it.description, priceLabel: 'Sample price' })) })) } }) : null
+  const liveMenu = (s: any) => !!menuSection && s?.type === 'menu' && s.variant === 'sections' && !Array.isArray(s.data?.sections)
+  if (menuSection && !real.some(liveMenu)) extras.unshift(menuSection)
   if (t.pricing) extras.push(mark({ type: 'pricing', variant: 'flat-rate-menu', data: { heading: 'Price list (sample)', intro: 'Sample prices — your real site shows the prices you set.', items: t.pricing, disclaimer: 'Sample only: these are not prices.' } }))
   extras.push(mark({ type: 'faq', variant: 'accordion', data: { heading: 'Questions (sample)', items: t.faq } }))
 
@@ -283,7 +338,7 @@ export function withPreviewSamples(real: any[], vertical: string, factoryBase = 
   const out: any[] = []
   for (const s of real) {
     if (!placed && s?.type === 'cta') { out.push(...extras); placed = true }
-    out.push(standIn(s) ? servicesSection : s)
+    out.push(standIn(s) ? servicesSection : liveMenu(s) ? menuSection : s)
   }
   if (!placed) out.push(...extras)
   return { sections: out, imageUrls: urls }

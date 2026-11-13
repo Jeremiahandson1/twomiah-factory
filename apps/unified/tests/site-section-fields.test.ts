@@ -199,7 +199,9 @@ const REAL: Record<string, (d: Record<string, any>) => void> = {
   'timeline/book': (d) => { d.entries[0] = { ...d.entries[0], slug: 'first-pour', yearStart: 1881, yearEnd: 1919, imageYear: 1890 } },
   'timeline/era': (d) => Object.assign(d, { slug: 'first-pour', backHref: '/story' }),
   'speakeasy/door': (d) => { d.riddles[0] = { ...d.riddles[0], doors: ['Left', 'Right'], answer: 0 }; d.doorNumber = '7' },
-  'menu/sections': (d) => Object.assign(d, { kind: 'all' }),
+  // This bar has no menu typed in: with "hide until the menu has items" on, the section rightly draws nothing (that
+  // switch is tested in tests/unified/factory/preview-samples.test.ts), so the fields are read with it off.
+  'menu/sections': (d) => Object.assign(d, { kind: 'all', hideWhenEmpty: false }),
 }
 
 /**

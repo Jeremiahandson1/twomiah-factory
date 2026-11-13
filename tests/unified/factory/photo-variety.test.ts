@@ -44,6 +44,28 @@ describe('where live stock photos are used', () => {
     expect(liveStockFor('senior caregivers')).toBe(false)
   })
 
+  // 2026-11-12: the homepage sent 'food_truck' and 'home_care'; read raw, neither matched its trade, so a food truck's and a
+  // home-care agency's hero was the generic shopkeeper at a shop door — and home care was open to live stock photos.
+  test('a trade is read the same as a stored value and as words: every trade the homepage offers has its own photos', () => {
+    // twomiah.com index.html #blTrade (the open choices) → the photo group. 'retail' and 'other' have no trade to picture.
+    const OFFERED: Record<string, string> = {
+      roofing: 'roofing', general_contractor: 'contractor', remodeler: 'contractor', painter: 'contractor', concrete: 'contractor',
+      flooring: 'contractor', hvac: 'fieldservice', plumbing: 'fieldservice', electrical: 'fieldservice', landscaping: 'landscaping',
+      home_care: 'homecare', restaurant: 'restaurant', food_truck: 'foodtruck', bar_and_grill: 'restaurant', salon: 'salon', fitness: 'fitness',
+    }
+    for (const [value, group] of Object.entries(OFFERED)) {
+      expect([value, pickHeroGroup(value)]).toEqual([value, group])
+      expect([value, pickHeroGroup(value.replace(/_/g, ' '))]).toEqual([value, group])
+      expect([value, liveStockFor(value)]).toEqual([value, false])
+      // The site a signup of it gets opens on one of that group's own photos (a bar's opens on its live Tonight board: no photo).
+      if (value !== 'bar_and_grill') for (const n of ['Acme Co', 'Northside Works', 'Jeremiahs Pastries']) expect([value, heroOf(composeInstant(answers(value, n)))]).toEqual([value, expect.stringContaining('/hero-library/' + group + '/')])
+    }
+    for (const none of ['retail', 'other']) expect(pickHeroGroup(none)).toBe('generic')
+    // Home care by its stored value is checked photos only, whatever live shots it is handed.
+    const live = [{ url: 'https://images.pexels.com/photos/9/clinic.jpeg', tag: 'hero' }]
+    for (const n of ['Hearth Home Care', 'Gentle Hands', 'Kind Neighbors', 'Evergreen Care']) expect(heroOf(composeInstant(answers('home_care', n, live)))).toContain('/hero-library/homecare/')
+  })
+
   test('every library photo is on disk and credited', async () => {
     for (const [group, list] of Object.entries(HERO_LIBRARY)) for (const p of list) {
       expect(await Bun.file(`apps/api/assets/hero-library/${group}/${p.file}`).exists()).toBe(true)
