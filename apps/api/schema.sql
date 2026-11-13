@@ -155,16 +155,27 @@ create index if not exists idx_factory_jobs_status on factory_jobs(status);
 alter table tenants enable row level security;
 alter table factory_jobs enable row level security;
 
--- Allow service_role full access (used by the API)
-create policy "Service role full access on tenants"
-  on tenants for all
-  using (true)
-  with check (true);
+-- WHO MAY TOUCH THESE TWO FROM THE BROWSER (security review S5-1, 2026-11-13). The API's service role bypasses RLS and
+-- needs no policy. The staff dashboard reads and writes `tenants` and `factory_jobs` with a signed-in person's token,
+-- so the policy is for signed-in STAFF. The policy that stood here was named for the service role but named no role,
+-- which grants every role — the public key in the dashboard's page included: anyone could read every tenant's
+-- database_url and factory_sync_key. See migrations/2026-11-13_staff_only_policies.sql.
+create or replace function public.is_factory_staff(roles text[])
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from factory_users where auth_id = auth.uid() and role = any(roles))
+$$;
+revoke all on function public.is_factory_staff(text[]) from public, anon;
+grant execute on function public.is_factory_staff(text[]) to authenticated;
 
-create policy "Service role full access on factory_jobs"
-  on factory_jobs for all
-  using (true)
-  with check (true);
+create policy "Factory staff on tenants"
+  on tenants for all to authenticated
+  using (public.is_factory_staff(array['owner','admin','editor']))
+  with check (public.is_factory_staff(array['owner','admin']));
+
+create policy "Factory staff on factory_jobs"
+  on factory_jobs for all to authenticated
+  using (public.is_factory_staff(array['owner','admin','editor']))
+  with check (public.is_factory_staff(array['owner','admin','editor']));
 
 
 -- ─── Support Tickets ────────────────────────────────────────────────────────
