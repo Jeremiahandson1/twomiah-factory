@@ -126,6 +126,8 @@ export interface LineItemInput {
   description: string
   quantity: number
   unitPrice: number
+  /** false on the automatic late fee, which is not taxed: the form's preview leaves it out of the taxed sum as the server does. */
+  taxable?: boolean
   /**
    * The three fields a pricebook line carries, all optional and all ignored by a template that does
    * not enable `pricebook`. (T41)

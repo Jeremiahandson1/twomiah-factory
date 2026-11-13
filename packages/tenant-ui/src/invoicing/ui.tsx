@@ -75,10 +75,12 @@ export const isPastDay = (v: unknown) => {
   return day < companyTodayKey()
 }
 /** Same rule as the server: tax on the post-discount amount, discount clamped, whole cents. */
-export const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
+export const calcTotals = (items: { quantity: number; unitPrice: number; taxable?: boolean }[], taxRate: number, discount: number) => {
   const subtotal = round2(items.reduce((s, i) => s + Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.unitPrice) || 0), 0))
   const effectiveDiscount = round2(Math.min(Math.max(0, Number(discount) || 0), subtotal))
-  const taxable = Math.max(0, subtotal - effectiveDiscount)
+  // A line marked not taxable — the automatic late fee — is left out of the taxed sum, as the server leaves it (lineForTotals).
+  const untaxed = round2(items.reduce((s, i) => s + (i.taxable === false ? Math.max(0, Number(i.quantity) || 0) * Math.max(0, Number(i.unitPrice) || 0) : 0), 0))
+  const taxable = Math.max(0, subtotal - untaxed - effectiveDiscount)
   const taxAmount = round2(taxable * (Math.max(0, Number(taxRate) || 0) / 100))
   return { subtotal, effectiveDiscount, taxAmount, total: round2(subtotal - effectiveDiscount + taxAmount), discountTooBig: Number(discount) > subtotal + 0.005 }
 }
@@ -120,8 +122,8 @@ export const refundEffectNote = (total: unknown, amountPaid: unknown): string =>
  * discount) — mirrors applyInvoiceCredit + invoiceBalance on the server, so the modal shows the result
  * before it is applied.
  */
-export const balanceAfterCredit = (inv: { lineItems?: { quantity: any; unitPrice: any }[]; taxRate?: any; discount?: any; amountPaid?: any; amountRefunded?: any }, credit: number) => {
-  const lines = (inv.lineItems || []).map((li) => ({ quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
+export const balanceAfterCredit = (inv: { lineItems?: { quantity: any; unitPrice: any; type?: string | null }[]; taxRate?: any; discount?: any; amountPaid?: any; amountRefunded?: any }, credit: number) => {
+  const lines = (inv.lineItems || []).map((li) => ({ quantity: Number(li.quantity), unitPrice: Number(li.unitPrice), ...(li.type === 'late_fee' ? { taxable: false } : {}) }))
   const total = calcTotals(lines, Number(inv.taxRate) || 0, round2((Number(inv.discount) || 0) + (Number(credit) || 0))).total
   const paid = Number(inv.amountPaid || 0), refunded = Number(inv.amountRefunded || 0)
   if (total > 0 && refunded >= total - 0.005) return 0
