@@ -45,7 +45,7 @@
         <% if (phone) { %>
           <div class="contact-section__row">
             <div class="contact-section__label">Phone</div>
-            <a class="contact-section__value" href="tel:<%= phone %>"><%= phone %></a>
+            <a class="contact-section__value" href="tel:<%= String(phone).replace(/[^\d+]/g, '') %>"><%= phone %></a>
           </div>
         <% } %>
         <% if (email) { %>

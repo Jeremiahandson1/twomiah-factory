@@ -146,6 +146,58 @@ export const HERO_LIBRARY: Record<string, HeroImage[]> = {
     { file: "foodtruck-05.jpg", tag: "services", source: 'pexels', photographer: "RDNE Stock project", photographerUrl: "https://www.pexels.com/@rdne", sourceUrl: "https://www.pexels.com/photo/man-receiving-orders-from-a-vendor-on-a-food-truck-5779533/", sourceId: "5779533", license: 'Pexels License' },
     { file: "foodtruck-06.jpg", tag: "services", source: 'pexels', photographer: "DΛVΞ GΛRCIΛ", photographerUrl: "https://www.pexels.com/@davegarcia", sourceUrl: "https://www.pexels.com/photo/delicious-tacos-with-fresh-guacamole-and-cilantro-36498698/", sourceId: "36498698", license: 'Pexels License' },
   ],
+  painting: [
+    { file: "painting-01.jpg", tag: "hero", source: 'pexels', photographer: "Blue Bird", photographerUrl: "https://www.pexels.com/@blue-bird", sourceUrl: "https://www.pexels.com/photo/woman-painting-the-wall-with-a-roller-brush-7218683/", sourceId: "7218683", license: 'Pexels License' },
+    { file: "painting-02.jpg", tag: "hero", source: 'pexels', photographer: "Blue Bird", photographerUrl: "https://www.pexels.com/@blue-bird", sourceUrl: "https://www.pexels.com/photo/woman-on-a-ladder-painting-a-wall-7217998/", sourceId: "7217998", license: 'Pexels License' },
+    { file: "painting-03.jpg", tag: "hero", source: 'pexels', photographer: "DΛVΞ GΛRCIΛ", photographerUrl: "https://www.pexels.com/@davegarcia", sourceUrl: "https://www.pexels.com/photo/construction-workers-painting-interior-walls-36153946/", sourceId: "36153946", license: 'Pexels License' },
+    { file: "painting-04.jpg", tag: "services", source: 'pexels', photographer: "Blue Bird", photographerUrl: "https://www.pexels.com/@blue-bird", sourceUrl: "https://www.pexels.com/photo/man-putting-tape-on-wall-with-woman-holding-the-stepladder-7217983/", sourceId: "7217983", license: 'Pexels License' },
+    { file: "painting-05.jpg", tag: "services", source: 'pexels', photographer: "Blue Bird", photographerUrl: "https://www.pexels.com/@blue-bird", sourceUrl: "https://www.pexels.com/photo/woman-putting-tape-on-wall-7217959/", sourceId: "7217959", license: 'Pexels License' },
+    { file: "painting-06.jpg", tag: "services", source: 'pexels', photographer: "Ivan S", photographerUrl: "https://www.pexels.com/@ivan-s", sourceUrl: "https://www.pexels.com/photo/close-up-shot-of-a-person-holding-a-paint-roller-with-brown-paint-5798972/", sourceId: "5798972", license: 'Pexels License' },
+  ],
+  concrete: [
+    { file: "concrete-01.jpg", tag: "hero", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/concrete-workers-building-driveway-in-fort-worth-33405139/", sourceId: "33405139", license: 'Pexels License' },
+    { file: "concrete-02.jpg", tag: "hero", source: 'pexels', photographer: "Rodolfo Quirós", photographerUrl: "https://www.pexels.com/@rquiros", sourceUrl: "https://www.pexels.com/photo/selective-focus-photography-cement-2219024/", sourceId: "2219024", license: 'Pexels License' },
+    { file: "concrete-03.jpg", tag: "hero", source: 'pexels', photographer: "SÀI GÒN CÔNG TY CP SẢN XUẤT - THƯƠNG MẠI", photographerUrl: "https://www.pexels.com/@betongsmcsg", sourceUrl: "https://www.pexels.com/photo/construction-worker-smoothing-fresh-concrete-surface-37121398/", sourceId: "37121398", license: 'Pexels License' },
+    { file: "concrete-04.jpg", tag: "services", source: 'pexels', photographer: "Nothing Ahead", photographerUrl: "https://www.pexels.com/@ian-panelo", sourceUrl: "https://www.pexels.com/photo/crop-workman-in-rubber-boots-priming-concrete-floor-5777354/", sourceId: "5777354", license: 'Pexels License' },
+    { file: "concrete-05.jpg", tag: "services", source: 'pexels', photographer: "GOWTHAM AGM", photographerUrl: "https://www.pexels.com/@gowtham-agm-609630353", sourceUrl: "https://www.pexels.com/photo/close-up-of-man-building-bricks-wall-19688828/", sourceId: "19688828", license: 'Pexels License' },
+    { file: "concrete-06.jpg", tag: "services", source: 'pexels', photographer: "Tahir Xəlfəquliyev", photographerUrl: "https://www.pexels.com/@tahir", sourceUrl: "https://www.pexels.com/photo/skilled-mason-working-on-outdoor-stone-installation-33497127/", sourceId: "33497127", license: 'Pexels License' },
+    { file: "concrete-07.jpg", tag: "projects", source: 'pexels', photographer: "Spencer Lee Eiseman", photographerUrl: "https://www.pexels.com/@spencer-lee-eiseman-1160318", sourceUrl: "https://www.pexels.com/photo/house-with-lawn-and-garage-15369780/", sourceId: "15369780", license: 'Pexels License' },
+  ],
+  flooring: [
+    { file: "flooring-01.jpg", tag: "hero", source: 'pexels', photographer: "Max Vakhtbovych", photographerUrl: "https://www.pexels.com/@artbovich", sourceUrl: "https://www.pexels.com/photo/spacious-room-with-white-walls-and-panoramic-windows-7031616/", sourceId: "7031616", license: 'Pexels License' },
+    { file: "flooring-02.jpg", tag: "hero", source: 'pexels', photographer: "Curtis Adams", photographerUrl: "https://www.pexels.com/@curtis-adams-1694007", sourceUrl: "https://www.pexels.com/photo/architectural-design-of-living-room-with-beige-walls-and-wooden-flooring-6835179/", sourceId: "6835179", license: 'Pexels License' },
+    { file: "flooring-03.jpg", tag: "hero", source: 'pexels', photographer: "Peter Vang", photographerUrl: "https://www.pexels.com/@peter-vang-2157328093", sourceUrl: "https://www.pexels.com/photo/spacious-empty-room-with-wooden-flooring-35493915/", sourceId: "35493915", license: 'Pexels License' },
+    { file: "flooring-04.jpg", tag: "services", source: 'pexels', photographer: "Bimbim Sindu", photographerUrl: "https://www.pexels.com/@bimbim-sindu-96724782", sourceUrl: "https://www.pexels.com/photo/tiling-equipment-laid-out-on-a-job-18861859/", sourceId: "18861859", license: 'Pexels License' },
+    { file: "flooring-05.jpg", tag: "services", source: 'pexels', photographer: "Sergei Starostin", photographerUrl: "https://www.pexels.com/@sejio402", sourceUrl: "https://www.pexels.com/photo/unfinished-wall-tiling-in-construction-site-29181495/", sourceId: "29181495", license: 'Pexels License' },
+    { file: "flooring-06.jpg", tag: "projects", source: 'pexels', photographer: "cottonbro studio", photographerUrl: "https://www.pexels.com/@cottonbro", sourceUrl: "https://www.pexels.com/photo/black-and-white-checkered-tiles-7566201/", sourceId: "7566201", license: 'Pexels License' },
+    { file: "flooring-07.jpg", tag: "projects", source: 'pexels', photographer: "Engin Akyurt", photographerUrl: "https://www.pexels.com/@enginakyurt", sourceUrl: "https://www.pexels.com/photo/photograph-of-a-wooden-floor-11126101/", sourceId: "11126101", license: 'Pexels License' },
+  ],
+  electrical: [
+    { file: "electrical-01.jpg", tag: "hero", source: 'pexels', photographer: "Anete Lusina", photographerUrl: "https://www.pexels.com/@anete-lusina", sourceUrl: "https://www.pexels.com/photo/man-screwing-light-bulb-into-lamp-4792521/", sourceId: "4792521", license: 'Pexels License' },
+    { file: "electrical-02.jpg", tag: "hero", source: 'pexels', photographer: "Elvan Lam", photographerUrl: "https://www.pexels.com/@elvan-lam-1105439946", sourceUrl: "https://www.pexels.com/photo/electronics-technician-working-with-wiring-tools-29491360/", sourceId: "29491360", license: 'Pexels License' },
+    { file: "electrical-03.jpg", tag: "hero", source: 'pexels', photographer: "Artem Podrez", photographerUrl: "https://www.pexels.com/@artempodrez", sourceUrl: "https://www.pexels.com/photo/operator-wearing-blue-protective-body-suit-8986038/", sourceId: "8986038", license: 'Pexels License' },
+    { file: "electrical-04.jpg", tag: "services", source: 'pexels', photographer: "Pavel Danilyuk", photographerUrl: "https://www.pexels.com/@pavel-danilyuk", sourceUrl: "https://www.pexels.com/photo/close-up-of-wires-in-outlets-7937305/", sourceId: "7937305", license: 'Pexels License' },
+    { file: "electrical-05.jpg", tag: "services", source: 'pexels', photographer: "ranjeet .", photographerUrl: "https://www.pexels.com/@ranjeet-860714737", sourceUrl: "https://www.pexels.com/photo/an-electrical-panel-with-wires-and-switches-28265032/", sourceId: "28265032", license: 'Pexels License' },
+    { file: "electrical-06.jpg", tag: "services", source: 'pexels', photographer: "Sphinxx69", photographerUrl: "https://www.pexels.com/@sphinxx69-2162007289", sourceUrl: "https://www.pexels.com/photo/close-up-of-multimeter-and-tools-on-table-38292956/", sourceId: "38292956", license: 'Pexels License' },
+  ],
+  hvac: [
+    { file: "hvac-01.jpg", tag: "hero", source: 'pexels', photographer: "МОБО Модульные Котельные", photographerUrl: "https://www.pexels.com/@2157750954", sourceUrl: "https://www.pexels.com/photo/technician-repairing-heating-system-in-workshop-34938439/", sourceId: "34938439", license: 'Pexels License' },
+    { file: "hvac-02.jpg", tag: "hero", source: 'pexels', photographer: "HONG SON", photographerUrl: "https://www.pexels.com/@hson", sourceUrl: "https://www.pexels.com/photo/man-adjusting-thermostat-in-modern-home-interior-34558045/", sourceId: "34558045", license: 'Pexels License' },
+    { file: "hvac-03.jpg", tag: "hero", source: 'pexels', photographer: "МОБО Модульные Котельные", photographerUrl: "https://www.pexels.com/@2157750954", sourceUrl: "https://www.pexels.com/photo/technician-maintaining-heating-system-in-workshop-34938442/", sourceId: "34938442", license: 'Pexels License' },
+    { file: "hvac-04.jpg", tag: "services", source: 'pexels', photographer: "Pavel Danilyuk", photographerUrl: "https://www.pexels.com/@pavel-danilyuk", sourceUrl: "https://www.pexels.com/photo/steel-pipes-with-pressure-gauge-7937300/", sourceId: "7937300", license: 'Pexels License' },
+    { file: "hvac-05.jpg", tag: "services", source: 'pexels', photographer: "Jonathan Cooper", photographerUrl: "https://www.pexels.com/@theshuttervision", sourceUrl: "https://www.pexels.com/photo/a-white-metal-air-duct-11538226/", sourceId: "11538226", license: 'Pexels License' },
+    { file: "hvac-06.jpg", tag: "projects", source: 'pexels', photographer: "Jay Brand", photographerUrl: "https://www.pexels.com/@jay-brand-1763356224", sourceUrl: "https://www.pexels.com/photo/industrial-hvac-unit-in-black-and-white-29452977/", sourceId: "29452977", license: 'Pexels License' },
+  ],
+  bar: [
+    { file: "bar-01.jpg", tag: "hero", source: 'pexels', photographer: "Selim Karadayı", photographerUrl: "https://www.pexels.com/@selimkrdy", sourceUrl: "https://www.pexels.com/photo/cozy-irish-pub-interior-with-bar-counter-35004395/", sourceId: "35004395", license: 'Pexels License' },
+    { file: "bar-02.jpg", tag: "hero", source: 'pexels', photographer: "Valeria Boltneva", photographerUrl: "https://www.pexels.com/@valeriya", sourceUrl: "https://www.pexels.com/photo/brown-wooden-bar-1872888/", sourceId: "1872888", license: 'Pexels License' },
+    { file: "bar-03.jpg", tag: "hero", source: 'pexels', photographer: "Pavel Danilyuk", photographerUrl: "https://www.pexels.com/@pavel-danilyuk", sourceUrl: "https://www.pexels.com/photo/photo-of-wooden-stools-in-a-bar-5858038/", sourceId: "5858038", license: 'Pexels License' },
+    { file: "bar-04.jpg", tag: "hero", source: 'pexels', photographer: "ELEVATE", photographerUrl: "https://www.pexels.com/@elevate", sourceUrl: "https://www.pexels.com/photo/pan-holding-pilsner-inside-bar-1267360/", sourceId: "1267360", license: 'Pexels License' },
+    { file: "bar-05.jpg", tag: "services", source: 'pexels', photographer: "Daniel Januario", photographerUrl: "https://www.pexels.com/@daniel-januario-1127884405", sourceUrl: "https://www.pexels.com/photo/man-hands-pouring-beer-20883378/", sourceId: "20883378", license: 'Pexels License' },
+    { file: "bar-06.jpg", tag: "services", source: 'pexels', photographer: "Pavel Danilyuk", photographerUrl: "https://www.pexels.com/@pavel-danilyuk", sourceUrl: "https://www.pexels.com/photo/a-person-holding-a-clear-glass-mug-with-beer-5858085/", sourceId: "5858085", license: 'Pexels License' },
+    { file: "bar-07.jpg", tag: "food", source: 'pexels', photographer: "Los Muertos Crew", photographerUrl: "https://www.pexels.com/@cristian-rojas", sourceUrl: "https://www.pexels.com/photo/burgers-on-black-plate-beside-drinking-glass-8477416/", sourceId: "8477416", license: 'Pexels License' },
+    { file: "bar-08.jpg", tag: "food", source: 'pexels', photographer: "Engin Akyurt", photographerUrl: "https://www.pexels.com/@enginakyurt", sourceUrl: "https://www.pexels.com/photo/clear-glass-mug-with-brown-liquid-3356410/", sourceId: "3356410", license: 'Pexels License' },
+  ],
   generic: [
     { file: "generic-01.jpg", tag: "team", source: 'pexels', photographer: "Kampus Production", photographerUrl: "https://www.pexels.com/@kampus", sourceUrl: "https://www.pexels.com/photo/men-wearing-apron-smiling-together-8475204/", sourceId: "8475204", license: 'Pexels License' },
     { file: "generic-02.jpg", tag: "hero", source: 'pexels', photographer: "Amina Filkins", photographerUrl: "https://www.pexels.com/@amina-filkins", sourceUrl: "https://www.pexels.com/photo/calm-woman-standing-in-doorway-of-store-5413720/", sourceId: "5413720", license: 'Pexels License' },
@@ -168,12 +220,20 @@ export function pickHeroGroup(businessType: string): string {
   if (rx(['home care', 'homecare', 'senior', 'caregiv', 'in-home', 'assisted'])) return 'homecare'
   if (rx(['dispensary', 'cannabis', 'cbd', 'weed'])) return 'dispensary'
   if (rx(['landscap', 'lawn', 'tree service', 'hardscap', 'snow'])) return 'landscaping'
-  if (rx(['hvac', 'plumb', 'electric', 'heating', 'cooling', 'appliance'])) return 'fieldservice'
+  // A painter, a concrete or flooring contractor, an electrician and a heating-and-cooling company have photos of their
+  // own (2026-11-12: a painter's hero was a carpenter drilling, an electrician's a man smiling at a wall). Before the
+  // wider groups below, which used to take them.
+  if (rx(['paint'])) return 'painting'
+  if (rx(['concrete', 'mason'])) return 'concrete'
+  if (rx(['flooring'])) return 'flooring'
+  if (rx(['electric'])) return 'electrical'
+  if (rx(['hvac', 'heating', 'cooling', 'air condition', 'furnace'])) return 'hvac'
+  if (rx(['plumb', 'appliance'])) return 'fieldservice'
   if (rx(['cafe', 'coffee', 'bakery', 'espresso'])) return 'cafe'
-  if (rx(['restaurant', 'bbq', 'pizza', 'taco', 'diner', 'grill', 'eatery', 'bistro'])) return 'restaurant'
-  // Bars / taverns / pubs share the restaurant hero set until a bar set exists.
+  // Bars / taverns / pubs have their own set. Before the restaurants, so a "bar and grill" is a bar.
   // Word-bounded so 'barber' / 'nail bar' / 'juice bar' don't land here.
-  if (/\b(tavern|pub|taproom|brewpub|brewery|saloon|speakeasy|bar)\b/.test(t) && !/\b(nail|lash|brow|juice|smoothie|espresso|coffee|sushi|salad|oxygen)\b/.test(t)) return 'restaurant'
+  if (/\b(tavern|pub|taproom|brewpub|brewery|saloon|speakeasy|bar)\b/.test(t) && !/\b(nail|lash|brow|juice|smoothie|espresso|coffee|sushi|salad|oxygen)\b/.test(t)) return 'bar'
+  if (rx(['restaurant', 'bbq', 'pizza', 'taco', 'diner', 'grill', 'eatery', 'bistro'])) return 'restaurant'
   if (rx(['salon', 'spa', 'barber', 'beauty', 'nails', 'lash', 'tattoo'])) return 'salon'
   if (rx(['gym', 'fitness', 'yoga', 'pilates', 'crossfit', 'martial'])) return 'fitness'
   if (rx(['hotel', 'inn', 'lodge', 'resort', 'bnb', 'bed and breakfast'])) return 'hotel'
@@ -188,11 +248,12 @@ export function getHeroLibrary(businessType: string): Array<{ url: string; tag: 
   const base = (process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || '').replace(/\/$/, '')
   if (!base) return []
   const group = pickHeroGroup(businessType)
-  const entries = [
-    ...(HERO_LIBRARY[group] || []).map(i => ({ ...i, group })),
-    ...(group !== 'generic' ? (HERO_LIBRARY.generic || []).map(i => ({ ...i, group: 'generic' })) : []),
-  ]
-  return entries.map(i => ({ url: `${base}/hero-library/${i.group}/${i.file}`, tag: i.tag }))
+  // A trade's own photos only. The shared generic set (a shopkeeper at a shop door, men in aprons, a packing bench) stands
+  // in for a trade that has none: offered beside a trade's own, the AI builder put the shop door on a lawn-care site's
+  // "Leaf removal" card and the aprons beside its call to action while three lawn photos went unused (2026-10-30).
+  const own = HERO_LIBRARY[group] || []
+  const from = own.length ? group : 'generic'
+  return (own.length ? own : HERO_LIBRARY.generic || []).map(i => ({ url: `${base}/hero-library/${from}/${i.file}`, tag: i.tag }))
 }
 
 

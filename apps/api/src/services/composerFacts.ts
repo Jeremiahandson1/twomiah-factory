@@ -13,8 +13,15 @@
  * prompt does not have to be perfect. It is deterministic and pure — no model
  * call, no I/O — so scripts/check-composer-facts.ts exercises it directly.
  *
- * What it cannot catch: an invented claim with no number, name, quote or photo
- * in it ("we pull every permit"). The prompt carries that rule alone.
+ * A promise with no number in it is caught where it is one of the common ones
+ * (PROMISES below: free estimates, cancel any time, guaranteed, licensed and
+ * insured, family-owned, financing, 24/7) — the first AI-built site reviewed
+ * (a lawn-care signup, 2026-10-30) said "Free estimates" three times and "no
+ * charge for a skipped visit" with neither in the owner's answers.
+ *
+ * What it cannot catch: any other invented claim with no number, name, quote
+ * or photo in it ("we pull every permit", "a rained-out mow moves to the next
+ * clear day"). The prompt carries that rule alone.
  *
  * What a missing fact becomes: the section or the sentence is left out (never
  * a placeholder), a page left with nothing real on it is held back
@@ -310,11 +317,90 @@ function splitSentences(s: string): string[] {
   return s.split(/(?<=[.!?])\s+/)
 }
 
-/** Drop each sentence that asserts a number the intake does not contain. */
+// ─── Promises ───────────────────────────────────────────────────────────────
+// A commitment a customer can hold the business to, said without a number. Each is allowed only when the owner's own
+// answers say it (`backed` reads everything they gave). Kept to the ones a model reaches for by habit; a sentence that
+// makes one the owner did not is removed, exactly as a sentence with an unsupplied number is.
+const FREE_WHAT = '(?:estimate|quote|consult\\w*|assessment|inspection|evaluation|bid|walk-?through|measure(?:ment)?|visit|trial|delivery|shipping|pick-?up)s?'
+const FREE = '(?<!feel )(?<![-\\w])free(?!-)\\b'
+const PROMISES: Array<{ what: string; re: RegExp; backed: (text: string, said: string) => boolean }> = [
+  {
+    what: 'free',
+    re: new RegExp(
+      FREE + '[^.!?]{0,30}\\b' + FREE_WHAT + '\\b' +
+      '|\\b(?:estimate|quote|consultation|assessment|inspection|evaluation|bid)s?\\b[^.!?]{0,25}' + FREE +
+      '|\\bfree of charge\\b|\\b(?:no|without|at no)\\s+(?:extra\\s+|additional\\s+|hidden\\s+)?(?:charge|cost|fee)s?\\b' +
+      '|\\bcomplimentary\\b|\\bno[\\s-]obligation\\b|\\bon the house\\b', 'i'),
+    backed: (t) => /\bfree\b|\bno (?:charge|cost|fee)|complimentary|no[\s-]obligation|on the house/.test(t),
+  },
+  {
+    what: 'cancellation',
+    re: /\bcancel\s+(?:any\s?time|whenever)\b|\bcan\s+cancel\b|\bno\s+(?:long[\s-]term\s+|annual\s+|binding\s+)?(?:contract|commitment)s?\b|\bmonth[\s-]to[\s-]month\b|\bno\s+lock[\s-]?in\b/i,
+    backed: (t) => /cancel|contract|commitment|month[\s-]to[\s-]month|lock[\s-]?in/.test(t),
+  },
+  {
+    what: 'guarantee',
+    re: /\bguarantee[ds]?\b|\bwarrant(?:y|ies|ied)\b|\bmoney[\s-]back\b/i,
+    backed: (t) => /guarant|warrant|money[\s-]back/.test(t),
+  },
+  {
+    what: 'credential',
+    re: /\b(licen[cs]ed|insured|bonded|certified|accredited)\b/i,
+    // By its stem, so "insurance" backs "insured" and "license #" backs "licensed".
+    backed: (t, said) => t.includes(said.toLowerCase().slice(0, 5)),
+  },
+  {
+    what: 'ownership',
+    re: /\b(family|veteran|woman|women|minority|locally|employee)[\s-](?:owned|run|operated)\b/i,
+    backed: (t, said) => t.includes(said.toLowerCase().slice(0, 5).replace(/^wom.n$/, 'wom')),
+  },
+  {
+    what: 'financing',
+    re: /\bfinancing\b|\bpayment plans?\b/i,
+    backed: (t) => /financ|payment plan/.test(t),
+  },
+  {
+    what: 'round the clock',
+    // Not the word "emergency": a plumber's "Emergency service" page and "call your utility or emergency services
+    // first" are the template's own, and the emergency sections have their own rule above.
+    re: /\b24\s*\/\s*7\b|\baround the clock\b/i,
+    backed: (t) => /24\s*\/\s*7|24 hours|emergenc|after[\s-]hours|around the clock/.test(t),
+  },
+  {
+    what: 'ranking',
+    re: /\baward[\s-]winning\b|\b(?:top|best)[\s-]rated\b/i,
+    backed: (t) => /award|top[\s-]rated|best[\s-]rated/.test(t),
+  },
+]
+
+/** The promises in `text` that the owner's answers (`corpusText`, lower case) do not make. */
+export function unbackedPromises(text: string, corpusText: string): string[] {
+  const out: string[] = []
+  for (const p of PROMISES) {
+    const m = p.re.exec(String(text || ''))
+    if (m && !p.backed(corpusText, m[1] || m[0])) out.push(p.what)
+  }
+  return out
+}
+
+// A button or a heading that says "free estimate" keeps its job without the promise: "Get a free estimate" → "Get an
+// estimate". Anywhere longer, the sentence goes.
+const SHORT_KEYS = new Set(['label', 'buttonLabel', 'submitLabel', 'heading', 'title', 'eyebrow'])
+const FREE_BEFORE = new RegExp('\\b(an?\\s+)?free\\s+(' + FREE_WHAT + ')\\b', 'gi')
+function withoutFree(s: string, c: Corpus): string {
+  if (PROMISES[0].backed(c.text, '')) return s
+  return s.replace(FREE_BEFORE, (whole: string, article: string | undefined, noun: string) => {
+    if (!article) return /^[A-Z]/.test(whole) ? noun.charAt(0).toUpperCase() + noun.slice(1) : noun
+    const an = /^[aeiou]/i.test(noun) ? 'an ' : 'a '
+    return (/^[A-Z]/.test(article) ? an.charAt(0).toUpperCase() + an.slice(1) : an) + noun
+  })
+}
+
+/** Drop each sentence that asserts a number, or makes a promise, the intake does not contain. */
 function scrubText(s: string, c: Corpus, removed: string[]): string {
   const kept: string[] = []
   for (const sentence of splitSentences(s)) {
-    if (untraceableNumbers(sentence, c).length > 0) removed.push(sentence.trim())
+    if (untraceableNumbers(sentence, c).length > 0 || unbackedPromises(sentence, c.text).length > 0) removed.push(sentence.trim())
     else kept.push(sentence)
   }
   return kept.join(' ').trim()
@@ -322,6 +408,7 @@ function scrubText(s: string, c: Corpus, removed: string[]): string {
 
 function scrubValue(value: any, key: string, c: Corpus, removed: string[]): any {
   if (NON_PROSE_KEYS.has(key)) return value
+  if (typeof value === 'string' && SHORT_KEYS.has(key)) value = withoutFree(value, c)
   if (NUMERIC_CLAIM_KEYS.has(key)) {
     const asText = String(value ?? '')
     if (extractNumbers(asText).length && untraceableNumbers(asText, c).length) {
@@ -531,6 +618,17 @@ function applySectionPolicy(s: Section, input: ComposerInput, c: Corpus, removed
     case 'pricing':
       keepItems('items', it => untraceableNumbers(String(it?.priceLabel ?? ''), c).length === 0)
       break
+    case 'packages': {
+      // Basic / Standard / Premium is a ladder: levels of one offer. On cards that are different services ("Weekly mow",
+      // "Spring cleanup", "Leaf removal" came out standard, basic, basic) the label means nothing, so it goes.
+      const cards = (Array.isArray(d.items) ? d.items : []).filter((it: any) => it && typeof it === 'object')
+      const tiers = cards.map((it: any) => String(it.tier || '').toLowerCase())
+      const ladder = cards.length > 1 && tiers.every(Boolean) && new Set(tiers).size === tiers.length
+      if (!ladder && tiers.some(Boolean)) {
+        d.items = d.items.map((it: any) => { if (!it || typeof it !== 'object') return it; const { tier: _tier, ...rest } = it; return rest })
+      }
+      break
+    }
     case 'menu':
       keepItems('items', it => wordsTraceable(it?.name || '', c))
       for (const it of d.items || []) {
@@ -646,9 +744,13 @@ export function enforceIntakeFacts(
       if (hadPortrait && !policed.data.portrait) portraitRemoved = true
 
       const data = scrubValue(policed.data, '', c, removed) as Record<string, any>
-      // A question whose answer was an unsupplied fact goes with its answer.
-      if (policed.type === 'faq' && Array.isArray(data.items)) {
-        data.items = data.items.filter((q: any) => q && !isEmpty(q.question) && !isEmpty(q.answer))
+      // A question whose answer was an unsupplied fact goes with its answer — and so does one whose answer only lost a
+      // sentence: "Yes. Give us a heads-up — no charge for a skipped visit." cut down to "Yes." is still the invented policy.
+      if (policed.type === 'faq' && Array.isArray(data.items) && Array.isArray(policed.data?.items)) {
+        const whole = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim()
+        const before = policed.data.items
+        data.items = data.items.filter((q: any, i: number) => q && !isEmpty(q.question) && !isEmpty(q.answer) &&
+          whole(q.question) === whole(before[i]?.question) && whole(q.answer) === whole(before[i]?.answer))
       }
       if (policed.type === 'hero' && isEmpty(data.title)) data.title = input.businessName
 

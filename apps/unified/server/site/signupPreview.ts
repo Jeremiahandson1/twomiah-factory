@@ -36,6 +36,11 @@ export interface SitePreviewInput {
    * laid over the preview's. Only the one-page static site (onePage.ts) sets it; the free preview never does.
    */
   settingsExtra?: Record<string, any>
+  /**
+   * What the vertical's live sections read as `site` and `live` (site/facts.ts PageFacts), when the caller has something to
+   * show there: the free preview's sample Tonight board. None: those sections draw their own empty state.
+   */
+  facts?: { site: Record<string, any>; live: unknown | null }
 }
 
 /** Every key of the settings object a real request builds (context.ts), empty: the views read them all. */
@@ -89,7 +94,9 @@ export async function previewContext(i: SitePreviewInput): Promise<SiteContext> 
 
 export async function renderSitePreview(i: SitePreviewInput): Promise<string> {
   const ctx = await previewContext(i)
-  let html = await renderSections(ctx, i.sections, { title: i.title || i.company.name }, { currentPath: '/', origin: '', sectionErrors: [] })
+  // No JSON-LD of the facts' own: a preview is not a business's page ('' keeps the layout's).
+  const facts = i.facts ? { page: { site: i.facts.site, live: i.facts.live, settings: {} }, source: { jsonLd: () => '' } as any } : null
+  let html = await renderSections(ctx, i.sections, { title: i.title || i.company.name }, { currentPath: '/', origin: '', sectionErrors: [], ...(facts ? { facts } : {}) })
   const css = siteStylesheet(ctx)
   const link = '<link rel="stylesheet" href="/styles/main.css?v=' + assetVersion(ctx) + '">'
   // A function as the replacement: the stylesheet holds `$` sequences that a string replacement would read as groups.

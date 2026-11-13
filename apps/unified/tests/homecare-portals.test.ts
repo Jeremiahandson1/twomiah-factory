@@ -192,7 +192,7 @@ describe("one company's records", () => {
     // The office reissues the link: the session made from the old one is over, at once.
     await t.db.update(t.schema.clients).set({ portalToken: 'b'.repeat(64) } as any).where(eq(t.schema.clients.id, ids.ada))
     expect((await bearer(own, '/api/portal/me')).status).toBe(401)
-    // …and a session with no mark at all (made before this) is not one.
+    // …and a session with no mark at all (made before this) is not one, while the client has a link.
     expect((await bearer(jwt.sign({ role: 'client', clientId: ids.ada, companyId }, process.env.JWT_SECRET!), '/api/portal/me')).status).toBe(401)
     expect(await me.json()).toMatchObject({ id: ids.ada, firstName: 'Ada', lastName: 'Client', preview: false })
   })

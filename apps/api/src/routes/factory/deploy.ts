@@ -1,7 +1,7 @@
 import { WEB_PRESENCE_PLAN_ID } from '../../webPresence/switch'
 import { provisionSite } from '../../webPresence/service'
 import { liveDeps } from '../../webPresence/live'
-import { supabase, requireRole } from '../../middleware/auth'
+import { supabase, requireRole, staffFromToken } from '../../middleware/auth'
 import { generate, cleanOldBuilds, type GenerateConfig } from '../../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, filterOwnedServiceIds, wireDomainInfrastructure, latestRenderDeployStatus } from '../../services/deploy'
 import { waitUntilServing, readinessUrls, deployOutcome, type ReadinessResult } from '../../services/deployReadiness'
@@ -98,12 +98,7 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
 
   // Auth via query param (EventSource can't send headers)
   const token = c.req.query('token')
-  if (token) {
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
-    if (authErr || !user) return c.json({ error: 'Unauthorized' }, 401)
-  } else {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
+  if (!(await staffFromToken(token))) return c.json({ error: 'Unauthorized' }, 401)
 
   return new Response(
     new ReadableStream({
@@ -314,9 +309,8 @@ factory.post('/cleanup', async (c) => {
   if (cronSecret) {
     if (!secureEquals(cronSecret, process.env.CRON_SECRET || '')) return c.json({ error: 'Invalid cron secret' }, 401)
   } else if (authHeader) {
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    if (error || !user) return c.json({ error: 'Unauthorized' }, 401)
+    const staff = await staffFromToken(authHeader.replace('Bearer ', ''))
+    if (!staff || !['owner', 'admin'].includes(staff.role)) return c.json({ error: 'Unauthorized' }, 401)
   } else {
     return c.json({ error: 'Unauthorized' }, 401)
   }

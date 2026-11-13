@@ -461,7 +461,7 @@ export const SECTION_SCHEMA = {
     seasonal: {
       required: ['items'],
       optional: ['heading', 'intro', 'currentSeason'],
-      use_when: 'landscaping, lawn care, snow removal, pool service, pest control — any vertical that sells recurring service packages OR seasonal contracts. Stack of package cards with the current-season-relevant one highlighted. Items: { title, tier (basic/standard/premium), pricePerMonth, includes[], seasonOnly?, badge? }. The renderer auto-detects current month and badges the seasonally relevant tier. pricePerMonth ONLY from the intake — leave it out when none is given (the card renders without a price).',
+      use_when: 'landscaping, lawn care, snow removal, pool service, pest control — any vertical that sells recurring service packages OR seasonal contracts. Stack of package cards with the current-season-relevant one highlighted. Items: { title, tier?, pricePerMonth, includes[], seasonOnly?, badge? }. tier (basic/standard/premium) ONLY when the cards are levels of ONE offer, each a different level; leave it out when each card is a different service (a mow, a cleanup, a leaf pickup). seasonOnly is when THAT service is done (a spring cleanup is "spring", leaf removal "fall", mowing "spring-fall"). The renderer auto-detects current month and badges the seasonally relevant tier. pricePerMonth ONLY from the intake — leave it out when none is given (the card renders without a price).',
     },
   },
   // These two were in the RV and vet recipes (and have partials) but not here, so
@@ -593,6 +593,18 @@ who pulls permits, what is included); business hours; an address or schedule.
   schedule, instant quote, before/after, a portfolio gallery), OMIT
   that section. The recipes are a maximum, not a quota. A shorter true site
   beats a fuller invented one.
+- A promise is a fact too, even with no number in it. "Free estimates" (or a
+  free quote, consultation or visit), "no charge", "cancel any time", "no
+  contract", "guaranteed", a warranty, "licensed and insured", "family-owned",
+  financing, 24/7 or emergency service: write one ONLY when the intake says it
+  ("Estimates: free" above is the only thing that makes an estimate free).
+- FAQ: every answer is a policy the business must keep. Ask a question only
+  when the intake itself answers it. Never answer from what is usual in the
+  trade — not about cancelling, pausing or skipping a visit, rain or weather
+  days, contracts, billing, deposits, refunds, what is included or what is
+  free. A recipe that asks for an FAQ on such topics means "if the intake
+  covers them"; when it does not, leave the FAQ out. (How to get a price or
+  get in touch — "call or write" — is always fine.)
 - Photos: you cannot see them. Stock photos may set a mood (hero, service
   cards, CTA) but never stand for the business's own work, staff or owner — no
   stock in a gallery or before/after, no stock portrait beside the owner's
@@ -603,7 +615,8 @@ who pulls permits, what is included); business hours; an address or schedule.
   (their city, their services, their own words), not from numbers you supply.
 
 These rules are checked after you answer: an unsupported number, name, quote,
-credential or photo caption is removed automatically, and a section left empty
+credential, promise or photo caption is removed automatically (an FAQ answer
+that loses a sentence is removed whole), and a section left empty
 is dropped — so inventing one only wastes the space.`
 
 function buildPrompt(input: ComposerInput): string {
@@ -1310,7 +1323,7 @@ const LANDSCAPING_PAGE_RECIPES = {
   packages: {
     purpose: 'The recurring-service catalog. Compare tiers, see what is in each. This is the page that closes the subscription sale.',
     allowed_types: ['hero', 'packages', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Packages"), 1 packages/seasonal showing all tiers in detail, 1 faq about cancellation, pause-for-vacation, billing cadence, weather guarantees, close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Packages"), 1 packages/seasonal showing each package in detail, optional 1 faq ONLY for questions the intake itself answers (cancellation, pausing for a vacation, billing, rain days are the owner\'s policies — never answered from what is usual), close with 1 cta',
   },
   quote: {
     purpose: 'Standalone property-size estimator. SEO-targeted to "lawn care cost" / "landscaping quote" searches.',
@@ -2246,7 +2259,7 @@ quote/instant-address: { "heading": "Get a ballpark estimate", "intro": "...", "
 banner/storm-alert: { "heading": "Hail storm in Eau Claire on May 12", "subtitle": "Free post-storm roof inspection — claim help included.", "cta": { "label": "Schedule inspection", "href": "/contact" }, "startDate": "2026-05-12", "endDate": "2026-08-12", "dismissable": true }
 before_after/slider: { "heading": "Before & after", "intro": "...", "filters": ["material", "year"], "items": [{ "beforeImage": "<url>", "afterImage": "<url>", "caption": "Re-roof after July 2024 hail", "location": "Eau Claire, WI", "year": 2024, "material": "GAF Timberline HDZ" }] }
 ${sectionReady('financing') ? `financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }\n` : ''}trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
-packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title": "Weekly mow", "tier": "standard", "pricePerMonth": 180, "includes": ["Mow + trim", "Edge driveways", "Blow off hardscape"], "seasonOnly": "spring-fall" }, { "title": "Snow contract", "tier": "premium", "pricePerMonth": 320, "includes": ["Push at 2 inches", "Salt walkways", "Tracker app access"], "seasonOnly": "winter" }] }
+packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title": "Weekly mow", "pricePerMonth": 180, "includes": ["Mow + trim", "Edge driveways", "Blow off hardscape"], "seasonOnly": "spring-fall" }, { "title": "Snow contract", "pricePerMonth": 320, "includes": ["Push at 2 inches", "Salt walkways", "Tracker app access"], "seasonOnly": "winter" }] }
 care/finder: { "heading": "Find the right care for your loved one", "intro": "...", "relationships": ["My parent", "My spouse", "Myself", "Another family member"], "careTypes": ["Companion care", "Personal care"], "hoursOptions": ["A few hours a week", "10–25 hours", "25–40 hours", "40+ hours"], "ctaLabel": "Request an assessment", "responsePromise": "" }
 caregivers/grid: { "heading": "Meet some of our caregivers", "intro": "...", "filters": ["specialty", "languages"], "items": [{ "name": "Maria", "yearsExperience": 8, "certifications": ["CNA"], "specialties": ["Dementia", "Companion care"], "languages": ["English", "Spanish"], "photo": "<url>", "blurb": "Former hospital aide. Specializes in afternoon sundowning support and gentle redirection." }] }
 coverage/insurance-guide: { "heading": "Coverage", "intro": "...", "items": [{ "source": "Medicare", "eligibility": "Age 65+ or qualifying disability", "whatItCovers": "Home health (skilled, time-limited, doctor-ordered). Does NOT cover non-medical in-home care.", "howToApply": "Through your doctor + Medicare-certified agency", "ourRole": "We can refer to a Medicare-certified home health partner when skilled care is what you need" }] }
