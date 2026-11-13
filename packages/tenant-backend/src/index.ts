@@ -161,6 +161,7 @@ export { mfaGateFor, openLoginChallenge, verifyLoginChallenge, MAX_CODE_ATTEMPTS
 export type { MfaGate, MfaCodeOutcome, MfaScope } from './auth/mfa'
 export { verifyTOTP, matchTOTPStep, generateTOTPCode, base32Encode, base32Decode } from './auth/totp'
 export { createMfaRoutes } from './auth/mfaRoutes'
+export { storedResetToken, resetTokenIs } from './auth/resetTokens'
 export type { MfaRoutesDeps } from './auth/mfaRoutes'
 export { createActorName } from './auth/actorName'
 export type { ActorNameDeps, ActorContext, ActorName } from './auth/actorName'

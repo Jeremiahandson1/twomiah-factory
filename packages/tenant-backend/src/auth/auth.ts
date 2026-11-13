@@ -20,6 +20,7 @@ import { companyRowTimeZone } from '../time/businessDay'
 import { healLogo } from '../company/logoAddress'
 import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies, accessCookie, requestToken } from './cookieSession'
 import { sessionEnded } from './middleware'
+import { storedResetToken, resetTokenIs } from './resetTokens'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
@@ -699,25 +700,26 @@ export function createAuthRoutes(deps: AuthDeps) {
       const resetToken = crypto.randomUUID()
       const resetCode = Math.floor(100000 + Math.random() * 900000).toString()
       const resetTokenExp = new Date(Date.now() + 60 * 60 * 1000)
-      await db.update(user).set({ resetToken, resetTokenExp, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
-      try {
-        await emailService.sendPasswordReset(email, { firstName: foundUser.firstName, resetToken, resetCode })
-        logger.info('Password reset email sent', { email })
-      } catch (emailErr) {
-        logger.error('Email error', { action: 'sendPasswordResetEmail', email })
-      }
+      // Stored hashed; the token itself goes only in the email (auth/resetTokens.ts).
+      await db.update(user).set({ resetToken: storedResetToken(resetToken), resetTokenExp, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
+      // Not waited for: the answer came back a mail-server round trip later for an email with a login than for one
+      // without, which told the two apart (security review S1-5, 2026-11-12).
+      void Promise.resolve()
+        .then(() => emailService.sendPasswordReset(email, { firstName: foundUser.firstName, resetToken, resetCode }))
+        .then(() => logger.info('Password reset email sent', { email }))
+        .catch(() => logger.error('Email error', { action: 'sendPasswordResetEmail', email }))
     }
     return c.json({ message: 'If that email exists, a reset link has been sent.' })
   })
 
   app.post('/reset-password', async (c) => {
     const data = z.object({ token: z.string(), password: passwordSchema }).parse(await c.req.json().catch(() => ({})))
-    const [foundUser] = await db.select().from(user).where(and(eq(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)
+    const [foundUser] = await db.select().from(user).where(and(resetTokenIs(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)
     if (!foundUser) {
       // An invitation that ran out is the inviter's to send again — Forgot password is for someone with an account, and
       // this person has never signed in. (templates/crm-store routes/auth.ts, 10/14; there an invite token carried a
       // prefix because its users table had no lastLogin — here never having signed in is what an invite is.)
-      const [lapsed] = await db.select({ lastLogin: user.lastLogin }).from(user).where(eq(user.resetToken, data.token)).limit(1)
+      const [lapsed] = await db.select({ lastLogin: user.lastLogin }).from(user).where(resetTokenIs(user.resetToken, data.token)).limit(1)
       if (lapsed && !lapsed.lastLogin) return c.json({ error: 'This invitation has expired. Ask whoever invited you to send it again.', code: 'invite_expired' }, 400)
       return c.json({ error: 'Invalid or expired reset token' }, 400)
     }

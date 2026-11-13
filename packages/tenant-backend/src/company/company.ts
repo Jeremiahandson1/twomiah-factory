@@ -15,6 +15,7 @@ import { paymentTermsProblem } from '../invoicing/money'
 import { zipField } from '../address'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
 import { mfaGateFor, forgetMfaPolicy } from '../auth/mfa'
+import { storedResetToken } from '../auth/resetTokens'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
@@ -712,7 +713,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // Hash before opening the transaction — bcrypt takes ~100ms and must not run under a row lock. An invited
     // person's stored password is random and never told to anyone; the link replaces it.
     const passwordHash = await Bun.password.hash(password || crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
-    const inviteFields = invite ? { resetToken: crypto.randomUUID(), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}
+    // The link's token goes in the email; the row keeps its hash (auth/resetTokens.ts).
+    const inviteToken = invite ? crypto.randomUUID() : ''
+    const inviteFields = invite ? { resetToken: storedResetToken(inviteToken), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}
 
     // Seat cap (seats.ts, the one rule): the count and the insert happen under a lock on the company row so two
     // concurrent adds cannot both pass the check.
@@ -736,7 +739,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }
     if (outcome.status !== 201 || !invite) return c.json(outcome.body as any, outcome.status)
     // Sent after the row is committed. A failed send leaves the seat in place, says so, and Resend invite retries it.
-    const inviteSent = await emailInvite(currentUser, { email: rest.email, firstName: rest.firstName, role: rest.role }, (inviteFields as any).resetToken, outcome.companyName)
+    const inviteSent = await emailInvite(currentUser, { email: rest.email, firstName: rest.firstName, role: rest.role }, inviteToken, outcome.companyName)
     return c.json({ ...(outcome.body as any), invited: true, inviteSent }, 201)
   })
 
@@ -774,7 +777,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (!target.isActive) return c.json({ error: 'Restore their access first — a suspended account cannot sign in.' }, 409)
     if (target.lastLogin) return c.json({ error: 'They have already signed in. If they have lost their password, Forgot password on the sign-in page sends them a new link.' }, 409)
     const resetToken = crypto.randomUUID()
-    await db.update(t.user).set({ resetToken, resetTokenExp: new Date(Date.now() + INVITE_TTL_MS), updatedAt: new Date() }).where(eq(t.user.id, target.id))
+    await db.update(t.user).set({ resetToken: storedResetToken(resetToken), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS), updatedAt: new Date() }).where(eq(t.user.id, target.id))
     const inviteSent = await emailInvite(currentUser, { email: target.email, firstName: target.firstName, role: target.role }, resetToken)
     logSeat(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', target, null, `Invite sent again — ${target.email}`)
     return c.json({ invited: true, inviteSent })

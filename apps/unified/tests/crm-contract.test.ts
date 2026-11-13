@@ -53,11 +53,13 @@ const call = (method: string, path: string, signedIn = true) => t.call(path, {
   ...(['POST', 'PUT', 'PATCH'].includes(method) ? { json: {} } : {}),
 })
 
+const signIn = async () => (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password } })).json()).accessToken as string
+
 beforeAll(async () => {
   t = await bootTenant()
   seeded = await seedOwner(t)
   await setFeatures(ALL_FEATURES)
-  token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password } })).json()).accessToken
+  token = await signIn()
   mounts = t.services.mounts
   // Real rows where the paths name them, so a handler runs past its lookup; the contact holds a live portal token.
   const [contact] = await t.db.insert(t.schema.contact).values({
@@ -120,6 +122,9 @@ describe('the app contract, over every route', () => {
     for (const r of routes) {
       const res = await call(r.method, fill(r.path))
       const body = await res.text()
+      // Signing out with no device named is every device, and ends this session too (security review S1-3): the routes
+      // after it would all answer 401 and prove nothing, so the sweep signs in again.
+      if (r.path === '/api/auth/logout') token = await signIn()
       if (res.status >= 500 && !declared(res.status, body)) crashes.push(`${r.method} ${r.path} ${res.status} ${body.slice(0, 140)}`)
       if (body.includes(PORTAL_TOKEN) && !/\/portal\//.test(r.path)) leaks.push(`${r.method} ${r.path}`)
     }
