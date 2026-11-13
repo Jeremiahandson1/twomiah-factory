@@ -184,6 +184,14 @@ export const storeTemplates: Record<string, (data: any, b: Brand) => TemplateRes
       <p style="margin:6px 0 0;font-size:26px;letter-spacing:6px;font-family:Consolas,Menlo,monospace;color:#111;"><strong>${esc(p.code)}</strong></p>
       <p style="color:#666;font-size:13px;margin-top:24px;">The link and the code work for ${p.minutes} minutes, once. If you did not ask to sign in, you can ignore this email — nobody can sign in without it.</p>`),
   ),
+  /** The code that proves an email is the shopper's own, before the cart shows or spends its rewards (checkout/publicRoutes.ts). */
+  storeRewardsCode: (p: { code: string; minutes: number; supportEmail?: string | null }, b) => done(
+    `Your ${b.companyName} rewards code`,
+    wrap(b.companyName, 'Your rewards', `
+      <p style="color:#444;font-size:15px;line-height:1.6;">Type this code in your cart at ${esc(b.companyName)} to see and use your rewards:</p>
+      <p style="margin:6px 0 0;font-size:26px;letter-spacing:6px;font-family:Consolas,Menlo,monospace;color:#111;"><strong>${esc(p.code)}</strong></p>
+      <p style="color:#666;font-size:13px;margin-top:24px;">It works for about ${p.minutes} minutes. If you did not ask for it, you can ignore this email — nobody can use your rewards without it.</p>`),
+  ),
   /** The codes a paid order bought, one per card. */
   storeGiftCard: (p: { orderNumber: string | null; currency: string; cards: { code: string; cents: number }[]; supportEmail?: string | null }, b) => done(
     p.cards.length === 1 ? `Your ${b.companyName} gift card` : `Your ${p.cards.length} ${b.companyName} gift cards`,

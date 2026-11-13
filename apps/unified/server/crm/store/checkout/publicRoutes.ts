@@ -31,6 +31,9 @@
 //     a refused cart is 400 { error: 'Invalid cart', code: 'validation_failed', fields };
 //   · the cart-recovery link's two refusals stay plain text (it is a page a shopper opens from an email, not an API).
 import { Hono } from 'hono'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
+import { getCookie, setCookie } from 'hono/cookie'
 import type { Context, MiddlewareHandler } from 'hono'
 import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
@@ -156,6 +159,7 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   pub.use('/upsells', createRateLimiter(15 * 60 * 1000, isProd ? 600 : 5000))
   // A balance by email: a few an address, so emails cannot be tried in bulk (security review S2-11).
   pub.use('/loyalty', createRateLimiter(15 * 60 * 1000, isProd ? 30 : 5000))
+  pub.use('/loyalty/*', createRateLimiter(15 * 60 * 1000, isProd ? 20 : 5000))
 
   pub.get('/status', async (c) => {
     const co = await core.shop()
@@ -244,7 +248,9 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       if (!(await core.loyaltySettings(co.id)).enabled) return one(c, EMPTY_QUOTE)
       // Whose points: with shopper accounts on, only the signed-in shopper's own (rewardsAreFor) — anyone could read a
       // customer's balance by typing their email (security review S2-11, 2026-11-13).
-      if (!(await rewardsAreFor(c, co.id, email))) return one(c, EMPTY_QUOTE)
+      // …and without accounts, only for an email the shopper has proved is theirs (the emailed code, below). `proof` tells
+      // the cart which to ask for; it is the same for every address, so it says nothing about who shops here.
+      if (!(await rewardsAreFor(c, co.id, email))) return one(c, { ...EMPTY_QUOTE, proof: (await d.features.isFeatureEnabled(co.id, 'store_accounts').catch(() => false)) ? 'sign_in' : 'code' })
       const quote = await core.availableRewards(co.id, email, subtotalCents)
       return one(c, {
         pointsBalance: quote.pointsBalance,
@@ -281,10 +287,65 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
    * without accounts has no sign-in to ask for; there the door keeps its limit of tries (below) and nothing more.
    */
   async function rewardsAreFor(c: Context, companyId: string, email: string | undefined): Promise<boolean> {
-    if (!(await d.features.isFeatureEnabled(companyId, 'store_accounts').catch(() => false))) return true
+    const asked = String(email || '').trim().toLowerCase()
+    if (!asked) return false
+    if (!(await d.features.isFeatureEnabled(companyId, 'store_accounts').catch(() => false))) return provedEmail(c, companyId) === asked
     const s = await shopperOf(accounts, c, companyId)
-    return !!s && !!email && String(s.email || '').trim().toLowerCase() === String(email).trim().toLowerCase()
+    return !!s && String(s.email || '').trim().toLowerCase() === asked
   }
+
+  /**
+   * REWARDS WITHOUT AN ACCOUNT: PROVE THE EMAIL (security review S2-11, finished 2026-11-13). A store with no shopper
+   * accounts had nothing to ask for, so a balance was read, and a reward spent, by whoever typed a customer's address.
+   * Now the cart asks for a six-digit code, emailed to that address, before either: POST /loyalty/code sends it (only to
+   * an address that has points here — and answers the same whether or not it sent), POST /loyalty/verify takes it and
+   * leaves a signed cookie naming the proved address for two hours.
+   *
+   * The code is worked out, not stored: the first six digits of a keyed hash of the shop, the address and the current
+   * quarter-hour, so it works for 15 to 30 minutes and there is no table to keep. Five wrong codes for one address
+   * and that address waits out the quarter-hour.
+   */
+  const PROOF_COOKIE = 'rewards_proof', PROOF_MINUTES = 15, PROOF_HOURS = 2, PROOF_TRIES = 5
+  const proofSecret = () => String(process.env.JWT_SECRET || '')
+  const proofWindow = (at = Date.now()) => Math.floor(at / (PROOF_MINUTES * 60_000))
+  const proofCode = (companyId: string, email: string, window: number) =>
+    String(parseInt(crypto.createHmac('sha256', proofSecret()).update(`rewards|${companyId}|${email}|${window}`).digest('hex').slice(0, 12), 16) % 1_000_000).padStart(6, '0')
+  const wrongCodes = new Map<string, { n: number; window: number }>()
+  function provedEmail(c: Context, companyId: string): string | null {
+    try {
+      const claims: any = jwt.verify(getCookie(c, PROOF_COOKIE) || '', proofSecret(), { algorithms: ['HS256'] })
+      return claims?.p === 'rewards' && claims.c === companyId && typeof claims.e === 'string' ? claims.e : null
+    } catch { return null }
+  }
+  const RewardsEmail = z.object({ email: z.string().trim().toLowerCase().email().max(254) })
+  pub.post('/loyalty/code', shopperDoor, async (c) => {
+    const parsed = RewardsEmail.safeParse(await c.req.json().catch(() => null))
+    const co = await core.shop()
+    if (parsed.success && co && proofSecret() && (await core.loyaltySettings(co.id)).enabled) {
+      const member = await core.findMember(co.id, parsed.data.email).catch(() => null)
+      if (member) await core.mail(parsed.data.email, 'storeRewardsCode', { code: proofCode(co.id, parsed.data.email, proofWindow()), minutes: PROOF_MINUTES, supportEmail: co.email }, co.email)
+    }
+    return one(c, { sent: true })
+  })
+  pub.post('/loyalty/verify', shopperDoor, async (c) => {
+    const parsed = RewardsEmail.extend({ code: z.string().trim().regex(/^\d{6}$/) }).safeParse(await c.req.json().catch(() => null))
+    const co = await core.shop()
+    if (!parsed.success || !co || !proofSecret()) return fail(c, 400, 'Type the six-digit code from the email.', 'bad_code')
+    const { email, code } = parsed.data
+    const now = proofWindow(), key = `${co.id}|${email}`
+    const tried = wrongCodes.get(key)
+    if (tried && tried.window === now && tried.n >= PROOF_TRIES) return fail(c, 429, 'Too many wrong codes. Ask for a new code in a few minutes.', 'too_many_attempts')
+    const same = (a: string, b: string) => crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
+    if (!same(code, proofCode(co.id, email, now)) && !same(code, proofCode(co.id, email, now - 1))) {
+      wrongCodes.set(key, tried && tried.window === now ? { n: tried.n + 1, window: now } : { n: 1, window: now })
+      if (wrongCodes.size > 5000) for (const [k, v] of wrongCodes) if (v.window !== now) wrongCodes.delete(k)
+      return fail(c, 400, 'That code is not right, or it has run out. Check the email, or ask for a new one.', 'bad_code')
+    }
+    wrongCodes.delete(key)
+    setCookie(c, PROOF_COOKIE, jwt.sign({ p: 'rewards', c: co.id, e: email }, proofSecret(), { expiresIn: `${PROOF_HOURS}h` }),
+      { httpOnly: true, sameSite: 'Lax', secure: requestOrigin(c).startsWith('https:'), path: '/', maxAge: PROOF_HOURS * 3600 })
+    return one(c, { ok: true })
+  })
   const REWARD_SIGN_IN = 'Sign in to your account to use your rewards.'
 
   pub.post('/checkout/preview', shopperDoor, async (c) => {

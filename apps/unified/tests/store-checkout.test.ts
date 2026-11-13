@@ -89,9 +89,25 @@ const stock = async () => (await t.db.select().from(S().storeProductVariant).whe
 const setStock = (n: number) => t.db.update(S().storeProductVariant).set({ inventoryQty: n }).where(eq(S().storeProductVariant.sku, 'MUG-1'))
 const pointsOf = async (contactId: string) => (await t.db.select().from(S().loyaltyMember).where(eq(S().loyaltyMember.contactId, contactId)))[0]?.pointsBalance
 
+/**
+ * The cookie of a shopper who has proved an email is theirs (security review S2-11): the code the shop emails, typed
+ * back. Rewards are shown and spent only with it.
+ */
+const proved = async (email: string): Promise<Record<string, string>> => {
+  const m0 = mails.length
+  expect((await req('POST', '/api/public/loyalty/code', { email })).json).toEqual({ sent: true })
+  const code = mails.slice(m0).find((m) => m.template === 'storeRewardsCode' && m.to === email)?.data.code
+  expect(code).toMatch(/^\d{6}$/)
+  const ok = await req('POST', '/api/public/loyalty/verify', { email, code })
+  expect(ok.status).toBe(200)
+  return { cookie: String(ok.headers.get('set-cookie')).split(';')[0] }
+}
+
 /** A checkout through the real route: the PayPal order it opened, what PayPal was told to charge, and the order. */
 const checkout = async (extra: Record<string, unknown>, qty = 2, headers: Record<string, string> = {}) => {
   const before = pp
+  // An order that spends a reward is the proved shopper's.
+  if (extra.loyaltyRewardId && !headers.cookie) headers = { ...headers, ...(await proved('ada@example.com')) }
   const r = await req('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: qty }], customerEmail: 'ada@example.com', ...extra }, headers)
   const id = pp > before ? `PP-${pp}` : null
   const order: any = id ? (await t.db.select().from(S().storeOrder).where(eq(S().storeOrder.providerSessionId, id)))[0] : null
@@ -308,8 +324,24 @@ describe('the receipt', () => {
 })
 
 describe('loyalty quote (the cart reads it directly)', () => {
-  test('a known shopper: balance and rewards priced on this cart', async () => {
-    const q = await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000.9')
+  test('rewards are for whoever can read the inbox: nothing by a typed email, everything once the emailed code is typed (security review S2-11)', async () => {
+    const empty = { pointsBalance: 0, punchCard: { enabled: false, visitsRequired: 0, progress: 0, remaining: 0, unclaimed: 0 }, rewards: [] }
+    // Typing Ada's address shows nothing of hers, says only "prove it" — the same as for an address nobody has — and spends nothing.
+    expect((await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000')).json).toEqual({ ...empty, proof: 'code' })
+    expect((await req('GET', '/api/public/loyalty?email=nobody@example.com&subtotalCents=5000')).json).toEqual({ ...empty, proof: 'code' })
+    const spend = await req('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: 1 }], customerEmail: 'ada@example.com', loyaltyRewardId: tenOff.id })
+    expect([spend.status, spend.json.code]).toEqual([401, 'sign_in_for_rewards'])
+    // A code is emailed only to an address with points here, and the answer is the same either way.
+    const m0 = mails.length
+    expect((await req('POST', '/api/public/loyalty/code', { email: 'nobody@example.com' })).json).toEqual({ sent: true })
+    expect(mails.slice(m0).filter((m) => m.template === 'storeRewardsCode')).toEqual([])
+    // A wrong code proves nothing; five of them and the address waits.
+    for (let i = 0; i < 5; i++) expect((await req('POST', '/api/public/loyalty/verify', { email: 'nobody@example.com', code: '000000' })).status).toBe(400)
+    expect((await req('POST', '/api/public/loyalty/verify', { email: 'nobody@example.com', code: '000000' })).status).toBe(429)
+    // Ada's own code: her cookie reads her rewards, and nobody else's.
+    const ada = await proved('ada@example.com')
+    expect((await req('GET', '/api/public/loyalty?email=grace@example.com&subtotalCents=5000', undefined, ada)).json.proof).toBe('code')
+    const q = await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000.9', undefined, ada)
     expect(q.status).toBe(200)
     expect(q.json.pointsBalance).toBeGreaterThan(0)
     expect(q.json.rewards.find((r: any) => r.id === tenOff.id)).toMatchObject({ available: true, discountCents: 1000 })
@@ -320,9 +352,10 @@ describe('loyalty quote (the cart reads it directly)', () => {
     const stranger = await req('GET', '/api/public/loyalty?email=nobody@example.com&subtotalCents=abc')
     expect(stranger.status).toBe(200)
     expect(stranger.json.pointsBalance).toBe(0)
+    const ada = await proved('ada@example.com')
     const [co] = await t.db.select().from(S().company).where(eq(S().company.id, companyId))
     await t.db.update(S().company).set({ settings: { ...co.settings, loyalty: { enabled: false } } }).where(eq(S().company.id, companyId))
-    expect((await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000')).json).toEqual(empty)
+    expect((await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000', undefined, ada)).json).toEqual(empty)
     await t.db.update(S().company).set({ settings: co.settings }).where(eq(S().company.id, companyId))
   })
   test('with shopper accounts on, a balance and a reward are the signed-in shopper’s only (security review S2-11)', async () => {
