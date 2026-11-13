@@ -3,6 +3,7 @@
 // (packages/tenant-backend), wired here once with the app's database, tables, sign-in and permissions — the same
 // wiring every CRM template carried in its own routes/*.ts.
 import { Hono } from 'hono'
+import { cspReport } from '../http/guards.ts'
 import {
   createCompanyRoutes, createBillingRoutes, createSubscriptionSyncRoute, createAccountRoutes, createFactoryApiClient,
   createEmailAliasesRoutes, createEmailAliasesInternalRoute, resyncAliasesAfterTeamChange, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
@@ -271,6 +272,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       { path: '/api/admin/domain', access: 'user' as const, router: createDomainRoutes({ permissions, factoryApiClient, businessAddress: async (id) => (await db.select({ phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip }).from(company).where(eq(company.id, id)).limit(1))[0] ?? null }) },
       { path: '/api/audit', access: 'user' as const, router: auditLogRoutes },
       { path: '/api/leads', access: 'public' as const, router: leads },
+      // What a visitor's browser reports of the website's strict script policy (http/guards.ts sitePolicy).
+      { path: '/api/csp-report', access: 'public' as const, router: new Hono().post('/', cspReport) },
       { path: '/api/internal/email-aliases', access: 'factory' as const, router: createEmailAliasesInternalRoute(aliasDeps as any) },
       { path: '/api/internal/sync-subscription', access: 'factory' as const, router: createSubscriptionSyncRoute(billingDeps as any) },
       { path: '/api/internal/sync-features', access: 'factory' as const, router: syncFeatures },
