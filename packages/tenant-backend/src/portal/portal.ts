@@ -1784,6 +1784,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       const rows = await q.where(and(eq(t.lienWaiver.companyId, contact.companyId), eq(t.lienWaiver.vendorId, contact.id))).orderBy(desc(t.lienWaiver.createdAt), asc(t.lienWaiver.id))
       return c.json(rows)
     })
+    /** A web address over https, of a sane length — what a signed document's link may be. */
+    const httpsAddress = (v: unknown): boolean => { if (typeof v !== 'string' || v.length > 2000) return false; try { return new URL(v).protocol === 'https:' } catch { return false } }
     app.post('/p/:token/lien-waivers/:waiverId/sign', portalAuth, async (c) => {
       const { contact } = P(c)
       const waiverId = c.req.param('waiverId')
@@ -1793,7 +1795,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (found.status === 'approved' || found.status === 'received') return c.json({ error: 'Lien waiver already signed' }, 400)
       // The signed document's address and the note were stored as sent: any text, any length, any scheme — and the office
       // opens that address as "the signed waiver" (security review S2-3). A web address, or none; a bounded note.
-      if (body.documentUrl != null && body.documentUrl !== '' && !(typeof body.documentUrl === 'string' && body.documentUrl.length <= 2000 && /^https:\/\/[^\s<>"']+$/i.test(body.documentUrl))) return c.json({ error: 'The document link must be a web address starting with https://' }, 400)
+      if (body.documentUrl != null && body.documentUrl !== '' && !httpsAddress(body.documentUrl)) return c.json({ error: 'The document link must be a web address starting with https://' }, 400)
       if (body.notes != null && (typeof body.notes !== 'string' || body.notes.length > 2000)) return c.json({ error: 'Keep the note under 2,000 characters.' }, 400)
       const [updated] = await db.update(t.lienWaiver).set({ status: 'received', receivedAt: new Date(), signedDate: new Date(), documentUrl: body.documentUrl || found.documentUrl, notes: body.notes || found.notes, updatedAt: new Date() }).where(eq(t.lienWaiver.id, waiverId)).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'lien_waiver', entityId: waiverId, action: 'signed', actorName: contact.name, actorRole: contact.type || 'subcontractor', summary: `signed a ${String(found.waiverType || '').replace(/_/g, ' ')} lien waiver for $${Number(found.amountTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` })
@@ -1826,7 +1828,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const body = await c.req.json().catch(() => ({}))
       const found = await ownSubmittal(submittalId, contact)
       if (!found) return c.json({ error: 'Submittal not found' }, 404)
-      const [updated] = await db.update(t.submittal).set({ status: 'approved', approvedDate: new Date(), approvedBy: contact.name, notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 2000) : found.notes, updatedAt: new Date() }).where(eq(t.submittal.id, submittalId)).returning()
+      const [updated] = await db.update(t.submittal).set({ status: 'approved', approvedDate: new Date(), approvedBy: contact.name, notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 2000) : found.notes, updatedAt: new Date() }).where(and(eq(t.submittal.id, submittalId), eq(t.submittal.companyId, contact.companyId))).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'submittal', entityId: submittalId, action: 'approved', actorName: contact.name, actorRole: contact.type || 'architect', summary: `approved submittal ${found.number} "${found.title}"` })
       return c.json({ success: true, submittal: updated })
     })
@@ -1837,7 +1839,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const found = await ownSubmittal(submittalId, contact)
       if (!found) return c.json({ error: 'Submittal not found' }, 404)
       const revisionNote = `[Revision requested by ${contact.name} on ${new Date().toLocaleDateString()}] ${typeof reason === 'string' ? reason.slice(0, 2000) : ''}`
-      const [updated] = await db.update(t.submittal).set({ status: 'revise', notes: (found.notes ? `${found.notes}\n\n` : '') + revisionNote, updatedAt: new Date() }).where(eq(t.submittal.id, submittalId)).returning()
+      const [updated] = await db.update(t.submittal).set({ status: 'revise', notes: (found.notes ? `${found.notes}\n\n` : '') + revisionNote, updatedAt: new Date() }).where(and(eq(t.submittal.id, submittalId), eq(t.submittal.companyId, contact.companyId))).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'submittal', entityId: submittalId, action: 'revision_requested', actorName: contact.name, actorRole: contact.type || 'architect', summary: `requested revision on submittal ${found.number} "${found.title}"`, details: { reason: reason || null } })
       return c.json({ success: true, submittal: updated })
     })
