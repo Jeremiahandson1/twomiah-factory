@@ -99,6 +99,11 @@ describe('a food truck', () => {
   const truck = (industry: string) => renderUnifiedPreview({ businessName: 'Acme Eats', businessType: industry, city: 'Eau Claire', state: 'WI', vertical: 'restaurant', design: 'studio' })
 
   test('its preview shows a truck, a sample menu and a sample week — not a dining room — however the trade is spelled', async () => {
+    // The hero is a library photo, whose address is the Factory's (TWOMIAH_FACTORY_URL): set here, so the test does not
+    // lean on another file in the run having set it.
+    const had = process.env.TWOMIAH_FACTORY_URL
+    process.env.TWOMIAH_FACTORY_URL = BASE
+    try {
     for (const industry of ['food_truck', 'Food Truck', 'food truck']) {
       const html = await truck(industry)
       expect(html).toContain('/hero-library/foodtruck/')
@@ -112,6 +117,7 @@ describe('a food truck', () => {
     const restaurant = await renderUnifiedPreview({ businessName: 'Acme Eats', businessType: 'restaurant', city: 'Eau Claire', state: 'WI', vertical: 'restaurant', design: 'studio' })
     expect(restaurant).toContain('Private dining')
     expect(restaurant).not.toContain('Menu (sample)')
+    } finally { if (had === undefined) delete process.env.TWOMIAH_FACTORY_URL; else process.env.TWOMIAH_FACTORY_URL = had }
   })
 
   test('the sample menu stands where the real site\'s live menu is, and states no price', () => {
