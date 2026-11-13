@@ -23,7 +23,7 @@ import { MATCH_PREFS_FEATURE, matchTraits } from '../core/matchTraits.ts'
 import { DEFAULT_WEIGHTS, OBJECTIVES, OBJECTIVE_LABELS, normWeights, optimize, type OptCandidate, type OptShift } from '../core/visitOptimizer.ts'
 import { addDays } from '../core/agencyTime.ts'
 import {
-  busyCaregiverIds, caregiversForSuggestions, clientForSuggestions, dayPlansInRange, hoursByCaregiver, markFilled, openShiftById,
+  busyCaregiverIds, caregiversForSuggestions, clientForSuggestions, dayPlansInRange, hoursByCaregiver, markFilled, openShiftById, takeForFill, undoFill,
   openShiftsToFill, visitCountsByClient,
 } from '../../../data/homecareScheduling.ts'
 import { distanceMiles } from './schedulingHub.ts'
@@ -141,11 +141,13 @@ export function createVisitOptimizerRoutes(core: HomecareCore, d: CrmDeps, share
       const cg = cands.find((x) => x.id === String(a.caregiverId))
       if (!cg) { results.push({ shiftId: a.shiftId, status: 'refused', reason: 'That caregiver was not found.' }); continue }
       if (cg.blocked) { results.push({ shiftId: a.shiftId, status: 'refused', reason: cg.blocked }); continue }
+      if (!(await takeForFill(db, companyId, os.id, 'open'))) { results.push({ shiftId: a.shiftId, status: 'refused', reason: 'This visit is no longer open.' }); continue }
       try {
         await shared.assignShift(companyId, os, cg.id, me)
         await markFilled(db, companyId, os.id, me, cg.id)
         results.push({ shiftId: a.shiftId, status: 'assigned', caregiverId: cg.id, caregiver: cg.name })
       } catch (e: any) {
+        await undoFill(db, companyId, os.id, 'open')
         results.push({ shiftId: a.shiftId, status: 'refused', reason: e instanceof HttpError ? e.message : 'It could not be assigned.' })
       }
     }
