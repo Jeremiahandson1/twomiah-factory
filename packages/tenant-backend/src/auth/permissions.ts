@@ -588,6 +588,8 @@ export function createPermissions(deps: PermissionsDeps) {
     ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole, roleLabel,
     getExtraPermissions, invalidateExtraPermissions, invalidateAllGrants,
     hasPermission, getPermissions,
+    /** The permissions this vertical's own role name goes without (roleWithheld) — for the list the screens are given. */
+    withheldFor: (role: string): string[] => deps.roleWithheld?.[role] || [],
     requirePermission, requireAnyPermission, requireRole, requireOwnership,
   }
 }

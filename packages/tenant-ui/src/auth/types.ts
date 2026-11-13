@@ -97,6 +97,8 @@ export interface AuthContextValue {
  */
 export const permissionAllows = (list: string[] | null | undefined, permission: string): boolean => {
   if (!list || !permission) return false
+  // A refusal the server sent beside a wildcard ("jobs:*" and "-jobs:delete"): read first, as the server reads it.
+  if (list.includes(`-${permission}`) && !list.includes('*')) return false
   if (list.includes('*') || list.includes(permission)) return true
   const [resource] = permission.split(':')
   return list.includes(`${resource}:*`)

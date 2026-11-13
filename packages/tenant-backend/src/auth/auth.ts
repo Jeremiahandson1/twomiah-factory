@@ -55,6 +55,8 @@ export interface AuthDeps {
      * narrower than what the guards actually allow. (Field Service T30 M-R1)
      */
     getExtraPermissions?: (userId: string | undefined) => Promise<string[]>
+    /** What a vertical's own role name goes without (createPermissions withheldFor). Absent: nothing is. */
+    withheldFor?: (role: string) => string[]
   }
   emailService: { sendPasswordReset: (to: string, data: Record<string, unknown>) => Promise<unknown> }
   logger: { info: (msg: string, meta?: any) => void; warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
@@ -307,7 +309,14 @@ export function createAuthRoutes(deps: AuthDeps) {
     const extra = (await permissions.getExtraPermissions?.(userId)) || []
     // "-permission" is a company taking one away from this role (createPermissions companyGrants): the screen is told what is left.
     const taken = new Set(extra.filter((x) => x.startsWith('-')).map((x) => x.slice(1)))
-    return Array.from(new Set([...base, ...extra.filter((x) => !x.startsWith('-'))])).filter((p) => !taken.has(p) || extra.includes(p))
+    const list = Array.from(new Set([...base, ...extra.filter((x) => !x.startsWith('-'))])).filter((p) => !taken.has(p) || extra.includes(p))
+    // "ALL OF THIS, EXCEPT THAT" (code review 01-1, 2026-11-13). A name taken away or withheld is removed from the list
+    // above — but when the rung holds it through a wildcard (`jobs:*`) there is no such name to remove, the wildcard
+    // stays, and the screen offered what the server (hasPermission, which refuses first) would answer 403 to. Each
+    // such refusal is carried as `-name`; the screens read those before the wildcard (tenant-ui permissionAllows).
+    const refused = [...taken, ...(permissions.withheldFor?.(role) || [])]
+      .filter((p) => !extra.includes(p) && list.includes(`${p.split(':')[0]}:*`) && !permissions.hasPermission(role, p, extra))
+    return refused.length ? [...list, ...Array.from(new Set(refused)).map((p) => `-${p}`)] : list
   }
   // `seat`: the role as stored — a vertical's own seat (landscaping's Crew member, roofing's Crew) — beside `role`, which /me answers as its
   // rung. The menu reads the seat (landscaping re-check 11/08: a Crew member's short menu was back to 30 items after a reload).
