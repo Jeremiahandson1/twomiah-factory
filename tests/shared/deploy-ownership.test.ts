@@ -290,7 +290,9 @@ for (const which of ['services', 'postgres', 'github'] as const) {
   const signup = intake.slice(intake.indexOf("factory.post('/public/signup'"), intake.indexOf("factory.get('/public/signup/:id/next'"))
   check('signup allocates through the allocator with the live lookups, and uses what it returns',
     /const allocated = await allocateSlug\(signupSlugCandidates\(baseSlug\), liveSlugLookups\(supabase\)\)/.test(signup) && /const slug = allocated\.slug/.test(signup) && /if \(!allocated\.slug\) \{\s*return c\.json\([^)]*503\)/.test(signup))
-  check('the intake form too', /await allocateSlug\(\[baseSlug \+ '-intake'/.test(intake) && /const slug = intakeSlug\.slug/.test(intake))
+  // The website-intake form made a business too; it was removed with the closed website offer (2026-11-13,
+  // routes/factory/closedIntake.ts), so the signup is the only route that names one.
+  check('…and it is the only route here that makes a business', (intake.match(/from\('tenants'\)\.insert\(/g) || []).length === (signup.match(/from\('tenants'\)\.insert\(/g) || []).length && !/factory\.post\('\/public\/intake'/.test(intake))
   const dep = read('apps/api/src/services/deploy.ts')
   const dc = dep.slice(dep.indexOf('export async function deployCustomer'), dep.indexOf('export async function checkDeployStatus'))
   check('deployCustomer runs the preflight BEFORE the first delete/create/push', dc.indexOf('await preflightDeploy(') > 0
