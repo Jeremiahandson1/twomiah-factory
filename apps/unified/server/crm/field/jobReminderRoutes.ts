@@ -3,6 +3,7 @@
 //
 // Who: reading is anyone who reads jobs; changing the rules is a company setting (company:update — the owner and
 // admins, as PUT /api/company and the invoice reminders).
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, eq, gte, lt, inArray, desc } from 'drizzle-orm'
@@ -44,7 +45,7 @@ const MANAGERS = new Set(['owner', 'admin', 'manager'])
 const STATUS_WORDS: Record<string, string> = { sent: 'Sent', skipped: 'Not sent', failed: 'Failed', held: 'Waiting to send', sending: 'Sending' }
 /** A reminder or moved notice a person sent carries who in its step (manual:<time>:<user>, moved:<time>:<user>). */
 const byPerson = (step: unknown) => /^(manual|moved):/.test(String(step))
-const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+const csvCell = (v: unknown) => `"${csvFormulaSafe(String(v ?? '')).replace(/"/g, '""')}"`
 
 export function createJobReminderRoutes(d: CrmDeps) {
   const { db, audit } = d

@@ -1,5 +1,6 @@
 // What the billing group's routers share: reading a body, dates, the signed-in person, a CSV download, and turning the
 // invoice engine's refusals into the rulebook's error reply.
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import type { Context } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { BillingRefusal } from '../core/invoiceEngine.ts'
@@ -39,7 +40,7 @@ export const refusalAware = (fn: (c: any) => Promise<Response>) => async (c: any
   }
 }
 
-const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+const csvCell = (v: unknown) => `"${csvFormulaSafe(String(v ?? '')).replace(/"/g, '""')}"`
 
 /** A CSV file download. */
 export function csvDownload(c: Context, filename: string, rows: unknown[][]) {

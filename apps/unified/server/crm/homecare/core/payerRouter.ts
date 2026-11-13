@@ -13,6 +13,7 @@
  * unified reads return them.
  */
 
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import type { ProviderInfo } from './edi837Generator.ts'
 
 interface PayerRoute {
@@ -179,7 +180,7 @@ export function generateMidasExport(claims: ClaimExportRecord[], provider: Provi
     `"${portalName} Upload Packet - ${provider.agencyName}"`,
     '',
     headers.map(h => `"${h}"`).join(','),
-    ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ...rows.map(r => r.map(cell => `"${csvFormulaSafe(String(cell)).replace(/"/g, '""')}"`).join(',')),
     '',
     `"Total Claims: ${claims.length}"`,
     `"Total Charges: $${claims.reduce((sum, c) => sum + parseFloat(String(c.chargeAmount || 0)), 0).toFixed(2)}"`,
@@ -208,7 +209,7 @@ export function generateIRISExport(claims: ClaimExportRecord[]): string {
 
   return [
     headers.join(','),
-    ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ...rows.map(r => r.map(cell => `"${csvFormulaSafe(String(cell)).replace(/"/g, '""')}"`).join(',')),
   ].join('\n')
 }
 

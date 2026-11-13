@@ -1,11 +1,12 @@
 // The files a home care report is downloaded as — CSV and PDF — shared by Reports & Analytics (reports.ts), the margin and
 // turnover reports (marginReports.ts) and the report builder (reportBuilder.ts), so every report downloads the same way.
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import type { Context } from 'hono'
 import PDFDocument from 'pdfkit'
 
 export const csvCell = (v: any) => {
   if (v == null) return ''
-  const s = v instanceof Date ? v.toISOString().slice(0, 10) : String(v)
+  const s = csvFormulaSafe(v instanceof Date ? v.toISOString().slice(0, 10) : String(v))
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 export type Col = { key: string; label: string }
