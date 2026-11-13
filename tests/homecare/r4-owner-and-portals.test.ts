@@ -19,6 +19,8 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'hc-r4-test-secret'
 import { Hono } from 'hono'
 import { readFileSync } from 'node:fs'
 import jwt from 'jsonwebtoken'
+// A family session carries a mark of the password it was given for, a link session of its link (security review S2-6, S2-7); the template ignores both.
+const markOf = (v: string) => new Bun.CryptoHasher('sha256').update(v).digest('hex').slice(0, 16)
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -170,7 +172,7 @@ const pw = await Bun.password.hash('famPass123', 'bcrypt')
 await db.insert(familyMembers).values({ clientId: pat.id, name: 'Fran Family', email: 'fran@r4.test', passwordHash: pw, canViewSchedule: true, canViewCarePlan: true, canViewMedications: true, canMessage: true } as any)
 const famLogin = await call({}, 'POST', '/api/family-portal/login', { email: 'fran@r4.test', password: 'famPass123' })
 const fam = bearer(famLogin.json?.token)
-const clientTok = jwt.sign({ role: 'client', clientId: pat.id }, process.env.JWT_SECRET!, { expiresIn: '1h' })
+const clientTok = jwt.sign({ role: 'client', clientId: pat.id, lk: markOf('r4-link-token') }, process.env.JWT_SECRET!, { expiresIn: '1h' })
 const cli = bearer(clientTok)
 const link = (m: string, p: string) => call({ 'x-portal-token': 'r4-link-token' }, m, p)
 const FAMILY = ['/api/family-portal/portal/me', '/api/family-portal/portal/client', '/api/family-portal/portal/schedule', '/api/family-portal/portal/medications', '/api/family-portal/portal/messages', '/api/family-portal/portal/care-plan', '/api/family-portal/portal/caregivers', '/api/family-portal/portal/vitals', '/api/family-portal/portal/notes']

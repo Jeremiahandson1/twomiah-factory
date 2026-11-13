@@ -195,8 +195,9 @@ export function createPortalAuth(core: HomecareCore, d: CrmDeps) {
     } else if (!found.portalEnabled) {
       // Signed in through the direct link: the client's portal switch is that link's gate.
       return fail(c, 401, 'Portal access disabled')
-    } else if (!found.portalToken || decoded.lk !== linkMark(found.portalToken) || (found.portalTokenExp && new Date() > new Date(found.portalTokenExp))) {
-      // A session made from a link that has since been replaced, withdrawn or run out (linkMark).
+    } else if (found.portalToken && (decoded.lk !== linkMark(found.portalToken) || (found.portalTokenExp && new Date() > new Date(found.portalTokenExp)))) {
+      // A session made from a link that has since been replaced or run out (linkMark). Withdrawing the link switches
+      // the portal off (above). A client with the portal on and no link at all has no link to compare with.
       return fail(c, 401, 'This link is no longer valid. Please contact your care coordinator.')
     }
     await touch(found.id)

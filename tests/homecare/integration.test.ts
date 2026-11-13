@@ -19,6 +19,8 @@
 import { Hono } from 'hono'
 import { sql } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
+// A family session carries a mark of the password it was given for, a link session of its link (security review S2-6, S2-7); the template ignores both.
+const markOf = (v: string) => new Bun.CryptoHasher('sha256').update(v).digest('hex').slice(0, 16)
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
@@ -210,8 +212,8 @@ const famClient = await mkClient('Fam')
 
   const [memberA] = await db.insert(familyMembers).values({ clientId: famClient.id, name: 'Rel A', email: 'rela@fam.local', passwordHash: 'x', isActive: true, canViewSchedule: true, canViewMedications: false } as any).returning()
   const [memberB] = await db.insert(familyMembers).values({ clientId: famClient.id, name: 'Rel B', email: 'relb@fam.local', passwordHash: 'x', isActive: true, canViewSchedule: false, canViewMedications: true } as any).returning()
-  const famA = bearer(jwt.sign({ role: 'family', familyMemberId: memberA.id }, process.env.JWT_SECRET!))
-  const famB = bearer(jwt.sign({ role: 'family', familyMemberId: memberB.id }, process.env.JWT_SECRET!))
+  const famA = bearer(jwt.sign({ role: 'family', familyMemberId: memberA.id, pv: markOf('x') }, process.env.JWT_SECRET!))
+  const famB = bearer(jwt.sign({ role: 'family', familyMemberId: memberB.id, pv: markOf('x') }, process.env.JWT_SECRET!))
 
   const s = await famA('GET', '/api/family-portal/portal/schedule')
   const dates = (s.json || []).map((v: any) => v.date)

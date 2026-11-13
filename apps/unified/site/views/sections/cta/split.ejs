@@ -22,7 +22,7 @@
       <% } %>
       <div class="cta__actions">
         <a class="btn btn--primary btn--xl" href="<%= primaryCta.href %>"><%= primaryCta.label %></a>
-        <% if (phone) { %><a class="cta__phone" href="tel:<%= phone %>"><%= phone %></a><% } %>
+        <% if (phone) { %><a class="cta__phone" href="tel:<%= String(phone).replace(/[^\d+]/g, '') %>"><%= phone %></a><% } %>
       </div>
     </div>
   </div>

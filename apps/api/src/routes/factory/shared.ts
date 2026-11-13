@@ -20,7 +20,9 @@ export function rateLimit(windowMs: number, maxRequests: number) {
   const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
   rateLimitMaps.add(rateLimitMap)
   return async (c: any, next: any) => {
-    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('cf-connecting-ip') || 'unknown'
+    // The edge's own header first: the left-most x-forwarded-for entry is whatever the caller sent, so a new value on each
+    // request got a counter of its own and no limit ever tripped (security review S5-2, confirmed live on a tenant, S2-5).
+    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     const now = Date.now()
     const entry = rateLimitMap.get(ip)
     if (!entry || now > entry.resetAt) {

@@ -1,4 +1,4 @@
-import { supabase, requireRole } from '../../middleware/auth'
+import { supabase, requireRole, staffFromToken } from '../../middleware/auth'
 import { generate, listTemplates, type GenerateConfig } from '../../services/generator'
 import { isConfigured } from '../../services/deploy'
 import { uploadZip, getZipDownloadUrl } from '../../services/factoryStorage'
@@ -90,12 +90,7 @@ factory.get('/download/:buildId/:filename', async (c) => {
   // Support token query param for direct browser downloads (links can't send Authorization headers)
   if (!c.get('user')) {
     const token = c.req.query('token')
-    if (token) {
-      const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
-      if (authErr || !user) return c.json({ error: 'Unauthorized' }, 401)
-    } else {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
+    if (!(await staffFromToken(token))) return c.json({ error: 'Unauthorized' }, 401)
   }
 
   // Validate buildId exists in database and filename matches

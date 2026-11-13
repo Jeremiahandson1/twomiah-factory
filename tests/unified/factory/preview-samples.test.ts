@@ -6,7 +6,10 @@
 import { test, expect, describe } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { SAMPLE_BANNER, SAMPLE_MARK, isSampleSection, withPreviewSamples } from '../../../apps/api/src/config/previewSamples'
+import { SAMPLE_BANNER, SAMPLE_MARK, isSampleSection, sampleSetFor, withPreviewSamples } from '../../../apps/api/src/config/previewSamples'
+import { pickHeroGroup } from '../../../apps/api/src/config/heroLibrary'
+import { lookForVertical } from '../../../apps/api/src/config/siteLooks'
+import { nameSeed } from '../../../apps/api/src/services/instantComposer'
 import { provisionSite } from '../../../apps/api/src/unified/factory'
 import { renderUnifiedPreview } from '../../../apps/api/src/unified/preview'
 import { composeInstant } from '../../../apps/api/src/services/instantComposer'
@@ -16,7 +19,8 @@ const BASE = 'https://factory.example'
 
 const TRADES: Array<[vertical: string, industry: string]> = [
   ['contractor', 'General Contractor'], ['roofing', 'Roofing'], ['homecare', 'Home Care'], ['salon', 'Hair Salon'],
-  ['restaurant', 'Restaurant'], ['foodtruck', 'Food Truck'], ['basic', 'Consulting'], ['store', 'Online Store'], ['fieldservice', 'Plumbing'], ['landscaping', 'Landscaping'],
+  ['restaurant', 'Restaurant'], ['foodtruck', 'Food Truck'], ['basic', 'Consulting'], ['painting', 'painter'], ['concrete', 'concrete'], ['flooring', 'flooring'],
+  ['electrical', 'electrical'], ['hvac', 'hvac'], ['fitness', 'fitness'], ['store', 'Online Store'], ['fieldservice', 'Plumbing'], ['landscaping', 'Landscaping'],
 ]
 const tenant = (industry: string) => ({ name: 'Acme Co', industry, city: 'Eau Claire', state: 'WI', primary_color: '#FF3D00', intake_data: {}, products: ['website'] })
 const homeOf = (industry: string): any[] => (provisionSite(tenant(industry)) as any).pages.find((p: any) => p.slug === 'home').sections
@@ -113,10 +117,12 @@ describe('a food truck', () => {
       for (const dining of ['Private dining', 'Tasting menus', 'how many guests can you seat', 'Past events (sample)']) expect(html).not.toContain(dining)
       expect(html).not.toContain('/hero-library/generic/')
     }
-    // A restaurant keeps the samples it had.
+    // A restaurant leads with what it serves too: a sample menu, its own questions — and no week of stops.
     const restaurant = await renderUnifiedPreview({ businessName: 'Acme Eats', businessType: 'restaurant', city: 'Eau Claire', state: 'WI', vertical: 'restaurant', design: 'studio' })
-    expect(restaurant).toContain('Private dining')
-    expect(restaurant).not.toContain('Menu (sample)')
+    expect(restaurant).toContain('Menu (sample)')
+    expect(restaurant).toContain('do I need a reservation?')
+    expect(restaurant).not.toContain('This week (sample)')
+    for (const old of ['Tasting menus', 'how many guests can you seat', 'Past events (sample)']) expect(restaurant).not.toContain(old)
     } finally { if (had === undefined) delete process.env.TWOMIAH_FACTORY_URL; else process.env.TWOMIAH_FACTORY_URL = had }
   })
 
@@ -162,9 +168,134 @@ describe('a food truck', () => {
   })
 
   test('no other trade\'s home gains a menu', () => {
-    for (const industry of ['restaurant', 'Restaurant', 'cafe', 'bakery', 'catering', 'roofing', 'home_care', 'salon', 'Consulting', 'retail']) {
+    // A restaurant's home carries it as a food truck's does (the best restaurant sites put the menu on the front page).
+    for (const industry of ['restaurant', 'Restaurant']) expect([industry, homeOf(industry).filter((s) => s.type === 'menu')]).toEqual([industry, [{ type: 'menu', variant: 'sections', data: { heading: 'Menu', hideWhenEmpty: true, showSignatureLinks: false } }]])
+    for (const industry of ['cafe', 'bakery', 'catering', 'roofing', 'home_care', 'salon', 'Consulting', 'retail', 'fitness', 'painter', 'bar_and_grill']) {
       expect([industry, homeOf(industry).some((s) => s.type === 'menu')]).toEqual([industry, false])
     }
+  })
+})
+
+// The visual audit of 2026-11-12: a painter's preview showed plumbing, concrete and flooring showed kitchen remodels, a gym
+// showed shop photos, a bar showed a wedding and opened on a bare line of text. Each trade's preview is its own trade's.
+describe('each trade sees its own trade', () => {
+  const page = (industry: string, vertical: string, name = 'Acme Co', design = 'studio') =>
+    renderUnifiedPreview({ businessName: name, businessType: industry, city: 'Eau Claire', state: 'WI', vertical, design })
+  const withBase = async <T>(run: () => Promise<T>): Promise<T> => {
+    const had = process.env.TWOMIAH_FACTORY_URL
+    process.env.TWOMIAH_FACTORY_URL = BASE
+    try { return await run() } finally { if (had === undefined) delete process.env.TWOMIAH_FACTORY_URL; else process.env.TWOMIAH_FACTORY_URL = had }
+  }
+
+  test('the set is the trade\'s photo group when it has one, else the vertical\'s, else the catch-all', () => {
+    const set = (industry: string, vertical: string) => sampleSetFor(pickHeroGroup(industry), vertical)
+    for (const [industry, vertical, want] of [
+      ['painter', 'fieldservice', 'painting'], ['concrete', 'contractor', 'concrete'], ['flooring', 'contractor', 'flooring'], ['hvac', 'fieldservice', 'hvac'],
+      ['electrical', 'fieldservice', 'electrical'], ['plumbing', 'fieldservice', 'fieldservice'], ['general_contractor', 'contractor', 'contractor'],
+      ['remodeler', 'contractor', 'contractor'], ['roofing', 'roofing', 'roofing'], ['landscaping', 'landscaping', 'landscaping'], ['home_care', 'homecare', 'homecare'],
+      ['salon', 'salon', 'salon'], ['restaurant', 'restaurant', 'restaurant'], ['food_truck', 'restaurant', 'foodtruck'], ['bar_and_grill', 'bar', 'bar'],
+      ['fitness', 'basic', 'fitness'], ['other', 'basic', 'basic'], ['retail', 'store', 'store'], ['hotel', 'basic', 'basic'], ['veterinary', 'vet', 'basic'],
+    ] as const) expect([industry, set(industry, vertical)]).toEqual([industry, want])
+  })
+
+  test('a painter, concrete, flooring, an electrician, heating and a gym: their own words and photos, none of another trade\'s', async () => {
+    await withBase(async () => {
+      for (const [industry, vertical, group, has, hasNot] of [
+        ['painter', 'fieldservice', 'painting', ['Interior painting', 'Recent paint jobs (sample)'], ['Sample project — plumbing', 'Installations']],
+        ['concrete', 'contractor', 'concrete', ['Driveways & slabs', 'Recent pours (sample)'], ['Kitchen & bath remodels', 'Framing']],
+        ['flooring', 'contractor', 'flooring', ['Hardwood', 'Recent floors (sample)'], ['Kitchen & bath remodels', 'Framing']],
+        ['electrical', 'fieldservice', 'electrical', ['Lighting & fixtures', 'Panels & wiring'], ['Sample project — plumbing', 'Sample project — fittings']],
+        ['hvac', 'fieldservice', 'hvac', ['Heating', 'Cooling'], ['Sample project — plumbing', 'Sample project — fittings']],
+        ['fitness', 'basic', 'fitness', ['Personal training', 'This week’s classes (sample)'], ['Service one', '/hero-library/generic/']],
+      ] as const) {
+        const html = (await page(industry, vertical)).replace(/&amp;/g, '&')
+        for (const t of has) expect([industry, t, html.includes(t)]).toEqual([industry, t, true])
+        for (const t of hasNot) expect([industry, t, html.includes(t)]).toEqual([industry, t, false])
+        // Every library photo on the page is the trade's own.
+        const groups = [...new Set([...html.matchAll(/\/hero-library\/([a-z]+)\//g)].map((m) => m[1]))]
+        expect([industry, groups]).toEqual([industry, [group]])
+      }
+    })
+  })
+
+  test('a business with no trade named shows what a services section is, with no shop photos on its cards, and credits only what is on the page', async () => {
+    await withBase(async () => {
+      const { sections, imageUrls } = withPreviewSamples(homeOf('other'), 'basic', BASE)
+      const services = sections.filter((s) => s.type === 'services')
+      expect(services.length).toBe(1)
+      expect(isSampleSection(services[0])).toBe(true)
+      expect(services[0].data.items.some((i: any) => i.image)).toBe(false)
+      expect(imageUrls).toEqual([])
+    })
+  })
+
+  test('a bar: drawn in a bar\'s look, its board filled with a sample night, bar photos — not a wedding, not a bare line', async () => {
+    await withBase(async () => {
+      // Each of the three looks is the bar look nearest it; nothing chosen stays the bar's own default.
+      expect([lookForVertical('bar', 'foundry'), lookForVertical('bar', 'heritage'), lookForVertical('bar', 'studio'), lookForVertical('bar', null)]).toEqual(['gameday', 'tavern', 'taproom', null])
+      for (const v of ['restaurant', 'roofing', 'basic', null]) expect(lookForVertical(v, 'studio')).toBe('studio')
+      for (const [design, font] of [['foundry', 'Big+Shoulders+Display'], ['heritage', 'DM+Serif+Display'], ['studio', 'Space+Grotesk']] as const) {
+        const html = (await page('bar_and_grill', 'bar', 'The Rusty Anchor', design)).replace(/&amp;/g, '&')
+        expect([design, html.includes(font)]).toEqual([design, true])
+        expect(html).toContain('class="board__rows"')
+        expect(html).toContain('Sample hours')
+        expect(html).toContain('Sample board')
+        expect(html).toContain('Menu (sample)')
+        expect(html).toContain('Inside the bar (sample)')
+        expect(html).toContain('/hero-library/bar/')
+        for (const old of ['Hours are being set up', 'Past events (sample)', 'how many guests can you seat', '/hero-library/events/']) expect([design, old, html.includes(old)]).toEqual([design, old, false])
+      }
+      // The build's own bar page has no sample in it: the board is the live one, with no photo of ours beside it.
+      const real = homeOf('bar_and_grill')
+      expect(real[0]).toEqual({ type: 'tonight', variant: 'board', data: { title: 'Acme Co' } })
+      expect(JSON.stringify(real)).not.toContain('hero-library')
+    })
+  })
+
+  test('a signup that chose a look in the preview is built in the look it was shown: a bar in the bar\'s', () => {
+    const signup = (industry: string, design: string) => provisionSite({ ...tenant(industry), intake_data: { signup: { design } } }) as any
+    expect(signup('bar_and_grill', 'studio').design).toBe('taproom')
+    expect(signup('bar_and_grill', 'foundry').design).toBe('gameday')
+    expect(signup('bar_and_grill', 'heritage').design).toBe('tavern')
+    expect(signup('roofing', 'studio').design).toBe('studio')
+    expect(signup('restaurant', 'heritage').design).toBe('heritage')
+    expect('design' in (provisionSite(tenant('bar_and_grill')) as any)).toBe(false)
+  })
+})
+
+// "They need to vary somehow so not every bar is identical" (the owner, 2026-11-12): the preview varies with the
+// business's name the way its real page does — steady for one business, different between two.
+describe('two businesses of one trade are not the same page', () => {
+  const shape = (industry: string, set: string, name: string) => {
+    const { sections } = withPreviewSamples(homeOf(industry), set, BASE, nameSeed(name))
+    return JSON.stringify(sections.filter(isSampleSection).map((s) => [s.type, s.variant, s.data.items?.[0]?.title ?? s.data.photos?.[0]?.url ?? s.data.art ?? '']))
+  }
+  const NAMES = ['The Rusty Anchor', 'Northside Tap', 'The Copper Mule', 'Badger State', 'Summit', 'Maple Street', 'Hartwell', 'Lakeside', 'Iron Valley', 'Bluebird', 'Stonebridge', 'Green Acre']
+
+  test('one business gets the same page every time; a dozen businesses get several different ones', () => {
+    for (const [industry, set] of [['roofing', 'roofing'], ['bar_and_grill', 'bar'], ['restaurant', 'restaurant'], ['painter', 'painting'], ['fitness', 'fitness'], ['salon', 'salon']] as const) {
+      expect(shape(industry, set, NAMES[0])).toBe(shape(industry, set, NAMES[0]))
+      const kinds = new Set(NAMES.map((n) => shape(industry, set, n)))
+      expect([industry, kinds.size >= 4]).toEqual([industry, true])
+    }
+  })
+
+  test('whatever the name, every sample is still marked, the hero and the call to action are the build\'s, and the call to action is last', () => {
+    for (const [industry, set] of [['roofing', 'roofing'], ['bar_and_grill', 'bar'], ['restaurant', 'restaurant'], ['other', 'basic'], ['home_care', 'homecare']] as const) for (const n of NAMES) {
+      const real = homeOf(industry)
+      const { sections } = withPreviewSamples(real, set, BASE, nameSeed(n))
+      expect(sections.at(-1).type).toBe('cta')
+      expect(sections.filter((s) => s.type === 'hero' || s.type === 'cta').every((s) => !isSampleSection(s))).toBe(true)
+      // Nothing of the build's is dropped: every real section is there, or a marked sample stands in its place.
+      expect(sections.length).toBeGreaterThan(real.length)
+      for (const s of sections) if (!real.includes(s)) expect(isSampleSection(s)).toBe(true)
+    }
+  })
+
+  test('no name: the plain order and layouts', () => {
+    const { sections } = withPreviewSamples(homeOf('roofing'), 'roofing', BASE)
+    expect(sections.filter(isSampleSection).map((s) => s.type + '/' + s.variant)).toEqual(['services/cards-grid', 'why_choose/grid', 'gallery/grid', 'about/story', 'testimonials/quotes', 'faq/accordion'])
+    expect(sections.find((s) => s.type === 'services').data.items[0].title).toBe('Roof replacement')
   })
 })
 
