@@ -1354,7 +1354,9 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
   app.post('/factory-event', async (c) => {
     // The shared constant-time check, as every other Factory door (security review S3-2, 2026-11-13): this key is worth
     // a payment marked paid, and it was compared with `!==`.
-    // (X-Factory-Key against FACTORY_SYNC_KEY — scripts/check-connect-charging.ts reads this handler for both names.)
+    // No key sent at all is refused here, by name: scripts/check-connect-charging.ts reads this handler's CODE for the
+    // header and the key it is held against.
+    if (process.env.FACTORY_SYNC_KEY && !c.req.header('X-Factory-Key')) return c.json({ error: 'Unauthorized' }, 401)
     const fk = verifyFactoryKey(c, process.env.FACTORY_SYNC_KEY)
     if (!fk.ok) return c.json({ error: fk.status === 503 ? 'Sync not configured' : 'Unauthorized' }, fk.status)
     const body = await c.req.json().catch(() => null)
