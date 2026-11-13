@@ -163,8 +163,10 @@ export default function RecurringForm({ api }: RecurringPageProps) {
     const subtotal = form.lineItems.reduce((sum: number, item: LineItem) => {
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
-    const taxAmount = subtotal * (Number(form.taxRate) || 0) / 100;
-    const total = subtotal + taxAmount - (Number(form.discount) || 0);
+    // As the server works it, and as an invoice does: tax on what is left after the discount (code review 02-3).
+    const discount = Math.min(Math.max(0, Number(form.discount) || 0), subtotal);
+    const taxAmount = Math.round(((subtotal - discount) * (Number(form.taxRate) || 0) / 100 + Number.EPSILON) * 100) / 100;
+    const total = subtotal - discount + taxAmount;
     return { subtotal, taxAmount, total };
   };
 

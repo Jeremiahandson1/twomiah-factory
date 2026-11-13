@@ -225,7 +225,7 @@ export async function insertInvoice(
  * money already collected (refund or void instead). Shared by PUT /:id and any record that keeps an
  * invoice in step with its own lines (events).
  */
-export function retotalInvoice(existing: { amountPaid: any; status: string; creditApplied?: any }, lines: InvoiceLine[], taxRate: number, discount: number): { error: string } | { fields: Record<string, string> } {
+export function retotalInvoice(existing: { amountPaid: any; status: string; creditApplied?: any; amountRefunded?: any }, lines: InvoiceLine[], taxRate: number, discount: number): { error: string } | { fields: Record<string, string> } {
   const worked = calcTotals(lines, taxRate, discount)
   // A final invoice credits what was billed before it (a deposit, progress invoices — invoice.credit_applied, the unified
   // app's quote billing): its total is the work's total less that credit, after every edit as on the day it was raised.
@@ -238,7 +238,11 @@ export function retotalInvoice(existing: { amountPaid: any; status: string; cred
     fields: {
       subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(),
       discount: calc.effectiveDiscount.toString(), total: calc.total.toString(),
-      status: paid >= calc.total - 0.005 ? 'paid' : paid > 0 ? 'partial' : existing.status,
+      // Money that went back is not money held (code review 02-2, 2026-11-13): a deposit taken and refunded left
+      // paid > 0, and any edit turned a "sent" invoice into "partial" with nothing collected on it.
+      status: paid >= calc.total - 0.005 ? 'paid'
+        : paid - round2(Number(existing.amountRefunded || 0)) > 0.005 ? 'partial'
+          : existing.status === 'partial' ? 'sent' : existing.status,
     },
   }
 }
@@ -509,7 +513,11 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     // was told "at most $80.00" (the price bound) while asking for $60 was told "$40.00" (the real
     // one). Two caps for one invoice, and the larger mistake got the more misleading answer.
     // (Salon T27 N12)
-    const takesOff = (c: number) => round2(Number(row.total) - calcTotals(lines, taxRate, round2(Number(row.discount || 0) + c)).total)
+    // A FINAL invoice's total is the work less what was billed before it (credit_applied — retotalInvoice). This
+    // worked the new total from the lines alone, so a $50 courtesy credit on a final invoice that had credited a
+    // $1,000 deposit put the $1,000 back ON: the total went up by $950 (code review 02-1, 2026-11-13).
+    const billedBefore = round2(Number(row.credit_applied || 0))
+    const takesOff = (c: number) => round2(Number(row.total) - Math.max(0, calcTotals(lines, taxRate, round2(Number(row.discount || 0) + c)).total - billedBefore))
 
     // 1. the price cannot fall below $0
     const priceCap = round2(Math.max(0, subtotal - Number(row.discount || 0)))
@@ -529,7 +537,7 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
       }
       return
     }
-    const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status }, lines, taxRate, newDiscount)
+    const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status, creditApplied: row.credit_applied, amountRefunded: row.amount_refunded }, lines, taxRate, newDiscount)
     if ('error' in retotal) { outcome = { ok: false, status: 400, error: retotal.error }; return }
     const balanceAfter = invoiceBalance({ ...figures, total: retotal.fields.total, status: retotal.fields.status })
     const note = `Credit ${money(amount)} applied ${creditDay}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
@@ -939,6 +947,21 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     }
     let refusedEdit: string | null = null
     const result = await db.transaction(async (tx: any) => {
+      // THE TOTAL IS RE-WORKED AGAINST THE MONEY AS IT IS NOW (code review 02-2, 2026-11-13). `existing` was read before
+      // this transaction; a payment recorded in between (the customer paying online while the office edits) had its
+      // status written over by the one worked out from the older figures, and the "not below what is paid" check
+      // was made against them too. The row is locked and the figures read again.
+      if (recompute && lines) {
+        const lockedRows: any = await tx.execute(sql`SELECT status, amount_paid, amount_refunded, paid_at FROM invoice WHERE id = ${id} AND company_id = ${cid} FOR UPDATE`)
+        const now = (lockedRows.rows || lockedRows)[0]
+        if (now && (Number(now.amount_paid) !== Number(existing.amountPaid) || Number(now.amount_refunded || 0) !== Number(existing.amountRefunded || 0) || now.status !== existing.status)) {
+          if (now.status === 'void' || now.status === 'refunded') { refusedEdit = 'This invoice was just voided or refunded, so the edit was not saved.'; throw new Error('LINE_EDIT_REFUSED') }
+          const again = retotalInvoice({ ...existing, amountPaid: now.amount_paid, amountRefunded: now.amount_refunded, status: now.status }, lines, data.taxRate ?? Number(existing.taxRate), data.discount ?? Number(existing.discount))
+          if ('error' in again) { refusedEdit = again.error; throw new Error('LINE_EDIT_REFUSED') }
+          Object.assign(update, again.fields)
+          update.paidAt = update.status === 'paid' ? (now.paid_at ?? new Date()) : (update.status === 'partial' ? null : now.paid_at ?? null)
+        }
+      }
       const [updated] = await tx.update(t.invoice).set(update).where(eq(t.invoice.id, id)).returning()
       let items: any[]
       if (data.lineItems !== undefined) {

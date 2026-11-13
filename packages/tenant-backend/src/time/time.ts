@@ -108,8 +108,6 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     return row || null
   }
   async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; costCode?: string | null; description?: string | null; at?: Date; place?: TapPlace; source?: ClockSource; auto?: boolean } = {}): Promise<ClockResult> {
-    const open = await activeEntry(person.userId, person.companyId)
-    if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
     // `at`: the moment the person tapped, when the phone sent it later (no signal). Without it, now.
     const now = data.at ?? new Date()
     const late = lateByMinutes(data.at)
@@ -119,7 +117,16 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
     // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
     // date gets the crew's calendar day. (T24 N1, timesheets)
     const tz = await companyTimeZone(db, person.companyId)
-    const [row] = await db.insert(t.timeEntry).values({
+    // ONE CLOCK-IN AT A TIME, HELD BY A LOCK (code review 02-5, 2026-11-13). "Is there an open one?" and the insert were
+    // two steps with nothing between them: a double tap, or the phone sending a saved tap while the kiosk sent its
+    // own, both found none and both clocked in — two open entries, of which clock-out closed one and left the other
+    // running. The check and the insert now run under a lock on the person.
+    return db.transaction(async (tx: any): Promise<ClockResult> => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'clock:' + person.companyId + ':' + person.userId}))`)
+    const [open] = await tx.select().from(t.timeEntry)
+      .where(and(eq(t.timeEntry.userId, person.userId), eq(t.timeEntry.companyId, person.companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
+    if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
+    const [row] = await tx.insert(t.timeEntry).values({
       userId: person.userId, companyId: person.companyId, jobId: data.jobId ?? null, projectId: data.projectId ?? null,
       clockIn: now, date: dayMarker(storeDateString(now, tz)), hours: '0', isAutoClocked: !!data.auto, description: data.description || null,
       // Only where the table has the column (the unified app); the older template copies keep exactly what they had.
@@ -131,6 +138,7 @@ export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>)
       ...(t.timeEntry.costCode && data.costCode ? { costCode: data.costCode } : {}),
     }).returning()
     return { ok: true, entry: row }
+    })
   }
   async function clockOut(person: { userId: string; companyId: string; role?: string }, data: { breakMinutes?: number; description?: string | null; at?: Date; place?: TapPlace } = {}): Promise<ClockResult> {
     const open = await activeEntry(person.userId, person.companyId)
