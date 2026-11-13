@@ -1,4 +1,5 @@
 // Starts the tenant's server. The start command runs db/migrate.ts first, so the schema is current before this.
+import './core/secrets.ts' // first: a missing signing secret is replaced before anything reads it
 import { createDb } from './db/client.ts'
 import { loadVertical } from './core/vertical.ts'
 import { createApp } from './app.ts'

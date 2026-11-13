@@ -254,6 +254,22 @@ describe('S1-7, S1-9, S1-12: the smaller doors', () => {
     expect(r.status).toBe(401)
     expect((await r.json() as any).error).toBe('Invalid email or password')
   })
+
+  test('S1-5: a switched-off login and an email with no login give a stranger nothing to tell them apart', async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    await t.db.insert(t.schema.user).values({ email: 'gone@test.example', passwordHash: await Bun.password.hash(PASSWORD, 'bcrypt'), firstName: 'Gone', lastName: 'Away', role: 'field', companyId: co.id, isActive: false })
+    const tryLogin = async (email: string, password: string) => { const r = await t.call('/api/auth/login', { method: 'POST', json: { email, password } }); return { status: r.status, error: (await r.json() as any).error } }
+    // Without the password, the switched-off login answers as an unknown email does.
+    expect(await tryLogin('gone@test.example', 'not-the-password')).toEqual({ status: 401, error: 'Invalid email or password' })
+    expect(await tryLogin('ghost5@test.example', 'not-the-password')).toEqual({ status: 401, error: 'Invalid email or password' })
+    // With it, the person is told why they cannot sign in.
+    expect(await tryLogin('gone@test.example', PASSWORD)).toEqual({ status: 401, error: 'Account is disabled' })
+    // Ten wrong tries: "too many attempts" for an email with no login too (one try was spent above).
+    let last: any
+    for (let i = 0; i < 9; i++) last = await tryLogin('ghost5@test.example', 'not-the-password')
+    expect(last.status).toBe(423)
+    expect((await tryLogin('ghost5@test.example', 'not-the-password')).status).toBe(423)
+  })
 })
 
 describe('S1-6: "Require two-factor for everyone" blocks a login with none until it sets one up', () => {
@@ -311,5 +327,16 @@ describe('S1-6: "Require two-factor for everyone" blocks a login with none until
     expect((await bearer(access)('/api/company', { method: 'PUT', json: { settings: { requireMfa: null } } })).status).toBe(200)
     expect(await policy()).toBeUndefined()
     expect((await crew('/api/jobs')).status).toBe(200)
+  })
+})
+
+describe('S1-13: the server never signs with an empty key', () => {
+  test('a missing signing secret is replaced with a random one, a set one is left alone', async () => {
+    const { ensureSigningSecrets } = await import('../server/core/secrets.ts')
+    const env: Record<string, string | undefined> = { JWT_SECRET: 'already-set' }
+    expect(ensureSigningSecrets(env as any)).toEqual(['JWT_REFRESH_SECRET'])
+    expect(env.JWT_SECRET).toBe('already-set')
+    expect(String(env.JWT_REFRESH_SECRET).length).toBeGreaterThanOrEqual(64)
+    expect(ensureSigningSecrets(env as any)).toEqual([])
   })
 })

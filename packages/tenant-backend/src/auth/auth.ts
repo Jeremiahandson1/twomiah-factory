@@ -210,6 +210,25 @@ export function createAuthRoutes(deps: AuthDeps) {
    * written back, so attempts sent at the same moment all read the same number and a burst got far more than LOCK_AFTER
    * guesses (security review S1-1 and S1-5, 2026-11-12).
    */
+  /**
+   * Wrong tries at an email with NO login, counted in memory so the answers match a real login's: at LOCK_AFTER, 423 for
+   * LOCK_MS. Null while there is nothing to say. Bounded: the map is emptied when it grows past a few thousand addresses.
+   */
+  const ghostFails = new Map<string, { n: number; until: number }>()
+  function ghostFailure(email: string): { error: string; already: boolean } | null {
+    const now = Date.now()
+    if (ghostFails.size > 5000) ghostFails.clear()
+    const g = ghostFails.get(email) ?? { n: 0, until: 0 }
+    if (g.until > now) {
+      const mins = Math.max(1, Math.ceil((g.until - now) / 60000))
+      return { error: `Too many failed sign-in attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`, already: true }
+    }
+    g.n += 1
+    const lock = g.n >= LOCK_AFTER
+    if (lock) { g.n = 0; g.until = now + LOCK_MS }
+    ghostFails.set(email, g)
+    return lock ? { error: `Too many failed sign-in attempts. Try again in ${Math.round(LOCK_MS / 60000)} minutes.`, already: false } : null
+  }
   async function countFailure(userId: string): Promise<{ fails: number; lock: boolean }> {
     const [row] = await db.update(user).set({ failedLoginCount: sql`COALESCE(${user.failedLoginCount}, 0) + 1` }).where(eq(user.id, userId)).returning({ fails: user.failedLoginCount })
     const fails = Number(row?.fails) || 1
@@ -326,16 +345,12 @@ export function createAuthRoutes(deps: AuthDeps) {
     if (!foundUser) {
       // The same work as a wrong password (one bcrypt check), so how long the answer takes does not say whether the email has
       // a login here (security review S1-5, 2026-11-12).
+      // …and the same answers: after as many wrong tries as lock a real login, "too many attempts" — which used to be said
+      // only for an email that has one.
+      const ghostLock = ghostFailure(data.email)
+      if (ghostLock?.already) return c.json({ error: ghostLock.error }, 423)
       await Bun.password.verify(data.password, NO_SUCH_LOGIN_HASH).catch(() => false)
-      return c.json({ error: 'Invalid email or password' }, 401)
-    }
-    if (!foundUser.isActive) {
-      // A revoked login trying to sign in is on the record, naming the account — the first thing anybody asks after
-      // taking someone's access away is whether they tried to come back. (templates/crm-store routes/auth.ts, store T3:
-      // "a sign-in, a wrong password and a revoked login are three rows".) The reply is unchanged.
-      logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed',
-        { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Sign-in refused — this login has been revoked')
-      return c.json({ error: 'Account is disabled' }, 401)
+      return ghostLock ? c.json({ error: ghostLock.error }, 423) : c.json({ error: 'Invalid email or password' }, 401)
     }
 
     // Per-account lockout: N consecutive failures → timed lock. The per-IP limiter alone never stopped a
@@ -356,6 +371,17 @@ export function createAuthRoutes(deps: AuthDeps) {
         { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId },
         lock ? 'Wrong password; the account is now locked' : 'Wrong password', { attempt: fails, locked: lock })
       return c.json({ error: lock ? `Too many failed sign-in attempts. Try again in ${mins} minutes.` : 'Invalid email or password' }, lock ? 423 : 401)
+    }
+    if (!foundUser.isActive) {
+      // A revoked login trying to sign in is on the record, naming the account — the first thing anybody asks after
+      // taking someone's access away is whether they tried to come back. (templates/crm-store routes/auth.ts, store T3:
+      // "a sign-in, a wrong password and a revoked login are three rows".)
+      // Said only AFTER the password is right: it used to be the answer for the email alone, which told a stranger that
+      // the address has a login here (security review S1-5, 2026-11-12). A wrong password on it is answered, counted and
+      // logged like any other, above.
+      logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed',
+        { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Sign-in refused — this login has been revoked')
+      return c.json({ error: 'Account is disabled' }, 401)
     }
     const clearFailures = async () => { if ((Number(foundUser.failedLoginCount) || 0) > 0 || lockedUntilMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id)) }
 

@@ -16,6 +16,8 @@ import { zipField } from '../address'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
 import { mfaGateFor, forgetMfaPolicy } from '../auth/mfa'
 import { storedResetToken } from '../auth/resetTokens'
+// The one password rule (auth.ts): a password an admin sets for someone follows it too (security review S1-12).
+import { passwordSchema } from '../auth/auth'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
@@ -697,7 +699,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      */
     // No password = an INVITE: the person is emailed a link to choose their own, which works once and for
     // INVITE_TTL_MS. A password the admin sets is still accepted, for a shop that hands logins over in person.
-    const schema = z.object({ email: z.string().email(), password: z.string().min(8).optional(), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
+    const schema = z.object({ email: z.string().email(), password: passwordSchema.optional(), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
     const body = await readBody(c)
     if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
     if (body.password === '') delete body.password
@@ -798,7 +800,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
    */
   app.post('/users/:id/password', requireAdmin, async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = z.object({ password: z.string().min(8, 'The password needs at least 8 characters.').max(200, 'That password is too long.') }).strict().safeParse(await readBody(c))
+    const parsed = z.object({ password: z.string().min(8, 'The password needs at least 8 characters.').regex(/(?=.*[A-Za-z])(?=.*\d)/, 'The password needs at least one letter and one number.').max(200, 'That password is too long.') }).strict().safeParse(await readBody(c))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Enter a password of at least 8 characters.' }, 400)
     const target = await findTarget(c.req.param('id'), currentUser.companyId)
     if (!target) return c.json({ error: 'User not found' }, 404)
