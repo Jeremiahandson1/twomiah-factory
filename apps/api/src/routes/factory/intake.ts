@@ -2375,6 +2375,12 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
       .eq('id', id)
       .maybeSingle()
     if (!tenant) return c.json({ error: 'Intake not found' }, 404)
+    // This door is for a website INTAKE buying its previewed site — nothing else. It changes the row's products and records
+    // a build before any payment, so a business that signed up another way (its row holds a composition too), or one
+    // already paid for and live, is not let through it. (Security review S5-13)
+    if (!tenant.intake_data?.intake || tenant.billing_status === 'active' || tenant.render_frontend_url || tenant.render_backend_url) {
+      return c.json({ error: 'Intake not found' }, 404)
+    }
     if (!tenant.preview_premium_pages) {
       return c.json({ error: 'Preview must be composed before checkout.' }, 422)
     }

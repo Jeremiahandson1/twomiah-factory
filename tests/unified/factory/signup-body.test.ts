@@ -187,3 +187,25 @@ describe('the roof review queue belongs to the business that called (S5-11)', ()
     expect(src).not.toMatch(/c\.json\(\{[^}]*syncKey/)
   })
 })
+
+describe('money and the intake checkout (S5-13, S3-5)', () => {
+  test('the public "buy my previewed site" door is for an unpaid website intake only', () => {
+    const intake = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/intake.ts'), 'utf8')
+    const route = intake.slice(intake.indexOf("factory.post('/public/intake/:id/checkout-premium'"))
+    const guard = route.indexOf("!tenant.intake_data?.intake || tenant.billing_status === 'active' || tenant.render_frontend_url || tenant.render_backend_url")
+    expect(guard).toBeGreaterThan(0)
+    // …before the row's products are changed or a build is recorded.
+    expect(guard).toBeLessThan(route.indexOf("update({ products })"))
+    expect(guard).toBeLessThan(route.indexOf('await generate(genConfig)'))
+  })
+
+  test('a one-time purchase is delivered when the money is in, by either Stripe event', () => {
+    const billing = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/billing.ts'), 'utf8')
+    expect(billing).toMatch(/const oneTimePaid = !!oneTimeSession && \(event\.type === 'checkout\.session\.async_payment_succeeded' \|\| oneTimeSession\.payment_status === 'paid'\)/)
+    // A domain is registered only on a paid session.
+    expect(billing).toMatch(/if \(oneTimePaid && oneTimeSession\.metadata\?\.purpose === 'domain_registration'\)/)
+    expect(billing).not.toMatch(/event\.type === 'checkout\.session\.completed' && event\.data\?\.object\?\.metadata\?\.purpose === 'domain_registration'/)
+    // A wallet top-up is not credited from a finished-but-unpaid checkout.
+    expect(billing).toMatch(/meta\.addon === 'messaging_wallet_topup' && session\.payment_status !== 'paid'/)
+  })
+})

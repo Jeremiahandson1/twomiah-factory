@@ -312,11 +312,22 @@ factory.post('/stripe/webhook', async (c) => {
       }
     }
 
+    // A ONE-TIME purchase is delivered when the money is IN, not when the checkout page was finished. With a card the two are
+    // the same moment (`completed`, payment_status 'paid'). With a payment that settles later (a bank debit, if one is ever
+    // switched on for this Stripe account) `completed` arrives UNPAID and `async_payment_succeeded` — or `_failed` — follows
+    // days later: delivering on `completed` would have registered a domain or credited a wallet for money that might never
+    // arrive. (Security review S3-5)
+    const oneTimeSession = event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded' ? (event.data?.object || null) : null
+    const oneTimePaid = !!oneTimeSession && (event.type === 'checkout.session.async_payment_succeeded' || oneTimeSession.payment_status === 'paid')
+    if (oneTimeSession && !oneTimePaid && oneTimeSession.metadata?.purpose === 'domain_registration') {
+      console.log('[Stripe] one-time checkout finished but not paid yet — waiting for the payment to settle:', oneTimeSession.id, oneTimeSession.payment_status)
+    }
+
     // Domain registration: customer paid for a new domain via /admin/domain
     // → register at Namecheap → wire DNS infrastructure. If Namecheap fails,
     // we refund the customer so they're never paying for nothing.
-    if (event.type === 'checkout.session.completed' && event.data?.object?.metadata?.purpose === 'domain_registration') {
-      const session = event.data.object
+    if (oneTimePaid && oneTimeSession.metadata?.purpose === 'domain_registration') {
+      const session = oneTimeSession
       const meta = session.metadata || {}
       const tenantId = meta.tenant_id
       const domain = meta.domain
@@ -362,10 +373,22 @@ factory.post('/stripe/webhook', async (c) => {
 
     // Messaging billing: wallet top-up paid → credit the wallet AT COST; the
     // $10/mo enable subscription checkout → mark the tenant messaging-enabled.
+    // The wallet top-up is a one-time purchase: credited when it is paid (above), by either event.
+    if (oneTimePaid && oneTimeSession.metadata?.addon === 'messaging_wallet_topup' && event.type !== 'checkout.session.completed') {
+      const meta = oneTimeSession.metadata
+      const cents = parseInt(meta.topup_cents, 10)
+      if (meta.tenant_id && Number.isFinite(cents) && cents > 0) {
+        const { creditOnce } = await import('../../services/messagingWallet')
+        await creditOnce(meta.tenant_id, cents, 'topup', String(oneTimeSession.payment_intent || oneTimeSession.id))
+        await supabase.from('tenants').update({ messaging_nudged_at: null }).eq('id', meta.tenant_id)
+      }
+    }
     if (event.type === 'checkout.session.completed') {
       const session = event.data?.object || {}
       const meta = session.metadata || {}
-      if (meta.addon === 'messaging_wallet_topup' && meta.tenant_id && meta.topup_cents) {
+      if (meta.addon === 'messaging_wallet_topup' && session.payment_status !== 'paid') {
+        console.log('[Wallet] top-up checkout finished but not paid yet — credited when the payment settles:', session.id, session.payment_status)
+      } else if (meta.addon === 'messaging_wallet_topup' && meta.tenant_id && meta.topup_cents) {
         const cents = parseInt(meta.topup_cents, 10)
         if (Number.isFinite(cents) && cents > 0) {
           // Once per payment: Stripe may deliver this event again, and each delivery used to credit again.
