@@ -18,6 +18,7 @@
  *
  * Every outside call goes through `deps`, so the whole path runs against fakes (tests/unified/factory/factory.test.ts).
  */
+import { withoutCredentials } from '../lib/redact'
 import crypto from 'node:crypto'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -378,7 +379,7 @@ export function pushTree(repoFullName: string, dir: string, version: string, env
   const git = (args: string[]) => {
     const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } as any })
     // The header is never echoed: only the command's first word and git's own error.
-    if (r.status !== 0) throw new Error('git ' + args.filter((a) => !a.startsWith('http.extraHeader')).slice(-3).join(' ') + ' failed: ' + (r.stderr || '').trim().slice(0, 300))
+    if (r.status !== 0) throw new Error('git ' + args.filter((a) => !a.startsWith('http.extraHeader')).slice(-3).join(' ') + ' failed: ' + withoutCredentials(r.stderr || '').trim().slice(0, 300))
     return r.stdout.trim()
   }
   git(['init'])

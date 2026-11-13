@@ -142,3 +142,31 @@ describe('the templates generator never pastes an address as code', () => {
     expect(NOT_PASTED_AS_TYPED.test("pa'ss")).toBe(true)
   })
 })
+
+describe('a failed build never hands out a credential (S5-10)', () => {
+  test('the push\'s auth header and anything shaped like a credential stay out of error text', async () => {
+    const { argsForError, withoutCredentials } = await import('../../../apps/api/src/lib/redact')
+    const token = 'ghp_' + 'a'.repeat(36)
+    const header = 'http.extraHeader=Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
+    const printed = argsForError(['-c', header, 'push', 'origin', 'main', '--force'])
+    expect(printed).toBe('-c http.extraHeader=[hidden] push origin main --force')
+    expect(printed).not.toContain(Buffer.from('x-access-token:' + token).toString('base64'))
+    expect(withoutCredentials('fatal: Authorization: Basic eC1hY2Nlc3MtdG9rZW46Z2hwXw== rejected')).not.toContain('eC1hY2Nlc3M')
+    expect(withoutCredentials('remote: bad token ' + token)).not.toContain(token)
+    expect(withoutCredentials('could not connect to postgresql://app_user:s3cr3tpw@dpg-abc.oregon-postgres.render.com/db')).not.toContain('s3cr3tpw')
+    expect(withoutCredentials('https://x-access-token:' + token + '@github.com/o/r.git')).not.toContain(token)
+    expect(withoutCredentials('an ordinary message: build failed at step 3')).toBe('an ordinary message: build failed at step 3')
+  })
+
+  test('every git failure in the deploy prints its arguments through argsForError, and the customer\'s email carries no error', () => {
+    const deploy = fs.readFileSync(path.join(ROOT, 'apps/api/src/services/deploy.ts'), 'utf8')
+    expect(deploy).not.toMatch(/args\.join\(' '\)/)
+    expect((deploy.match(/argsForError\(args\)/g) || []).length).toBeGreaterThanOrEqual(3)
+    const email = fs.readFileSync(path.join(ROOT, 'apps/api/src/services/email.ts'), 'utf8')
+    const failed = email.slice(email.indexOf('export async function notifyDeployFailed('), email.indexOf('export async function notifyNewTicket('))
+    // The error goes to staff (notifyProvisionFailure), with credentials taken out; the customer's body never names it.
+    expect(failed).toMatch(/notifyProvisionFailure\(tenant, 'Deploy', error\)/)
+    expect(failed.slice(failed.indexOf('const body'))).not.toMatch(/\berror\b/)
+    expect(email).toMatch(/kv\('Error', withoutCredentials\(detail\)\.slice\(0, 500\)\)/)
+  })
+})

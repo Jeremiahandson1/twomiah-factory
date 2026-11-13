@@ -4,6 +4,7 @@
  * Gracefully no-ops if RESEND_API_KEY is not configured.
  */
 
+import { withoutCredentials } from '../lib/redact'
 import { verticalFor, crmTemplateFor } from '../config/industryRouting'
 import { planFor } from '../config/planSeats'
 import { ownerFirstName } from './tenantOwner'
@@ -226,7 +227,7 @@ export async function notifyProvisionFailure(
       ${kv('Tenant id', tenant.id || '?')}
       ${kv('Customer email', tenant.email || '?')}
       ${kv('Stage', stage)}
-      ${kv('Error', detail.slice(0, 500))}
+      ${kv('Error', withoutCredentials(detail).slice(0, 500))}
     </div>
     <p style="color:#333;line-height:1.6;">If this customer has paid, fix and redeploy from the platform console ASAP — they were told ~10&ndash;15 minutes.</p>`
   return sendEmail(to, `⚠ Provisioning failed: ${tenant.slug || tenant.id || 'tenant'} (${stage})`, wrap('Provisioning failure', body))
@@ -391,15 +392,16 @@ export async function notifyDeployFailed(
   notifyProvisionFailure(tenant, 'Deploy', error).catch(() => {})
   if (!tenant.email) return false
 
+  // The customer is told what it means for THEM, never the internal error: that text is staff's (above), and it can name
+  // internal addresses or hold a credential (security review S5-10).
   const body = `
-    <p style="color:#333;line-height:1.6;">The deployment for <strong>${escHtml(tenant.name)}</strong> (<code>${escHtml(tenant.slug)}</code>) has failed.</p>
-    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
-      <p style="margin:0 0 8px;color:#991b1b;font-weight:600;">&#10007; Deployment Failed</p>
-      <p style="margin:0;color:#991b1b;font-family:monospace;font-size:13px;word-break:break-all;">${escHtml(error)}</p>
+    <p style="color:#333;line-height:1.6;">We hit a problem while setting up <strong>${escHtml(tenant.name)}</strong>, so it is not ready yet.</p>
+    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0;color:#92400e;">Our team has been told and is working on it. You do not need to do anything, and we will email you as soon as it is ready.</p>
     </div>
-    <p style="color:#666;font-size:14px;">Check the Factory dashboard for details or retry the deployment.</p>`
+    <p style="color:#666;font-size:14px;">Questions? Just reply to this email.</p>`
 
-  return sendEmail(tenant.email, 'Deployment Failed: ' + tenant.name, wrap('Deployment Failed', body))
+  return sendEmail(tenant.email, 'We are still setting up ' + tenant.name, wrap('Your setup is taking longer', body))
 }
 
 export async function notifyNewTicket(

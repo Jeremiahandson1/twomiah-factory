@@ -7,6 +7,7 @@
 
 import crypto from 'crypto'
 import { spawnSync } from 'child_process'
+import { argsForError, withoutCredentials } from '../lib/redact'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
@@ -317,7 +318,7 @@ export async function pushToGitHub(repoFullName: string, extractDir: string) {
     if (result.status !== 0) {
       const stderr = result.stderr?.toString() || ''
       if (cmd === 'git' && args.includes('remote') && stderr.includes('already exists')) continue
-      throw new Error('Git command failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
+      throw new Error('Git command failed: ' + cmd + ' ' + argsForError(args) + '\n' + withoutCredentials(stderr))
     }
   }
 
@@ -342,7 +343,7 @@ export async function pushAdditiveCrmToGitHub(repoFullName: string, extractDir: 
   const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' } as Record<string, string>
 
   const clone = spawnSync('git', ['-c', 'http.extraHeader=' + extraHeader, 'clone', '--depth', '1', 'https://github.com/' + repoFullName + '.git', cloneDir], { stdio: ['pipe', 'pipe', 'pipe'], env: gitEnv })
-  if (clone.status !== 0) throw new Error('Additive clone failed: ' + (clone.stderr?.toString() || ''))
+  if (clone.status !== 0) throw new Error('Additive clone failed: ' + withoutCredentials(clone.stderr?.toString() || ''))
 
   // Replace the crm dir if a previous flip already added it (idempotent re-run).
   const dst = path.join(cloneDir, crmDir)
@@ -361,7 +362,7 @@ export async function pushAdditiveCrmToGitHub(repoFullName: string, extractDir: 
     if (r.status !== 0) {
       const stderr = r.stderr?.toString() || ''
       if (args.includes('commit') && /nothing to commit/.test(stderr)) continue // identical re-flip
-      throw new Error('Additive git failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
+      throw new Error('Additive git failed: ' + cmd + ' ' + argsForError(args) + '\n' + withoutCredentials(stderr))
     }
   }
   try { fs.rmSync(cloneDir, { recursive: true, force: true }) } catch {}
@@ -2248,7 +2249,7 @@ export async function updateCustomerCode(
       if (result.status !== 0) {
         const stderr = result.stderr?.toString() || ''
         if (cmd === 'git' && args.includes('remote') && stderr.includes('already exists')) continue
-        throw new Error('Git command failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
+        throw new Error('Git command failed: ' + cmd + ' ' + argsForError(args) + '\n' + withoutCredentials(stderr))
       }
     }
     steps.push({ step: 'push_code', status: 'ok', detail: 'Force pushed to ' + repoFullName })
