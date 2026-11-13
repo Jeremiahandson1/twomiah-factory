@@ -170,3 +170,20 @@ describe('a failed build never hands out a credential (S5-10)', () => {
     expect(email).toMatch(/kv\('Error', withoutCredentials\(detail\)\.slice\(0, 500\)\)/)
   })
 })
+
+describe('the roof review queue belongs to the business that called (S5-11)', () => {
+  test('whose report it is and where its app lives come from the Factory\'s own record, and the key stays on the server', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/roofReview.ts'), 'utf8')
+    const notify = src.slice(src.indexOf("factory.post('/roof-review/notify'"), src.indexOf("factory.get('/roof-review/pending'"))
+    // The caller is proved by its key, and the row is written with ITS id and ITS recorded address — never the body's.
+    expect(notify).toMatch(/company_id: caller\.id/)
+    expect(notify).toMatch(/backend_url: String\(caller\.render_backend_url/)
+    expect(notify).not.toMatch(/company_id: companyId/)
+    expect(notify).not.toMatch(/backendUrl \|\| ''/)
+    // A report id already queued for another business is not taken over.
+    expect(notify).toMatch(/held && held\.company_id !== caller\.id/)
+    // The proxy calls only the recorded address, and never hands the business's key to the browser.
+    expect(src).not.toMatch(/queueItem\.backend_url \|\|/)
+    expect(src).not.toMatch(/c\.json\(\{[^}]*syncKey/)
+  })
+})
