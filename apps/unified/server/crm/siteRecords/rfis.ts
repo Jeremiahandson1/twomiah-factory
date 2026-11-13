@@ -6,6 +6,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { createActorName, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { rfi, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+import { nextSeriesNumber } from './seriesNumber.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -83,11 +84,11 @@ export function createRfiRoutes(d: CrmDeps) {
     const currentUser = c.get('user') as any
     const data = rfiSchema.parse(await c.req.json())
 
-    const [{ value: cnt }] = await db.select({ value: count() }).from(rfi).where(and(eq(rfi.companyId, currentUser.companyId), eq(rfi.projectId, data.projectId)))
+    const number = await nextSeriesNumber(db, rfi, and(eq(rfi.companyId, currentUser.companyId), eq(rfi.projectId, data.projectId)), 'RFI', 3)
 
     const [newRfi] = await db.insert(rfi).values({
       ...data,
-      number: `RFI-${String(Number(cnt) + 1).padStart(3, '0')}`,
+      number,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       companyId: currentUser.companyId,
     }).returning()

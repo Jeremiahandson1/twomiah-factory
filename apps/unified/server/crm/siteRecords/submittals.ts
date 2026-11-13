@@ -8,6 +8,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { submittal, project, user } from '../../db/schema/index.ts'
 import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
+import { nextSeriesNumber } from './seriesNumber.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -98,10 +99,7 @@ export function createSubmittalRoutes(d: CrmDeps) {
     const data = submittalSchema.parse(await c.req.json())
 
     // Auto-assign the next submittal number for this project
-    const [{ value: cnt }] = await db
-      .select({ value: count() })
-      .from(submittal)
-      .where(and(eq(submittal.companyId, currentUser.companyId), eq(submittal.projectId, data.projectId)))
+    const number = await nextSeriesNumber(db, submittal, and(eq(submittal.companyId, currentUser.companyId), eq(submittal.projectId, data.projectId)), 'SUB', 3)
 
     const [created] = await db
       .insert(submittal)
@@ -110,7 +108,7 @@ export function createSubmittalRoutes(d: CrmDeps) {
         projectId: data.projectId,
         specSection: data.specSection,
         description: data.description,
-        number: `SUB-${String(Number(cnt) + 1).padStart(3, '0')}`,
+        number,
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         submittalType: data.submittalType,
         priority: data.priority,

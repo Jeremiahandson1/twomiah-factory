@@ -81,6 +81,8 @@ interface PayrollLine {
   bonusPay?: number
   bonusShifts?: number
   baseRate: number
+  /** No pay rate on file: the figures use the server's fallback rate (shown as a warning). */
+  rateMissing?: boolean
   otRate: number
   regularPay: number
   overtimePay: number
@@ -927,7 +929,7 @@ export default function PayrollProcessing() {
                     </td>
                     <td>{payroll.ptoHours?.toFixed(2) || '0.0'}</td>
                     <td>{parseFloat(String(payroll.totalMiles || 0)).toFixed(2)}</td>
-                    <td>{formatCurrency(payroll.baseRate)}</td>
+                    <td>{formatCurrency(payroll.baseRate)}{payroll.rateMissing && <div role="alert" style={{ fontSize: '0.75rem', color: 'var(--hc-red-ink, #b91c1c)' }}>No pay rate set — {formatCurrency(payroll.baseRate)} assumed. Set it on the caregiver before paying.</div>}</td>
                     <td style={{ color: 'var(--hc-green-ink)' }}>{formatCurrency(payroll.grossPay)}</td>
                     <td><span className={`hc-badge ${getStatusBadge(payroll.status)}`}>{payroll.status?.toUpperCase()}</span></td>
                     <td>

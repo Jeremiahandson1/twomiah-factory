@@ -35,9 +35,12 @@ const poSchema = z.object({
 })
 
 function computeTotals(lines: Array<{ quantity: number; unitCost: number }>, taxRate: number) {
-  const subtotal = lines.reduce((s, l) => s + l.quantity * l.unitCost, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  return { subtotal, taxAmount, total: subtotal + taxAmount }
+  // Each figure to the cent, and the total the sum of the two as kept (code review 04-7): three unrounded numbers were
+  // each written with toFixed(2), so an order could read subtotal + tax one cent off its total.
+  const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+  const subtotal = cents(lines.reduce((s, l) => s + l.quantity * l.unitCost, 0))
+  const taxAmount = cents(subtotal * (taxRate / 100))
+  return { subtotal, taxAmount, total: cents(subtotal + taxAmount) }
 }
 
 // Explicit transitions rather than a free-form status field, so the lifecycle can't be driven backwards.
