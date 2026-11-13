@@ -1,6 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { notifyNewTicket, notifyTicketReply } from '../../services/email'
 import { type FactoryApp, parseJsonBody, UUID_RE, checkFactoryKey, rateLimit } from './shared'
+import { signupEmail } from '../../services/signupBody'
 
 export function registerSupportRoutes(factory: FactoryApp) {
 // ─── Support Tickets (Level 1: CRM customers → Twomiah) ─────────────────────
@@ -315,6 +316,19 @@ factory.post('/public/support/tickets', rateLimit(60 * 60 * 1000, 10), async (c)
   if (!body.tenant_id || !body.subject || !body.submitter_email) {
     return c.json({ error: 'tenant_id, subject, and submitter_email are required' }, 400)
   }
+  // Open to anyone, so each answer is checked to its own shape: a real business id, an email that is one, words of a sensible
+  // length, and a priority the form offers — "urgent" is staff's to set, not a stranger's. (Security review S5-9)
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+  const submitterEmail = signupEmail(body.submitter_email)
+  if (!UUID_RE.test(String(body.tenant_id)) || !submitterEmail || !text(body.subject, 200)) {
+    return c.json({ error: 'tenant_id, subject, and submitter_email are required' }, 400)
+  }
+  body.tenant_id = String(body.tenant_id)
+  body.submitter_email = submitterEmail
+  body.subject = text(body.subject, 200)
+  body.description = text(body.description, 5000) || null
+  body.submitter_name = text(body.submitter_name, 120) || null
+  body.priority = ['low', 'normal', 'high'].includes(body.priority) ? body.priority : 'normal'
 
   // Generate number
   const { count } = await supabase.from('support_tickets').select('id', { count: 'exact', head: true })
@@ -336,7 +350,7 @@ factory.post('/public/support/tickets', rateLimit(60 * 60 * 1000, 10), async (c)
   }
 
   const { data: ticket, error } = await supabase.from('support_tickets').insert(record).select().single()
-  if (error) return c.json({ error: error.message }, 500)
+  if (error) { console.error('[Support] public ticket insert failed:', error.message); return c.json({ error: 'Could not file the ticket. Please try again.' }, 500) }
   return c.json(ticket, 201)
 })
 
@@ -363,7 +377,10 @@ factory.get('/support/kb', async (c) => {
 
   let query = supabase.from('support_knowledge_base').select('*').eq('published', true)
   if (category) query = query.eq('category', category)
-  if (search) query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`)
+  // The search words go into a filter expression: only letters, digits, spaces and dashes of them do (a comma or a bracket
+  // would add a filter of the caller's own).
+  const words = String(search || '').replace(/[^\p{L}\p{N} _-]/gu, ' ').trim().slice(0, 80)
+  if (words) query = query.or(`title.ilike.%${words}%,content.ilike.%${words}%`)
 
   const { data } = await query.order('view_count', { ascending: false }).limit(50)
   return c.json(data || [])

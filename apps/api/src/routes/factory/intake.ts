@@ -26,6 +26,7 @@ import { requestedLook } from '../../config/siteLooks'
 import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes, storeSignupPhoto, SIGNUP_PHOTO_FILE } from '../../services/signupSite'
 import { intakeAssetLink } from '../../services/factoryStorage'
 import { crmTemplateFor, deployProductsForVertical, startingFeaturesFor, verticalFor } from '../../config/industryRouting'
+import { imageTypeOf } from '../../services/signupBody'
 import { signupEmail, signupProductList, signupFeatureList, signupSlug, SIGNUP_HEX_RE, SIGNUP_PLAN_RE, NOT_PASTED_AS_TYPED } from '../../services/signupBody'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
@@ -739,9 +740,10 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     // Multipart parse — { all: true } gives arrays for repeated fields like photos[].
     const body = await c.req.parseBody({ all: true }) as Record<string, any>
 
-    const getStr = (key: string): string => {
+    // Every answer is text of a sensible length: the form is open to anyone (security review S5-9).
+    const getStr = (key: string, max = 4000): string => {
       const v = body[key]
-      return typeof v === 'string' ? v.trim() : ''
+      return typeof v === 'string' ? v.trim().slice(0, max) : ''
     }
 
     // Array fields arrive either as repeated multipart keys (services[]) or as a
@@ -753,7 +755,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       for (const v of items) {
         if (typeof v !== 'string') continue
         for (const part of v.split(/[\n,]/)) {
-          const t = part.trim()
+          const t = part.trim().slice(0, 200)
           if (t) out.push(t)
         }
       }
@@ -766,9 +768,9 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       return ['true', 'yes', '1', 'on'].includes(v)
     }
 
-    const businessName = getStr('businessName')
-    const businessType = getStr('businessType')
-    const contactEmail = getStr('contactEmail')
+    const businessName = getStr('businessName', 120)
+    const businessType = getStr('businessType', 80)
+    const contactEmail = signupEmail(getStr('contactEmail', 200)) || ''
 
     if (!businessName || businessName.length < 2) {
       return c.json({ error: 'Business name is required (min 2 characters).' }, 400)
@@ -776,7 +778,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     if (!businessType) {
       return c.json({ error: 'Business type is required.' }, 400)
     }
-    if (!contactEmail || !contactEmail.includes('@')) {
+    if (!contactEmail) {
       return c.json({ error: 'A valid contact email is required.' }, 400)
     }
 
@@ -847,6 +849,13 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       if (file.type && !ALLOWED_IMAGE_TYPES.includes(file.type)) return `${label} must be a PNG, JPG, WEBP, SVG, or GIF.`
       return null
     }
+    // The type the browser states is only a claim: the bytes say what the file is, and that is the type it is stored as. An
+    // SVG is a drawing, never a page — one carrying a script, an event handler or embedded HTML is refused. (S5-9)
+    const checkedImage = (buf: Buffer, label: string): { type: string } | { error: string } => {
+      const type = imageTypeOf(buf)
+      if (!type) return { error: `${label} must be a PNG, JPG, WEBP, SVG, or GIF.` }
+      return { type }
+    }
 
     // ─── Upload logo (single) ─────────────────────────────────────────────
     let logoStorageKey: string | null = null
@@ -856,7 +865,9 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       const err = validateFile(body.logo, 'Logo')
       if (err) return c.json({ error: err }, 400)
       const buf = Buffer.from(await body.logo.arrayBuffer())
-      const result = await uploadIntakeAsset(buf, body.logo.name || 'logo', body.logo.type || 'application/octet-stream', slug)
+      const logoKind = checkedImage(buf, 'Logo')
+      if ('error' in logoKind) return c.json({ error: logoKind.error }, 400)
+      const result = await uploadIntakeAsset(buf, body.logo.name || 'logo', logoKind.type, slug)
       logoStorageKey = result.storageKey
       logoStorageType = result.storageType
       logoUrl = await getZipDownloadUrl(result.storageKey, result.storageType, 7 * 24 * 60 * 60)
@@ -872,7 +883,9 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       const err = validateFile(candidate, 'Reference photo')
       if (err) return c.json({ error: err }, 400)
       const buf = Buffer.from(await candidate.arrayBuffer())
-      const result = await uploadIntakeAsset(buf, candidate.name || 'photo', candidate.type || 'application/octet-stream', slug)
+      const photoKind = checkedImage(buf, 'Reference photo')
+      if ('error' in photoKind) return c.json({ error: photoKind.error }, 400)
+      const result = await uploadIntakeAsset(buf, candidate.name || 'photo', photoKind.type, slug)
       photoStorageKeys.push({ storageKey: result.storageKey, storageType: result.storageType })
       const url = await getZipDownloadUrl(result.storageKey, result.storageType, 7 * 24 * 60 * 60)
       if (url) photoUrls.push(url)

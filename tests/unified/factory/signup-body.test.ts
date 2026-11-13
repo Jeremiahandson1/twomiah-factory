@@ -3,7 +3,7 @@
 import { test, expect, describe } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { signupEmail, signupProductList, signupFeatureList, signupSlug, NOT_PASTED_AS_TYPED, SIGNUP_HEX_RE, SIGNUP_PLAN_RE } from '../../../apps/api/src/services/signupBody'
+import { signupEmail, signupProductList, signupFeatureList, signupSlug, imageTypeOf, NOT_PASTED_AS_TYPED, SIGNUP_HEX_RE, SIGNUP_PLAN_RE } from '../../../apps/api/src/services/signupBody'
 import { getFeaturesForPlan, isPaidAddOn, FEATURE_REGISTRY } from '../../../apps/api/src/config/featureRegistry'
 import { crmTemplateFor } from '../../../apps/api/src/config/industryRouting'
 import { addressTokensChecked, ADDRESS_TOKENS, literalSafeText } from '../../../apps/api/src/services/generator'
@@ -71,6 +71,53 @@ describe('the public signup body', () => {
     // The form's own deployment model is one of two words, and a domain is only one checked as the owner's own.
     expect(signup).toMatch(/body\.deployment_model = body\.deployment_model === 'owned' \? 'owned' : 'saas'/)
     expect(signup).toMatch(/if \(body\.domainMode !== 'byod'\) body\.domain = undefined/)
+  })
+})
+
+describe('what a public form is sent', () => {
+  test('a picture is what its bytes say, and an SVG is a drawing, never a page', () => {
+    const pad = Buffer.alloc(16, 1)
+    expect(imageTypeOf(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), pad]))).toBe('image/jpeg')
+    expect(imageTypeOf(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), pad]))).toBe('image/png')
+    expect(imageTypeOf(Buffer.concat([Buffer.from('GIF89a'), pad]))).toBe('image/gif')
+    expect(imageTypeOf(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), pad]))).toBe('image/webp')
+    expect(imageTypeOf(Buffer.from('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>'))).toBe('image/svg+xml')
+    expect(imageTypeOf(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>'))).toBe('image/svg+xml')
+    for (const bad of [
+      '<html><body><script>alert(1)</script></body></html>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)">x</a></svg>',
+      '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><body/></foreignObject></svg>',
+      'MZ this is a program, not a picture', '',
+    ]) expect(imageTypeOf(Buffer.from(bad))).toBeNull()
+  })
+
+  test('the intake route stores a file as what its bytes are, and takes an email that is one', () => {
+    const intake = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/intake.ts'), 'utf8')
+    const route = intake.slice(intake.indexOf("factory.post('/public/intake'"), intake.indexOf("factory.post('/public/preview'"))
+    expect(route).toMatch(/signupEmail\(getStr\('contactEmail', 200\)\)/)
+    expect(route).not.toMatch(/uploadIntakeAsset\([^)]*\.type \|\| 'application\/octet-stream'/)
+    expect(route).toMatch(/uploadIntakeAsset\(buf, body\.logo\.name \|\| 'logo', logoKind\.type, slug\)/)
+    expect(route).toMatch(/uploadIntakeAsset\(buf, candidate\.name \|\| 'photo', photoKind\.type, slug\)/)
+  })
+
+  test('an email the Factory sends carries outside words as text, never as markup', async () => {
+    const E = await import('../../../apps/api/src/services/email')
+    const evil = '<img src=x onerror=alert(1)><a href="https://evil.example">Click</a>'
+    const welcome = E.buildWelcomeEmail({ name: evil, email: 'o@acme.example', plan: 'starter10', industry: 'roofing' }, evil)
+    expect(welcome.html).not.toContain('<img src=x')
+    expect(welcome.html).not.toContain('<a href="https://evil.example">')
+    expect(welcome.html).toContain('&lt;img src=x')
+    const ready = E.buildDeployCompleteEmail({ name: evil, slug: 'acme', email: 'o@acme.example', industry: 'roofing', products: ['crm', 'website'] }, { deployedUrl: 'https://acme.onrender.com/"><script>x</script>', siteUrl: 'https://acme.twomiah.app' }, null)
+    expect(ready.html).not.toContain('<script>x</script>')
+    expect(ready.html).not.toContain('<img src=x')
+    // No template in the file pastes a business's name, a ticket's words or an intake's answers in as they came.
+    const src = fs.readFileSync(path.join(ROOT, 'apps/api/src/services/email.ts'), 'utf8')
+    for (const raw of ['<strong>${tenant.name}</strong>', '<strong>${data.businessName}</strong>', '${error}</p>', "+ data.contactEmail +", '${ticket.description.substring(0, 500)}', '${message.body.substring(0, 1000)}', '${data.notes.substring(0, 2000).replace']) {
+      expect(src).not.toContain(raw)
+    }
+    expect(src).toMatch(/function kv\(label: string, value: string\): string \{\s*return kvHtml\(label, escHtml\(value\)\)/)
   })
 })
 

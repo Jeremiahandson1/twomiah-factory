@@ -35,5 +35,23 @@ export function signupSlug(v: unknown): string {
   return typeof v === 'string' ? v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60).replace(/-$/, '') : ''
 }
 
+/**
+ * What an uploaded picture IS, by its bytes (the type a browser states is only a claim): one of the five the public forms take,
+ * or null. An SVG is a drawing, never a page: one with a script, an event handler, embedded HTML or a script address is null.
+ */
+export function imageTypeOf(buf: Uint8Array): string | null {
+  const b = buf
+  if (b.length < 12) return null
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif'
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+  const text = Buffer.from(b).toString('utf8')
+  const head = text.slice(0, 2000).replace(/^﻿/, '').trimStart()
+  if (!/^(<\?xml[^>]*\?>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return null
+  if (/<script|<foreignObject|<iframe|<object|<embed|\son[a-z]+\s*=|javascript:|<!ENTITY/i.test(text)) return null
+  return 'image/svg+xml'
+}
+
 /** Characters that are code syntax where the templates generator pastes a value as typed (an owner's first password). */
 export const NOT_PASTED_AS_TYPED = /['"`\\<>{}$\r\n]/
