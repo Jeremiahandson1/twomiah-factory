@@ -140,9 +140,9 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     // hire's login on screen". Every adapted copy reads the moved files (tests/unified/harness/adapt.ts, 2026-10-19).
     // hr group (server/crm/homecare/hr).
     'hire-credentials.test.ts': {
-      assertions: [/^emailed: the caregiver login exists/],
-      why: "A hire's login is stored with the unified caregiver seat, `field` (moved tenants keep `caregiver`; verticals/homecare/settings.ts maps both onto the field rung, and the shared team module stores `field` too — canonicalRole). Same login, same rights; the assertion reads role === 'caregiver'.",
-      heldBy: "apps/unified/tests/homecare-hr.test.ts (a hire: role field, in the hiring company; the hire dialog's login and the public pages' tabs, on the moved screens)",
+      assertions: [/^emailed: the caregiver login exists/, /^emailed: the welcome email really went, carrying the login/, /^email refused: credentialsEmailed is false and the temporary password comes back to hand over/, /^email refused: a password the office typed comes back as typed/],
+      why: "A hire's login is stored with the unified caregiver seat, `field` (moved tenants keep `caregiver`; verticals/homecare/settings.ts maps both onto the field rung, and the shared team module stores `field` too — canonicalRole). Same login, same rights; the assertion reads role === 'caregiver'. 2) On purpose (security review S2-6, 2026-11-13): no password is made up, emailed or shown to the office. The welcome email carries a single-use link to choose one (its box is headed 'Your Login', not 'Your Login Credentials'), and when the email does not go the LINK comes back (setPasswordUrl), never a temporary password — typed or generated.",
+      heldBy: "apps/unified/tests/homecare-hr.test.ts (a hire: role field, in the hiring company; the hire dialog shows the link and never a password) and tests/unified/homecare/staff.test.ts (the link comes back when the email did not go, no tempPassword, the reset token kept hashed for 7 days; run by adapted.ts)",
     },
     // A whole-file entry: the template reads a list reply as an array (list.json[0] of the public careers list), which
     // throws on { data, pagination } and stops the file before its summary.

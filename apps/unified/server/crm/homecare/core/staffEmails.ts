@@ -21,7 +21,7 @@ export type BgcMatch = { statute: string; short_title: string; severity: string 
 export function createStaffEmails(d: CrmDeps, deps: { profile: AgencyProfiles }) {
   const sendRaw = (m: { to: string; subject: string; html: string }) => d.services.emailService.sendRaw(m)
 
-  async function sendCaregiverWelcome(companyId: string, { to, firstName, tempPassword }: { to: string; firstName: string; tempPassword: string }) {
+  async function sendCaregiverWelcome(companyId: string, { to, firstName, setPasswordUrl }: { to: string; firstName: string; setPasswordUrl: string }) {
     const agency = await deps.profile.getAgencyProfile(companyId)
     const loginUrl = appUrl() || '/'
     return sendRaw({
@@ -31,14 +31,14 @@ export function createStaffEmails(d: CrmDeps, deps: { profile: AgencyProfiles })
       <h3 style="color:#047857;">Welcome aboard, ${esc(firstName)}!</h3>
       <p>You've been hired as a caregiver at ${esc(agency.name)}. Your account is ready to go.</p>
       <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:16px;margin:20px 0;">
-        <p style="margin:0 0 8px;font-weight:700;color:#065F46;">Your Login Credentials</p>
+        <p style="margin:0 0 8px;font-weight:700;color:#065F46;">Your Login</p>
         <p style="margin:4px 0;"><strong>Email:</strong> ${esc(to)}</p>
-        <p style="margin:4px 0;"><strong>Temporary Password:</strong> ${esc(tempPassword)}</p>
+        <p style="margin:4px 0;">You choose your own password with the button below. Nobody at the office knows it.</p>
       </div>
       <p style="text-align:center;margin:24px 0;">
-        <a href="${esc(loginUrl)}" style="background:#047857;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Log In to the App</a>
+        <a href="${esc(setPasswordUrl)}" style="background:#047857;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Choose Your Password</a>
       </p>
-      <p style="color:#4b5563;font-size:0.9rem;">Use the link above or go to <strong>${esc(loginUrl)}</strong> on your phone or computer. We recommend changing your password after your first login.</p>
+      <p style="color:#4b5563;font-size:0.9rem;">The button works once, for 7 days. After that, sign in at <strong>${esc(loginUrl)}</strong> on your phone or computer.</p>
       <p style="color:#4b5563;font-size:0.9rem;">If you have any questions, please contact the office. We're glad to have you on the team!</p>
     `),
     })

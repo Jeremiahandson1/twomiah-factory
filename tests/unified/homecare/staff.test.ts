@@ -236,13 +236,14 @@ let appId = ''
   check('hire creates the caregiver', hire.status === 200 && hire.json.success && !!hire.json.caregiverId, hire.json)
   // No email provider here (sendRaw's dev mode sends nothing), so the office is handed the password to pass on —
   // and told the email did not go. With a working provider it is not returned at all (hire-credentials.test.ts).
-  check('…no email provider: the login was NOT emailed, so the temporary password comes back for the office', hire.json.credentialsEmailed === false && !!hire.json.tempPassword && /could not be sent/.test(hire.json.message), hire.json)
+  /* unified (security review S2-6, 2026-11-13): no password is made up, emailed or shown. The caregiver chooses their own with a single-use link, and the LINK comes back for the office when the email did not go. */
+  check('…no email provider: the login was NOT emailed, so the choose-a-password link comes back for the office — and no password does', hire.json.credentialsEmailed === false && /\/reset-password\?token=/.test(String(hire.json.setPasswordUrl)) && !('tempPassword' in hire.json) && /could not be sent/.test(hire.json.message), hire.json)
   check('…and reports the onboarding packet', hire.json.packetCreated === true && hire.json.packetUrl.startsWith('https://staff-test.example/onboarding/'), hire.json.packetUrl)
   const [u] = await db.select().from(users).where(eq(users.id, hire.json.caregiverId))
   check('the login is the lower-cased applicant email, role caregiver', u.email === 'jamie.applicant@example.test' && u.role === 'field', u) /* unified: a new caregiver's seat is the unified role field (moved tenants keep caregiver; both read as a caregiver) */
   check('the rate is the hire rate', u.defaultPayRate === '16.50', u.defaultPayRate)
   check('certifications carried to the caregiver', JSON.stringify(u.certifications) === '["CNA","CPR"]', u.certifications)
-  check('the temp password is not CVHC-branded', !/CVHC/.test(hire.json.tempPassword), hire.json.tempPassword)
+  check('the link sets the password once (the app\'s own reset link, kept hashed)', !!u.resetToken && u.resetToken !== new URL(hire.json.setPasswordUrl, 'https://x.example').searchParams.get('token') && new Date(u.resetTokenExp).getTime() > Date.now() + 6 * 86400000, { exp: u.resetTokenExp })
   const [after] = await db.select().from(applications).where(eq(applications.id, appId))
   check('the application is hired and points at the user', after.status === 'hired' && after.hiredUserId === u.id)
   const packets = await db.select().from(onboardingPackets).where(eq(onboardingPackets.caregiverId, u.id))
