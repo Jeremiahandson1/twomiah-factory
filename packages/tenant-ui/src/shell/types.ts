@@ -93,16 +93,32 @@ export const meetsRole = (role: string | undefined, minRole: string | undefined)
 export const allowsPermission = (can: (permission: string) => boolean, permission: string | string[] | undefined): boolean =>
   !permission || (Array.isArray(permission) ? permission.some((p) => can(p)) : can(permission))
 
+/**
+ * The menu entries at an address that apply here. Two trades can put a page at the same address (the bar's Gift Cards needs
+ * bar:manage, the salon's invoices:read — launch 11/12: a salon's front desk saw Gift cards and was refused, because the first
+ * entry, the bar's, was read): the entries whose switch this business has on, else all of them.
+ */
+export const entriesAt = (nav: NavItem[] | undefined, to: string, hasFeature?: (id: string) => boolean): NavItem[] => {
+  const all = (nav || []).filter((i) => i.to === to)
+  if (!hasFeature) return all
+  const live = all.filter((i) => !i.features?.length || i.features.some((f) => hasFeature(f)))
+  return live.length ? live : all
+}
+
 export const maySeeRoute = (
   config: { routeRoles?: Record<string, string>; routePermissions?: Record<string, string | string[]>; nav?: NavItem[] },
   to: string,
   role: string | undefined,
   can?: (permission: string) => boolean,
+  hasFeature?: (id: string) => boolean,
 ): boolean => {
-  const item = config.nav?.find((i) => i.to === to)
-  if (!meetsRole(role, config.routeRoles?.[to] ?? item?.minRole)) return false
-  const permission = config.routePermissions?.[to] ?? item?.permission
-  return !permission || !can || allowsPermission(can, permission)
+  // An explicit route rule decides; else the page opens when any entry at the address that applies here allows it.
+  const entries = entriesAt(config.nav, to, hasFeature)
+  const roleOk = config.routeRoles?.[to] !== undefined ? meetsRole(role, config.routeRoles[to]) : !entries.length || entries.some((i) => meetsRole(role, i.minRole))
+  if (!roleOk) return false
+  if (!can) return true
+  if (config.routePermissions?.[to] !== undefined) return allowsPermission(can, config.routePermissions[to])
+  return !entries.length || entries.some((i) => allowsPermission(can, i.permission))
 }
 
 export interface ShellAuth {
