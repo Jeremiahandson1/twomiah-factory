@@ -419,7 +419,7 @@ function buildReportBody(
     <!-- Company Header -->
     <div class="header">
       <div class="header-left">
-        ${companyLogo ? `<img class="header-logo" src="${companyLogo}" alt="${companyName}" />` : ''}
+        ${companyLogo ? `<img class="header-logo" src="${escapeHtml(String(companyLogo))}" alt="${escapeHtml(String(companyName ?? ''))}" />` : ''}
         <div>
           <h1>${escapeHtml(companyName)}</h1>
           <div style="font-size:12px;color:#718096;font-weight:500;margin-top:2px;">Professional Roof Measurement Report</div>
@@ -440,11 +440,11 @@ function buildReportBody(
     <!-- Imagery Metadata Bar -->
     <div class="imagery-meta">
       <span>
-        <strong>Source:</strong> ${imagerySource}
-        ${report.imageryDate ? ` &middot; <strong>Captured:</strong> ${report.imageryDate}` : ''}
+        <strong>Source:</strong> ${escapeHtml(String(imagerySource ?? ''))}
+        ${report.imageryDate ? ` &middot; <strong>Captured:</strong> ${escapeHtml(String(report.imageryDate))}` : ''}
         ${season.label !== 'Unknown' ? ` <span class="season-badge" style="background:${season.color};">${season.label}</span>` : ''}
       </span>
-      <span class="quality-badge quality-${report.imageryQuality.toLowerCase()}">${report.imageryQuality} Quality</span>
+      <span class="quality-badge quality-${escapeHtml(String(report.imageryQuality).toLowerCase())}">${escapeHtml(String(report.imageryQuality))} Quality</span>
     </div>
 
     ${season.warning ? `<div class="season-warning">${season.warning}</div>` : ''}
