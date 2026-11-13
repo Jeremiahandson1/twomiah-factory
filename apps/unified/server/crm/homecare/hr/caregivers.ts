@@ -15,6 +15,7 @@
 //     admin or take one over;
 //   · the create and edit write only the caregiver's own columns: the template spread the body into the user row, so
 //     a body could set its company, its permission grants, its refresh/reset token or its IVR PIN.
+import crypto from 'node:crypto'
 import { Hono } from 'hono'
 import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { optionalPointProblem } from '../../../core/geo.ts'
@@ -725,7 +726,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     let pin: string
     let attempts = 0
     do {
-      pin = String(Math.floor(Math.random() * 9000 + 1000))
+      pin = String(crypto.randomInt(1000, 10000))
       attempts++
       if (attempts > 100) return fail(c, 500, 'Unable to generate unique PIN')
     } while (pinSet.has(pin))

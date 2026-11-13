@@ -230,6 +230,19 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     const key = decodeURIComponent(c.req.path.replace(/^.*\/file\//, ''))
     if (!key || key.includes('..') || key.startsWith('/')) return c.json({ error: 'Invalid key' }, 400)
     if (!key.startsWith(`${companyId}/`)) return c.json({ error: 'Forbidden' }, 403)
+    // A DOCUMENT'S FILE FOLLOWS THE DOCUMENT (security review S4-3, carried from S1-15, 2026-11-13). For a seat that
+    // reads only its own work (deps.visibleTo), a key that IS a document's — its file or its thumbnail — is served only
+    // when that document is one the seat may read. A key no document owns is another module's file and is served as
+    // it was. Seats that read everything are not asked.
+    const narrowed = await seenBy(c)
+    if (narrowed) {
+      const base = key.replace(/_thumb(\.[A-Za-z0-9]+)?$/, '$1')
+      const owners = await db.select({ id: t.document.id }).from(t.document).where(and(eq(t.document.companyId, companyId), or(eq(t.document.path, key), eq(t.document.path, base)))).limit(1)
+      if (owners.length) {
+        const [mine] = await db.select({ id: t.document.id }).from(t.document).where(and(eq(t.document.companyId, companyId), or(eq(t.document.path, key), eq(t.document.path, base)), narrowed)).limit(1)
+        if (!mine) return c.json({ error: 'Not found' }, 404)
+      }
+    }
     const obj = await storage.getObject(key)
     if (!obj) return c.json({ error: 'Not found' }, 404)
     // Preview inline for images and PDFs (both magic-byte verified on upload) so the preview pane can render

@@ -24,7 +24,7 @@
 // care-billing:update (a pay link releases the draft); an invoice's payment history is care-billing:read.
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
-import { isDocumentToken } from '@twomiah/tenant-backend'
+import { isDocumentToken, verifyFactoryKey } from '@twomiah/tenant-backend'
 import { invoices, clients, company } from '../../../db/schema/index.ts'
 import { isClientVisibleInvoice, round2 } from '../core/invoiceEngine.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -202,9 +202,8 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
   // services/connectWebhook.ts) with its key, as the CRM's shared router takes it. A visit invoice's checkout is recorded
   // here; anything else (a booking deposit) is the shared Stripe service's, as it is for every other vertical.
   app.post('/factory-event', async (c) => {
-    const syncKey = process.env.FACTORY_SYNC_KEY
-    if (!syncKey) return fail(c, 503, 'Sync not configured')
-    if ((c.req.header('X-Factory-Key') || '') !== syncKey) return fail(c, 401, 'Unauthorized')
+    const fk = verifyFactoryKey(c) // constant time, as every Factory door (security review S3-2, S3-3)
+    if (!fk.ok) return fail(c, fk.status, fk.status === 503 ? 'Sync not configured' : 'Unauthorized')
     const b = await body(c)
     const event = b?.event
     if (!event || typeof event !== 'object' || typeof event.type !== 'string' || !event.data?.object) return fail(c, 400, 'event with type and data.object is required')
@@ -217,8 +216,12 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
   // says which agency's account the session is on.
   app.get('/verify-payment/:sessionId', requireStripe, async (c) => {
     const stripe = await stripeClient(logger)
+    // Only the invoice's own link may ask, and only about that invoice's payment (security review S3-3): this read any
+    // Checkout session by its id — the platform's own included — and answered with the payer's email.
     const row = await invoiceByToken(c.req.query('doc') || '')
-    const session = await stripe.checkout.sessions.retrieve(c.req.param('sessionId'), row ? await accountOpts(row.invoice.companyId) : undefined)
+    if (!row) return fail(c, 404, 'Payment not found')
+    const session = await stripe.checkout.sessions.retrieve(c.req.param('sessionId'), await accountOpts(row.invoice.companyId)).catch(() => null)
+    if (!session || session.metadata?.invoice_id !== row.invoice.id) return fail(c, 404, 'Payment not found')
     if (session.payment_status === 'paid') {
       return one(c, { success: true, amount: session.amount_total / 100, invoiceId: session.metadata?.invoice_id, customerEmail: session.customer_email })
     }
