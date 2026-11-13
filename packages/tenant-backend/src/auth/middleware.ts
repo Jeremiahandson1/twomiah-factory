@@ -76,14 +76,16 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
       return c.json({ error: 'Your password was changed — please sign in again.', code: 'session_ended' }, 401)
     }
     c.set('user', { userId: found.id, companyId: found.companyId, email: found.email, role: found.role } as AuthUserContext)
-    const locked = await refuseWhileLocked(c, db, company)
-    if (locked) return locked
     if (deps.enforceMfaPolicy) {
       // In a View As the token names the person viewed; the one who owes the second factor is the one really signed in.
+      // Asked before the lock (whose own open doors stay open to it): the lock's three lines below are read as they
+      // stand by scripts/check-cancelled-company-is-locked.ts.
       const really = decoded.impersonation && decoded.impersonatorId ? String(decoded.impersonatorId) : found.id
       const owed = await refuseUntilEnrolled(c, db, found.companyId, really)
       if (owed) return owed
     }
+    const locked = await refuseWhileLocked(c, db, company)
+    if (locked) return locked
     await next()
   }
 

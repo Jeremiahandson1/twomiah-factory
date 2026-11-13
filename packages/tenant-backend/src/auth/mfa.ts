@@ -41,6 +41,7 @@ import crypto from 'crypto'
 // The same verifier enrolment uses. Passing it in as a parameter would have let sign-in be handed
 // a different one.
 import { matchTOTPStep } from './totp.ts'
+import { isLockOpenPath } from './accountLock.ts'
 
 /** A factor a person can be asked for at sign-in. Backup codes are deliberately not one. */
 const PRESENTABLE = ['totp', 'sms', 'email'] as const
@@ -175,7 +176,8 @@ export function forgetMfaPolicy(): void { policyCache.clear(); enrolledCache.cle
 
 export async function refuseUntilEnrolled(c: any, db: any, companyId: string, userId: string, scope?: MfaScope): Promise<Response | null> {
   const path = String(c.req.path || '')
-  if (path === MFA_ENROLMENT_OPEN_PREFIX || path.startsWith(MFA_ENROLMENT_OPEN_PREFIX + '/')) return null
+  // …and the doors a locked company keeps (billing: the owner of a cancelled account pays before anything else).
+  if (path === MFA_ENROLMENT_OPEN_PREFIX || path.startsWith(MFA_ENROLMENT_OPEN_PREFIX + '/') || isLockOpenPath(path)) return null
   const now = Date.now()
   let policy = policyCache.get(companyId)
   if (!policy || now - policy.at > POLICY_CACHE_MS) {
