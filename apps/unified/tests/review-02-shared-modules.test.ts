@@ -99,3 +99,21 @@ describe('02-6: an amount between two commission brackets', () => {
     expect('error' in commissionFor(plan, 6000)).toBe(true)
   })
 })
+
+describe('02-10: a service agreement’s bill carries the business’s tax rate', () => {
+  test('8% in Settings: $600 bills $648.00; no rate set: $600.00', async () => {
+    await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'quotes', 'invoices', 'jobs', 'recurring_jobs', 'time_tracking', 'service_agreements'] } as any).where(eq(t.schema.company.id, companyId))
+    t.services.features.forgetFeatures()
+    const agreement = async (name: string) => (await json(await call('/api/agreements', { method: 'POST', json: { contactId, name, startDate: '2026-01-01', endDate: '2027-01-01', amount: 600, billingFrequency: 'annual', renewalType: 'manual' } }))).body
+    const plain = await agreement('Plain plan')
+    const billedPlain = await json(await call(`/api/agreements/${plain.id}/bill`, { method: 'POST', json: {} }))
+    expect(billedPlain.body).toMatchObject({ subtotal: '600.00', taxAmount: '0.00', total: '600.00' })
+    const [co] = await t.db.select().from(t.schema.company).where(eq(t.schema.company.id, companyId))
+    await t.db.update(t.schema.company).set({ settings: { ...((co.settings as any) || {}), defaultTaxRate: 8 } } as any).where(eq(t.schema.company.id, companyId))
+    const taxed = await agreement('Taxed plan')
+    const billed = await json(await call(`/api/agreements/${taxed.id}/bill`, { method: 'POST', json: {} }))
+    expect(billed.body).toMatchObject({ subtotal: '600.00', taxAmount: '48.00', total: '648.00' })
+    expect(Number(billed.body.taxRate)).toBe(8)
+    await t.db.update(t.schema.company).set({ settings: co.settings } as any).where(eq(t.schema.company.id, companyId))
+  })
+})
