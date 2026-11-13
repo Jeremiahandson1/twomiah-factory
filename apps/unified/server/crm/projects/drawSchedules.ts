@@ -164,28 +164,32 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
     const currentUser = c.get('user') as any
     const data = drawRequestSchema.parse(await c.req.json())
 
-    const [{ value: cnt }] = await db
+    // The draw's number and the "is this much left?" check are read and then written: two requests at once took the
+    // same number and could together draw more than the loan. One at a time per schedule (code review 04-3).
+    const out: any = await db.transaction(async (tx: any) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'draws:' + data.scheduleOfValuesId}))`)
+    const [{ value: cnt }] = await tx
       .select({ value: count() })
       .from(drawRequest)
       .where(and(eq(drawRequest.companyId, currentUser.companyId), eq(drawRequest.scheduleOfValuesId, data.scheduleOfValuesId)))
 
     // The schedule, scoped to the caller's company: its id arrives in the BODY, so without this a caller could hang
     // a draw request off another company's schedule and copy its projectId across.
-    const [sov] = await db.select({ projectId: scheduleOfValues.projectId, contractAmount: scheduleOfValues.contractAmount, retainagePercent: scheduleOfValues.retainagePercent }).from(scheduleOfValues)
+    const [sov] = await tx.select({ projectId: scheduleOfValues.projectId, contractAmount: scheduleOfValues.contractAmount, retainagePercent: scheduleOfValues.retainagePercent }).from(scheduleOfValues)
       .where(and(eq(scheduleOfValues.id, data.scheduleOfValuesId), eq(scheduleOfValues.companyId, currentUser.companyId))).limit(1)
-    if (!sov) return fail(c, 404, 'Schedule of values not found')
+    if (!sov) return { status: 404 as const, error: 'Schedule of values not found' }
 
     // A draw can't take more than the loan has left: every draw not rejected counts against it.
     const gross = Math.round((data.grossAmount || 0) * 100) / 100
-    const [{ drawn }] = await db.select({ drawn: sql<string>`coalesce(sum(${drawRequest.grossAmount}), 0)` }).from(drawRequest)
+    const [{ drawn }] = await tx.select({ drawn: sql<string>`coalesce(sum(${drawRequest.grossAmount}), 0)` }).from(drawRequest)
       .where(and(eq(drawRequest.scheduleOfValuesId, data.scheduleOfValuesId), ne(drawRequest.status, 'rejected')))
     const left = Math.round((Number(sov.contractAmount) - Number(drawn)) * 100) / 100
-    if (gross > left + 0.005) return fail(c, 400, `That is more than the loan has left to draw ($${left.toFixed(2)}).`, 'over_contract')
+    if (gross > left + 0.005) return { status: 400 as const, error: `That is more than the loan has left to draw ($${left.toFixed(2)}).`, code: 'over_contract' }
     // The lender holds back the schedule's retainage from each draw; the net is what is paid now. Retainage was stored
     // as $0 and the net as the whole gross, so every draw overstated what the lender pays.
     const retainage = Math.round(gross * Number(sov.retainagePercent || 0)) / 100
 
-    const [created] = await db
+    const [created] = await tx
       .insert(drawRequest)
       .values({
         id: createId(),
@@ -199,6 +203,11 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
         companyId: currentUser.companyId,
       })
       .returning()
+
+    return { created }
+    })
+    if (!out.created) return fail(c, out.status, out.error, out.code)
+    const created = out.created
 
     return one(c, created, 201)
   })

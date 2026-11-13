@@ -10,7 +10,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
-import { partialOf } from '@twomiah/tenant-backend'
+import { partialOf, businessToday, companyTimeZone } from '@twomiah/tenant-backend'
 
 /**
  * Which bill statuses are SPEND. One list, used by the job roll-up, the PO commitment relief and the over-billing
@@ -72,6 +72,13 @@ export function createBillRoutes(d: CrmDeps) {
     return row?.projectId ?? null
   }
 
+  /**
+   * A bill is overdue once its due DAY is over on the business's clock (code review 04-1, 2026-11-13). The due date is a
+   * day (kept at midnight UTC); "before now" made a bill due today read overdue all of today — and from the evening
+   * before, west of Greenwich. The invoices' rule (tenant-backend overdueCutoff).
+   */
+  const overdueBefore = async (companyId: string) => businessToday(await companyTimeZone(db, companyId))
+
   app.get('/', async (c) => {
     const currentUser = c.get('user') as any
     const status = c.req.query('status')
@@ -83,7 +90,7 @@ export function createBillRoutes(d: CrmDeps) {
     const conditions = [eq(vendorBill.companyId, currentUser.companyId)]
     if (status === 'overdue') {
       conditions.push(inArray(vendorBill.status, ['open', 'partial']))
-      conditions.push(lt(vendorBill.dueDate, new Date()))
+      conditions.push(lt(vendorBill.dueDate, await overdueBefore(currentUser.companyId)))
     } else if (status) {
       conditions.push(eq(vendorBill.status, status))
     }
@@ -107,7 +114,7 @@ export function createBillRoutes(d: CrmDeps) {
     const outstanding = round2(rows.filter(r => ['open', 'partial'].includes(r.status))
       .reduce((s, r) => s + Number(r.totalAmount || 0) - Number(r.totalPaid || 0), 0))
     const [{ value: overdueCount }] = await db.select({ value: count() }).from(vendorBill)
-      .where(and(eq(vendorBill.companyId, currentUser.companyId), inArray(vendorBill.status, ['open', 'partial']), lt(vendorBill.dueDate, new Date())))
+      .where(and(eq(vendorBill.companyId, currentUser.companyId), inArray(vendorBill.status, ['open', 'partial']), lt(vendorBill.dueDate, await overdueBefore(currentUser.companyId))))
     return one(c, { byStatus, outstanding, overdueCount: Number(overdueCount) })
   })
 
@@ -254,6 +261,8 @@ export function createBillRoutes(d: CrmDeps) {
       .where(and(eq(vendorBill.id, id), eq(vendorBill.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Bill not found')
     if (existing.status === 'paid') return fail(c, 400, 'A paid bill can no longer be edited')
+    // A void bill stays void (code review 04-2): a new amount on one with a payment on it read "partial" again.
+    if (existing.status === 'void') return fail(c, 400, 'This bill is void and can no longer be edited')
 
     const update: Record<string, any> = { updatedAt: new Date() }
     if (data.vendorId) update.vendorId = data.vendorId
@@ -338,9 +347,19 @@ export function createBillRoutes(d: CrmDeps) {
       }).where(eq(vendorBill.id, id)).returning()
 
       // A PO whose linked bill is fully paid is done: mark it billed.
+      // The ORDER is billed when bills cover it — the rule the bill's own creation uses (above). Paying one bill in
+      // full used to mark the whole order billed: a $100 bill paid on a $1,000 order closed it with $900 unbilled
+      // (code review 04-2, 2026-11-13).
       if (fullyPaid && existing.purchaseOrderId) {
-        await tx.update(purchaseOrder).set({ status: 'billed', updatedAt: new Date() })
-          .where(and(eq(purchaseOrder.id, existing.purchaseOrderId), eq(purchaseOrder.companyId, currentUser.companyId)))
+        const [po] = await tx.select().from(purchaseOrder)
+          .where(and(eq(purchaseOrder.id, existing.purchaseOrderId), eq(purchaseOrder.companyId, currentUser.companyId))).limit(1)
+        if (po && ['sent', 'acknowledged', 'received'].includes(po.status)) {
+          const billed = await billedAgainstPurchaseOrder(tx, currentUser.companyId, po.id, BILL_IS_SPEND)
+          if (billed >= Number(po.total || 0) - 0.005) {
+            await tx.update(purchaseOrder).set({ status: 'billed', updatedAt: new Date() })
+              .where(and(eq(purchaseOrder.id, po.id), eq(purchaseOrder.companyId, currentUser.companyId)))
+          }
+        }
       }
       return { status: 200 as const, record: { ...updated, payment: recorded } }
     })
