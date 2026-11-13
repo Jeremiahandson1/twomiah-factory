@@ -8,6 +8,7 @@
 //
 // What never leaves: passwords, sign-in and reset tokens, API keys and secrets, the encrypted credentials of a connected
 // service, one-time links. The manifest says, per file, which columns were left out for that reason.
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import { getTableConfig, PgTable, type PgColumn } from 'drizzle-orm/pg-core'
 import { getTableName, is, sql, type SQL } from 'drizzle-orm'
 import * as schema from '../db/schema/index.ts'
@@ -91,7 +92,8 @@ const cellText = (v: unknown): string => {
   return String(v)
 }
 const csvCell = (v: unknown) => {
-  const s = cellText(v)
+  // Kept as text where it would run as a formula (tenant-backend csvFormulaSafe); numbers, dates and phone numbers are untouched.
+  const s = csvFormulaSafe(cellText(v))
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

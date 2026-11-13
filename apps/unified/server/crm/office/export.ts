@@ -1,6 +1,7 @@
 // Data export: any of the CRM's lists as CSV, or as tab-separated text Excel opens. Moved from
 // templates/crm/backend/src/routes/export.ts and services/export.ts; the queries are in server/data/export.ts.
 // The registry signs the person in; each download keeps the template's permission and its audit row.
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import { Hono } from 'hono'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -159,7 +160,8 @@ const FIELDS: Record<string, FieldDef[]> = {
 /** The template's CSV cell: quoted when it holds a comma, a quote or a newline; quotes doubled. Kept as it was. */
 function escapeCSV(val: unknown): string {
   if (val === null || val === undefined) return ''
-  const str = String(val)
+  // …and a cell that would run as a formula is kept as text (tenant-backend csvFormulaSafe).
+  const str = csvFormulaSafe(String(val))
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
     return `"${str.replace(/"/g, '""')}"`
   }

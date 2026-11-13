@@ -15,6 +15,7 @@
 //
 // The hours files carry HOURS (and the reimbursement, bonus and premium amounts under the codes the agency set), not rates: ADP and
 // Paychex apply the pay rates on file. A file is refused, with who and what is missing, rather than guessed at.
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import { Hono } from 'hono'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { company, user, caregiverProfiles, payrollShiftReviews } from '../../../db/schema/index.ts'
@@ -113,7 +114,7 @@ export function mergeFileSettings(current: PayrollFileSettings, input: any): { f
 }
 
 const mdy = (ymd: string) => `${ymd.slice(5, 7)}/${ymd.slice(8, 10)}/${ymd.slice(0, 4)}`
-const quote = (s: string) => `"${s.replace(/"/g, '""')}"`
+const quote = (s: string) => `"${csvFormulaSafe(s).replace(/"/g, '""')}"`
 const hrs = (n: number) => n.toFixed(2)
 const money = (n: number) => n.toFixed(2)
 const r2 = (n: number) => Math.round(n * 100) / 100

@@ -1,6 +1,7 @@
 // What the saved and scheduled reports share: a report as a table (columns the person can choose, rows with links to the
 // customer, plan or invoice behind them), the CSV of one, and the period a saved report names (rolling, so a scheduled one
 // always reports on the latest days). Pure — the reports build the tables, this only shapes and writes them.
+import { csvFormulaSafe } from '@twomiah/tenant-backend'
 import { storeDayStart, storeDateString } from '@twomiah/tenant-backend'
 
 export type ColKind = 'text' | 'money' | 'number' | 'date' | 'datetime' | 'percent'
@@ -39,7 +40,7 @@ export function resolvePeriod(id: string, today: string): { startDate?: string; 
 export const monthOf = (when: Date, tz: string) => storeDateString(when, tz).slice(0, 7)
 export const monthStartIn = (tz: string) => (ym: string) => storeDayStart(`${ym}-01`, tz)
 
-const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+const csvCell = (v: unknown) => `"${csvFormulaSafe(String(v ?? '')).replace(/"/g, '""')}"`
 const localStamp = (iso: string, tz: string) => {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
