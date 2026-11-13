@@ -39,6 +39,7 @@ import { getEventSettings, featureOn } from './eventSettings.ts'
 import { dayBefore } from './eventGuarantee.ts'
 import { mountInstalmentPaying, leadInstalment, paymentOffer, type InstalmentModel } from './eventPayments.ts'
 import { cleanSigners, defaultContractTemplate, renderContract, roleLabel, type ContractContext, type SignerPlanEntry, type SignerRole } from './eventContracts.ts'
+import { callerAddress } from '../../http/guards.ts'
 
 const MAX_SIGNATURE_BYTES = 500_000
 const OPEN = ['sent', 'viewed', 'partly_signed']
@@ -151,7 +152,7 @@ export function priceWith(snap: any, options: ProposalOption[], sel: Selections)
 
 const fingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
 const tokenNew = () => crypto.randomBytes(32).toString('hex')
-const signerIp = (c: any): string | null => { const f = c.req.header('x-forwarded-for'); return f ? f.split(',')[0].trim() || null : c.req.header('x-real-ip') || null }
+const signerIp = (c: any): string | null => callerAddress(c)
 
 // ── Signers ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** A proposal's signers in send order. A proposal sent before signers existed has just its client, made here from what it kept. */

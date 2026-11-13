@@ -16,7 +16,7 @@ import { eq, and, or, inArray, count, sql, desc, asc, gte, lt, lte, max, notInAr
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
-import { isDocumentToken, readQuotePreviewToken, QUOTE_PREVIEW_FEATURE } from './documentLinks'
+import { isDocumentToken, readQuotePreviewToken, QUOTE_PREVIEW_FEATURE, bookPrefillCode, readBookPrefillCode } from './documentLinks'
 import { includedLines, notIncludedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, chosenLabel, offersOptions, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { hasDocumentTables, loadDocument, loadMarks, documentForCustomer, cosignerRequired, checkInitials, pdfExtras, withLinePictures, INITIAL_FIRST_CODE } from '../invoicing/quoteDocument'
@@ -658,6 +658,41 @@ export function createPortalRoutes(deps: PortalDeps) {
     const rows = await db.select({ id: t.project.id }).from(t.project).where(eq(t.project.contactId, contactId))
     return rows.map((p: any) => p.id)
   }
+  /**
+   * THE PROJECTS THIS CONTACT IS ON (security review S2-1, S2-2, 2026-11-13): its own (the customer's), the ones a job
+   * of which is subcontracted to it, and the ones a document of which is shared with it. The collaborator pages —
+   * submittals, RFIs — read through this: they were scoped by company alone, so any portal holder read every project's
+   * submittals and could approve any of them.
+   */
+  const reachableProjectIds = async (contact: { id: string; companyId: string }): Promise<string[]> => {
+    if (!t.project) return []
+    const ids = new Set<string>(await contactProjectIds(contact.id))
+    if (t.job && t.job.subcontractorId && t.job.projectId) {
+      const rows = await db.select({ id: t.job.projectId }).from(t.job).where(and(eq(t.job.subcontractorId, contact.id), eq(t.job.companyId, contact.companyId)))
+      for (const r of rows) if (r.id) ids.add(r.id)
+    }
+    if (t.documentShare && t.document) {
+      const rows = await db.select({ id: t.document.projectId }).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id))
+        .where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.companyId, contact.companyId)))
+      for (const r of rows) if (r.id) ids.add(r.id)
+    }
+    return [...ids]
+  }
+  /**
+   * WHAT ONE PORTAL LINK MAY MAKE IN AN HOUR (security review S2-4). A link is a bearer key that gets forwarded; nothing
+   * capped what it could create — a loop of service requests filled the board at 1,200 jobs every 15 minutes. Counted
+   * per contact, in memory; the answer when a budget is spent says to call.
+   */
+  const budgets = new Map<string, number[]>()
+  const spend = (contactId: string, what: string, max: number, windowMs = 60 * 60 * 1000): boolean => {
+    const key = `${what}|${contactId}`, now = Date.now()
+    const recent = (budgets.get(key) || []).filter((at) => now - at < windowMs)
+    if (recent.length >= max) { budgets.set(key, recent); return false }
+    recent.push(now); budgets.set(key, recent)
+    if (budgets.size > 20000) for (const [k, v] of budgets) if (!v.some((at) => now - at < windowMs)) budgets.delete(k)
+    return true
+  }
+  const OVER_BUDGET = { error: 'That is a lot in a short time. Please wait a while, or call us.', code: 'slow_down' }
   const fullCompany = async (companyId: string) => { const [row] = await db.select().from(t.company).where(eq(t.company.id, companyId)).limit(1); return row }
 
   /**
@@ -770,9 +805,23 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   // ---- book a visit online (field service, basic, landscaping — parity tier 2 #5)
   if (has.bookOnline) {
+    // What the booking form is filled in with, by the code the portal's button put in the booking page's address: the
+    // customer's own details and nothing else. No portal token is involved (security review S2-10).
+    app.get('/prefill/:code', async (c) => {
+      const named = readBookPrefillCode(c.req.param('code'))
+      const none = () => c.json({ error: 'Not found' }, 404)
+      if (!named) return none()
+      const [who] = await db.select({ name: t.contact.name, email: t.contact.email, phone: t.contact.phone, mobile: (t.contact as any).mobile ?? t.contact.phone, address: t.contact.address, city: t.contact.city, state: t.contact.state, zip: t.contact.zip, portalEnabled: t.contact.portalEnabled })
+        .from(t.contact).where(and(eq(t.contact.id, named.contactId), eq(t.contact.companyId, named.companyId))).limit(1)
+      if (!who || !who.portalEnabled || (await portalFeatureOff(named.companyId))) return none()
+      const v = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : '')
+      c.header('Cache-Control', 'no-store')
+      return c.json({ name: v(who.name), email: v(who.email), phone: v(who.mobile) || v(who.phone), address: v(who.address), city: v(who.city), state: v(who.state), zip: v(who.zip) })
+    })
     app.get('/p/:token/book-online', portalAuth, gate('bookOnline' as any), async (c) => {
       const { contact } = P(c)
-      return c.json({ bookUrl: deps.bookOnline!.bookUrl(c.req.param('token')), bookings: await deps.bookOnline!.list(contact.companyId, contact.id) })
+      // A fill-in code, never the portal's own token: the address it goes in is a website page's (documentLinks.ts).
+      return c.json({ bookUrl: deps.bookOnline!.bookUrl(bookPrefillCode(contact.companyId, contact.id)), bookings: await deps.bookOnline!.list(contact.companyId, contact.id) })
     })
     // What the booking form is filled in with (the site's scripts/book-flow.ts, which came here from the portal's link): the
     // customer's own details, to this portal's holder only — never a note, a price or anyone else's.
@@ -1141,7 +1190,8 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (body?.consent !== true) return { ok: false, error: 'You must agree to sign electronically before approving.' }
     return { ok: true, signerName }
   }
-  const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
+  // The edge's own header first: the left-most x-forwarded-for entry is whatever the signer's browser sent (security review S2-5).
+  const signerIp = (c: any): string | null => { const edge = c.req.header('cf-connecting-ip'); if (edge) return edge.trim().slice(0, 45) || null; const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
   const documentFingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
   async function recordSignatureAudit(params: { companyId: string; entity: string; entityId: string; entityName: string; signerName: string; signerEmail?: string | null; ip: string | null; userAgent: string | null; documentHash: string; signedAt: Date; amount?: unknown; option?: string | null; action?: string; extra?: Record<string, unknown> }) {
     try {
@@ -1668,6 +1718,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const text = typeof body?.body === 'string' ? body.body.trim() : ''
     if (!text) return c.json({ error: 'Message body is required' }, 400)
     if (text.length > 10_000) return c.json({ error: 'Message is too long' }, 400)
+    if (!spend(contact.id, 'message', 30)) return c.json(OVER_BUDGET, 429)
     const [row] = await db.insert(t.message).values({ companyId, contactId: contact.id, type: 'portal', direction: 'inbound', subject: typeof body.subject === 'string' && body.subject.trim() ? body.subject.trim().slice(0, 200) : null, body: text, status: 'sent', sentAt: new Date() }).returning()
     return c.json(row)
   })
@@ -1733,6 +1784,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       const rows = await q.where(and(eq(t.lienWaiver.companyId, contact.companyId), eq(t.lienWaiver.vendorId, contact.id))).orderBy(desc(t.lienWaiver.createdAt), asc(t.lienWaiver.id))
       return c.json(rows)
     })
+    /** A web address over https, of a sane length — what a signed document's link may be. */
+    const httpsAddress = (v: unknown): boolean => { if (typeof v !== 'string' || v.length > 2000) return false; try { return new URL(v).protocol === 'https:' } catch { return false } }
     app.post('/p/:token/lien-waivers/:waiverId/sign', portalAuth, async (c) => {
       const { contact } = P(c)
       const waiverId = c.req.param('waiverId')
@@ -1740,6 +1793,10 @@ export function createPortalRoutes(deps: PortalDeps) {
       const [found] = await db.select().from(t.lienWaiver).where(and(eq(t.lienWaiver.id, waiverId), eq(t.lienWaiver.vendorId, contact.id), eq(t.lienWaiver.companyId, contact.companyId))).limit(1)
       if (!found) return c.json({ error: 'Lien waiver not found' }, 404)
       if (found.status === 'approved' || found.status === 'received') return c.json({ error: 'Lien waiver already signed' }, 400)
+      // The signed document's address and the note were stored as sent: any text, any length, any scheme — and the office
+      // opens that address as "the signed waiver" (security review S2-3). A web address, or none; a bounded note.
+      if (body.documentUrl != null && body.documentUrl !== '' && !httpsAddress(body.documentUrl)) return c.json({ error: 'The document link must be a web address starting with https://' }, 400)
+      if (body.notes != null && (typeof body.notes !== 'string' || body.notes.length > 2000)) return c.json({ error: 'Keep the note under 2,000 characters.' }, 400)
       const [updated] = await db.update(t.lienWaiver).set({ status: 'received', receivedAt: new Date(), signedDate: new Date(), documentUrl: body.documentUrl || found.documentUrl, notes: body.notes || found.notes, updatedAt: new Date() }).where(eq(t.lienWaiver.id, waiverId)).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'lien_waiver', entityId: waiverId, action: 'signed', actorName: contact.name, actorRole: contact.type || 'subcontractor', summary: `signed a ${String(found.waiverType || '').replace(/_/g, ' ')} lien waiver for $${Number(found.amountTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` })
       return c.json({ success: true, lienWaiver: updated })
@@ -1753,18 +1810,25 @@ export function createPortalRoutes(deps: PortalDeps) {
       const q = t.project
         ? db.select({ ...base, projectName: t.project.name, projectNumber: t.project.number }).from(t.submittal).leftJoin(t.project, eq(t.submittal.projectId, t.project.id))
         : db.select(base).from(t.submittal)
-      // Architects see the company's submittals (scoped by company); per-project assignment is a later refinement.
-      const rows = await q.where(eq(t.submittal.companyId, contact.companyId)).orderBy(desc(t.submittal.createdAt), asc(t.submittal.id))
+      // The submittals of the projects this contact is on — never the whole company's (reachableProjectIds).
+      const mine = await reachableProjectIds(contact)
+      if (!mine.length) return c.json([])
+      const rows = await q.where(and(eq(t.submittal.companyId, contact.companyId), inArray(t.submittal.projectId, mine))).orderBy(desc(t.submittal.createdAt), asc(t.submittal.id))
       return c.json(rows)
     })
-    const ownSubmittal = async (id: string, companyId: string) => { const [row] = await db.select().from(t.submittal).where(and(eq(t.submittal.id, id), eq(t.submittal.companyId, companyId))).limit(1); return row || null }
+    const ownSubmittal = async (id: string, contact: { id: string; companyId: string }) => {
+      const mine = await reachableProjectIds(contact)
+      if (!mine.length) return null
+      const [row] = await db.select().from(t.submittal).where(and(eq(t.submittal.id, id), eq(t.submittal.companyId, contact.companyId), inArray(t.submittal.projectId, mine))).limit(1)
+      return row || null
+    }
     app.post('/p/:token/submittals/:submittalId/approve', portalAuth, async (c) => {
       const { contact } = P(c)
       const submittalId = c.req.param('submittalId')
       const body = await c.req.json().catch(() => ({}))
-      const found = await ownSubmittal(submittalId, contact.companyId)
+      const found = await ownSubmittal(submittalId, contact)
       if (!found) return c.json({ error: 'Submittal not found' }, 404)
-      const [updated] = await db.update(t.submittal).set({ status: 'approved', approvedDate: new Date(), approvedBy: body.signedBy || contact.name, notes: body.notes || found.notes, updatedAt: new Date() }).where(eq(t.submittal.id, submittalId)).returning()
+      const [updated] = await db.update(t.submittal).set({ status: 'approved', approvedDate: new Date(), approvedBy: contact.name, notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 2000) : found.notes, updatedAt: new Date() }).where(and(eq(t.submittal.id, submittalId), eq(t.submittal.companyId, contact.companyId))).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'submittal', entityId: submittalId, action: 'approved', actorName: contact.name, actorRole: contact.type || 'architect', summary: `approved submittal ${found.number} "${found.title}"` })
       return c.json({ success: true, submittal: updated })
     })
@@ -1772,10 +1836,10 @@ export function createPortalRoutes(deps: PortalDeps) {
       const { contact } = P(c)
       const submittalId = c.req.param('submittalId')
       const { reason } = await c.req.json().catch(() => ({}))
-      const found = await ownSubmittal(submittalId, contact.companyId)
+      const found = await ownSubmittal(submittalId, contact)
       if (!found) return c.json({ error: 'Submittal not found' }, 404)
-      const revisionNote = `[Revision requested by ${contact.name} on ${new Date().toLocaleDateString()}] ${reason || ''}`
-      const [updated] = await db.update(t.submittal).set({ status: 'revise', notes: (found.notes ? `${found.notes}\n\n` : '') + revisionNote, updatedAt: new Date() }).where(eq(t.submittal.id, submittalId)).returning()
+      const revisionNote = `[Revision requested by ${contact.name} on ${new Date().toLocaleDateString()}] ${typeof reason === 'string' ? reason.slice(0, 2000) : ''}`
+      const [updated] = await db.update(t.submittal).set({ status: 'revise', notes: (found.notes ? `${found.notes}\n\n` : '') + revisionNote, updatedAt: new Date() }).where(and(eq(t.submittal.id, submittalId), eq(t.submittal.companyId, contact.companyId))).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'submittal', entityId: submittalId, action: 'revision_requested', actorName: contact.name, actorRole: contact.type || 'architect', summary: `requested revision on submittal ${found.number} "${found.title}"`, details: { reason: reason || null } })
       return c.json({ success: true, submittal: updated })
     })
@@ -1788,7 +1852,11 @@ export function createPortalRoutes(deps: PortalDeps) {
       const q = t.project
         ? db.select({ ...base, projectName: t.project.name, projectNumber: t.project.number }).from(t.rfi).leftJoin(t.project, eq(t.rfi.projectId, t.project.id))
         : db.select(base).from(t.rfi)
-      const rows = await q.where(and(eq(t.rfi.companyId, contact.companyId), eq(t.rfi.assignedTo, contact.name))).orderBy(desc(t.rfi.createdAt), asc(t.rfi.id))
+      // "Assigned to" is a name on the RFI, so two contacts of one name read each other's: only inside the projects this
+      // contact is on (security review S2-2).
+      const mine = await reachableProjectIds(contact)
+      if (!mine.length) return c.json([])
+      const rows = await q.where(and(eq(t.rfi.companyId, contact.companyId), eq(t.rfi.assignedTo, contact.name), inArray(t.rfi.projectId, mine))).orderBy(desc(t.rfi.createdAt), asc(t.rfi.id))
       return c.json(rows)
     })
     app.post('/p/:token/rfis-assigned/:rfiId/respond', portalAuth, async (c) => {
@@ -1796,9 +1864,10 @@ export function createPortalRoutes(deps: PortalDeps) {
       const rfiId = c.req.param('rfiId')
       const { response } = await c.req.json().catch(() => ({}))
       if (!response || !String(response).trim()) return c.json({ error: 'Response is required' }, 400)
-      const [found] = await db.select().from(t.rfi).where(and(eq(t.rfi.id, rfiId), eq(t.rfi.companyId, contact.companyId), eq(t.rfi.assignedTo, contact.name))).limit(1)
+      const mine = await reachableProjectIds(contact)
+      const [found] = mine.length ? await db.select().from(t.rfi).where(and(eq(t.rfi.id, rfiId), eq(t.rfi.companyId, contact.companyId), eq(t.rfi.assignedTo, contact.name), inArray(t.rfi.projectId, mine))).limit(1) : []
       if (!found) return c.json({ error: 'RFI not found' }, 404)
-      const [updated] = await db.update(t.rfi).set({ status: 'answered', response: String(response).trim(), respondedAt: new Date(), respondedBy: contact.name, updatedAt: new Date() }).where(eq(t.rfi.id, rfiId)).returning()
+      const [updated] = await db.update(t.rfi).set({ status: 'answered', response: String(response).trim().slice(0, 10_000), respondedAt: new Date(), respondedBy: contact.name, updatedAt: new Date() }).where(eq(t.rfi.id, rfiId)).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'rfi', entityId: rfiId, action: 'responded', actorName: contact.name, actorRole: contact.type || 'architect', summary: `responded to RFI ${found.number} "${found.subject}"` })
       return c.json({ success: true, rfi: updated })
     })
@@ -1918,6 +1987,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const body = await c.req.parseBody()
       const file = body['file'] as File | undefined
       if (!file || !(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400)
+      if (!spend(contact.id, 'file', 40, 24 * 60 * 60 * 1000)) return c.json(OVER_BUDGET, 429)
       let uploaded
       try { uploaded = await fileService.saveFile(file, contact.companyId, 'documents') } catch (err: any) { return c.json({ error: err.message }, 400) }
       let filePath = uploaded.path, thumbnailPath: string | null = null
@@ -2007,6 +2077,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       const body = await c.req.json().catch(() => ({}))
       const description = typeof body.description === 'string' ? body.description.trim() : ''
       if (!description) return c.json({ error: 'Issue description is required' }, 400)
+      if (description.length > 5000) return c.json({ error: 'Keep the description under 5,000 characters.' }, 400)
+      if (!spend(contact.id, 'service-request', 5)) return c.json(OVER_BUDGET, 429)
       const urgency = body.urgency === 'urgent' ? 'urgent' : 'routine'
       const preferredContact = ['call', 'text', 'email'].includes(body.preferredContact) ? body.preferredContact : 'any'
       let equipmentName = '', equipmentId: string | null = null

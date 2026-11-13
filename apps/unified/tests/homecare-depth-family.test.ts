@@ -171,3 +171,32 @@ describe('quiet hours are an agency setting (follow-up 10/30)', () => {
     await put('owner', { quietHoursStart: '21:00', quietHoursEnd: '08:00' })
   })
 })
+
+// Security review S2-6 (2026-11-13): the family portal's sign-in locks on wrong passwords, and a reset ends old sessions.
+describe('home care — family portal sign-in (security review S2-6)', () => {
+  // Each from an address of its own, so the door's 20-per-address limit is not what answers.
+  const signIn = (email: string, password: string, from = '10.9.0.1') => t.call('/api/family-portal/login', { method: 'POST', json: { email, password }, headers: { 'cf-connecting-ip': from } })
+  test('a password reset by the office ends the session the old password made', async () => {
+    const made = await member({ name: 'Sue Client', email: 'sue@family.example' })
+    expect(made.status).toBe(201)
+    const first = await json(await signIn('sue@family.example', 'Family-pass-1'))
+    expect(first.status).toBe(200)
+    const me = (tok: string) => t.call('/api/family-portal/portal/me', { headers: { Authorization: `Bearer ${tok}` } })
+    expect((await me(first.body.token)).status).toBe(200)
+    expect((await as('owner')(`/api/family-portal/admin/members/${made.body.id}/reset-password`, { method: 'PUT', json: { password: 'Another-pass-2' } })).status).toBe(200)
+    expect((await me(first.body.token)).status).toBe(401)
+    const again = await json(await signIn('sue@family.example', 'Another-pass-2'))
+    expect((await me(again.body.token)).status).toBe(200)
+  })
+
+  test('ten wrong passwords for one email and it waits, for a real account and for none alike', async () => {
+    await member({ name: 'Tom Client', email: 'tom@family.example' })
+    for (const email of ['tom@family.example', 'nobody@family.example']) {
+      let last: Response | null = null
+      const from = email.startsWith('tom') ? '10.9.0.2' : '10.9.0.3'
+      for (let i = 0; i < 10; i++) { last = await signIn(email, 'not-it', from); expect(last.status).toBe(401) }
+      // …from anywhere, the right password included.
+      expect((await signIn(email, 'Family-pass-1', '10.9.0.4')).status).toBe(429)
+    }
+  })
+})

@@ -325,6 +325,25 @@ describe('loyalty quote (the cart reads it directly)', () => {
     expect((await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000')).json).toEqual(empty)
     await t.db.update(S().company).set({ settings: co.settings }).where(eq(S().company.id, companyId))
   })
+  test('with shopper accounts on, a balance and a reward are the signed-in shopper’s only (security review S2-11)', async () => {
+    const [co] = await t.db.select().from(S().company).where(eq(S().company.id, companyId))
+    const had = (co.enabledFeatures as string[]) || []
+    await t.db.update(S().company).set({ enabledFeatures: [...new Set([...had, 'store_accounts'])] } as any).where(eq(S().company.id, companyId))
+    t.services.features.forgetFeatures()
+    try {
+      // Nobody is signed in: typing Ada's email shows nothing of hers…
+      const q = await req('GET', '/api/public/loyalty?email=ada@example.com&subtotalCents=5000')
+      expect(q.json.pointsBalance).toBe(0)
+      expect(q.json.rewards).toEqual([])
+      // …and does not spend her reward on someone else's order.
+      const spend = await req('POST', '/api/public/checkout', { items: [{ sku: 'ANY-SKU', quantity: 1 }], customerEmail: 'ada@example.com', loyaltyRewardId: tenOff.id })
+      expect(spend.status).toBe(401)
+      expect(spend.json.code).toBe('sign_in_for_rewards')
+    } finally {
+      await t.db.update(S().company).set({ enabledFeatures: had } as any).where(eq(S().company.id, companyId))
+      t.services.features.forgetFeatures()
+    }
+  })
 })
 
 describe('reviews', () => {

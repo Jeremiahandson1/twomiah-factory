@@ -17,6 +17,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { done, fail } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { phoneE164, recordConsent, ticked } from '../../site/smsConsent.ts'
+import { clientKey } from '../../http/guards.ts'
 
 export const CHAT_TO_TEXT = 'chat_to_text'
 const WINDOW_MS = 15 * 60 * 1000
@@ -29,7 +30,7 @@ const body = z.object({
   page: z.string().max(300).optional(),
 }).passthrough()
 
-const clientIp = (c: any) => (c.req.header('X-Forwarded-For') || '').split(',')[0].trim() || c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
+const clientIp = (c: any) => clientKey(c)
 
 export function createChatToTextRoutes(d: CrmDeps) {
   const { db, logger } = d

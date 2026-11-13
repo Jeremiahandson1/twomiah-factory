@@ -154,6 +154,8 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   // A gift card's balance by its number: few tries an address, so numbers cannot be guessed by trying them.
   pub.use('/gift-cards/*', createRateLimiter(15 * 60 * 1000, isProd ? 20 : 1000))
   pub.use('/upsells', createRateLimiter(15 * 60 * 1000, isProd ? 600 : 5000))
+  // A balance by email: a few an address, so emails cannot be tried in bulk (security review S2-11).
+  pub.use('/loyalty', createRateLimiter(15 * 60 * 1000, isProd ? 30 : 5000))
 
   pub.get('/status', async (c) => {
     const co = await core.shop()
@@ -240,6 +242,9 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
       const co = await core.shop()
       if (!co || !email) return one(c, EMPTY_QUOTE)
       if (!(await core.loyaltySettings(co.id)).enabled) return one(c, EMPTY_QUOTE)
+      // Whose points: with shopper accounts on, only the signed-in shopper's own (rewardsAreFor) — anyone could read a
+      // customer's balance by typing their email (security review S2-11, 2026-11-13).
+      if (!(await rewardsAreFor(c, co.id, email))) return one(c, EMPTY_QUOTE)
       const quote = await core.availableRewards(co.id, email, subtotalCents)
       return one(c, {
         pointsBalance: quote.pointsBalance,
@@ -269,11 +274,25 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
   // The cart's totals before paying (store live test 11/10: a discount code typed in the cart showed nothing until checkout, and
   // checkout was where a store without payments stopped): priced by the same rule as the order (placeOrder's preview — nothing is
   // written, no gift card held), so the cart's figure is the order's. A code that does not apply is refused in words.
+  /**
+   * MAY THIS BROWSER READ OR SPEND THE REWARDS OF THIS EMAIL (security review S2-11)? A reward was taken from whoever's
+   * email was typed at checkout, so a stranger could spend a customer's points on an order of their own. Where the
+   * store has shopper accounts, rewards belong to the signed-in shopper and to that shopper's email only. A store
+   * without accounts has no sign-in to ask for; there the door keeps its limit of tries (below) and nothing more.
+   */
+  async function rewardsAreFor(c: Context, companyId: string, email: string | undefined): Promise<boolean> {
+    if (!(await d.features.isFeatureEnabled(companyId, 'store_accounts').catch(() => false))) return true
+    const s = await shopperOf(accounts, c, companyId)
+    return !!s && !!email && String(s.email || '').trim().toLowerCase() === String(email).trim().toLowerCase()
+  }
+  const REWARD_SIGN_IN = 'Sign in to your account to use your rewards.'
+
   pub.post('/checkout/preview', shopperDoor, async (c) => {
     const parsed = checkoutSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return fail(c, 400, 'Invalid cart', 'validation_failed', fieldsOf(parsed.error))
     const s = await theShop(c); if (s.reply) return s.reply
     const shopper = await signedInShopper(c, s.co.id)
+    if (parsed.data.loyaltyRewardId && !(await rewardsAreFor(c, s.co.id, parsed.data.customerEmail ?? shopper?.email))) return fail(c, 401, REWARD_SIGN_IN, 'sign_in_for_rewards')
     const { saveCard: _s, useSavedCard: _u, giftCardCode: _g, ...cart } = parsed.data
     const r = await starter.start({ ...cart, companyId: s.co.id, origin: requestOrigin(c), preview: true, ...(shopper ? { shopper } : {}) })
     if (!r.ok) return fail(c, r.status, r.error, r.code)
@@ -286,7 +305,7 @@ export function createStorePublicRoutes(d: CrmDeps, core: StoreCore, checkout: C
     const s = await theShop(c); if (s.reply) return s.reply
     // A signed-in shopper (their account's own cookie, never the typed email): their group's prices, their address ready.
     const shopper = await signedInShopper(c, s.co.id)
-    // The origin the shopper is actually on — from the request, never the body (see the header).
+    if (parsed.data.loyaltyRewardId && !(await rewardsAreFor(c, s.co.id, parsed.data.customerEmail ?? shopper?.email))) return fail(c, 401, REWARD_SIGN_IN, 'sign_in_for_rewards')
     const { saveCard, useSavedCard, ...cart } = parsed.data
     const r = await starter.start({ ...cart, companyId: s.co.id, origin: requestOrigin(c), ...(shopper ? { shopper, fast: { saveCard, useSavedCard } } : {}) })
     if (!r.ok) return fail(c, r.status, r.error, r.code)

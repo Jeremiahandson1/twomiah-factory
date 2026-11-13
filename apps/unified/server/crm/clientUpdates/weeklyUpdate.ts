@@ -34,6 +34,8 @@ import type { CrmDeps } from '../deps.ts'
 
 export const WEEKLY_UPDATE = 'weekly_client_update'
 export const KIND = 'weekly_client_update'
+/** How long an update's Open button works: the week it is about, and a little after. */
+export const OPEN_LINK_DAYS = 21
 const DAY = 86_400_000
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 
@@ -228,6 +230,10 @@ export function createWeeklyUpdates(d: CrmDeps) {
     const [row] = id ? await db.select().from(reminderLog).where(and(eq(reminderLog.id, id), eq(reminderLog.kind, KIND))).limit(1) : []
     const [who] = row ? await db.select({ token: contact.portalToken }).from(contact).where(and(eq(contact.id, row.subjectId), eq(contact.companyId, row.companyId))).limit(1) : []
     if (!row || !who?.token) return fail(c, 404, 'This link is not valid any more.')
+    // The button carries the reader straight into the customer's portal on its CURRENT link, so an old email was a
+    // standing key however often the office reissued the portal link (security review S2-9, 2026-11-13). It works
+    // while the update is fresh and the feature is on; after that the customer uses their portal link itself.
+    if (Date.now() - new Date(row.createdAt).getTime() > OPEN_LINK_DAYS * 86_400_000 || !(await on(row.companyId, WEEKLY_UPDATE))) return fail(c, 404, 'This link is not valid any more.')
     if (!/^opened /.test(String(row.detail || ''))) await db.update(reminderLog).set({ detail: `opened ${new Date().toISOString()}`, updatedAt: new Date() }).where(eq(reminderLog.id, row.id))
     const origin = String(process.env.FRONTEND_URL || '').replace(/\/+$/, '')
     return c.redirect(`${origin}/portal/${who.token}`, 302)

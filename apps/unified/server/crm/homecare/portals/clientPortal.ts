@@ -49,6 +49,7 @@ import { visitInvoiceOwed } from '../billing/stripe.ts'
 import { PORTAL_PREVIEW_READ_ONLY } from '../core/viewAsReadOnly.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 // The numbers the portal's sign-in rules run on.
 export const PORTAL_RULES = {
@@ -78,6 +79,13 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/
 const normEmail = (e: unknown) => String(e ?? '').trim().toLowerCase()
 const newToken = () => crypto.randomBytes(32).toString('hex')
 const DIRECT_LINK_DAYS = 90
+/**
+ * WHICH LINK A SESSION CAME FROM (security review S2-7, 2026-11-13). Opening the emailed link trades it for a 30-day
+ * session; that session named only the client, so reissuing the link (because the old one got out) or letting it
+ * expire ended nothing for whoever had already opened it. The session now carries a mark of the link it was made
+ * from, and every request compares it with the client's link as it is now.
+ */
+const linkMark = (portalToken: string | null | undefined) => crypto.createHash('sha256').update(String(portalToken || '')).digest('hex').slice(0, 16)
 
 /** A send that only printed to the console (no provider configured) did not reach anybody. */
 async function delivered(send: Promise<{ success: boolean; dev?: boolean }>): Promise<{ sent: boolean; error: string | null }> {
@@ -93,9 +101,7 @@ async function delivered(send: Promise<{ success: boolean; dev?: boolean }>): Pr
 const MAX_SIGNATURE_BYTES = 400_000
 
 function signerIp(c: Context): string | null {
-  const fwd = c.req.header('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim() || null
-  return c.req.header('x-real-ip') || null
+  return callerAddress(c)
 }
 
 function documentFingerprint(payload: unknown): string {
@@ -189,6 +195,10 @@ export function createPortalAuth(core: HomecareCore, d: CrmDeps) {
     } else if (!found.portalEnabled) {
       // Signed in through the direct link: the client's portal switch is that link's gate.
       return fail(c, 401, 'Portal access disabled')
+    } else if (found.portalToken && (decoded.lk !== linkMark(found.portalToken) || (found.portalTokenExp && new Date() > new Date(found.portalTokenExp)))) {
+      // A session made from a link that has since been replaced or run out (linkMark). Withdrawing the link switches
+      // the portal off (above). A client with the portal on and no link at all has no link to compare with.
+      return fail(c, 401, 'This link is no longer valid. Please contact your care coordinator.')
     }
     await touch(found.id)
     return admit(found, { account })
@@ -521,7 +531,7 @@ export function createClientPortalRoutes(core: HomecareCore, d: CrmDeps) {
     await db.update(clients).set({ lastPortalVisit: new Date(), updatedAt: new Date() } as any)
       .where(and(eq(clients.id, found.id), eq(clients.companyId, found.companyId)))
     const token = jwt.sign(
-      { clientId: found.id, companyId: found.companyId, role: 'client', firstName: found.firstName, lastName: found.lastName },
+      { clientId: found.id, companyId: found.companyId, role: 'client', firstName: found.firstName, lastName: found.lastName, lk: linkMark(found.portalToken) },
       process.env.JWT_SECRET!,
       { expiresIn: '30d' },
     )

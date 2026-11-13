@@ -18,6 +18,8 @@
 import { Hono } from 'hono'
 import { sql } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
+// A family session carries a mark of the password it was given for, a link session of its link (security review S2-6, S2-7); the template ignores both.
+const markOf = (v: string) => new Bun.CryptoHasher('sha256').update(v).digest('hex').slice(0, 16)
 import { readFileSync } from 'node:fs'
 import { setSystemTime } from 'bun:test'
 import { setupSchema } from './setup.ts'
@@ -100,7 +102,7 @@ const call = (headers: Record<string, string>) => async (method: string, path: s
 }
 const as = (u: any) => call({ 'x-test-user': u.id, 'x-test-role': u.role, 'x-test-email': u.email })
 const A = as(admin), CGA = as(cgA), CGB = as(cgB)
-const family = (memberId: string, clientId: string) => call({ authorization: `Bearer ${jwt.sign({ id: memberId, role: 'family', clientId, familyMemberId: memberId }, process.env.JWT_SECRET!)}` })
+const family = (memberId: string, clientId: string, hash = 'x') => call({ authorization: `Bearer ${jwt.sign({ id: memberId, role: 'family', clientId, familyMemberId: memberId, pv: markOf(hash) }, process.env.JWT_SECRET!)}` })
 
 const insSched = async (v: Record<string, any>) => {
   const id = `sch_${Math.random().toString(36).slice(2, 10)}`
@@ -193,7 +195,7 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   const created = await A('POST', '/api/family-portal/admin/members', { clientId: cl.id, firstName: 'Dana', lastName: 'Daughter', email: 'dana@r4.local', password: 'danapass1', relationship: 'child', canViewMedications: true })
   check('3. a relative is added with medications on', created.status === 201 && created.json.canViewMedications === true, created.json)
   await q(sql`INSERT INTO medications (id, client_id, name, status) VALUES ('m_fam', ${cl.id}, 'Metformin', 'active')`)
-  const F = family(created.json.id, cl.id)
+  const F = family(created.json.id, cl.id, String((await q(sql`SELECT password_hash FROM family_members WHERE id = ${created.json.id}`))[0]?.password_hash ?? ''))
   check('3. …and sees the medications', (await F('GET', '/api/family-portal/portal/medications')).status === 200)
   // EditMemberForm's payload, exactly.
   const edit = await A('PUT', `/api/family-portal/admin/members/${created.json.id}`, {

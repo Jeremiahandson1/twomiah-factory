@@ -21,6 +21,7 @@ import { done, fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { body, who, whole, NOT_YOUR_CLIENT, type ClientAccess } from './shared.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 // A calendar day ('2026-10-21') as 10/21/2026 — read as text, so no zone can move it a day.
 const usDate = (ymd: unknown): string => {
@@ -118,7 +119,7 @@ export function createClientDocumentRoutes(core: HomecareCore, d: CrmDeps, acces
   const { requirePermission } = d.permissions
   const { db } = d
   const read = requirePermission('care-clients:read')
-  const ipOf = (c: any) => c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || null
+  const ipOf = (c: any) => callerAddress(c)
 
   async function ensureDefaultTemplates(companyId: string) {
     await db.transaction(async (tx: any) => {

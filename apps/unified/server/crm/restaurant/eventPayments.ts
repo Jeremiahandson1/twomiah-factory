@@ -32,6 +32,7 @@ import { bookOnDeposit, venueToday, eventDayWords, EXIT_STATUSES } from './event
 import { bankInFlight, bankBlocksAutopay, bankOffer, mountBankPaying, startBankDebit, runBankSettlement, BANK_AUTOPAY_CONSENT } from './eventBank.ts'
 import { getEventSettings } from './eventSettings.ts'
 import { dayBefore } from './eventGuarantee.ts'
+import { callerAddress } from '../../http/guards.ts'
 
 const money = (n: number) => `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const tokenNew = () => crypto.randomBytes(24).toString('hex')
@@ -452,8 +453,7 @@ export async function ensureAutopayRow(d: CrmDeps, ev: any, acct: string, stripe
 /** Who agreed to the autopay terms, and when: from the request that carried the agreement. */
 export interface AutopayConsent { at: Date; ip: string | null; text?: string }
 export function consentOf(c: any): AutopayConsent {
-  const f = c.req.header('x-forwarded-for')
-  return { at: new Date(), ip: f ? f.split(',')[0].trim() : c.req.header('x-real-ip') || null }
+  return { at: new Date(), ip: callerAddress(c) }
 }
 
 /**

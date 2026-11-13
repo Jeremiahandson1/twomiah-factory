@@ -9,7 +9,7 @@
 import { Hono } from 'hono'
 import crypto from 'node:crypto'
 import { z } from 'zod'
-import { eq, and, desc, inArray } from 'drizzle-orm'
+import { eq, and, desc, inArray, ne } from 'drizzle-orm'
 import { contact, company, jobPurchaseOrder as purchaseOrder, jobPurchaseOrderLine as purchaseOrderLine, vendorBill, job, document } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -81,21 +81,50 @@ export async function emailPurchaseOrder(d: CrmDeps, companyId: string, po: { nu
   }
 }
 
+/** The contact types a business buys from. */
+const VENDOR_TYPES = ['vendor', 'subcontractor', 'supplier']
+
 export function createVendorPortalRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
   const app = new Hono<VendorEnv>()
 
+  /**
+   * IS THIS CONTACT A VENDOR OF THE BUSINESS (security review S2-8, 2026-11-13)? The vendor portal's key is the contact's
+   * portal token — the customer portal's own — and both doors here took ANY contact: the invite handed a seat without
+   * portal:share a customer's working portal link, and any customer's link could file a bill in the business's payables.
+   * A vendor is a contact of a vendor type, or one the business has already sent a purchase order or filed a bill for.
+   */
+  async function isVendor(v: { id: string; companyId: string; type?: string | null }): Promise<boolean> {
+    let type = v.type
+    if (type === undefined) type = (await db.select({ type: contact.type }).from(contact).where(and(eq(contact.id, v.id), eq(contact.companyId, v.companyId))).limit(1))[0]?.type
+    if (VENDOR_TYPES.includes(String(type || '').toLowerCase())) return true
+    const [po] = await db.select({ id: purchaseOrder.id }).from(purchaseOrder).where(and(eq(purchaseOrder.companyId, v.companyId), eq(purchaseOrder.vendorId, v.id))).limit(1)
+    if (po) return true
+    const [bill] = await db.select({ id: vendorBill.id }).from(vendorBill).where(and(eq(vendorBill.companyId, v.companyId), eq(vendorBill.vendorId, v.id), ne(vendorBill.source, 'vendor_portal'))).limit(1)
+    return !!bill
+  }
+  /** Bills one vendor link may file in an hour. */
+  const filed = new Map<string, number[]>()
+  const mayFile = (vendorId: string): boolean => {
+    const now = Date.now(), recent = (filed.get(vendorId) || []).filter((at) => now - at < 3_600_000)
+    if (recent.length >= 20) { filed.set(vendorId, recent); return false }
+    recent.push(now); filed.set(vendorId, recent)
+    return true
+  }
+
   // ── Owner side: invite a vendor ──
   // Reuses the contact portal token (creating one if needed) but sends the VENDOR portal link.
   // The Vendor Portal is its own feature: the invite is refused while it is off, as the contacts screen no longer offers it
   // then (packages/tenant-ui ContactsPage — the link and the door follow the same switch).
-  app.post('/contacts/:contactId/invite', d.authenticate, d.features.requireEnabledFeature('vendor_portal'), requirePermission('contacts:update'), async (c) => {
+  app.post('/contacts/:contactId/invite', d.authenticate, d.features.requireEnabledFeature('vendor_portal'), requirePermission('portal:share'), async (c) => {
+    // portal:share, as the customer portal's own link routes ask (tenant-backend portal.ts): this returns the same key.
     const user = c.get('user') as any
     const contactId = c.req.param('contactId')
     const [vendor] = await db.select().from(contact)
       .where(and(eq(contact.id, contactId), eq(contact.companyId, user.companyId))).limit(1)
     if (!vendor) return fail(c, 404, 'Contact not found')
+    if (!(await isVendor(vendor))) return fail(c, 400, 'The vendor portal is for vendors, subcontractors and suppliers. Change this contact\'s type first, or send them a purchase order.', 'not_a_vendor')
     if (!vendor.email) return fail(c, 400, 'Contact must have an email to invite them to the portal')
 
     const { link } = await ensureVendorLink(db, vendor)
@@ -142,6 +171,8 @@ export function createVendorPortalRoutes(d: CrmDeps) {
     if (row.portalTokenExp && new Date() > new Date(row.portalTokenExp)) {
       return fail(c, 401, 'This portal link has expired — ask for a new invite.')
     }
+    // A customer's portal link is not a vendor's (isVendor): answered as a link that does not exist here.
+    if (!(await isVendor({ id: row.id, companyId: row.companyId }))) return fail(c, 401, 'Invalid or expired portal link')
     c.set('vendor', row)
     await next()
   }
@@ -223,14 +254,15 @@ export function createVendorPortalRoutes(d: CrmDeps) {
     const vendor = c.get('vendor')
     const body = z.object({
       number: z.string().min(1).max(60),
-      amount: z.number().positive(),
-      dueDate: z.string().optional(),
+      amount: z.number().positive().max(9_999_999.99),
+      dueDate: z.string().max(40).optional(),
       purchaseOrderId: z.string().optional(),
       notes: z.string().max(1000).optional(),
     }).safeParse(((await c.req.json().catch(() => null)) ?? {}))
     if (!body.success) return fail(c, 400, body.error.issues[0]?.message || 'Invalid invoice')
     const data = body.data
-
+    if (data.dueDate && Number.isNaN(new Date(data.dueDate).getTime())) return fail(c, 400, 'The due date is not a date')
+    if (!mayFile(vendor.id)) return fail(c, 429, 'That is a lot of invoices in a short time. Please wait a while, or email them to us.', 'slow_down')
     let poJobId: string | null = null
     if (data.purchaseOrderId) {
       const [po] = await db.select().from(purchaseOrder)

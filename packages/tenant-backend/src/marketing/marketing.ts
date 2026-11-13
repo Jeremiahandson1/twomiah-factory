@@ -13,6 +13,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc, isNotNull, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import crypto from 'crypto'
 import { publicApiBase } from '../publicOrigin'
 import { mailFailureReason } from '../integrations/mailError'
 import { sanitizeEmailHtml } from './emailHtml'
@@ -133,6 +134,21 @@ function checkMergeFields(where: string, ...texts: Array<string | null | undefin
   const bad = unknownMergeFields(...texts)
   if (bad.length) throw new MarketingError(`${where} has ${bad.length === 1 ? 'a merge field' : 'merge fields'} we can't fill: ${bad.join(', ')}. The fields you can use are ${MERGE_FIELDS.map((f) => `{{${f.key}}}`).join(', ')}.`, 400)
 }
+/**
+ * THE CLICK LINK IS SIGNED (security review S2-12, 2026-11-13). /track/click/<recipient>?url=<anything> redirected to any
+ * web address, whoever asked: a link on the business's own domain that lands on a stranger's page. A link the email
+ * itself carried is signed for its recipient and its address (HMAC of the server's secret); only a signed one is
+ * followed without asking. A link from an email sent before this, or one somebody made up, gets a page that shows where
+ * it goes and lets the reader choose.
+ */
+const clickSig = (recipientId: string, url: string): string =>
+  crypto.createHmac('sha256', `${process.env.JWT_SECRET || ''}:marketing-click`).update(`${recipientId}|${url}`).digest('base64url').slice(0, 32)
+const clickSigned = (recipientId: string, url: string, sig: string | undefined): boolean => {
+  if (!process.env.JWT_SECRET || !sig) return false
+  const want = Buffer.from(clickSig(recipientId, url)), got = Buffer.from(String(sig))
+  return want.length === got.length && crypto.timingSafeEqual(want, got)
+}
+
 const escapeHtml = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 /** A token with the spaces before it, so a field with nothing in it can take its space with it. */
 const SPACED_TOKEN = /([ \t]*)(?:\{\{\s*([A-Za-z_][\w]*)\s*\}\}|\{\s*([A-Za-z_][\w]*)\s*\})/g
@@ -666,7 +682,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     if (!base) return html
     const unsubscribeUrl = `${base}/api/marketing/unsubscribe/${recipientId || 'none'}/${contactId}`
     let out = html || ''
-    if (recipientId) out = out.replace(/href="(https?:\/\/[^"]+)"/g, (_m, url) => url.startsWith(base + '/api/marketing/') ? `href="${url}"` : `href="${base}/api/marketing/track/click/${recipientId}?url=${encodeURIComponent(url)}"`)
+    if (recipientId) out = out.replace(/href="(https?:\/\/[^"]+)"/g, (_m, url) => url.startsWith(base + '/api/marketing/') ? `href="${url}"` : `href="${base}/api/marketing/track/click/${recipientId}?url=${encodeURIComponent(url)}&amp;s=${clickSig(recipientId, url)}"`)
     out += `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:center;"><p style="margin:0 0 4px;">You are receiving this because you are ${recipientNoun ? `${/^[aeiou]/i.test(recipientNoun) ? 'an' : 'a'} ${recipientNoun}` : 'a customer or contact'} of ours.</p><p style="margin:0;"><a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a></p></div>`
     if (recipientId) out += `<img src="${base}/api/marketing/track/open/${recipientId}" width="1" height="1" alt="" style="display:none;" />`
     return out
@@ -809,6 +825,11 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   app.get('/track/click/:recipientId', async (c) => {
     const url = c.req.query('url') || ''
     if (!/^https?:\/\//i.test(url)) return c.text('Missing link', 400)
+    if (!clickSigned(c.req.param('recipientId'), url, c.req.query('s'))) {
+      // Not a link this server wrote: nothing is counted, and the reader is shown where it goes instead of being sent.
+      const shown = escapeHtml(url.slice(0, 500))
+      return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title>Leaving this site</title></head><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:12vh auto;padding:0 1rem;color:#111827"><h1 style="font-size:1.3rem">You are leaving this site</h1><p>This link goes to:</p><p style="word-break:break-all"><strong>${shown}</strong></p><p><a href="${shown}" rel="noopener noreferrer nofollow">Continue</a></p></body></html>`)
+    }
     try { await m.trackClick(c.req.param('recipientId'), url) } catch (error) { console.error('Track click error:', error) }
     return c.redirect(url)
   })

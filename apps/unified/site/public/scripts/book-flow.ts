@@ -259,8 +259,8 @@
     try { if (asked) sessionStorage.setItem(key, asked) } catch (e) { /* no storage: this page only */ }
     var t = asked
     try { t = t || sessionStorage.getItem(key) || '' } catch (e) { /* none */ }
-    if (!t || !form || !/^[A-Za-z0-9_-]{8,200}$/.test(t)) return
-    fetch('/api/portal/p/' + encodeURIComponent(t) + '/book-online/prefill', { credentials: 'same-origin' })
+    if (!t || !form || !/^[A-Za-z0-9_-]{8,400}$/.test(t)) return
+    fetch('/api/portal/prefill/' + encodeURIComponent(t), { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : null })
       .then(function (d) {
         if (!d) return

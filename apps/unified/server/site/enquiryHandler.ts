@@ -11,6 +11,7 @@ import { fail, done } from '../http/reply.ts'
 import { escHtml } from './render.ts'
 import { BAR_FORMS, BAR_FORM_THANKS } from '../crm/bar/enquiry.ts'
 import { recordConsent, ticked, topicOf } from './smsConsent.ts'
+import { clientKey } from '../http/guards.ts'
 
 const WINDOW_MS = 10 * 60 * 1000
 const MAX_PER_WINDOW = 5
@@ -19,9 +20,7 @@ const THANKS = "Got it — thanks. We'll be in touch soon."
 const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't', 'smsConsent', 'smsConsentFor', 'campaign', 'spaceId'])
 
 function clientIp(c: Context): string {
-  const xff = c.req.header('X-Forwarded-For') || ''
-  if (xff) return xff.split(',')[0].trim()
-  return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
+  return clientKey(c)
 }
 
 /** A Tag Manager container id as Google issues them; anything else is never written into a page. */

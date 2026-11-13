@@ -18,6 +18,7 @@ import type { CrmDeps } from '../deps.ts'
 import { createSalonClock } from './days.ts'
 import { platformStripe } from '../platformStripe.ts'
 import { GIFT_MAX_CENTS, GIFT_MIN_CENTS, GiftCardError, type SalonGiftCards } from './giftCards.ts'
+import { clientKey } from '../../http/guards.ts'
 
 const dollars = (c: number) => '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100))
 const fmtDay = (day: string) => new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
@@ -39,7 +40,7 @@ function limiter(max: number, windowMs: number) {
     return true
   }
 }
-const addressOf = (c: any) => String(c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown').split(',')[0].trim()
+const addressOf = (c: any) => clientKey(c)
 
 export function createGiftShop(d: CrmDeps, g: SalonGiftCards, deps: { stripe?: () => Stripe | null } = {}) {
   const { db, logger } = d

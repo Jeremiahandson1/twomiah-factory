@@ -29,6 +29,7 @@ import { invalid } from '../../http/errors.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { uploadedForm } from '../office/upload.ts'
 import { PROMPT_STATUSES, createChecklistLifeRoutes, ensureAttached, jobMomentStep, promptOnOf } from './checklistLife.ts'
+import { callerAddress } from '../../http/guards.ts'
 
 export const CHECKLIST_CATEGORY = 'job_checklist'
 const MAX_SIGNATURE = 400_000
@@ -388,7 +389,7 @@ export function createChecklistRoutes(d: CrmDeps) {
   })
 
   const fingerprint = (payload: unknown) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-  const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
+  const signerIp = (c: any): string | null => callerAddress(c)
 
   /** The evidence for one signing: exactly the checklist and answers the customer was shown. */
   const evidence = (c: any, submissionId: string, tpl: any, jobId: string, values: unknown, sig: z.infer<typeof signatureSchema>) => {

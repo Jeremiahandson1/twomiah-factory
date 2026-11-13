@@ -28,6 +28,7 @@ import {
   clients, company, familyMembers, familyMessages, familyPushSubscription, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
 } from '../../../db/schema/index.ts'
 import { fail, one, done, listAll } from '../../../http/reply.ts'
+import crypto from 'node:crypto'
 import { createRateLimiter } from '../../../http/guards.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { familyEmailTaken, familyMemberForLogin, familyScheduleRows, caregiversServingClient } from '../../../data/homecarePortals.ts'
@@ -424,17 +425,39 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     return done(c, 'Your password has been changed. You can sign in now.')
   })
 
+  /**
+   * WRONG PASSWORDS COUNT AGAINST THE ACCOUNT (security review S2-6, 2026-11-13). Sign-in had 20 tries per address and
+   * nothing per relative, so guesses spread over addresses never stopped — on a portal that shows a client's
+   * medications and vitals. Ten wrong passwords for one email (a real account or not, so the answer says nothing) and
+   * it waits 15 minutes; the right password clears it. Kept in memory: one process per agency.
+   */
+  const FAILS_MAX = 10, FAILS_MS = 15 * 60 * 1000
+  const fails = new Map<string, { n: number; until: number }>()
+  const lockedOut = (email: string) => { const f = fails.get(email); return !!f && f.until > Date.now() && f.n >= FAILS_MAX }
+  const failed = (email: string) => {
+    const now = Date.now(), f = fails.get(email)
+    fails.set(email, f && f.until > now ? { n: f.n + 1, until: f.until } : { n: 1, until: now + FAILS_MS })
+    if (fails.size > 5000) for (const [k, v] of fails) if (v.until <= now) fails.delete(k)
+  }
+  /** What a session token carries of the password it was given for: a reset or a change ends every older session. */
+  const passwordMark = (hash: string | null | undefined) => crypto.createHash('sha256').update(String(hash || '')).digest('hex').slice(0, 16)
+  /** A bcrypt hash of a password nobody has, so an email with no account takes as long to refuse as a wrong password. */
+  // …made at start-up from random text, never a literal in the source (a hash in a file reads as a leaked one).
+  const NO_SUCH_MEMBER_HASH: Promise<string> = Bun.password.hash(crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
+
   app.post('/login', createRateLimiter(15 * 60 * 1000, 20), async (c) => {
     const { email, password } = await c.req.json().catch(() => ({} as any))
     if (!email || !password) return fail(c, 400, 'Email and password are required')
-    const member = await familyMemberForLogin(db, normEmail(email))
-    if (!member || !member.passwordHash) return fail(c, 401, 'Invalid credentials')
-    const valid = await Bun.password.verify(String(password), member.passwordHash)
-    if (!valid) return fail(c, 401, 'Invalid credentials')
+    const who = normEmail(email)
+    if (lockedOut(who)) return fail(c, 429, 'Too many wrong passwords. Try again in a few minutes, or use Forgot password.', 'too_many_attempts')
+    const member = await familyMemberForLogin(db, who)
+    const valid = await Bun.password.verify(String(password), member?.passwordHash || await NO_SUCH_MEMBER_HASH).catch(() => false)
+    if (!member || !member.passwordHash || !valid) { failed(who); return fail(c, 401, 'Invalid credentials') }
+    fails.delete(who)
     await db.update(familyMembers).set({ lastLoginAt: new Date() })
       .where(and(eq(familyMembers.id, member.id), eq(familyMembers.companyId, member.companyId)))
     const token = jwt.sign(
-      { id: member.id, role: 'family', clientId: member.clientId, familyMemberId: member.id, companyId: member.companyId },
+      { id: member.id, role: 'family', clientId: member.clientId, familyMemberId: member.id, companyId: member.companyId, pv: passwordMark(member.passwordHash) },
       process.env.JWT_SECRET!,
       { expiresIn: `${FAMILY_RULES.sessionHours}h` },
     )
@@ -455,9 +478,12 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       return fail(c, 401, 'Invalid token')
     }
     if (decoded?.role !== 'family' || !decoded.familyMemberId) return fail(c, 403, 'Access denied')
-    const [member] = await db.select({ ...memberColumns, companyId: familyMembers.companyId }).from(familyMembers)
+    const [found] = await db.select({ ...memberColumns, companyId: familyMembers.companyId, passwordHash: familyMembers.passwordHash }).from(familyMembers)
       .where(and(eq(familyMembers.id, String(decoded.familyMemberId)), eq(familyMembers.isActive, true))).limit(1)
-    if (!member || (decoded.companyId && member.companyId !== decoded.companyId)) return fail(c, 403, 'Access denied')
+    if (!found || (decoded.companyId && found.companyId !== decoded.companyId)) return fail(c, 403, 'Access denied')
+    // A session from before the password was reset or changed is over (passwordMark) — it used to live out its 24 hours.
+    if (decoded.pv !== passwordMark(found.passwordHash)) return fail(c, 401, 'Your password was changed — please sign in again.', 'session_ended')
+    const { passwordHash: _hash, ...member } = found
     // A cancelled agency's portal is paused, like its staff CRM (core/portalLock.ts).
     const locked = await core.portalLock.refusePortalWhileLocked(c, member.companyId)
     if (locked) return locked

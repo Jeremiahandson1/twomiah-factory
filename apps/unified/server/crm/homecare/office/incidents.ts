@@ -43,6 +43,7 @@ import {
   ENTRY_TYPES, ATTACHMENT_CATEGORIES, TRAINING_ACK_METHODS, TRAINING_ACK_TRAINING_NAMES,
   ATTACHMENT_MAX_DATA_URI_LENGTH, ATTACHMENT_ALLOWED_MIME,
 } from '../core/incidentOptions.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/
 const HHMM_RE = /^\d{2}:\d{2}(:\d{2})?$/
@@ -56,8 +57,7 @@ const refuse = (status: number, message: string) => Object.assign(new Error(mess
 const body = async (c: Context): Promise<any> => {
   try { const b = await c.req.json(); return b && typeof b === 'object' ? b : {} } catch { return {} }
 }
-const clientIp = (c: Context): string | null =>
-  c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('cf-connecting-ip') || null
+const clientIp = (c: Context): string | null => callerAddress(c)
 
 // The drawn signature is a large data URI: keep it out of lists and audit rows.
 const withoutSignature = (row: any) => {

@@ -686,7 +686,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // through the portal), and their bookings still to come, each with its own page to move or cancel it. Not for the salon, whose
       // portal books inside it (appointments).
       ...(!v.portal?.appointments ? { bookOnline: {
-        bookUrl: (portalToken: string) => `${siteOrigin()}/book?portal=${encodeURIComponent(portalToken)}`,
+        bookUrl: (prefillCode: string) => `${siteOrigin()}/book?portal=${encodeURIComponent(prefillCode)}`,
         // Offered only once something can be booked — online booking on in the booking settings and a service to book, the
         // test /book itself applies (booking/pages.ts). Before that the card led a customer to "Bookings opening soon" (live
         // test 11/11); Housecall Pro and ServiceTitan show self-booking only once it is set up.

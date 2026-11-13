@@ -13,6 +13,10 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import jwt from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
+import { createHash } from 'node:crypto'
+
+const ADA_LINK = 'a'.repeat(64)
+const linkMarkOf = (token: string) => createHash('sha256').update(token).digest('hex').slice(0, 16)
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = '', otherCompanyId = ''
@@ -180,10 +184,16 @@ describe("one company's records", () => {
     const crossed = jwt.sign({ role: 'client', clientId: ids.ada, companyId: otherCompanyId }, process.env.JWT_SECRET!)
     expect((await bearer(crossed, '/api/portal/me')).status).toBe(403)
     // Ada's own direct-link session opens Ada's portal, camelCase.
-    await t.db.update(t.schema.clients).set({ portalEnabled: true } as any).where(eq(t.schema.clients.id, ids.ada))
-    const own = jwt.sign({ role: 'client', clientId: ids.ada, companyId }, process.env.JWT_SECRET!)
+    // A direct-link session carries a mark of the link it came from (security review S2-7): the link, then its session.
+    await t.db.update(t.schema.clients).set({ portalEnabled: true, portalToken: ADA_LINK } as any).where(eq(t.schema.clients.id, ids.ada))
+    const own = jwt.sign({ role: 'client', clientId: ids.ada, companyId, lk: linkMarkOf(ADA_LINK) }, process.env.JWT_SECRET!)
     const me = await bearer(own, '/api/portal/me')
     expect(me.status).toBe(200)
+    // The office reissues the link: the session made from the old one is over, at once.
+    await t.db.update(t.schema.clients).set({ portalToken: 'b'.repeat(64) } as any).where(eq(t.schema.clients.id, ids.ada))
+    expect((await bearer(own, '/api/portal/me')).status).toBe(401)
+    // …and a session with no mark at all (made before this) is not one, while the client has a link.
+    expect((await bearer(jwt.sign({ role: 'client', clientId: ids.ada, companyId }, process.env.JWT_SECRET!), '/api/portal/me')).status).toBe(401)
     expect(await me.json()).toMatchObject({ id: ids.ada, firstName: 'Ada', lastName: 'Client', preview: false })
   })
 })
@@ -214,8 +224,9 @@ describe('defects fixed in the move', () => {
   })
 
   test("an office reply in a client's portal thread names the person who wrote it", async () => {
-    await t.db.update(t.schema.clients).set({ portalEnabled: true } as any).where(eq(t.schema.clients.id, ids.ada))
-    const own = jwt.sign({ role: 'client', clientId: ids.ada, companyId }, process.env.JWT_SECRET!)
+    // A direct-link session carries a mark of the link it came from (security review S2-7): the link, then its session.
+    await t.db.update(t.schema.clients).set({ portalEnabled: true, portalToken: ADA_LINK } as any).where(eq(t.schema.clients.id, ids.ada))
+    const own = jwt.sign({ role: 'client', clientId: ids.ada, companyId, lk: linkMarkOf(ADA_LINK) }, process.env.JWT_SECRET!)
     const made = await (await bearer(own, '/api/portal/messages', { method: 'POST', json: { subject: 'Tuesday', body: 'Is Tuesday on?' } })).json()
     const rep = await as('mgr', `/api/family-portal/admin/portal-threads/${made.thread.id}/reply`, { method: 'POST', json: { body: 'Yes.' } })
     expect(rep.status).toBe(201)
