@@ -26,7 +26,7 @@ import { DEFAULT_ACCENT } from '../core/brandColour.ts'
 import { one, fail, done, listAll } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
-import { VIEWS } from './render.ts'
+import { VIEWS, isSafeUrl } from './render.ts'
 import { linkSlug } from './menu.ts'
 import { tradeDrawsSection } from './tradeSections.ts'
 import { WEB_PRESENCE_SECTIONS } from './webPresenceSections.ts'
@@ -384,6 +384,8 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     if ('nav' in body) {
       if (!Array.isArray(body.nav)) return fail(c, 400, 'nav must be a list of { label, href }')
       patch.nav = body.nav.slice(0, 20).map((n: any) => ({ label: String(n?.label ?? '').slice(0, 60), href: String(n?.href ?? '').slice(0, 300) })).filter((n) => n.label && n.href)
+      // A menu link is a web address, a page of this site, a phone number or an email — never script (security review S4-4).
+      if ((patch.nav as Array<{ href: string }>).some((n) => !isSafeUrl(n.href))) return fail(c, 400, 'A menu link must be a page of this site or a web address (https://…).')
     }
     if ('contentGaps' in body) patch.contentGaps = Array.isArray(body.contentGaps) ? body.contentGaps.slice(0, 60) : []
     if ('serviceAreas' in body) patch.serviceAreas = Array.isArray(body.serviceAreas) ? body.serviceAreas.slice(0, 60).map((v: unknown) => String(v ?? '').slice(0, 80)) : []

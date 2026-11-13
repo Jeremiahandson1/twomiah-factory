@@ -71,6 +71,16 @@ export function createIvrRoutes(core: HomecareCore, d: CrmDeps) {
   }
 
   // POST /api/ivr/voice — Twilio voice webhook (incoming call): greet and gather the caregiver's PIN
+  /** Wrong PINs, counted per caller number and per agency (in memory: one process per agency). */
+  const WRONG_PINS_PER_CALLER = 5, WRONG_PINS_PER_AGENCY = 40, WRONG_PIN_MS = 15 * 60 * 1000
+  const wrong = new Map<string, { n: number; until: number }>()
+  const shut = (key: string, max: number) => { const w = wrong.get(key); return !!w && w.until > Date.now() && w.n >= max }
+  const miss = (key: string) => {
+    const now = Date.now(), w = wrong.get(key)
+    wrong.set(key, w && w.until > now ? { n: w.n + 1, until: w.until } : { n: 1, until: now + WRONG_PIN_MS })
+    if (wrong.size > 5000) for (const [k, v] of wrong) if (v.until <= now) wrong.delete(k)
+  }
+
   app.post('/voice', (c) => {
     const agency = c.get('agency')
     return twiml(c, `<Response>
@@ -90,15 +100,23 @@ export function createIvrRoutes(core: HomecareCore, d: CrmDeps) {
       const callerPhone = String(body['From'] ?? '')
 
       // Look up the caregiver by PIN first, then fall back to the caller's number.
-      let caregiver: any = pin ? (await caregivers(companyId, pin))[0] : undefined
-      if (!caregiver && callerPhone) {
-        const normalizedCaller = callerPhone.replace(/\D/g, '').slice(-10)
-        if (normalizedCaller.length === 10) {
-          caregiver = (await caregivers(companyId)).find((cg: any) => cg.phone && cg.phone.replace(/\D/g, '').slice(-10) === normalizedCaller)
-        }
+      /**
+       * THE PIN IS WHO YOU ARE (security review S3-1, 2026-11-13). A wrong or empty PIN used to fall back to "whose
+       * phone number is the caller's" and let them in with no PIN — and a caller's number is whatever the caller's
+       * phone service says it is. A wrong PIN was answered "try again", for ever. Now only the PIN admits, and wrong
+       * ones are counted: five from one number, or forty for the agency, in 15 minutes, and the line hangs up.
+       */
+      const caller = callerPhone.replace(/\D/g, '').slice(-10) || 'unknown'
+      if (shut(`from|${companyId}|${caller}`, WRONG_PINS_PER_CALLER) || shut(`all|${companyId}`, WRONG_PINS_PER_AGENCY)) {
+        return twiml(c, `<Response>
+  <Say voice="alice">Too many wrong PINs. Please call the office. Goodbye.</Say>
+  <Hangup/>
+</Response>`)
       }
+      const caregiver: any = /^\d{4,8}$/.test(pin) ? (await caregivers(companyId, pin))[0] : undefined
 
       if (!caregiver) {
+        miss(`from|${companyId}|${caller}`); miss(`all|${companyId}`)
         return twiml(c, `<Response>
   <Say voice="alice">Invalid PIN. Please try again.</Say>
   <Redirect method="POST">/api/ivr/voice</Redirect>

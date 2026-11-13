@@ -1,3 +1,4 @@
+import { outboundUrlProblem } from '../core/outboundUrl.ts'
 // A dealer's live inventory (RV, marine, powersports): site.inventoryFeedUrl is a feed — the CRM's marketplace
 // feed (.json or .csv) or any feed with the same columns. When set, /inventory and /inventory/<stock> show the real
 // units, and a composed "featured inventory" section shows real ones. Moved from the premium site's server-static.ts.
@@ -74,6 +75,9 @@ export async function feedUnits(feedUrl: unknown): Promise<FeedUnit[] | null> {
   if (!url) return null
   if (feedCache && feedCache.url === url && Date.now() - feedCache.at < 10 * 60_000) return feedCache.units
   try {
+    // Where the name RESOLVES, not only how it is spelled: a public name pointing at a private address passed
+    // feedUrlOk (security review S4-2, 2026-11-13). The same check the outgoing webhooks use.
+    if (await outboundUrlProblem(url)) throw new Error('the feed address is not on the public internet')
     const r = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: 'error' })
     if (!r.ok) throw new Error('HTTP ' + r.status)
     const text = (await r.text()).slice(0, 8_000_000)

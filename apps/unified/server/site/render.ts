@@ -153,7 +153,28 @@ async function wrap(ctx: SiteContext, body: string, settings: Record<string, any
     // A/B experiments (scripts/ab.js) are a CRM ads feature; they return with the ads module (CUTOVER_LEDGER).
     crmApiUrl: '',
   }) as string
-  return absolutizeHrefs(html)
+  return safeLinks(absolutizeHrefs(html))
+}
+
+/**
+ * EVERY LINK ON A FINISHED PAGE GOES SOMEWHERE A LINK MAY GO (security review S4-4, 2026-11-13). A menu item, a button or
+ * a banner link is whatever text the editor typed; the views quote it safely, but `javascript:…` is a value a quoted
+ * attribute happily holds, and it runs on click — on the app's own address. One pass, after the views: an href (or a
+ * form's action) whose scheme is not http, https, mailto, tel or sms becomes `#`; a src keeps `data:image/` as well.
+ * Relative addresses have no scheme and pass. Whitespace and control characters, which a browser drops from a scheme,
+ * are dropped before the test.
+ */
+const LINK_SCHEMES = new Set(['http', 'https', 'mailto', 'tel', 'sms'])
+export function safeLinks(html: string): string {
+  return html.replace(/(\s(?:href|src|action|formaction|xlink:href)\s*=\s*)("([^"]*)"|'([^']*)')/gi, (m: string, lead: string, _q: string, dq: string | undefined, sq: string | undefined) => {
+    const raw = dq ?? sq ?? ''
+    const plain = raw.replace(/&#x?[0-9a-f]+;?|&(?:tab|newline|colon);/gi, (e) => (/colon|#x?3a|#58/i.test(e) ? ':' : '')).replace(/[\u0000-\u0020]/g, '')
+    const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(plain)?.[1]?.toLowerCase()
+    if (!scheme || LINK_SCHEMES.has(scheme)) return m
+    // A picture written into the page itself (the favicon, an inline image): a browser will not navigate to a data: address.
+    if (/^data:(?:,|image\/(?:png|jpe?g|gif|webp|avif|x-icon|vnd\.microsoft\.icon|svg\+xml)[;,])/i.test(plain)) return m
+    return `${lead}"#"`
+  })
 }
 
 /**
@@ -198,6 +219,13 @@ export function isSafeUrl(href: string): boolean {
   }
 }
 
+/**
+ * Text going INSIDE a double-quoted attribute. Markdown is escaped for `& < >` before it reaches here, which is enough
+ * between tags and not inside one: a link written `[x](/a" onmouseover="…)` closed the attribute and added its own —
+ * script on the website, which is the app's own address (security review S4-1, 2026-11-13).
+ */
+const escAttr = (s: string) => s.replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
 function inlineMd(s: string): string {
   return s
     .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -208,7 +236,7 @@ function inlineMd(s: string): string {
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
       const safe = isSafeUrl(href) ? href : '#'
       const attrs = /^https?:/i.test(safe) ? ' rel="noopener noreferrer" target="_blank"' : ''
-      return '<a href="' + safe + '"' + attrs + '>' + text + '</a>'
+      return '<a href="' + escAttr(safe) + '"' + attrs + '>' + text + '</a>'
     })
 }
 
@@ -249,7 +277,7 @@ export function markdownToHtml(md: string): string {
     } else if (inBlockquote) { out.push('</blockquote>'); inBlockquote = false }
     const img = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/)
     if (img) {
-      if (isSafeUrl(img[2]) && /^(https?:|\/)/i.test(img[2])) out.push('<p><img src="' + escape(img[2]) + '" alt="' + escape(img[1]) + '" loading="lazy"></p>')
+      if (isSafeUrl(img[2]) && /^(https?:|\/)/i.test(img[2])) out.push('<p><img src="' + escAttr(escape(img[2])) + '" alt="' + escAttr(escape(img[1])) + '" loading="lazy"></p>')
       continue
     }
     if (line.trim() === '') continue
