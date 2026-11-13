@@ -35,6 +35,16 @@
     }
     return false
   }
+  // "In season now" picks out the cards that are — on a page where every card is, it says nothing, so it is left off.
+  var someOutOfSeason = items.some(function (it) { return !isCurrentSeason(it) })
+  // The season as words: "spring-fall" → "Spring to fall".
+  function seasonLabel(v) {
+    var s = String(v || '').trim().toLowerCase().replace(/\s*-\s*/g, '-')
+    if (!s) return ''
+    if (s === 'year-round' || s === 'all year' || s === 'year round') return 'Year-round'
+    var out = s.split('-').join(' to ')
+    return out.charAt(0).toUpperCase() + out.slice(1)
+  }
 %>
 <section id="packages" class="packages packages--seasonal" data-season="<%= currentSeason %>">
   <div class="container">
@@ -43,12 +53,12 @@
       <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
     </div>
     <ul class="packages__grid" role="list">
-      <% for (var i = 0; i < items.length; i++) { var it = items[i]; var isNow = isCurrentSeason(it); %>
+      <% for (var i = 0; i < items.length; i++) { var it = items[i]; var isNow = someOutOfSeason && isCurrentSeason(it); %>
         <li class="package-card<%= isNow ? ' package-card--now' : '' %>" data-tier="<%= String(it.tier || 'standard').toLowerCase() %>">
           <% if (isNow) { %><span class="package-card__badge">In season now</span><% } %>
           <% if (it.badge && !isNow) { %><span class="package-card__badge package-card__badge--alt"><%= it.badge %></span><% } %>
           <div class="package-card__head">
-            <div class="package-card__tier"><%= it.tier || 'Standard' %></div>
+            <% if (it.tier) { %><div class="package-card__tier"><%= it.tier %></div><% } %>
             <h3 class="package-card__title"><%= it.title %></h3>
           </div>
           <% if (it.pricePerMonth) { %>
@@ -68,7 +78,7 @@
             </ul>
           <% } %>
           <% if (it.note) { %><div class="package-card__note"><%= it.note %></div><% } %>
-          <% if (it.seasonOnly) { %><div class="package-card__season mono"><%= it.seasonOnly %></div><% } %>
+          <% if (it.seasonOnly) { %><div class="package-card__season mono"><%= seasonLabel(it.seasonOnly) %></div><% } %>
           <a class="btn btn--lg btn--outline package-card__cta" href="#contact">Get this package</a>
         </li>
       <% } %>

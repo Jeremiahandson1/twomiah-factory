@@ -39,7 +39,9 @@ async function setUp(vertical: string, features: string[], company: Record<strin
     try { body = JSON.parse(text) } catch { /* not JSON */ }
     return { status: r.status, body }
   }
-  return { t, co, ids, as }
+  /** Sign `who` in again: a login switched off loses its sessions for good (security review S1-12), back on included. */
+  const signIn = async (who: string) => { tokens[who] = ((await (await t.call('/api/auth/login', { method: 'POST', json: { email: `${who}@test.example`, password: PASSWORD } })).json()) as any).accessToken }
+  return { t, co, ids, as, signIn }
 }
 
 describe('contractor: deactivate, reactivate, and the field seat on its own job', () => {
@@ -55,6 +57,7 @@ describe('contractor: deactivate, reactivate, and the field seat on its own job'
     for (const who of ['tech', 'other']) {
       expect((await x.as('owner', `/api/company/users/${x.ids[who]}`, 'PUT', { isActive: false })).status).toBe(200)
       expect((await x.as('owner', `/api/company/users/${x.ids[who]}`, 'PUT', { isActive: true })).status).toBe(200)
+      await x.signIn(who)
     }
     const [row] = await x.t.db.select().from(x.t.schema.job).where(eq(x.t.schema.job.id, job.id))
     expect(row.assignedToId).toBe(x.ids.tech)

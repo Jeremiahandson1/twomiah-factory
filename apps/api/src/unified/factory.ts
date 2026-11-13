@@ -37,7 +37,7 @@ import { wantsBookings } from '../services/composerFacts'
 import { signupQuestionsFor } from '../config/signupQuestions'
 import { collectImageUrls, heroCreditsForUrls, mergeCredits } from '../config/heroLibrary'
 import { repoKey, type OwnedResources } from '../services/resourceOwnership'
-import { requestedLook } from '../config/siteLooks'
+import { lookForVertical, requestedLook } from '../config/siteLooks'
 
 // ─── Which engine a signup gets ────────────────────────────────────────────────
 
@@ -216,7 +216,9 @@ export function markStandInServices(sections: any[], industry: string | null | u
 /** The look a signup chose (intake_data.signup.design), as the site row's `design`; nothing chosen, or a value no longer choosable: none. */
 function chosenLook(tenant: any): { design?: string } {
   const look = requestedLook(tenant?.intake_data?.signup?.design)
-  return look.ok && look.design ? { design: look.design } : {}
+  // A bar's choice is the bar look nearest it — the one its preview was drawn in (config/siteLooks.ts lookForVertical).
+  const design = look.ok ? lookForVertical(unifiedVerticalFor(tenant?.industry), look.design) : null
+  return design ? { design } : {}
 }
 
 /** The website part of the provision body: premium-site-bootstrap's pages, nav and settings for the same tenant. */

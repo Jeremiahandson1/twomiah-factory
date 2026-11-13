@@ -91,12 +91,12 @@ function libraryHeroFor(businessType: string, seed: number, stock: Array<{ url: 
 // the layouts the compatibility table (unified/server/site/layouts.ts) says suit THIS content and that leave nothing
 // out — chosen by the business's own name, so the pick is steady for one business and different between two. It is a
 // starting point: "Change layout" in the editor offers the rest.
-function nameSeed(name: string): number {
+export function nameSeed(name: string): number {
   let h = 2166136261
   for (const ch of name.toLowerCase()) h = Math.imul(h ^ ch.charCodeAt(0), 16777619)
   return h >>> 0
 }
-function pickLayout(type: string, fallback: string, data: Record<string, unknown>, seed: number, among: string[], salt: number): string {
+export function pickLayout(type: string, fallback: string, data: Record<string, unknown>, seed: number, among: string[], salt: number): string {
   const ok = offeredLayouts(type, fallback, data, { takesEnquiries: true })
     .filter((l) => l.current || l.hides.length === 0).map((l) => l.id).filter((id) => id === fallback || among.includes(id))
   const list = [fallback, ...ok.filter((id) => id !== fallback)]
@@ -340,7 +340,9 @@ export function composeInstant(input: ComposerInput): SiteResult {
     // A photo hero when there's a photo; with none, the centered hero (no empty image box).
     ((data) => ({ type: 'hero', variant: pickLayout('hero', heroImage ? 'full-bleed' : 'centered-stats', data, seed, heroImage ? ['split'] : ['text-led'], 1), data }))({
       ...(heroImage ? { image: heroImage } : {}), eyebrow: [label, place].filter(Boolean).join(' · '), title: name,
-      subtitle: firstSentence(input.description) || (place ? (label ? label + ' in ' + place : 'Serving ' + place) + '.' : ''),
+      // "Roofing in Eau Claire, WI." A label that names two things ("Restaurant / Café", "Gym / Fitness Studio") does not
+      // read as a sentence that way, so it stays the small label above and the line says where the business serves.
+      subtitle: firstSentence(input.description) || (place ? (label && !label.includes(' / ') ? label + ' in ' + place : 'Serving ' + place) + '.' : ''),
       // A store's front door sends shoppers to its products; everyone else's to a conversation.
       primaryCta: kind === 'store' ? { label: 'Shop now', href: 'shop' } : contactCta,
     }),
@@ -348,7 +350,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
     // A food truck's home answers "what do you serve": its menu, live from the menu entered in the CRM (the section the
     // site's own /menu page is: site/routes.ts). Nothing is composed — no item, no price — and until a menu is entered
     // the section draws nothing (hideWhenEmpty), so a new truck's home never says its menu is "being typed up".
-    kind === 'foodtruck' ? { type: 'menu', variant: 'sections', data: { heading: 'Menu', hideWhenEmpty: true, showSignatureLinks: false } } : null,
+    // A restaurant's too: the best restaurant sites put the menu, as text with prices, on the front page.
+    kind === 'foodtruck' || kind === 'restaurant' ? { type: 'menu', variant: 'sections', data: { heading: 'Menu', hideWhenEmpty: true, showSignatureLinks: false } } : null,
     // A store's home is its products, live from its catalogue (the site fills shop/grid; store live test, 2026-10-26).
     kind === 'store' ? { type: 'shop', variant: 'grid', data: {} } : null,
     bookingSection(),

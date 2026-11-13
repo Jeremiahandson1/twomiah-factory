@@ -49,9 +49,9 @@ describe('where live stock photos are used', () => {
   test('a trade is read the same as a stored value and as words: every trade the homepage offers has its own photos', () => {
     // twomiah.com index.html #blTrade (the open choices) → the photo group. 'retail' and 'other' have no trade to picture.
     const OFFERED: Record<string, string> = {
-      roofing: 'roofing', general_contractor: 'contractor', remodeler: 'contractor', painter: 'contractor', concrete: 'contractor',
-      flooring: 'contractor', hvac: 'fieldservice', plumbing: 'fieldservice', electrical: 'fieldservice', landscaping: 'landscaping',
-      home_care: 'homecare', restaurant: 'restaurant', food_truck: 'foodtruck', bar_and_grill: 'restaurant', salon: 'salon', fitness: 'fitness',
+      roofing: 'roofing', general_contractor: 'contractor', remodeler: 'contractor', painter: 'painting', concrete: 'concrete',
+      flooring: 'flooring', hvac: 'hvac', plumbing: 'fieldservice', electrical: 'electrical', landscaping: 'landscaping',
+      home_care: 'homecare', restaurant: 'restaurant', food_truck: 'foodtruck', bar_and_grill: 'bar', salon: 'salon', fitness: 'fitness',
     }
     for (const [value, group] of Object.entries(OFFERED)) {
       expect([value, pickHeroGroup(value)]).toEqual([value, group])
@@ -61,6 +61,15 @@ describe('where live stock photos are used', () => {
       if (value !== 'bar_and_grill') for (const n of ['Acme Co', 'Northside Works', 'Jeremiahs Pastries']) expect([value, heroOf(composeInstant(answers(value, n)))]).toEqual([value, expect.stringContaining('/hero-library/' + group + '/')])
     }
     for (const none of ['retail', 'other']) expect(pickHeroGroup(none)).toBe('generic')
+    // A painter, a concrete or flooring contractor, an electrician and a heating company have photos of their own (they
+    // took the carpenter's and the plumber's: visual audit, 2026-11-12), each a full set — so none takes live stock.
+    for (const group of ['painting', 'concrete', 'flooring', 'electrical', 'hvac', 'bar']) {
+      expect([group, (HERO_LIBRARY[group] || []).length >= LIVE_STOCK_BELOW]).toEqual([group, true])
+      expect([group, (HERO_LIBRARY[group] || []).filter((p) => p.tag === 'hero').length >= 3]).toEqual([group, true])
+    }
+    for (const [words, group] of [['painting contractor', 'painting'], ['house painter', 'painting'], ['masonry', 'concrete'], ['electrician', 'electrical'],
+      ['heating and cooling', 'hvac'], ['air conditioning', 'hvac'], ['plumber', 'fieldservice'], ['sports bar', 'bar'], ['tavern', 'bar'], ['bar and grill', 'bar'],
+      ['barber', 'salon'], ['juice bar', 'generic'], ['pizza restaurant', 'restaurant']] as const) expect([words, pickHeroGroup(words)]).toEqual([words, group])
     // Home care by its stored value is checked photos only, whatever live shots it is handed.
     const live = [{ url: 'https://images.pexels.com/photos/9/clinic.jpeg', tag: 'hero' }]
     for (const n of ['Hearth Home Care', 'Gentle Hands', 'Kind Neighbors', 'Evergreen Care']) expect(heroOf(composeInstant(answers('home_care', n, live)))).toContain('/hero-library/homecare/')

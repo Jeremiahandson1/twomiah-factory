@@ -43,7 +43,7 @@ const PLUMBING_PHOTOS = { group: 'fieldservice', files: ['fieldservice-02.jpg', 
 export const WEBSITE_TRADES: Record<string, WebsiteTrade> = {
   // Templates written for the trade
   roofing:              T('website-contractor',   'Roofing',             'Roofing',             'roofing'),
-  hvac:                 T('website-fieldservice', 'Heating & Cooling',   'Heating & Cooling',   'fieldservice', { group: 'fieldservice', files: ['fieldservice-02.jpg'] }),
+  hvac:                 T('website-fieldservice', 'Heating & Cooling',   'Heating & Cooling',   'fieldservice'),
   plumbing:             T('website-fieldservice', 'Plumbing',            'Plumbing',            'fieldservice', PLUMBING_PHOTOS),
   plumber:              T('website-fieldservice', 'Plumbing',            'Plumbing',            'fieldservice', PLUMBING_PHOTOS),
   field_service:        T('website-fieldservice', 'Heating, Cooling & Plumbing', 'Heating, Cooling & Plumbing', 'fieldservice', PLUMBING_PHOTOS),

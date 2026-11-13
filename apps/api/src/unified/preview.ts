@@ -12,9 +12,11 @@
  * on it, and a problem in it is a failed preview, not a Factory that does not boot.
  */
 import { engineForSignup, provisionSite, unifiedFeatures, unifiedVerticalFor } from './factory'
-import { SAMPLE_BANNER, withPreviewSamples } from '../config/previewSamples'
-import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
-import { verticalFor } from '../config/industryRouting'
+import { SAMPLE_BANNER, sampleSetFor, withPreviewSamples } from '../config/previewSamples'
+import { collectImageUrls, heroCreditsForUrls, pickHeroGroup } from '../config/heroLibrary'
+import { lookForVertical } from '../config/siteLooks'
+import { nameSeed } from '../services/instantComposer'
+import type { SiteDesign } from '../../../unified/server/core/vertical'
 
 /** The colour a signup starts with when the form sends none (routes/factory/intake.ts POST /public/signup). */
 export const SIGNUP_DEFAULT_COLOUR = '#FF3D00'
@@ -29,19 +31,41 @@ export function unifiedPreviewVertical(businessType: string): string | null {
   return engineForSignup({ industry: businessType, email: null }) === 'unified' ? vertical : null
 }
 
+/**
+ * A bar's Tonight board reads the night as it is (kitchen, bar, taps, the game, today's special): the preview has no bar
+ * behind it, so the board is filled with a SAMPLE night — every value says so, and none is a fact about a business.
+ * Only the preview passes it; a real bar's board reads its own CRM.
+ */
+const SAMPLE_BAR_NIGHT = {
+  site: {},
+  live: {
+    timezone: 'America/Chicago', generatedAt: new Date(0).toISOString(), updatedBy: 'Sample board',
+    kitchen: { isOpen: true, short: 'Sample hours', countdown: '', closesAt: '', opensAt: '' },
+    bar: { isOpen: true, short: 'Sample hours', countdown: '', closesAt: '', opensAt: '' },
+    taps: { count: 3, featured: [{ name: 'Sample lager' }, { name: 'Sample ale' }, { name: 'Sample stout' }] },
+    game: { isToday: true, away: 'Sample team', home: 'Sample team', startsAtLabel: 'sample time', note: 'the game you put on the screens' },
+    special: { title: 'Sample special', price: 'Sample price', description: 'your own, set from behind the bar' },
+    room: { status: 'steady', label: 'Sample: how busy it is' },
+    note: 'Sample board — a real one shows your own hours, taps and specials, live.',
+  },
+}
+
 export async function renderUnifiedPreview(i: { businessName: string; businessType: string; city?: string; state?: string; vertical: string; design: string | null }): Promise<string> {
   const tenant = { name: i.businessName, industry: i.businessType, city: i.city || null, state: i.state || null, primary_color: SIGNUP_DEFAULT_COLOUR, intake_data: {}, products: ['website'] }
   const site: any = provisionSite(tenant)
   const home = (site.pages as any[]).find((p) => p.slug === 'home')
   if (!home) throw new Error('the composer made no home page')
-  // A food truck runs as a restaurant (unifiedVerticalFor) but is not one to look at: its samples are its own — a menu,
-  // this week's stops, the truck — not a dining room's private events.
-  const samples = withPreviewSamples(home.sections, verticalFor(i.businessType) === 'foodtruck' ? 'foodtruck' : i.vertical)
+  // The samples are the trade's own (a food truck runs as a restaurant and a painter as field service, but neither looks
+  // like one), and vary with the business's name as its real page does: two bars are not the same page.
+  const set = sampleSetFor(pickHeroGroup(i.businessType), i.vertical)
+  const samples = withPreviewSamples(home.sections, set, undefined, nameSeed(i.businessName.trim()))
   // The self-hosted stock the samples use must be credited like anywhere else it is shown.
   const credits = heroCreditsForUrls(collectImageUrls(samples.imageUrls))
   const { renderSitePreview } = await import('../../../unified/server/site/signupPreview')
   return renderSitePreview({
-    vertical: i.vertical, design: i.design,
+    // A bar is drawn in the bar look nearest the one chosen, as its signup is built (config/siteLooks.ts).
+    vertical: i.vertical, design: lookForVertical(i.vertical, i.design as SiteDesign | null),
+    ...(i.vertical === 'bar' ? { facts: SAMPLE_BAR_NIGHT } : {}),
     company: { name: i.businessName, primaryColor: SIGNUP_DEFAULT_COLOUR },
     settings: { nav: site.nav, photoCredits: [...(site.photoCredits || []), ...credits], contentGaps: site.contentGaps, serviceAreas: site.serviceAreas, contactCtaLabel: site.contactCtaLabel, accentColor: site.accentColor },
     sections: samples.sections, features: unifiedFeatures(tenant, {}), banner: SAMPLE_BANNER,
