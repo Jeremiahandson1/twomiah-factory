@@ -28,7 +28,7 @@ daily reminder), billing/lifecycle/CRM add-on/domain renewal via `notifyStaff`, 
 | Failure | Where | Alert |
 |---|---|---|
 | Anthropic out of credit / key refused, on a signup's AI site (the site silently falls back to the template) | `services/signupSite.ts:225` (catch around `composeSite`, `sectionComposer.ts:2239`) | **wired** `ai:credit` / `ai:auth` — one alert for the whole builder, naming the first business hit; cleared by the next successful compose |
-| Same, on the intake/preview composer | `routes/factory/intake.ts` `autoComposeForNewIntake` (~:1968), staff compose (`:1269`) | **wired** (same keys) |
+| Same, on the intake/preview composer | — | removed 2026-11-13 with the closed website offer (`routes/factory/closedIntake.ts`) |
 | AI compose gave up (attempts used) → template site | `signupSite.ts:225,272` | **wired** `ai-site:<tenant>` |
 | AI site not ready when the build started → template site | `signupSite.ts:296` | **wired** `ai-site:<tenant>` |
 | Compose "husk" retry throws and the husk ships | `sectionComposer.ts` husk-retry catch | not wired — output is still a site, just a thin one; see REPORT |
@@ -40,8 +40,8 @@ daily reminder), billing/lifecycle/CRM add-on/domain renewal via `notifyStaff`, 
 | `POST /public/signup` → 500 (account insert, or anything uncaught) | `routes/factory/intake.ts:448,632` | **wired** `route:signup`, named by the business typed in |
 | `POST /public/signup` → 502, checkout could not be started | `intake.ts:618` | **wired** `route:signup-checkout` |
 | `POST /public/preview` → 500 (premium and standard renders) | `intake.ts:1023,1058` | **wired** `route:preview` |
-| `POST /public/intake` → 500 | `intake.ts:899,938` | **wired** `route:intake` |
-| Buy-a-website checkout → 500 / 502 | `intake.ts:2363,2369,2410` | **wired** `route:checkout-premium` |
+| `POST /public/intake` → 500 | — | removed 2026-11-13 with the closed website offer (`routes/factory/closedIntake.ts`) |
+| Buy-a-website checkout → 500 / 502 | — | removed 2026-11-13 with the closed website offer (`routes/factory/closedIntake.ts`) |
 
 ## 4. Stripe and money
 

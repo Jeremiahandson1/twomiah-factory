@@ -386,16 +386,18 @@ check(/\$\{FACTS_POLICY\}/.test(composer.slice(composer.indexOf('function buildP
 check(/\$\{FACTS_POLICY\}/.test(composer.slice(composer.indexOf('function buildSitePrompt('), composer.indexOf('export async function composeSite'))),
   'the multi-page prompt must include FACTS_POLICY')
 
-// Every production caller of composeSite hands it the owner's facts and notes.
-const callers = ['apps/api/src/routes/factory/intake.ts']
-for (const file of callers) {
-  const src = read(file)
-  const calls = src.split('composeSite({').slice(1).map(s => s.slice(0, s.indexOf('})')))
-  check(calls.length >= 3, `${file}: expected the staff, auto-compose and recompose calls to composeSite`)
-  calls.forEach((c, i) => {
-    check(/\bfacts:/.test(c), `${file}: composeSite call #${i + 1} does not pass facts`)
-    check(/\bnotes:/.test(c), `${file}: composeSite call #${i + 1} does not pass the free-form notes`)
-  })
+// The one production caller of composeSite is the signup (services/signupSite.ts): it hands the builder what the signup
+// form asked — the business, its services and the owner's own description. The three callers that passed an intake's
+// `facts` and `notes` (staff compose, auto-compose, recompose) went with the closed "see a preview first" website offer
+// (routes/factory/closedIntake.ts); no route may call the builder directly again without going through the gate above.
+{
+  const routes = read('apps/api/src/routes/factory/intake.ts')
+  check(!/composeSite\(/.test(routes), 'apps/api/src/routes/factory/intake.ts: a route calls composeSite directly — the signup builds through services/signupSite.ts')
+  const signup = read('apps/api/src/services/signupSite.ts')
+  check(/compose: composeSite,/.test(signup), 'services/signupSite.ts: the signup must build with composeSite')
+  const input = signup.slice(signup.indexOf('export function signupComposerInput('), signup.indexOf('// ─── The owner\'s photo'))
+  for (const field of ['businessName:', 'businessType:', 'services:', 'description:'])
+    check(input.includes(field), `services/signupSite.ts: signupComposerInput does not pass ${field.slice(0, -1)}`)
 }
 {
   // site-bootstrap's page list and service areas live in services/premiumSitePages.ts since the cutover (one list for both
@@ -434,7 +436,6 @@ for (const file of callers) {
     check(existsSync(ROOT + 'templates/' + t + '/views/sections/tools/visualizer.ejs') && existsSync(ROOT + 'templates/' + t + '/views/sections/tools/estimator.ejs'), `templates/${t}: tools partials missing`)
   }
   check(/contentGaps:\s*Array\.isArray\(composed\.contentGaps\)/.test(src), 'site-bootstrap must seed contentGaps')
-  check(/parseIntakeFacts\(/.test(src), '/public/intake must parse the owner\'s fact fields')
 }
 
 // ─── 3. The prompt and the partials ─────────────────────────────────────────

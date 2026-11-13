@@ -15,11 +15,25 @@ import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
 import PricingAdminPage from './pages/PricingAdminPage'
 import RoofReviewPage from './pages/RoofReviewPage'
-import PremiumReviewPage from './pages/PremiumReviewPage'
-import PublicIntakePage from './pages/PublicIntakePage'
 import MigrationPage from './pages/MigrationPage'
 import AppLayout from './components/AppLayout'
 import RequireRole from './components/RequireRole'
+
+const SIGNUP_URL = 'https://twomiah.com/signup'
+
+/**
+ * /start was the "see a preview first" website form. That offer is closed (the Factory refuses its routes:
+ * apps/api/src/routes/factory/closedIntake.ts), so an old link is sent to the signup, with a plain link in case the
+ * browser does not follow.
+ */
+function StartClosed() {
+  useEffect(() => { window.location.replace(SIGNUP_URL) }, [])
+  return (
+    <div className="flex items-center justify-center h-screen bg-gray-950 text-white p-6 text-center">
+      <p>This form has closed. <a className="underline" href={SIGNUP_URL}>Sign up at twomiah.com</a>.</p>
+    </div>
+  )
+}
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -44,7 +58,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={!session ? <LoginPage /> : <Navigate to="/" />} />
           <Route path="/care/signup" element={<CareSignupPage />} />
-          <Route path="/start" element={<PublicIntakePage />} />
+          <Route path="/start" element={<StartClosed />} />
           <Route path="/signup/:product" element={<FactoryPage />} />
           <Route path="/" element={session ? <AppLayout /> : <Navigate to="/login" />}>
             <Route index element={<DashboardPage />} />
@@ -56,7 +70,6 @@ export default function App() {
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="pricing" element={<RequireRole allowed={['owner', 'admin']}><PricingAdminPage /></RequireRole>} />
             <Route path="roof-review" element={<RequireRole allowed={['owner', 'admin']}><RoofReviewPage /></RequireRole>} />
-            <Route path="premium-review" element={<RequireRole allowed={['owner', 'admin', 'editor']}><PremiumReviewPage /></RequireRole>} />
             <Route path="migration" element={<RequireRole allowed={['owner', 'admin']}><MigrationPage /></RequireRole>} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

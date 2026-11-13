@@ -6,6 +6,7 @@ import { registerDeployRoutes } from './factory/deploy'
 import { registerLifecycleRoutes } from './factory/lifecycle'
 import { registerBillingRoutes } from './factory/billing'
 import { registerIntakeRoutes } from './factory/intake'
+import { registerClosedIntakeRoutes } from './factory/closedIntake'
 import { registerSupportRoutes } from './factory/support'
 import { registerStatusRoutes } from './factory/status'
 import { registerAdminRoutes } from './factory/admin'
@@ -93,6 +94,8 @@ factory.use('*', async (c, next) => {
   return authenticate(c, next)
 })
 
+// The closed "see a preview first" website offer: its old addresses answer 410 with the way to the signup.
+registerClosedIntakeRoutes(factory)
 registerGenerationRoutes(factory)
 registerDeployRoutes(factory)
 registerLifecycleRoutes(factory)

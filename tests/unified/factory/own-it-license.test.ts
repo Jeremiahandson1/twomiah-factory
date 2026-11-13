@@ -222,7 +222,7 @@ describe('the hosting choice', () => {
   })
   test('the real Stripe call is cancel_at_period_end (never an immediate cancel), and the route needs the tenant’s subscription', () => {
     const src = readFileSync(new URL('../../../apps/api/src/services/factoryStripe.ts', import.meta.url), 'utf8')
-    const fn = src.slice(src.indexOf('export async function endSubscriptionAtPeriodEnd'), src.indexOf('// ── Premium-website checkout'))
+    const fn = src.slice(src.indexOf('export async function endSubscriptionAtPeriodEnd'), src.indexOf('// ── Deploy service checkout'))
     expect(fn).toMatch(/subscriptions\.update\(subscriptionId, \{ cancel_at_period_end: true \}\)/)
     expect(fn).not.toMatch(/subscriptions\.(cancel|del)/)
     const live = readFileSync(new URL('../../../apps/api/src/services/ownItLicenseLive.ts', import.meta.url), 'utf8')
@@ -245,7 +245,7 @@ describe('wiring', () => {
   })
   test('the checkout is an inline price built from the offer, and carries no tenant billing identity', () => {
     const src = readFileSync(new URL('../../../apps/api/src/services/factoryStripe.ts', import.meta.url), 'utf8')
-    const fn = src.slice(src.indexOf('export async function createOwnItLicenseCheckout'), src.indexOf('// ── Premium-website checkout'))
+    const fn = src.slice(src.indexOf('export async function createOwnItLicenseCheckout'), src.indexOf('// ── Deploy service checkout'))
     expect(fn).toMatch(/unit_amount: o\.priceCents/)
     expect(fn).not.toMatch(/factory_customer_id/)
   })

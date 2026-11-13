@@ -34,8 +34,16 @@ const ROOF_BENCH = /^packages\/roof-core\/bench\//
  * the old one, this is the only one I want"; fence yes 2026-11-11). It may be deleted — and only deleted.
  */
 const OLD_ROOF_ESTIMATOR = /^apps\/roof-estimator\//
+/**
+ * The closed "see a preview first" website offer (owner, 2026-11-13: "I don't want this way anymore"; asked why its code
+ * was being left in place, "why aren't we doing this?"). Its form page, its staff review screen, and the retry rule only
+ * its previews used. These files may be deleted — and only deleted. Its routes answer 410
+ * (apps/api/src/routes/factory/closedIntake.ts). That rule's test, tests/shared/preview-retry.test.ts, stays (CI runs it
+ * by name): it now tests the same rule for a signup's own site.
+ */
+const CLOSED_WEBSITE_OFFER = /^(apps\/platform\/src\/pages\/(PublicIntakePage|PremiumReviewPage)\.tsx|apps\/api\/src\/services\/previewRetry\.ts)$/
 /** Existing files that may be deleted: the phone app's (owner, 2026-10-19 — it has no users yet) and the unified app's own. */
-const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN, ROOF_BENCH, OLD_ROOF_ESTIMATOR]
+const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN, ROOF_BENCH, OLD_ROOF_ESTIMATOR, CLOSED_WEBSITE_OFFER]
 // The Factory's checked photo library (apps/api/assets/hero-library) — NEW photos only, each one looked at before it is kept
 // (photo variety step 3, owner's yes 10/30–31); an existing photo stays fenced, since live sites point at it by name.
 const ADD_ALLOWED = [ROOF_BENCH, /^apps\/api\/assets\/hero-library\/[a-z]+\/[a-z]+-\d{2}\.jpg$/, /^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]

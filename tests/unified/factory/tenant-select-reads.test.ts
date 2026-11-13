@@ -62,7 +62,8 @@ test('every column a Factory handler reads off a named tenants select is in that
     for (const p of r.out) problems.push(`${relative(ROOT, f).replace(/\\/g, '/')}:${p.line} reads ${p.read} but selects only '${p.list}'`)
   }
   // the pattern still matches the code, so this checks something
-  expect(named).toBeGreaterThanOrEqual(80)
+  // (79 since the closed website offer's handlers, which read the tenant by name several times, were removed.)
+  expect(named).toBeGreaterThanOrEqual(75)
   expect(problems).toEqual([])
 })
 

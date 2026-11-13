@@ -93,13 +93,17 @@ describe('what a public form is sent', () => {
     ]) expect(imageTypeOf(Buffer.from(bad))).toBeNull()
   })
 
-  test('the intake route stores a file as what its bytes are, and takes an email that is one', () => {
+  test('the open website-intake form is gone: no public route stores a file under the type its sender states', () => {
+    // The form these checks guarded (POST /public/intake: a logo and photos from anyone) was removed with the closed
+    // website offer; its address answers 410 without reading what was sent (routes/factory/closedIntake.ts,
+    // tests/unified/factory/closed-intake.test.ts). The signup's own photo is a PNG, JPEG or WebP only (no SVG).
     const intake = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/intake.ts'), 'utf8')
-    const route = intake.slice(intake.indexOf("factory.post('/public/intake'"), intake.indexOf("factory.post('/public/preview'"))
-    expect(route).toMatch(/signupEmail\(getStr\('contactEmail', 200\)\)/)
-    expect(route).not.toMatch(/uploadIntakeAsset\([^)]*\.type \|\| 'application\/octet-stream'/)
-    expect(route).toMatch(/uploadIntakeAsset\(buf, body\.logo\.name \|\| 'logo', logoKind\.type, slug\)/)
-    expect(route).toMatch(/uploadIntakeAsset\(buf, candidate\.name \|\| 'photo', photoKind\.type, slug\)/)
+    expect(intake).not.toContain("factory.post('/public/intake'")
+    expect(intake).not.toMatch(/uploadIntakeAsset\([^)]*\.type \|\| 'application\/octet-stream'/)
+    expect(intake).toMatch(/const SIGNUP_IMAGE_RE = \/\^data:image\\\/\(png\|jpeg\|webp\);base64,/)
+    const closed = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/closedIntake.ts'), 'utf8')
+    expect(closed).toContain("['post', '/public/intake', 'json']")
+    expect(closed).not.toMatch(/parseBody|req\.json\(|uploadIntakeAsset/)
   })
 
   test('an email the Factory sends carries outside words as text, never as markup', async () => {
@@ -189,14 +193,15 @@ describe('the roof review queue belongs to the business that called (S5-11)', ()
 })
 
 describe('money and the intake checkout (S5-13, S3-5)', () => {
-  test('the public "buy my previewed site" door is for an unpaid website intake only', () => {
+  test('the public "buy my previewed site" door is closed: it changes no row and starts no build', () => {
+    // S5-13 narrowed this door to an unpaid website intake; the offer it belonged to was then removed, and the address
+    // answers 410 (routes/factory/closedIntake.ts). Nothing public can change a row's products or record a build now.
     const intake = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/intake.ts'), 'utf8')
-    const route = intake.slice(intake.indexOf("factory.post('/public/intake/:id/checkout-premium'"))
-    const guard = route.indexOf("!tenant.intake_data?.intake || tenant.billing_status === 'active' || tenant.render_frontend_url || tenant.render_backend_url")
-    expect(guard).toBeGreaterThan(0)
-    // …before the row's products are changed or a build is recorded.
-    expect(guard).toBeLessThan(route.indexOf("update({ products })"))
-    expect(guard).toBeLessThan(route.indexOf('await generate(genConfig)'))
+    expect(intake).not.toContain('checkout-premium')
+    expect(intake).not.toContain("update({ products })")
+    const closed = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/closedIntake.ts'), 'utf8')
+    expect(closed).toContain("['post', '/public/intake/:id/checkout-premium', 'json']")
+    expect(closed).not.toMatch(/supabase|generate\(|stripe/i)
   })
 
   test('a one-time purchase is delivered when the money is in, by either Stripe event', () => {
