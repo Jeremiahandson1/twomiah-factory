@@ -102,7 +102,12 @@ export function createBulkRoutes(d: CrmDeps) {
       const why = await completionRefusal(d, user.companyId, await jobsForCompletion(d, user.companyId, ids))
       if (why) return fail(c, 400, why, 'checklist_outstanding')
     }
-    const count = await bulk.bulkUpdateJobs(user.companyId, ids, safeUpdates)
+    // A status goes the way the status door sends it (bulkUpdateJobStatus): the completion time stamped or cleared, and each
+    // job that MOVES into the status runs its moment (the next agreement visit, a route visit's bill, a commission). Written
+    // here as one more field it did neither — a job completed through this door finished nothing (code review 04-10).
+    const { status: toStatus, ...fields } = safeUpdates
+    let count = Object.keys(fields).length ? await bulk.bulkUpdateJobs(user.companyId, ids, fields) : 0
+    if (toStatus !== undefined) count = Math.max(count, await bulk.bulkUpdateJobStatus(user.companyId, ids, String(toStatus), user.userId))
     d.audit.log({ req: c, action: 'BULK_UPDATE', entity: 'jobs', metadata: { count, updates: safeUpdates }, userId: user.userId, companyId: user.companyId })
     return one(c, { updated: count })
   })
