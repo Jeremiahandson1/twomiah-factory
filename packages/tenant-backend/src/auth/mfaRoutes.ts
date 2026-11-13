@@ -154,6 +154,21 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
    */
   app.post('/setup', async (c) => {
     const u = c.get('user') as any
+    // ADDING A FACTOR TO AN ACCOUNT THAT HAS ONE ASKS FOR THE ONE IT HAS (security review S1-2, 2026-11-12). Removing a
+    // device has always asked for a live code, because an open session is what somebody with a stolen laptop holds; adding
+    // one asked nothing, and finishing it replaced the recovery codes — so that same session could enrol its own
+    // authenticator, void the owner's codes and then remove the real device with a code from its own.
+    const [armed] = rowsOf(await db.execute(sql`
+      SELECT id FROM mfa_devices
+       WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)} AND type = 'totp' AND COALESCE(is_verified, false) = true
+       LIMIT 1
+    `))
+    if (armed) {
+      const sent = await c.req.json().catch(() => ({} as any))
+      const code = typeof sent?.code === 'string' ? sent.code : ''
+      if (!code) return c.json({ error: 'Two-factor is already on. Enter a code from your authenticator (or a recovery code) to add another one.', code: 'code_required' }, 400)
+      if (!(await presentedLiveCode(u, code))) return c.json({ error: 'That code was not right.', code: 'bad_code' }, 400)
+    }
     const secret = base32Encode(crypto.randomBytes(20))
     await db.execute(sql`
       DELETE FROM mfa_devices

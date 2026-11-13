@@ -96,6 +96,33 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     return fail(c, 403, "The account owner's login can only be changed by the owner.", 'owner_only')
   }
 
+  /**
+   * WHOSE SIGN-IN THE OFFICE MAY CHANGE (security review S1-14, 2026-11-12). An agency's office sets a caregiver's password
+   * and corrects their email — the caregivers' logins are the office's to run. But these doors took ANY login but the
+   * owner's: an admin could set another admin's password, or move that login to an email address of their own, and sign in
+   * as them with nothing on the record. So a sign-in is changed here only for a seat BELOW the one asking (an admin for a
+   * manager, a caregiver or a viewer; the owner for anyone), never for your own (Profile & Security asks your current
+   * password). Null when allowed, else the refusal.
+   */
+  async function refuseSignInChange(c: any, targetId: string): Promise<Response | null> {
+    const actor = me(c)
+    const rung = (role: string) => (d.permissions.ROLE_HIERARCHY as string[]).indexOf(d.permissions.normalizeRole(role))
+    if (targetId === actor.userId) return fail(c, 409, 'Change your own password under Profile & Security, in the menu under your name.', 'own_account')
+    if (d.permissions.normalizeRole(actor.role) === 'owner') return null
+    const [target] = await d.db.select({ role: user.role }).from(user)
+      .where(and(eq(user.id, targetId), eq(user.companyId, actor.companyId))).limit(1)
+    if (!target) return fail(c, 404, 'User not found')
+    if (rung(target.role) >= rung(actor.role)) return fail(c, 403, 'Only the owner can change the sign-in of someone at your own level. They can use Forgot password on the sign-in page.', 'owner_only')
+    return null
+  }
+  /** A password the office set: every session the person had ends (as a password change does), and it is on the record. */
+  async function passwordSetByOffice(c: any, companyId: string, id: string, passwordHash: string) {
+    const [row] = await d.db.update(user)
+      .set({ passwordHash, refreshToken: null, sessionsValidFrom: new Date(Math.floor(Date.now() / 1000) * 1000), failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() })
+      .where(and(eq(user.id, id), eq(user.companyId, companyId))).returning({ id: user.id, email: user.email })
+    if (row) d.audit.log({ req: c, action: d.audit.ACTIONS.PASSWORD_CHANGE, entity: 'user', entityId: row.id, entityName: row.email, metadata: { description: `Password set by the office — ${row.email}` } })
+  }
+
   // GET /api/caregivers
   app.get('/', mayList, async (c) => {
     const companyId = companyOf(c)
@@ -410,6 +437,15 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     if (badPlace) return fail(c, 400, badPlace)
     if (payRate !== undefined && data.defaultPayRate === undefined) data.defaultPayRate = String(payRate)
     if (data.email) data.email = String(data.email).toLowerCase().trim()
+    // The email is the login, and a password is the way in: both are changed only for a seat below the one asking
+    // (refuseSignInChange). The rest of the record — phone, address, pay rate — is care-hr:update's, as it was.
+    if (password || data.email) {
+      const [now] = await d.db.select({ email: user.email }).from(user).where(and(eq(user.id, id), eq(user.companyId, companyId))).limit(1)
+      if (password || (now && String(now.email).toLowerCase() !== data.email)) {
+        const refused = await refuseSignInChange(c, id)
+        if (refused) return refused
+      }
+    }
 
     const mine = (t: any) => and(eq(t.companyId, companyId), eq(t.caregiverId, id))
     const updates: Promise<any>[] = [
@@ -431,7 +467,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     }
     if (password) {
       const passwordHash = await Bun.password.hash(String(password), 'bcrypt')
-      updates.push(d.db.update(user).set({ passwordHash, updatedAt: new Date() }).where(and(eq(user.id, id), eq(user.companyId, companyId))))
+      updates.push(passwordSetByOffice(c, companyId, id, passwordHash))
     }
     await Promise.all(updates)
 
@@ -642,10 +678,12 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     if (!(await personInCompany(d, companyId, id))) return fail(c, 404, 'User not found')
     const ownerOnly = await refuseOwnerTarget(c, id)
     if (ownerOnly) return ownerOnly
+    const refused = await refuseSignInChange(c, id)
+    if (refused) return refused
     const { password } = await body(c)
     if (!password || String(password).length < 8) return fail(c, 400, 'Password must be at least 8 characters')
     const passwordHash = await Bun.password.hash(String(password), 'bcrypt')
-    await d.db.update(user).set({ passwordHash, updatedAt: new Date() }).where(and(eq(user.id, id), eq(user.companyId, companyId)))
+    await passwordSetByOffice(c, companyId, id, passwordHash)
     return done(c)
   }
   app.put('/:id/reset-password', requirePermission('team:update'), resetUserPassword)

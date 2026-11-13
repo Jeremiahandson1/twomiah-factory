@@ -10,6 +10,31 @@ If you find a vulnerability, please email **security@twomiah.com**. We
 will acknowledge within 1 business day. We do not currently run a paid
 bug bounty but credit researchers in this document.
 
+> **Which product this page describes.** The sections below were written on 2026-06-05 for the Twomiah Premium
+> website product. The Twomiah CRM (the app at `/crm`) signs people in differently; what it does is in the next
+> section, checked against its code on 2026-11-12. Where the two differ, the CRM section is the one that applies to
+> the CRM.
+
+## The Twomiah CRM (checked against the code, 2026-11-12)
+
+- **Passwords** are hashed with bcrypt and never stored or logged in the clear. A password is at least 8 characters
+  with at least one letter and one number, whoever sets it.
+- **Sessions.** Sign-in gives a 15-minute access token and a 7-day refresh token. In the browser both are
+  httpOnly, SameSite=Strict cookies that page scripts cannot read. Changing or resetting a password, signing out of
+  every device, or having the login switched off ends every session of that login at once.
+- **Sign-in attempts.** Ten failed attempts on one login — wrong passwords or wrong two-factor codes — lock it for
+  15 minutes. One address may try to sign in 150 times in 15 minutes. An email with no login, a wrong password and a
+  switched-off login get the same answer.
+- **Two-factor** is optional per person (an authenticator app, with 10 single-use recovery codes shown once). A
+  code signs in once. The account owner can require it for everyone; a login without it can then reach only its own
+  account page until it is set up.
+- **Reset and invite links.** A password-reset link works once and for 1 hour; a team invite link works once and
+  for 7 days. Only a SHA-256 hash of the link's token is stored.
+- **Not done in the CRM:** no email is sent on each sign-in, and there is no separate email-verification step (an
+  invite link proves the address).
+- **Audit log.** Sign-ins, failed sign-ins, sign-outs, password changes and changes to the business’s data are
+  recorded with who, when and from which address (Audit Log, in the menu).
+
 ## Architecture
 
 - Every customer site runs on its own Render web service with its own

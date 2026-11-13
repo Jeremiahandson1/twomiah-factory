@@ -184,6 +184,45 @@ describe('the sign-in handoff', () => {
     expect(r.status).toBe(400)
   })
 
+  // Security review S1-3 (2026-11-12): the code is for the app's own sign-in, and nothing else can ask for one.
+  test('a made-up or another business’s app sign-in is refused', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    const ask = (refreshToken: string) => authed(a, s.access)('/api/auth/web-handoff', { method: 'POST', json: { path: '/crm/billing', refreshToken } })
+    expect((await ask('x')).status).toBe(403)
+    // signed by another business's server
+    const other = await login(b, 'Correct-horse-1')
+    expect((await ask(other.refresh)).status).toBe(403)
+    // a sign-in that has been signed out
+    const gone = await login(a, 'Correct-horse-1')
+    await authed(a, gone.access)('/api/auth/logout', { method: 'POST', json: { refreshToken: gone.refresh } })
+    expect((await ask(gone.refresh)).status).toBe(403)
+    expect((await ask(s.refresh)).status).toBe(201)
+  })
+
+  test('a browser’s cookie session cannot ask for a code (script on a page never mints a session)', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    const r = await a.call('/api/auth/web-handoff', { method: 'POST', json: { path: '/crm/billing', refreshToken: s.refresh }, headers: { 'X-Auth-Mode': 'cookie', Cookie: `tw_access=${s.access}` } })
+    expect(r.status).toBe(403)
+  })
+
+  test('a page opened from the app cannot open another (its own session is not an app sign-in)', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    const { opened, value } = await openWeb(s)
+    const webAccess = cookies(opened).tw_access.split(';')[0].split('=')[1]
+    const r = await authed(a, webAccess)('/api/auth/web-handoff', { method: 'POST', json: { path: '/crm/billing', refreshToken: value } })
+    expect(r.status).toBe(403)
+  })
+
+  test('signing out of every device ends the access tokens already handed out', async () => {
+    const s = await login(a, 'Correct-horse-1')
+    await new Promise((r) => setTimeout(r, 1100))
+    const out = await authed(a, s.access)('/api/auth/logout', { method: 'POST', json: {} })
+    expect(out.status).toBe(200)
+    expect((await authed(a, s.access)('/api/auth/me')).status).toBe(401)
+    // the tests after this one sign in again
+    ;({ access, refresh } = await login(a, 'Correct-horse-1'))
+  })
+
   test('the phone\'s in-app browser is private and the page ends its session on close (source check)', () => {
     // A Windows checkout has CRLF; the source is the same either way.
     const src = readFileSync(new URL('../../mobile/app/(details)/web.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')

@@ -44,6 +44,8 @@ const call = (who: any) => async (method: string, path: string, body?: unknown) 
 const asOwner = call(owner), asManager = call(manager), anon = call(null)
 const row = async (email: string) => (await db.select().from(user).where(eq(user.email, email)).limit(1))[0] as any
 const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.get('token')
+// The row keeps the link token's SHA-256, never the token (security review S1-10): the token is read from the email.
+const hashOf = (token: string | null) => new Bun.CryptoHasher('sha256').update(String(token)).digest('hex')
 
 // ══════════ 1. an invite ═══════════════════════════════════════════════════════════════════════
 {
@@ -56,7 +58,8 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
   const p = await row('pat@test.local')
   const days = (new Date(p.resetTokenExp).getTime() - Date.now()) / 86_400_000
   check('…which lasts 7 days', days > 6.9 && days <= 7, days)
-  check('…and the token in the link is the one stored', tokenOf(mail.data.inviteLink) === p.resetToken)
+  const patToken = tokenOf(mail.data.inviteLink)
+  check('…and the token in the link is the one stored, as its hash', hashOf(patToken) === p.resetToken && patToken !== p.resetToken)
   check('the seat is active and nobody knows its password', p.isActive === true && !(await Bun.password.verify('', p.passwordHash).catch(() => false)))
 
   const listed = await asOwner('GET', '/api/company/users')
@@ -76,7 +79,9 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
   const { inlineButtonColours } = await import('./src/services/email.ts')
   check('the button carries its colours on the element itself', /class="button"[^>]*style="[^"]*color:#ffffff !important/.test(inlineButtonColours(sentHtml.html)))
 
-  const set = await anon('POST', '/api/auth/reset-password', { token: p.resetToken, password: 'pats-own-pass-1' })
+  const stolen = await anon('POST', '/api/auth/reset-password', { token: p.resetToken, password: 'pats-own-pass-1' })
+  check(`what the row holds is not itself a way in (${stolen.status})`, stolen.status === 400, stolen.json)
+  const set = await anon('POST', '/api/auth/reset-password', { token: patToken, password: 'pats-own-pass-1' })
   check(`the link sets their password (${set.status})`, set.status === 200, set.json)
   const login = await anon('POST', '/api/auth/login', { email: 'pat@test.local', password: 'pats-own-pass-1' })
   check(`…and they can sign in with it (${login.status})`, login.status === 200 && !!login.json?.accessToken, login.json)
@@ -84,7 +89,7 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
   check('once they have chosen a password the invite is no longer pending', after?.invitePending === false, after)
   const teamAfter = ((await asOwner('GET', '/api/team')).json?.data || []).find((m: any) => String(m.email || '').toLowerCase() === 'pat@test.local')
   check('…on Team as well', teamAfter?.invitePending === false, teamAfter)
-  const again = await anon('POST', '/api/auth/reset-password', { token: p.resetToken, password: 'someone-else-1' })
+  const again = await anon('POST', '/api/auth/reset-password', { token: patToken, password: 'someone-else-1' })
   check(`the link works once (${again.status})`, again.status === 400, again.json)
 }
 
@@ -92,14 +97,15 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
 {
   await asOwner('POST', '/api/company/users', { email: 'sam@test.local', firstName: 'Sam', lastName: 'Ray', role: 'field' })
   const s1 = await row('sam@test.local')
+  const samToken = tokenOf(sent.at(-1)!.data.inviteLink)
   await db.update(user).set({ resetTokenExp: new Date(Date.now() - 1000) } as any).where(eq(user.id, s1.id))
-  const late = await anon('POST', '/api/auth/reset-password', { token: s1.resetToken, password: 'sams-pass-123' })
+  const late = await anon('POST', '/api/auth/reset-password', { token: samToken, password: 'sams-pass-123' })
   check(`an expired invite is refused (${late.status})`, late.status === 400, late.json)
 
   const re = await asOwner('POST', `/api/company/users/${s1.id}/invite`, {})
   const s2 = await row('sam@test.local')
-  check(`Resend invite sends a new link (${re.status})`, re.status === 200 && re.json?.inviteSent === true && s2.resetToken && s2.resetToken !== s1.resetToken && tokenOf(sent.at(-1)!.data.inviteLink) === s2.resetToken, re.json)
-  const ok = await anon('POST', '/api/auth/reset-password', { token: s2.resetToken, password: 'sams-pass-123' })
+  check(`Resend invite sends a new link (${re.status})`, re.status === 200 && re.json?.inviteSent === true && s2.resetToken && s2.resetToken !== s1.resetToken && hashOf(tokenOf(sent.at(-1)!.data.inviteLink)) === s2.resetToken, re.json)
+  const ok = await anon('POST', '/api/auth/reset-password', { token: tokenOf(sent.at(-1)!.data.inviteLink), password: 'sams-pass-123' })
   check('…which works', ok.status === 200, ok.json)
 
   await db.update(user).set({ lastLogin: new Date() } as any).where(eq(user.id, s1.id))

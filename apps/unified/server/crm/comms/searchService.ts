@@ -29,8 +29,14 @@ const money = (v: unknown) => Number(v).toLocaleString(undefined, { minimumFract
 const contactLink = (clientChart: boolean) => (id: string, type: unknown) =>
   clientChart && !NON_CLIENT_TYPES.includes(String(type || '') as typeof NON_CLIENT_TYPES[number]) ? `/crm/clients/${id}` : `/crm/contacts/${id}`
 
+/**
+ * A seat that reads only its own quotes or projects (no quotes:read-all / projects:read-all — the Sales rep) searches only those: each
+ * is a condition on its table, built by the route from the person asking (search.ts; security review S1-15, 2026-11-12).
+ */
+export interface OwnOnly { quote?: any; project?: any }
+
 export function createSearchService(db: any) {
-  async function globalSearch(companyId: string, query: string | undefined, options: { limit?: number; types?: string[] | null; clientChart?: boolean } = {}) {
+  async function globalSearch(companyId: string, query: string | undefined, options: { limit?: number; types?: string[] | null; clientChart?: boolean; own?: OwnOnly } = {}) {
     const { limit = 20, types = null } = options
     const contactUrl = contactLink(!!options.clientChart)
     if (!query || query.length < 2) return { results: [] as SearchResult[], query }
@@ -84,7 +90,7 @@ export function createSearchService(db: any) {
       searches.push(db
         .select({ id: project.id, name: project.name, number: project.number, status: project.status })
         .from(project)
-        .where(and(eq(project.companyId, companyId), or(ilike(project.name, pattern), ilike(project.number, pattern), ilike(project.description, pattern), ilike(project.address, pattern))))
+        .where(and(eq(project.companyId, companyId), options.own?.project, or(ilike(project.name, pattern), ilike(project.number, pattern), ilike(project.description, pattern), ilike(project.address, pattern))))
         .orderBy(desc(project.updatedAt))
         .limit(perType)
         .then((items: any[]) => items.map((item) => ({
@@ -110,7 +116,7 @@ export function createSearchService(db: any) {
       searches.push(db
         .select({ id: quote.id, name: quote.name, number: quote.number, status: quote.status, total: quote.total })
         .from(quote)
-        .where(and(eq(quote.companyId, companyId), or(ilike(quote.number, pattern), ilike(quote.name, pattern))))
+        .where(and(eq(quote.companyId, companyId), options.own?.quote, or(ilike(quote.number, pattern), ilike(quote.name, pattern))))
         .orderBy(desc(quote.updatedAt))
         .limit(perType)
         .then((items: any[]) => items.map((item) => ({
@@ -269,17 +275,17 @@ export function createSearchService(db: any) {
   // Documents, team members and RFIs have no page of their own: their results open the list they are on. Every link
   // is under /crm, where the screens are (the template's Recent links had no prefix and opened the home page).
   /** Lighter: names and links only. */
-  async function quickSearch(companyId: string, query: string | undefined, limit = 10, options: { types?: string[]; clientChart?: boolean } = {}) {
+  async function quickSearch(companyId: string, query: string | undefined, limit = 10, options: { types?: string[]; clientChart?: boolean; own?: OwnOnly } = {}) {
     if (!query || query.length < 2) return []
     const r = await globalSearch(companyId, query, { limit, ...options })
     return r.results.map((x) => ({ type: x.type, id: x.id, name: x.name, url: x.url }))
   }
 
   /** The most recently changed contacts, projects and jobs (the empty search box). */
-  async function getRecentItems(companyId: string, limit = 10, clientChart = false) {
+  async function getRecentItems(companyId: string, limit = 10, clientChart = false, own: OwnOnly = {}) {
     const [contacts, projects, jobs] = await Promise.all([
       db.select({ id: contact.id, name: contact.name, type: contact.type }).from(contact).where(eq(contact.companyId, companyId)).orderBy(desc(contact.updatedAt)).limit(3),
-      db.select({ id: project.id, name: project.name, number: project.number }).from(project).where(eq(project.companyId, companyId)).orderBy(desc(project.updatedAt)).limit(3),
+      db.select({ id: project.id, name: project.name, number: project.number }).from(project).where(and(eq(project.companyId, companyId), own.project)).orderBy(desc(project.updatedAt)).limit(3),
       db.select({ id: job.id, title: job.title, number: job.number }).from(job).where(eq(job.companyId, companyId)).orderBy(desc(job.updatedAt)).limit(4),
     ])
     return [

@@ -274,6 +274,20 @@ describe('it ends, and says so', () => {
   })
 })
 
+describe('Return ends the View As itself, not only the cookie (security review S1-16)', () => {
+  test('a copy of the token stops working once the opener has returned', async () => {
+    const owner = await bearerOf('owner@test.example', ownerPassword)
+    const start = await (await withToken(owner, `/api/auth/impersonate/${ids.viewer}`, { method: 'POST' })).json() as any
+    expect((await withToken(start.token, '/api/auth/me')).status).toBe(200)
+    expect((await withToken(start.token, '/api/auth/logout', { method: 'POST' })).status).toBe(200)
+    const after = await withToken(start.token, '/api/auth/me')
+    expect(after.status).toBe(401)
+    expect((await after.json() as any).code).toBe('view_as_ended')
+    // the owner's own session is untouched
+    expect((await withToken(owner, '/api/auth/me')).status).toBe(200)
+  })
+})
+
 describe('every vertical has it', () => {
   test('home care: an office seat writes as itself; a caregiver is read-only (first-hand care and EVV records)', async () => {
     const hc = await bootTenant({ vertical: 'homecare' })

@@ -100,7 +100,8 @@ const enrolTotp = async (userId: string) => {
   `)
   return secret
 }
-const codeFor = (secret: string) => generateTOTPCode(secret, Math.floor(Math.floor(Date.now() / 1000) / 30))
+// `ahead`: a sign-in code is taken once (security review S1-4), so a second sign-in in this file sends a later step's code.
+const codeFor = (secret: string, ahead = 0) => generateTOTPCode(secret, Math.floor(Math.floor(Date.now() / 1000) / 30) + ahead)
 const setPin = async (userId: string, pin: string) => {
   await db.execute(sql`
     UPDATE "user" SET pin_hash = ${await Bun.password.hash(pin, 'bcrypt')},
@@ -121,7 +122,7 @@ console.log('\n══════════ sign-in with a second factor (T49 
   const wrong = await api('POST', '/api/auth/mfa', { challengeId: stopped.json.challengeId, code: '000000' })
   check('a wrong code is refused', wrong.status === 401 && wrong.json?.code === 'bad_code', { status: wrong.status, code: wrong.json?.code })
 
-  const right = await api('POST', '/api/auth/mfa', { challengeId: stopped.json.challengeId, code: codeFor(secret) })
+  const right = await api('POST', '/api/auth/mfa', { challengeId: stopped.json.challengeId, code: codeFor(secret, -1) })
   check('…and the real code finishes the sign-in', right.status === 200 && !!right.json?.accessToken, { status: right.status, hasToken: !!right.json?.accessToken })
 
   const again = await api('POST', '/api/auth/mfa', { challengeId: stopped.json.challengeId, code: codeFor(secret) })
@@ -320,7 +321,7 @@ const secRows = (type: string, ip?: string) => rows(
   if (!ownerToken) {
     const st = await api('POST', '/api/auth/login', { email: owner.email, password: PASSWORD })
     const devs = await rows(sql`SELECT secret FROM mfa_devices WHERE user_id = ${owner.id} AND type = 'totp'`)
-    const fin = await api('POST', '/api/auth/mfa', { challengeId: st.json?.challengeId, code: codeFor(String(devs[0].secret)) })
+    const fin = await api('POST', '/api/auth/mfa', { challengeId: st.json?.challengeId, code: codeFor(String(devs[0].secret), 1) })
     ownerToken = fin.json?.accessToken
   }
   check('the owner has a token to set a PIN with', !!ownerToken, { hasToken: !!ownerToken })

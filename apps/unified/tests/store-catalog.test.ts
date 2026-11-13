@@ -18,7 +18,7 @@
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 import { readFileSync } from 'node:fs'
-import { storeDateString } from '@twomiah/tenant-backend'
+import { storeDateString, storedResetToken } from '@twomiah/tenant-backend'
 import { bootTenant, seedOwner } from './harness.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
@@ -526,8 +526,9 @@ describe('the shared modules\' fixes, now the engine\'s', () => {
     expect(inv.status).toBe(201)
     expect(inv.body.invited).toBe(true)
     const [sam] = await t.db.select().from(t.schema.user).where(eq(t.schema.user.id, inv.body.id))
-    await t.db.update(t.schema.user).set({ resetTokenExp: new Date(Date.now() - 1000) } as any).where(eq(t.schema.user.id, sam.id))
-    const late = await t.call('/api/auth/reset-password', { method: 'POST', json: { token: sam.resetToken, password: 'Sams-own-pass-1' } })
+    // The row keeps the link token's hash (security review S1-10), so the test gives the row a token it knows.
+    await t.db.update(t.schema.user).set({ resetToken: storedResetToken('sams-invite-token'), resetTokenExp: new Date(Date.now() - 1000) } as any).where(eq(t.schema.user.id, sam.id))
+    const late = await t.call('/api/auth/reset-password', { method: 'POST', json: { token: 'sams-invite-token', password: 'Sams-own-pass-1' } })
     expect(late.status).toBe(400)
     expect(await late.json()).toMatchObject({ code: 'invite_expired', error: expect.stringMatching(/Ask whoever invited you to send it again/) })
     // Someone who has signed in and let a Forgot-password link lapse is not told about an invitation.

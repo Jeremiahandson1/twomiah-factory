@@ -131,6 +131,16 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
 
   // Mirrors the server: requireAdmin = admin|owner; grants are the owner's alone.
   const isOwner = user?.role === 'owner'
+  const [savingMfaPolicy, setSavingMfaPolicy] = useState(false)
+  const saveMfaPolicy = async (on: boolean) => {
+    setSavingMfaPolicy(true)
+    try {
+      // Only this key: the server merges it into the stored settings; null takes it out.
+      const updated = await api.put('/api/company', { settings: { requireMfa: on ? true : null } })
+      updateCompany(updated)
+      toast.success(on ? 'Two-factor is now required for everyone' : 'Two-factor is no longer required')
+    } catch (err) { toast.error(errMsg(err, 'Could not change the two-factor requirement')) } finally { setSavingMfaPolicy(false) }
+  }
   const canManageUsers = isOwner || user?.role === 'admin'
   const myId = user?.id || user?.userId
 
@@ -550,6 +560,17 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
             <div className="space-y-6 max-w-xl">
               {/* Two-factor first: it is the stronger of the two things on this tab. (T57) */}
               <TwoFactorCard api={api as any} toast={toast} />
+              {/* The owner's switch (server: company.ts PUT /, auth/mfa.ts refuseUntilEnrolled). On, a login with no
+                  authenticator reaches only its own account until it sets one up. */}
+              {isOwner && (
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-4 dark:border-slate-700">
+                  <input type="checkbox" className="mt-1" checked={company?.settings?.requireMfa === true} disabled={savingMfaPolicy} onChange={(e) => saveMfaPolicy(e.target.checked)} />
+                  <span>
+                    <span className="block font-medium text-gray-900 dark:text-slate-100">Require two-factor for everyone</span>
+                    <span className="block text-sm text-gray-500 dark:text-slate-400">Each person must set up an authenticator app. Until they do, they can sign in but only reach their own Profile &amp; Security page. Set up your own two-factor first.</span>
+                  </span>
+                </label>
+              )}
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h2>
               <Field label="Current Password"><PasswordInput autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw((prev) => ({ ...prev, currentPassword: e.target.value }))} className={inputCls} /></Field>
               <Field label="New Password"><PasswordInput autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw((prev) => ({ ...prev, newPassword: e.target.value }))} className={inputCls} /></Field>

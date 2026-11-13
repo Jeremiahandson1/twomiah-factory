@@ -6,11 +6,17 @@ import jwt from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
 import { refuseWhileLocked } from './accountLock'
 import { requestToken } from './cookieSession'
+import { refuseUntilEnrolled } from './mfa'
 
 export interface AuthMiddlewareDeps {
   db: any
   /** company is required: authenticate refuses a locked company's requests (auth/accountLock.ts). */
   tables: { user: any; company: any }
+  /**
+   * With the business's "Require two-factor" policy on, a login with no authenticator reaches only its own account
+   * (/api/auth) until it sets one up (auth/mfa.ts refuseUntilEnrolled). Off unless the app asks: the unified app does.
+   */
+  enforceMfaPolicy?: boolean
 }
 
 export interface AuthUserContext { userId: string; companyId: string; email: string; role: string }
@@ -46,7 +52,7 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
     const token = presented.token
     let decoded: any
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!)
+      decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] })
     } catch (error: any) {
       if (error?.name === 'TokenExpiredError') return c.json({ error: 'Token expired' }, 401)
       return c.json({ error: 'Invalid token' }, 401)
@@ -70,6 +76,14 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
       return c.json({ error: 'Your password was changed — please sign in again.', code: 'session_ended' }, 401)
     }
     c.set('user', { userId: found.id, companyId: found.companyId, email: found.email, role: found.role } as AuthUserContext)
+    if (deps.enforceMfaPolicy) {
+      // In a View As the token names the person viewed; the one who owes the second factor is the one really signed in.
+      // Asked before the lock (whose own open doors stay open to it): the lock's three lines below are read as they
+      // stand by scripts/check-cancelled-company-is-locked.ts.
+      const really = decoded.impersonation && decoded.impersonatorId ? String(decoded.impersonatorId) : found.id
+      const owed = await refuseUntilEnrolled(c, db, found.companyId, really)
+      if (owed) return owed
+    }
     const locked = await refuseWhileLocked(c, db, company)
     if (locked) return locked
     await next()

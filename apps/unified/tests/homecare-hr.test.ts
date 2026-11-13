@@ -318,3 +318,40 @@ describe("the hire's login on screen, and the public pages' tabs (the moved scre
     expect(screen('lib/usePageTitle.ts')).toMatch(/return \(\) => \{ document\.title = before; \};/)
   })
 })
+
+// Security review S1-14 (2026-11-12). Last in the file: it ends cg2's sessions.
+describe('whose sign-in the office may change: a seat below the one asking, never a peer and never your own', () => {
+  let admin2 = ''
+  beforeAll(async () => {
+    const [u] = await t.db.insert(t.schema.user).values({ email: 'admin2@hr.example', passwordHash: await Bun.password.hash('Seat-pass-1', 'bcrypt'), firstName: 'Second', lastName: 'Admin', role: 'admin', companyId: coA } as any).returning()
+    admin2 = u.id
+  })
+  const signIn = async (email: string, password: string) => (await t.call('/api/auth/login', { method: 'POST', json: { email, password } })).status
+
+  test('an admin cannot set another admin’s password or move their login to another email', async () => {
+    for (const door of ['/api/users', '/api/caregivers']) {
+      const reset = await as('adminA', 'PUT', `${door}/${admin2}/reset-password`, { password: 'Taken-over-1' })
+      expect({ door, status: reset.status, code: (await body(reset)).code }).toEqual({ door, status: 403, code: 'owner_only' })
+      expect((await as('adminA', 'PUT', `${door}/${admin2}`, { password: 'Taken-over-1' })).status).toBe(403)
+      expect((await as('adminA', 'PUT', `${door}/${admin2}`, { email: 'mine@evil.example' })).status).toBe(403)
+    }
+    expect(await signIn('admin2@hr.example', 'Taken-over-1')).toBe(401)
+    expect(await signIn('admin2@hr.example', 'Seat-pass-1')).toBe(200)
+    // their own goes through Profile & Security, which asks the current password
+    expect((await as('adminA', 'PUT', `/api/users/${ids.adminA}/reset-password`, { password: 'Another-pass-1' })).status).toBe(409)
+    // the rest of a peer's record is still care-hr:update's
+    expect((await as('adminA', 'PUT', `/api/caregivers/${admin2}`, { phone: '6125550100' })).status).toBe(200)
+  })
+
+  test('the office still sets a caregiver’s password; the caregiver’s old sessions end and it is on the record', async () => {
+    expect((await as('cg2', 'GET', '/api/auth/me')).status).toBe(200)
+    await new Promise((r) => setTimeout(r, 1100))
+    expect((await as('adminA', 'PUT', `/api/users/${ids.cg2}/reset-password`, { password: 'Fresh-pass-22' })).status).toBe(200)
+    expect((await as('cg2', 'GET', '/api/auth/me')).status).toBe(401)
+    expect(await signIn('cg2@hr.example', 'Fresh-pass-22')).toBe(200)
+    const rows = await t.db.select().from(t.schema.auditLog)
+    expect(rows.some((r: any) => r.action === 'password_change' && r.entityId === ids.cg2 && r.userId === ids.adminA)).toBe(true)
+    // the owner may change anyone's
+    expect((await as('ownerA', 'PUT', `/api/users/${admin2}/reset-password`, { password: 'Owner-set-1x' })).status).toBe(200)
+  })
+})

@@ -57,7 +57,8 @@ const api = async (method: string, path: string, body?: unknown, who?: any) => {
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j, text: t }
 }
-const codeFor = (secret: string) => generateTOTPCode(secret, Math.floor(Math.floor(Date.now() / 1000) / 30))
+// `ahead`: a sign-in code is taken once (security review S1-4), so a second sign-in in this file sends a later step's code.
+const codeFor = (secret: string, ahead = 0) => generateTOTPCode(secret, Math.floor(Math.floor(Date.now() / 1000) / 30) + ahead)
 const rows = async (q: any) => { const r: any = await db.execute(q); return (r.rows || r) as any[] }
 
 // ══════════ 1 · an unfinished enrolment changes nothing ═══════════════════════════════════════
@@ -130,7 +131,7 @@ let recovery: string[] = []
   const dead = await api('POST', '/api/auth/mfa', { challengeId: fresh.json.challengeId, code: codeFor(secret) })
   check('…and the correct code cannot revive it', dead.status === 400, { status: dead.status, code: dead.json?.code })
   const again = await api('POST', '/api/auth/login', { email: owner.email, password: PASSWORD })
-  const ok = await api('POST', '/api/auth/mfa', { challengeId: again.json.challengeId, code: codeFor(secret) })
+  const ok = await api('POST', '/api/auth/mfa', { challengeId: again.json.challengeId, code: codeFor(secret, 1) })
   check('…while signing in again works, so a typo is not a lockout', ok.status === 200 && !!ok.json?.accessToken, { status: ok.status })
 }
 
@@ -167,7 +168,8 @@ console.log('\n══════════ 5 · turning it off ════�
    * tenant it tested, uncleanable.
    */
   {
-    const started = await api('POST', '/api/auth/mfa-devices/setup', {}, owner)
+    // Two-factor is on here, so starting another asks for a code from the one enrolled (security review S1-2, 2026-11-12).
+    const started = await api('POST', '/api/auth/mfa-devices/setup', { code: codeFor(secret) }, owner)
     const pendingId = started.json?.deviceId
     check('T41 a second enrolment can be started', started.status === 201 && !!pendingId, { status: started.status })
 

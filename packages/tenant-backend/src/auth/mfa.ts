@@ -26,9 +26,9 @@
  *   · a verified totp / sms / email device  → CHALLENGE. There is something to type.
  *   · backup codes ALONE                    → let them in. Recovery codes are recovery FOR a second
  *     factor, not a second factor; they are not presented at sign-in because nobody carries them.
- *   · the policy requires MFA but the user has enrolled nothing → let them in, and say so. Switching
+ *   · the policy requires MFA but the user has enrolled nothing → let them SIGN IN, and say so. Switching
  *     a policy on must not lock out the people it applies to before they have had a chance to enrol.
- *     The flag lets a screen insist; it does not bar the door.
+ *     What that session may then reach is refuseUntilEnrolled's, below: its own account, until it enrols.
  *   · THE TABLES ARE NOT IN THIS VERTICAL'S SCHEMA → let them in. (T57)
  *     This is the new one, and it is why the port is safe to land everywhere at once: a template
  *     that has not added mfa_devices has nothing enrolled by definition, so the honest answer is
@@ -40,7 +40,8 @@ import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 // The same verifier enrolment uses. Passing it in as a parameter would have let sign-in be handed
 // a different one.
-import { verifyTOTP } from './totp.ts'
+import { matchTOTPStep } from './totp.ts'
+import { isLockOpenPath } from './accountLock.ts'
 
 /** A factor a person can be asked for at sign-in. Backup codes are deliberately not one. */
 const PRESENTABLE = ['totp', 'sms', 'email'] as const
@@ -153,6 +154,48 @@ export async function mfaGateFor(db: any, companyId: string, userId: string, sco
 }
 
 /**
+ * THE POLICY, ENFORCED (security review S1-6, 2026-11-12; the owner's decision the same day: block until set up).
+ *
+ * "Require two-factor" used to be advice: sign-in said `mfaEnrolmentRequired` and handed out a full session, so a login
+ * that never enrolled worked with a password alone for ever — in the browser, the phone app and curl. Sign-in still
+ * answers (nobody is locked OUT: there has to be a session to enrol with), but with the policy on, a login with no
+ * authenticator reaches only /api/auth — its own account: set up two-factor, change the password, sign out — and every
+ * other door answers 403 MFA_ENROLMENT_REQUIRED until a device is verified. The same shape as the account lock's open
+ * doors (accountLock.ts).
+ *
+ * Opt-in per app (createAuthMiddleware `enforceMfaPolicy`): the unified app turns it on. `userId` is the person really
+ * signed in — in a View As, the one viewing, not the one viewed.
+ */
+export const MFA_ENROLMENT_OPEN_PREFIX = '/api/auth'
+const POLICY_CACHE_MS = 15_000
+const policyCache = new Map<string, { at: number; on: boolean }>()
+const enrolledCache = new Map<string, number>()
+
+/** The policy or somebody's devices changed: read them again on the next request. */
+export function forgetMfaPolicy(): void { policyCache.clear(); enrolledCache.clear() }
+
+export async function refuseUntilEnrolled(c: any, db: any, companyId: string, userId: string, scope?: MfaScope): Promise<Response | null> {
+  const path = String(c.req.path || '')
+  // …and the doors a locked company keeps (billing: the owner of a cancelled account pays before anything else).
+  if (path === MFA_ENROLMENT_OPEN_PREFIX || path.startsWith(MFA_ENROLMENT_OPEN_PREFIX + '/') || isLockOpenPath(path)) return null
+  const now = Date.now()
+  let policy = policyCache.get(companyId)
+  if (!policy || now - policy.at > POLICY_CACHE_MS) {
+    policy = { at: now, on: await policyRequires(db, scope?.singleCompanyId ?? companyId, scope) }
+    policyCache.set(companyId, policy)
+  }
+  if (!policy.on) return null
+  // With the policy on the last authenticator cannot be removed (mfaRoutes.ts), so "enrolled" holds for a while.
+  if (now - (enrolledCache.get(userId) ?? 0) <= POLICY_CACHE_MS) return null
+  const gate = await mfaGateFor(db, companyId, userId, scope)
+  if (!gate.enrolmentRequired) { enrolledCache.set(userId, now); return null }
+  return c.json({
+    error: 'This business requires two-factor sign-in. Set it up in the web app, under your name › Profile & Security, to keep working.',
+    code: 'MFA_ENROLMENT_REQUIRED',
+  }, 403)
+}
+
+/**
  * Open a sign-in challenge. Short-lived, single-use, and tied to the user it was made for.
  *
  * Reuses mfa_challenges, the table the in-app challenge already uses, with type 'login' so the two
@@ -170,7 +213,8 @@ export async function openLoginChallenge(db: any, companyId: string, userId: str
 
 export type MfaCodeOutcome =
   | { ok: true; userId: string; usedRecoveryCode: boolean }
-  | { ok: false; error: string; code: string }
+  /** `userId`: whose sign-in a WRONG code was sent for, so the caller can count it against the account (S1-1). */
+  | { ok: false; error: string; code: string; userId?: string }
 
 /**
  * Check a code against a pending sign-in challenge, and spend it.
@@ -207,6 +251,20 @@ export async function verifyLoginChallenge(
   }
 
   const userId = String(challenge.user_id)
+  // ONE TRY IS TAKEN BEFORE THE CODE IS LOOKED AT (security review S1-1, 2026-11-12). The count was read above and written
+  // after the check, so codes sent at the same moment all read the same count and one challenge took far more than five.
+  // The claim is one statement: it succeeds only while the challenge is pending and has a try left.
+  const claimed: any = await db.execute(sql`
+    UPDATE mfa_challenges SET attempts = COALESCE(attempts, 0) + 1
+    WHERE id = ${challengeId} AND status = 'pending' AND COALESCE(attempts, 0) < ${MAX_CODE_ATTEMPTS}
+    RETURNING attempts
+  `)
+  const claim = ((claimed as any).rows || claimed)[0]
+  if (!claim) {
+    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed' WHERE id = ${challengeId} AND status = 'pending'`)
+    return { ok: false, error: 'That sign-in request is no longer valid. Start again.', code: 'challenge_not_found' }
+  }
+  const spentAttempts = Number(claim.attempts)
   //
   // A scope that names another table is quoted with sql.identifier, never spliced: `user` is a reserved
   // word and an unquoted FROM user reads the function, not the table. A single-company scope has no
@@ -228,10 +286,21 @@ export async function verifyLoginChallenge(
 
   // An authenticator first — it is what the person is holding.
   for (const d of devices.filter((x) => String(x.type) === 'totp' && x.secret)) {
-    if (verifyTOTP(String(d.secret), given)) {
-      await spend(db, challengeId, d.id)
-      return { ok: true, userId, usedRecoveryCode: false }
+    const step = matchTOTPStep(String(d.secret), given)
+    if (step === null) continue
+    // A CODE SIGNS IN ONCE (security review S1-4, 2026-11-12). The same six digits are right for up to 90 seconds, so
+    // someone who saw them typed (a shared screen, a shoulder) and holds the password signed in with them too. The step
+    // each sign-in was accepted on is kept on its challenge row; a code from that step or an earlier one is refused,
+    // and the request stays open for the next code the app shows.
+    const used = { ok: false as const, error: 'That code has already been used. Wait for your authenticator to show a new one, then enter it.', code: 'code_already_used' }
+    if (await stepAlreadyUsed(db, userId, d.id, step, challengeId)) return used
+    await spend(db, challengeId, d.id, step)
+    // Two requests with the same code at the same moment both pass the look above; each then sees the other's row here.
+    if (await stepAlreadyUsed(db, userId, d.id, step, challengeId)) {
+      await db.execute(sql`UPDATE mfa_challenges SET status = 'failed' WHERE id = ${challengeId}`)
+      return used
     }
+    return { ok: true, userId, usedRecoveryCode: false }
   }
 
   // …then a recovery code, matched by hash and burned.
@@ -247,27 +316,39 @@ export async function verifyLoginChallenge(
     return { ok: true, userId, usedRecoveryCode: true }
   }
 
-  const spentAttempts = Number(challenge.attempts ?? 0) + 1
   if (spentAttempts >= MAX_CODE_ATTEMPTS) {
-    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed', attempts = ${spentAttempts} WHERE id = ${challengeId}`)
+    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed' WHERE id = ${challengeId} AND status = 'pending'`)
     return {
       ok: false,
       error: `That code was not right, and this sign-in request has had ${MAX_CODE_ATTEMPTS} tries. Sign in again to get a new code.`,
       code: 'too_many_attempts',
+      userId,
     }
   }
-  await db.execute(sql`UPDATE mfa_challenges SET attempts = ${spentAttempts} WHERE id = ${challengeId}`)
   const left = MAX_CODE_ATTEMPTS - spentAttempts
   return {
     ok: false,
     error: `That code was not right. Try again, or use one of your recovery codes. ${left} ${left === 1 ? 'try' : 'tries'} left on this request.`,
     code: 'bad_code',
+    userId,
   }
 }
 
-async function spend(db: any, challengeId: string, deviceId: string) {
+/** `step`: the authenticator step the sign-in was accepted on, kept in `code` (null for a sign-in challenge until now). */
+async function spend(db: any, challengeId: string, deviceId: string, step?: number) {
   await db.execute(sql`
-    UPDATE mfa_challenges SET status = 'verified', verified_at = NOW(), device_id = ${deviceId}
+    UPDATE mfa_challenges SET status = 'verified', verified_at = NOW(), device_id = ${deviceId}, code = ${step === undefined ? null : String(step)}
     WHERE id = ${challengeId}
   `)
+}
+
+/** Has ANOTHER sign-in already been accepted on this authenticator with a code from this step or a later one? */
+async function stepAlreadyUsed(db: any, userId: string, deviceId: string, step: number, challengeId: string): Promise<boolean> {
+  const rows: any = await db.execute(sql`
+    SELECT id FROM mfa_challenges
+    WHERE user_id = ${userId} AND device_id = ${deviceId} AND type = 'login' AND status = 'verified' AND id <> ${challengeId}
+      AND (CASE WHEN code ~ '^[0-9]+$' THEN code::bigint END) >= ${step}
+    LIMIT 1
+  `)
+  return !!((rows as any).rows || rows)[0]
 }

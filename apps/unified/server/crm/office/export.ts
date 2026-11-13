@@ -263,7 +263,10 @@ export function createExportRoutes(d: CrmDeps) {
   const EXPORT_PERMISSIONS: Record<string, string[]> = {
     // A project's budget and estimated value are withheld from the list without invoices:read (projects.ts); the export
     // carries both, so it asks the same.
-    contacts: ['contacts:read'], projects: ['projects:read', 'invoices:read'], jobs: ['jobs:read'], quotes: ['quotes:read'],
+    // A seat that reads only its OWN customers, jobs, quotes or projects (a job trade's crew, the Sales rep — no *:read-all) got
+    // the whole company's from here: the export is every row, so it asks the whole list's verb, as time and expenses below ask
+    // theirs (security review S1-15, 2026-11-12). Admin and manager hold it through `resource:*`; the viewer by name.
+    contacts: ['contacts:read', 'contacts:read-all'], projects: ['projects:read', 'projects:read-all', 'invoices:read'], jobs: ['jobs:read', 'jobs:read-all'], quotes: ['quotes:read', 'quotes:read-all'],
     // Time and expenses export EVERYONE's lines — each person's hourly rate, every claim the company paid — while their
     // lists show a seat without the office's verb only its own. So the export asks that verb too: time:approve and
     // expenses:approve, which managers and up hold and a technician or viewer does not (live role check sweep, 2026-10-23).

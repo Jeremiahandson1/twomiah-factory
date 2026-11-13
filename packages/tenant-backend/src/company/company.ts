@@ -14,6 +14,10 @@ import { checkBusinessHours } from './businessHours'
 import { paymentTermsProblem } from '../invoicing/money'
 import { zipField } from '../address'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
+import { mfaGateFor, forgetMfaPolicy } from '../auth/mfa'
+import { storedResetToken } from '../auth/resetTokens'
+// The one password rule (auth.ts): a password an admin sets for someone follows it too (security review S1-12).
+import { passwordSchema } from '../auth/auth'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
@@ -93,6 +97,9 @@ export interface CompanyDeps {
    */
   heldBy?: (tx: any, userId: string) => Promise<string[]>
 }
+
+/** Settings the Factory writes (billing.ts SETTINGS_KEYS, and its Stripe ids): never taken from a person's save. */
+export const FACTORY_OWNED_SETTINGS = ['plan', 'planName', 'planId', 'product', 'subscriptionStatus', 'billingStatus', 'billingType', 'billingCycle', 'monthlyAmount', 'nextBillingDate', 'trialEndsAt', 'seatLimit', 'hasStripeCustomer', 'subscriptionSyncedAt', 'stripeCustomerId', 'stripeSubscriptionId'] as const
 
 /** How long an emailed invite link works. The teamInvite email says so: "This invitation expires in 7 days." */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -427,6 +434,32 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (data.settings && typeof data.settings === 'object') {
       // What redaction added on the way out (accountLock, …Configured) is not saved back.
       data.settings = withoutDisplayKeys(data.settings)
+      // Nor are the subscription's facts, which the Factory mirrors in (billing.ts applySubscriptionToCompany): the plan, its
+      // status, the trial's end, the seats. A save could REPLACE them — seatLimit 0 read as "no cap", subscriptionStatus
+      // 'canceled' locked the whole business — so they are left out of what a person saves, whatever value was sent; the
+      // stored ones stay (security review S1-9, 2026-11-12). The screen posts the whole object back, so this is silent.
+      for (const k of FACTORY_OWNED_SETTINGS) delete (data.settings as any)[k]
+      // "Require two-factor for everyone" is the OWNER's switch (security review S1-6, 2026-11-12): an admin could
+      // otherwise switch the requirement off for the whole business. And it goes on only once the owner's own login has
+      // an authenticator, so switching it on can never be the thing that stops the owner working.
+      {
+        // Read the way sign-in reads it (auth/mfa.ts policyRequires): the key itself, or under `security`.
+        const stored = (before?.settings as any) || {}, sent = data.settings as any
+        const on = (top: any, sec: any) => top === true || sec?.requireMfa === true
+        const was = on(stored.requireMfa, stored.security)
+        const wants = on('requireMfa' in sent ? sent.requireMfa : stored.requireMfa, 'security' in sent ? sent.security : stored.security)
+        if (wants !== was) {
+          if (currentUser.role !== 'owner') {
+            // Not refused: an admin's Settings form posts the whole object back, and one loaded before the owner flipped
+            // the switch would carry the old value. What is stored stays, as with the Factory's keys above.
+            if ('requireMfa' in sent) { if ('requireMfa' in stored) sent.requireMfa = stored.requireMfa; else delete sent.requireMfa }
+            if ('security' in sent) { if ('security' in stored) sent.security = stored.security; else delete sent.security }
+          } else if (wants) {
+            const gate = await mfaGateFor(db, currentUser.companyId, currentUser.userId)
+            if (!gate.required) return c.json({ error: 'Set up two-factor on your own login first (your name › Profile & Security), then require it for everyone.', code: 'mfa_enrol_first' }, 409)
+          }
+        }
+      }
       const merged: Record<string, unknown> = { ...((before?.settings as any) || {}), ...data.settings }
       /**
        * A UI ROUND-TRIP MUST NOT DELETE THE SHOP'S COMMERCIAL STATE. (T58k)
@@ -462,6 +495,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }
     const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
+    forgetMfaPolicy() // the requirement may have just changed; the next request reads it fresh
     if (deps.onRenamed && before?.name && row.name && before.name !== row.name) {
       try { await deps.onRenamed(row.id, before.name, row.name) } catch (e: any) { console.warn('[Company] onRenamed failed:', e?.message || e) }
     }
@@ -665,7 +699,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      */
     // No password = an INVITE: the person is emailed a link to choose their own, which works once and for
     // INVITE_TTL_MS. A password the admin sets is still accepted, for a shop that hands logins over in person.
-    const schema = z.object({ email: z.string().email(), password: z.string().min(8).optional(), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
+    const schema = z.object({ email: z.string().email(), password: passwordSchema.optional(), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
     const body = await readBody(c)
     if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
     if (body.password === '') delete body.password
@@ -681,7 +715,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // Hash before opening the transaction — bcrypt takes ~100ms and must not run under a row lock. An invited
     // person's stored password is random and never told to anyone; the link replaces it.
     const passwordHash = await Bun.password.hash(password || crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
-    const inviteFields = invite ? { resetToken: crypto.randomUUID(), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}
+    // The link's token goes in the email; the row keeps its hash (auth/resetTokens.ts).
+    const inviteToken = invite ? crypto.randomUUID() : ''
+    const inviteFields = invite ? { resetToken: storedResetToken(inviteToken), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}
 
     // Seat cap (seats.ts, the one rule): the count and the insert happen under a lock on the company row so two
     // concurrent adds cannot both pass the check.
@@ -705,7 +741,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }
     if (outcome.status !== 201 || !invite) return c.json(outcome.body as any, outcome.status)
     // Sent after the row is committed. A failed send leaves the seat in place, says so, and Resend invite retries it.
-    const inviteSent = await emailInvite(currentUser, { email: rest.email, firstName: rest.firstName, role: rest.role }, (inviteFields as any).resetToken, outcome.companyName)
+    const inviteSent = await emailInvite(currentUser, { email: rest.email, firstName: rest.firstName, role: rest.role }, inviteToken, outcome.companyName)
     return c.json({ ...(outcome.body as any), invited: true, inviteSent }, 201)
   })
 
@@ -743,7 +779,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (!target.isActive) return c.json({ error: 'Restore their access first — a suspended account cannot sign in.' }, 409)
     if (target.lastLogin) return c.json({ error: 'They have already signed in. If they have lost their password, Forgot password on the sign-in page sends them a new link.' }, 409)
     const resetToken = crypto.randomUUID()
-    await db.update(t.user).set({ resetToken, resetTokenExp: new Date(Date.now() + INVITE_TTL_MS), updatedAt: new Date() }).where(eq(t.user.id, target.id))
+    await db.update(t.user).set({ resetToken: storedResetToken(resetToken), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS), updatedAt: new Date() }).where(eq(t.user.id, target.id))
     const inviteSent = await emailInvite(currentUser, { email: target.email, firstName: target.firstName, role: target.role }, resetToken)
     logSeat(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', target, null, `Invite sent again — ${target.email}`)
     return c.json({ invited: true, inviteSent })
@@ -764,7 +800,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
    */
   app.post('/users/:id/password', requireAdmin, async (c) => {
     const currentUser = (c as any).get('user')
-    const parsed = z.object({ password: z.string().min(8, 'The password needs at least 8 characters.').max(200, 'That password is too long.') }).strict().safeParse(await readBody(c))
+    const parsed = z.object({ password: z.string().min(8, 'The password needs at least 8 characters.').regex(/(?=.*[A-Za-z])(?=.*\d)/, 'The password needs at least one letter and one number.').max(200, 'That password is too long.') }).strict().safeParse(await readBody(c))
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Enter a password of at least 8 characters.' }, 400)
     const target = await findTarget(c.req.param('id'), currentUser.companyId)
     if (!target) return c.json({ error: 'User not found' }, 404)
@@ -859,7 +895,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         const full = companyRow ? await seatRefusal(tx, t, companyRow) : null
         if (full) return { full }
       }
-      const [updated] = await tx.update(t.user).set({ ...data, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
+      // Switched off: its sessions end for good, not only while it is off — the stored sign-ins came back to life when the
+      // login was switched on again, for up to a week (security review S1-12, 2026-11-12).
+      const endSessions = data.isActive === false ? { refreshToken: null, ...(t.user.sessionsValidFrom ? { sessionsValidFrom: new Date(Math.floor(Date.now() / 1000) * 1000) } : {}) } : {}
+      const [updated] = await tx.update(t.user).set({ ...data, ...endSessions, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
       return { row: updated }
     })
     if ((outcome as any).full) return c.json({ ...(outcome as any).full, code: 'seat_limit' }, 403)
