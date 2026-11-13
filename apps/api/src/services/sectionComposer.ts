@@ -1,7 +1,7 @@
 /**
  * Section composer — the AI half of the premium-website pitch.
  *
- * Takes an intake (the structured brief from /public/intake), asks Claude to
+ * Takes an intake (the structured brief a signup gives), asks Claude to
  * propose a homepage as a sections[] array, validates the output against
  * the section schema the template actually supports, and returns the
  * sanitized result for the renderer.
@@ -2410,7 +2410,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     //
     // CRITICAL: this retry MUST be wrapped in try/catch. If callOnce
     // throws (Anthropic 5xx, network blip, streaming disconnect), the
-    // exception propagates out of composeSite, autoComposeForNewIntake
+    // exception propagates out of composeSite, the caller
     // swallows it, and the tenant row stays at ready:false forever.
     // Observed in production 2026-06-08: hotel intake silently died for
     // 64 min after a husky first call when the retry threw uncaught.

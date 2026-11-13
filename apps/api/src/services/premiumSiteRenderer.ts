@@ -1,4 +1,4 @@
-﻿/**
+/**
  * premiumSiteRenderer — renders a single page of the multi-page premium
  * preview from pre-composed sections + settings.
  *
@@ -103,8 +103,6 @@ export async function renderPremiumPage(
   settings: PreviewSettings,
   previewBasePath: string,
   templateDir?: string,
-  // false for the twomiah.com instant preview: there's no intake yet to approve or send feedback on.
-  opts: { intakeWidgets?: boolean } = {},
 ): Promise<RenderedPage> {
   const resolvedDir = templateDir || path.join(TEMPLATES_ROOT, DEFAULT_TEMPLATE)
   const viewsDir = path.join(resolvedDir, 'views')
@@ -169,64 +167,9 @@ export async function renderPremiumPage(
   // and already-prefixed (/api/v1/...) hrefs untouched.
   inlined = rewriteInternalHrefs(inlined, previewBasePath, isOnePage)
 
-  // "Approve & buy" floating CTA so the prospect can convert without
-  // leaving the preview. The script extracts the intake id from
-  // window.location.pathname and POSTs to .../checkout-premium, then
-  // redirects to Stripe Checkout.
-  if (opts.intakeWidgets !== false) {
-    inlined = injectApproveAndBuyWidget(inlined)
-    inlined = injectFeedbackWidget(inlined)
-    if (settings.contentGaps && settings.contentGaps.length) {
-      inlined = injectContentGapsPanel(inlined, settings.contentGaps)
-    }
-  }
-
+  // (The "Approve & buy", "Something's off" and "Make it yours" widgets went with the offer they belonged to — the
+  // emailed preview of the closed website offer, routes/factory/closedIntake.ts. This renders the homepage preview only.)
   return { html: inlined, bytes: inlined.length }
-}
-
-function escapeHtml(s: string): string {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-/**
- * "Make it yours" — the preview states only what the owner told us, so it
- * lists what they could add and what each addition unlocks. A pill bottom-
- * left that opens a card; dark-on-white only, no inherited colours.
- */
-function injectContentGapsPanel(html: string, gaps: ContentGap[]): string {
-  const items = gaps.map(g =>
-    '<li><strong>' + escapeHtml(g.label) + '</strong><span>' + escapeHtml(g.unlocks) + '</span></li>').join('')
-  const widget = `
-<style data-gaps-widget>
-  #__gaps_fab{position:fixed;bottom:20px;left:20px;z-index:2147483645;background:#fff;color:#1a2e22;border:1px solid #1a2e22;border-radius:999px;padding:14px 20px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.15)}
-  #__gaps_fab:hover{background:#f5f5f0}
-  @media (max-width: 720px){#__gaps_fab{bottom:140px}}
-  #__gaps_card{display:none;position:fixed;bottom:76px;left:20px;z-index:2147483646;background:#fff;color:#1a1a1a;border:1px solid #d1d5db;border-radius:14px;max-width:420px;width:calc(100vw - 40px);max-height:70vh;overflow:auto;padding:20px 22px;box-shadow:0 24px 80px rgba(0,0,0,.3);font:14px/1.5 'Inter',system-ui,-apple-system,sans-serif;box-sizing:border-box}
-  @media (max-width: 720px){#__gaps_card{bottom:196px}}
-  #__gaps_card.show{display:block}
-  #__gaps_card h2{margin:0 0 6px;font-size:17px;color:#1a1a1a}
-  #__gaps_card p{margin:0 0 12px;color:#4b5563}
-  #__gaps_card ul{margin:0;padding:0;list-style:none}
-  #__gaps_card li{padding:10px 0;border-top:1px solid #e5e7eb}
-  #__gaps_card li strong{display:block;color:#1a1a1a;font-weight:600}
-  #__gaps_card li span{display:block;color:#4b5563;font-size:13px}
-</style>
-<button id="__gaps_fab" type="button" aria-expanded="false" aria-controls="__gaps_card">Make it yours (${gaps.length})</button>
-<div id="__gaps_card" role="region" aria-label="What you can add">
-  <h2>Everything here is from what you told us</h2>
-  <p>We don't make up prices, reviews or photos of your work. Add any of these — email them to <a href="mailto:support@twomiah.com" style="color:#1e40af">support@twomiah.com</a>, or add them yourself in your site editor once you're live:</p>
-  <ul>${items}</ul>
-</div>
-<script data-gaps-widget>
-(function(){
-  var fab=document.getElementById('__gaps_fab'),card=document.getElementById('__gaps_card');
-  fab.addEventListener('click',function(){var open=card.classList.toggle('show');fab.setAttribute('aria-expanded',open?'true':'false')});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&card.classList.contains('show')){card.classList.remove('show');fab.setAttribute('aria-expanded','false')}});
-})();
-</script>`
-  const closeBodyMatch = html.match(/<\/body>/i)
-  if (!closeBodyMatch) return html + widget
-  return html.replace(closeBodyMatch[0], widget + '\n' + closeBodyMatch[0])
 }
 
 // Priority order for the "Get in touch" CTA in the header — whichever
@@ -285,112 +228,4 @@ function rewriteInternalHrefs(html: string, previewBasePath: string, isOnePage: 
     }
     return 'href="' + previewBasePath + '/' + slug + tail + '"'
   })
-}
-
-function injectFeedbackWidget(html: string): string {
-  // "Request changes" button paired with the "Approve & buy" CTA. Opens
-  // a modal with a textarea, POSTs to /public/intake/<id>/feedback.
-  // Positioned to the LEFT of the buy widget so they don't overlap.
-  const widget = `
-<style data-feedback-widget>
-  #__fb_fab{position:fixed;bottom:20px;right:380px;z-index:2147483645;background:#fff;color:#1a2e22;border:1px solid #1a2e22;border-radius:999px;padding:14px 22px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.15)}
-  #__fb_fab:hover{background:#f5f5f0;transform:translateY(-1px)}
-  @media (max-width: 720px){#__fb_fab{right:20px;bottom:80px}}
-  #__fb_modal{display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px}
-  #__fb_modal.show{display:flex}
-  #__fb_card{background:#fff;border-radius:16px;max-width:520px;width:100%;padding:28px 28px 22px;box-shadow:0 24px 80px rgba(0,0,0,.4);font-family:'Inter',system-ui,-apple-system,sans-serif}
-  #__fb_card h2{margin:0 0 8px;font-size:20px;color:#1a1a1a}
-  #__fb_card p{margin:0 0 16px;color:#666;font-size:14px;line-height:1.5}
-  #__fb_textarea{width:100%;min-height:140px;padding:12px 14px;border:1px solid #d1d5db;border-radius:8px;font:14px/1.5 'Inter',system-ui,-apple-system,sans-serif;color:#1a1a1a;resize:vertical;box-sizing:border-box}
-  #__fb_textarea:focus{outline:none;border-color:#1a2e22;box-shadow:0 0 0 3px rgba(26,46,34,.15)}
-  #__fb_actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
-  #__fb_cancel{background:transparent;color:#666;border:none;padding:10px 16px;font:600 13px/1 'Inter',sans-serif;cursor:pointer;border-radius:6px}
-  #__fb_cancel:hover{background:#f5f5f5;color:#1a1a1a}
-  #__fb_submit{background:#1a2e22;color:#fff;border:none;padding:10px 22px;font:700 13px/1 'Inter',sans-serif;cursor:pointer;border-radius:6px}
-  #__fb_submit:hover{background:#0f1f17}
-  #__fb_submit:disabled{opacity:.55;cursor:wait}
-  #__fb_status{margin-top:12px;font-size:13px;display:none}
-  #__fb_status.ok{display:block;color:#0f5132}
-  #__fb_status.err{display:block;color:#991b1b}
-</style>
-<button id="__fb_fab" type="button" aria-label="Talk to our team about this preview">Something's off</button>
-<div id="__fb_modal" role="dialog" aria-modal="true" aria-labelledby="__fb_h">
-  <div id="__fb_card">
-    <h2 id="__fb_h">Tell us what's off</h2>
-    <p>Use this if the <em>direction</em> isn't right — wrong industry, wrong tone, missing something important. For small edits (swap a photo, tweak copy, change a service title), you'll do those yourself in a simple editor once your site is live.</p>
-    <textarea id="__fb_textarea" placeholder="e.g. I'm a food truck, not a restaurant. Or: the whole tone feels too corporate for what I do. Or: there's no menu section and I really need one."></textarea>
-    <div id="__fb_status"></div>
-    <div id="__fb_actions">
-      <button id="__fb_cancel" type="button">Cancel</button>
-      <button id="__fb_submit" type="button">Send to our team</button>
-    </div>
-  </div>
-</div>
-<script data-feedback-widget>
-(function(){
-  var fab=document.getElementById('__fb_fab'),modal=document.getElementById('__fb_modal'),card=document.getElementById('__fb_card'),ta=document.getElementById('__fb_textarea'),sub=document.getElementById('__fb_submit'),cancel=document.getElementById('__fb_cancel'),status=document.getElementById('__fb_status');
-  function getId(){var m=(location.pathname||'').match(/\\/public\\/intake\\/([0-9a-f-]{36})\\/preview-premium/i);return m?m[1]:null}
-  function open(){modal.classList.add('show');setTimeout(function(){ta.focus()},50)}
-  function close(){modal.classList.remove('show');status.className='';status.textContent=''}
-  fab.addEventListener('click',open);
-  cancel.addEventListener('click',close);
-  modal.addEventListener('click',function(e){if(e.target===modal)close()});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.classList.contains('show'))close()});
-  sub.addEventListener('click',function(){
-    var id=getId(); if(!id){status.className='err';status.textContent='Could not detect this preview\\u2019s id.';return}
-    var msg=(ta.value||'').trim(); if(!msg){status.className='err';status.textContent='Please tell us what you\\u2019d like changed.';return}
-    sub.disabled=true; sub.textContent='Sending\\u2026'; status.className=''; status.textContent='';
-    fetch('/api/v1/factory/public/intake/'+id+'/feedback',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:msg})
-    }).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(o){
-      if(o.ok){status.className='ok';status.textContent=(o.j&&o.j.message)||'Got it.';ta.value='';setTimeout(close,1800)}
-      else{status.className='err';status.textContent=(o.j&&o.j.error)||'Could not send. Please try again.'}
-      sub.disabled=false; sub.textContent='Send to our team';
-    }).catch(function(){status.className='err';status.textContent='Network error. Please try again.';sub.disabled=false;sub.textContent='Send to our team'});
-  });
-})();
-</script>`
-  const closeBodyMatch = html.match(/<\/body>/i)
-  if (!closeBodyMatch) return html + widget
-  return html.replace(closeBodyMatch[0], widget + '\n' + closeBodyMatch[0])
-}
-
-function injectApproveAndBuyWidget(html: string): string {
-  const widget = `
-<style data-buy-widget>
-  #__buy_fab{position:fixed;bottom:20px;right:20px;z-index:2147483645;background:#1a2e22;color:#fff;border:none;border-radius:999px;padding:14px 22px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:10px;border:2px solid #c89a4e}
-  #__buy_fab:hover{background:#0f1f17;transform:translateY(-1px)}
-  #__buy_fab:disabled{opacity:.6;cursor:wait}
-  #__buy_dot{display:inline-block;width:7px;height:7px;border-radius:999px;background:#c89a4e;box-shadow:0 0 0 4px rgba(200,154,78,.25)}
-  #__buy_status{position:fixed;bottom:88px;right:20px;z-index:2147483645;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font:500 13px/1.4 system-ui;max-width:360px;display:none}
-</style>
-<button id="__buy_fab" type="button" aria-label="Approve and start checkout">
-  <span id="__buy_dot" aria-hidden="true"></span>
-  Approve & launch my site — $49/mo
-</button>
-<div id="__buy_status" role="alert"></div>
-<script data-buy-widget>
-(function(){
-  var fab=document.getElementById('__buy_fab'),status=document.getElementById('__buy_status');
-  function showError(msg){status.textContent=msg;status.style.display='block';setTimeout(function(){status.style.display='none'},5000)}
-  fab.addEventListener('click',function(){
-    var m=(location.pathname||'').match(/\\/public\\/intake\\/([0-9a-f-]{36})\\/preview-premium/i);
-    if(!m){showError('Could not detect this preview\\u2019s id. Try the link your contact sent you.');return}
-    fab.disabled=true;fab.textContent='Starting checkout\\u2026';
-    fetch('/api/v1/factory/public/intake/'+m[1]+'/checkout-premium',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({billingCycle:'monthly'})
-    }).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(o){
-      if(o.ok&&o.j&&o.j.url){location.href=o.j.url}
-      else{fab.disabled=false;fab.textContent='Approve & launch my site \\u2014 $49/mo';showError((o.j&&o.j.error)||'Could not start checkout. Try again or email support@twomiah.com.')}
-    }).catch(function(){fab.disabled=false;fab.textContent='Approve & launch my site \\u2014 $49/mo';showError('Network error. Try again or email support@twomiah.com.')});
-  });
-})();
-</script>`
-  const closeBodyMatch = html.match(/<\/body>/i)
-  if (!closeBodyMatch) return html + widget
-  return html.replace(closeBodyMatch[0], widget + '\n' + closeBodyMatch[0])
 }

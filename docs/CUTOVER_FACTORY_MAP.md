@@ -11,7 +11,7 @@ Read-only map of `apps/api/src` (R = `routes/factory`, S = `services`), file:lin
   `crmTemplateFor`, `admin_password`, `notes` holding the timezone), `intake_data.signup` (:411), welcome email (:418),
   background `generate()` + `factory_jobs` row (template = products.join('+')) (:464-490), `triggerAutoDeploy` if already
   paid (:499-509), Stripe checkout (:526-541). Also `/public/intake` (:607, website only, no deploy) and
-  `/public/intake/:id/checkout-premium` (:2286).
+  `/public/intake/:id/checkout-premium` (:2286) — both removed 2026-11-13 with the closed website offer (`routes/factory/closedIntake.ts`).
 - Stripe webhook (R/billing.ts:194): `checkout.session.completed` → `triggerAutoDeploy` (:257-263); CRM add-on →
   `provisionCrmAddonForTenant` (:249-254); comp promo (:69-88).
 - Admin: `POST /customers/:id/deploy` → `runDeploy` (R/deploy.ts:18-63), `/regenerate` (:330-377), `/flip-to-crm` (:143).

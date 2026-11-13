@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Twomiah Factory — Email Notification Service
  * Uses Resend API via raw fetch (no dependency needed).
  * Gracefully no-ops if RESEND_API_KEY is not configured.
@@ -448,82 +448,6 @@ export async function notifyTicketReply(
   return sendEmail(to, 'Reply on ' + ticket.number + ': ' + ticket.subject, wrap('Ticket Reply', body))
 }
 
-// ─── Local-business intake notifications ─────────────────────────────────────
-
-/**
- * Fires when a visitor submits the website-intake form on /businesses.
- * Notifies the internal team so a human can reach out within one business day.
- * Includes signed URLs (7-day expiry) for any uploaded logo + reference photos.
- */
-export async function notifyNewIntake(
-  data: {
-    businessName: string
-    businessType: string
-    contactEmail: string
-    contactPhone?: string | null
-    currentSite?: string | null
-    brandColors?: string | null
-    notes?: string | null
-    logoUrl?: string | null
-    photoUrls?: string[]
-    intakeId?: string
-  }
-): Promise<boolean> {
-  const to = process.env.INTAKE_NOTIFY_EMAIL || 'support@twomiah.com'
-
-  const photoLinks = (data.photoUrls || [])
-    .map((u, i) => '<a href="' + escHtml(u) + '" target="_blank">Photo ' + (i + 1) + '</a>')
-    .join(' &nbsp;Â·&nbsp; ')
-
-  const body = `
-    <p style="color:#333;line-height:1.6;">A new local-business website intake came in via <strong>twomiah.com/businesses</strong>. Respond within one business day.</p>
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:16px;margin:16px 0;">
-      ${kv('Business', data.businessName)}
-      ${kv('Type', data.businessType)}
-      ${kvHtml('Email', '<a href="mailto:' + escHtml(data.contactEmail) + '">' + escHtml(data.contactEmail) + '</a>')}
-      ${data.contactPhone ? kv('Phone', data.contactPhone) : ''}
-      ${data.currentSite ? (/^https?:\/\//i.test(data.currentSite) ? kvHtml('Current site', linkTo(data.currentSite)) : kv('Current site', data.currentSite)) : ''}
-      ${data.brandColors ? kv('Brand / colors', data.brandColors) : ''}
-    </div>
-    ${data.logoUrl ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Logo:</strong> <a href="${escHtml(data.logoUrl)}" target="_blank">Download</a> &nbsp; <span style="color:#888;font-size:12px;">(link expires in 7 days; regenerate from platform if older)</span></p>` : ''}
-    ${photoLinks ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Reference photos:</strong> ${photoLinks}</p>` : ''}
-    ${data.notes ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Notes:</strong><br>${escHtml(data.notes.substring(0, 2000)).replace(/\n/g, '<br>')}</p>` : ''}
-    ${data.intakeId ? btn('https://twomiah-factory-platform.onrender.com/tenants/' + data.intakeId, 'View in Factory Platform') : ''}`
-
-  return sendEmail(to, 'New website intake: ' + data.businessName, wrap('New Local-Business Intake', body))
-}
-
-/**
- * Fires when staff approves a composed premium preview — sends the
- * prospect the link to view it. Until this fires, the public preview
- * URL returns "not ready yet" so the prospect never sees unreviewed
- * AI output.
- */
-export async function notifyPreviewReady(
-  data: {
-    to: string; businessName: string; previewUrl: string
-    /** What the composer left out for want of the owner's facts (services/composerFacts.ts). */
-    contentGaps?: Array<{ label: string; unlocks: string }>
-  }
-): Promise<boolean> {
-  const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const gaps = (data.contentGaps || []).slice(0, 8)
-  const gapsBlock = gaps.length ? `
-    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
-      <p style="margin:0 0 6px;color:#1a1a1a;font-weight:600;">Everything on it comes from what you told us.</p>
-      <p style="margin:0 0 12px;color:#555;font-size:14px;line-height:1.5;">We don't invent prices, reviews or photos of your work, so a few things are left off until you send them. Email any of these to <a href="mailto:support@twomiah.com" style="color:#1e40af;">support@twomiah.com</a>, or add them yourself in your site editor once you're live:</p>
-      ${gaps.map(g => `<p style="margin:0 0 8px;color:#1a1a1a;font-size:14px;line-height:1.5;"><strong>${esc(g.label)}</strong><br><span style="color:#555;">${esc(g.unlocks)}</span></p>`).join('')}
-    </div>` : ''
-  const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${escHtml(data.businessName)}</strong> website preview is ready.</p>
-    <p style="color:#333;line-height:1.6;">This is a draft of what your site could look like, built from what you shared at sign-up. It's meant to show you the <em>shape</em> of the site — the structure, voice, and direction. The small details (the exact copy, the photos, the specific service descriptions) are yours to fine-tune once you're in.</p>
-    ${btn(data.previewUrl, 'View your preview')}${gapsBlock}
-    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;"><strong>When the direction feels right,</strong> hit "Approve &amp; build my site" on the preview page. We'll deploy the live version within an hour of payment clearing, and you'll get login details to swap photos, edit copy, and add your own touches through a simple editor — no code, no design tools to learn.</p>
-    <p style="color:#666;line-height:1.6;font-size:14px;"><strong>If the vibe is off</strong> (wrong industry, wrong tone, wrong feel) use the "Request changes" button at the bottom right of any preview page — someone on our team will read it and follow up within one business day.</p>`
-
-  return sendEmail(data.to, `Your ${data.businessName} website preview is ready`, wrap('Your preview is ready', body))
-}
-
 /**
  * Day-1 post-launch tips email. Sent ~24-72h after a premium tenant
  * pays. Celebrates the launch and gives 3 concrete next steps.
@@ -545,43 +469,6 @@ export async function notifyPostLaunchTips(
     <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When a contact form lead comes in, it'll land in your inbox automatically. Reply fast — most owners who reply within an hour close 30% more.</p>
     <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Hit reply if you want a hand with any of the above.</p>`
   return sendEmail(data.to, `Three things to do with your new ${data.businessName} site this week`, wrap('Your site is live — now what?', body))
-}
-
-/**
- * 24-hour follow-up nudge sent to customers who submitted an intake,
- * received a preview, but haven't clicked Approve & buy yet. One-shot
- * — sentinel `preview_followup_sent_at` prevents repeats.
- */
-export async function notifyPreviewFollowup(
-  data: { to: string; businessName: string; previewUrl: string }
-): Promise<boolean> {
-  const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — just checking in on your <strong>${escHtml(data.businessName)}</strong> website preview.</p>
-    <p style="color:#333;line-height:1.6;">You opened the draft yesterday. If anything wasn't right, hit the <strong>Request changes</strong> button on any page and we'll send you an updated version in 1–2 minutes. We can iterate as many times as you want — there's no charge to revise.</p>
-    ${btn(data.previewUrl, 'Open your preview')}
-    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When you're happy, the <strong>Approve &amp; build my site</strong> button on the preview takes you to checkout. Live site within 10 minutes after that.</p>
-    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Got questions? Just reply to this email — it goes straight to a human.</p>`
-  return sendEmail(data.to, `Anything you'd change about your ${data.businessName} preview?`, wrap('Still thinking about it?', body))
-}
-
-/**
- * Internal notification when a customer submits feedback on their
- * premium-website preview. Routed to STAFF_NOTIFY_EMAIL (falls back
- * to FACTORY_FROM_EMAIL) so somebody actually sees the request.
- */
-export async function notifyIntakeFeedback(
-  data: { businessName: string; intakeId: string; message: string; contactEmail?: string }
-): Promise<boolean> {
-  const to = process.env.STAFF_NOTIFY_EMAIL || process.env.FACTORY_FROM_EMAIL || ''
-  if (!to) return false
-
-  const escaped = data.message.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c))
-  const body = `
-    <p style="color:#333;line-height:1.6;">New preview feedback from <strong>${escHtml(data.businessName)}</strong>${data.contactEmail ? ' (' + escHtml(data.contactEmail) + ')' : ''}:</p>
-    <div style="background:#f8f8fa;border-left:3px solid #f97316;padding:14px 18px;margin:16px 0;border-radius:4px;white-space:pre-wrap;color:#1a1a1a;line-height:1.55;">${escaped}</div>
-    <p style="color:#666;font-size:14px;">Open Premium Review on the platform to see all feedback for this intake and trigger a recompose.</p>
-    <p style="color:#999;font-size:12px;">Intake: <code>${escHtml(data.intakeId)}</code></p>`
-  return sendEmail(to, `[Preview feedback] ${data.businessName}`, wrap('Preview feedback received', body))
 }
 
 // ─── Trial lifecycle notifications ───────────────────────────────────────────

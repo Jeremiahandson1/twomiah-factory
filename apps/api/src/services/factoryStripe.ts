@@ -230,89 +230,6 @@ export async function endSubscriptionAtPeriodEnd(subscriptionId: string): Promis
   return new Date(end * 1000)
 }
 
-// ── Premium-website checkout (subscription + one-time build fee) ────────────
-//
-// The standalone website at a flat $49/mo (STRIPE_PRICE_V2_WEBSITE), no
-// build fee. The old $75/mo + $1k-build prices are retired but left minted
-// in Stripe for existing subscriptions. Legacy mechanics for reference:
-//   - subscription line item: STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY or _ANNUAL
-//   - add_invoice_items:      STRIPE_PRICE_PREMIUM_WEBSITE_BUILD (one-time
-//                              fee added to the first invoice)
-//   - discounts (optional):   STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH applied
-//                              automatically when the env var is set
-//                              (Stripe enforces the coupon's own valid_until
-//                              window — if it's expired, Stripe rejects it)
-//
-// Webhook auto-deploys via the existing checkout.session.completed →
-// triggerAutoDeploy path (routes/factory.ts:1777). The tenant's `products`
-// column must already include 'website-premium' before payment so the
-// generator picks the right template.
-export async function createPremiumWebsiteCheckout(
-  factoryCustomer: {
-    id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string
-  },
-  options: {
-    billingCycle?: 'monthly' | 'annual'
-    intakeId?: string
-    // Public self-serve prospects have no platform login — the intake route
-    // passes its own public checkout-complete / preview URLs. The platform
-    // /tenants/:id defaults below are only right for staff-driven checkouts.
-    successUrl?: string
-    cancelUrl?: string
-  }
-) {
-  if (!stripe) throw new Error('Stripe not configured')
-  const cycle: 'monthly' | 'annual' = options.billingCycle === 'annual' ? 'annual' : 'monthly'
-
-  // Pricing model v2 (2026-07): the standalone website is a flat $49/mo with
-  // NO forced build fee — the optional $499 "true customization" is a separate
-  // one-time charge, not bundled here. (Old $75/mo + $1k build retired.) Annual
-  // isn't offered in v2 yet, so both cycles use the $49 monthly price.
-  const recurringPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_V2_WEBSITE as string | undefined
-  if (!recurringPriceId) {
-    throw new Error('Website price not minted yet — run scripts/create-stripe-products.ts to mint STRIPE_PRICE_V2_WEBSITE.')
-  }
-
-  const stripeCustomerId = await ensureCustomer(factoryCustomer)
-
-  // Subscription mode with a one-time setup fee: per Stripe's docs
-  // (https://docs.stripe.com/api/checkout/sessions/create — "For
-  // subscription mode, there is a maximum of 20 line items with recurring
-  // Prices and 20 line items with one-time Prices. Line items with
-  // one-time Prices will be on the initial invoice only"), the supported
-  // pattern is mixing recurring + one-time prices directly in line_items.
-  //
-  // `add_invoice_items` does NOT exist on Checkout Sessions — it's a
-  // parameter on the raw Subscriptions/Invoices API. Earlier code tried
-  // it both under subscription_data and at top level; Stripe rejected
-  // both with "Received unknown parameter".
-  const sessionParams: Stripe.Checkout.SessionCreateParams = {
-    customer: stripeCustomerId,
-    mode: 'subscription',
-    line_items: [
-      { price: recurringPriceId, quantity: 1 },
-    ],
-    success_url: options.successUrl || FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
-    cancel_url: options.cancelUrl || FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
-    metadata: {
-      factory_customer_id: factoryCustomer.id,
-      product: 'website-premium',
-      billing_type: 'subscription',
-      billing_cycle: cycle,
-      intake_id: options.intakeId || '',
-    },
-    subscription_data: {
-      metadata: {
-        factory_customer_id: factoryCustomer.id,
-        product: 'website-premium',
-      },
-    },
-  }
-
-  const session = await stripe.checkout.sessions.create(sessionParams)
-  return { sessionId: session.id, url: session.url, stripeCustomerId }
-}
-
 // ── Deploy service checkout (one-time) ───────────────────────────────────────
 
 export async function createDeployCheckout(
@@ -1000,7 +917,6 @@ export default {
   createOwnItLicenseCheckout,
   endSubscriptionAtPeriodEnd,
   createDeployCheckout,
-  createPremiumWebsiteCheckout,
   createBillingPortalSession,
   createCheckoutSessionForExistingCustomer,
   createOneTimeCheckoutSession,
