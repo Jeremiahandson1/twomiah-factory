@@ -68,6 +68,18 @@ export function sectionsShown(ctx: Pick<SiteContext, 'features'>, sections: any[
   return sections.filter((s) => { const f = siteSectionFeature(String(s?.type || '')); return !f || (ctx.features || []).includes(f) })
 }
 
+/**
+ * A phone number as a visitor reads it. An owner who typed ten bare digits at signup ("7158645052") had them printed
+ * that way on every page; those — and only those, with or without a leading 1 — are shown as (715) 864-5052. A number
+ * typed any other way is the owner's own formatting and is left alone. The tel: links and the structured data keep the digits.
+ */
+export function shownPhone(phone: unknown): string {
+  const s = String(phone ?? '').trim()
+  const m = /^(?:\+?1)?(\d{3})(\d{3})(\d{4})$/.exec(s)
+  return m ? '(' + m[1] + ') ' + m[2] + '-' + m[3] : s
+}
+const withShownPhone = (s: any) => (s && s.data && typeof s.data.phone === 'string' && s.data.phone ? { ...s, data: { ...s.data, phone: shownPhone(s.data.phone) } } : s)
+
 export async function renderSections(ctx: SiteContext, all: any[], meta: PageMeta, o: RenderOptions): Promise<string> {
   // A section that IS a not-switched-on feature is dropped first; "What we do" is then filled from the business's own.
   const stored = sectionsShown(ctx, Array.isArray(all) ? all : [])
@@ -106,11 +118,11 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
     : pick(firstHero?.data?.image)
   // Each hero's photo as the site's own sized copy, and the first one preloaded (heroImages.ts).
   const hero = o.sizedPhotos ? withHeroImages(sections) : { sections, preloads: [] as Preload[] }
-  const homepage = { sections: hero.sections }
+  const homepage = { sections: hero.sections.map(withShownPhone) }
   // Each section gets its own data, the site's settings and words, and — for a vertical whose sections read live facts
   // — `site` and `live`; `md` renders an owner's markdown; `currentPath` is the page the form posts from.
   const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), {
-    homepage, settings: effective, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
+    homepage, settings: { ...effective, phone: shownPhone(effective.phone) }, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
     site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath, smsConsent: consentBoxHtml,
     // The lender's required disclosure (crm/financing/lender.ts): the financing calculator shows a payment and an APR, so it shows this with them.
     financingDisclosure: DISCLOSURE,
@@ -129,7 +141,7 @@ export async function renderBody(ctx: SiteContext, body: string, settingsOverrid
 
 async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, preloads: Preload[], jsonLd: string, embed = false): Promise<string> {
   const html = await ejs.renderFile(path.join(VIEWS, 'base.ejs'), {
-    body, settings, currentPath, lcpImage, lcpPreloads: preloads, embed,
+    body, settings: { ...settings, phone: shownPhone(settings.phone) }, currentPath, lcpImage, lcpPreloads: preloads, embed,
     // The page's own JSON-LD from the vertical's facts (the bar's BarOrPub, menu, events); '': the layout's LocalBusiness.
     jsonLd,
     assetV: assetVersion(ctx),

@@ -248,11 +248,12 @@ export function getHeroLibrary(businessType: string): Array<{ url: string; tag: 
   const base = (process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || '').replace(/\/$/, '')
   if (!base) return []
   const group = pickHeroGroup(businessType)
-  const entries = [
-    ...(HERO_LIBRARY[group] || []).map(i => ({ ...i, group })),
-    ...(group !== 'generic' ? (HERO_LIBRARY.generic || []).map(i => ({ ...i, group: 'generic' })) : []),
-  ]
-  return entries.map(i => ({ url: `${base}/hero-library/${i.group}/${i.file}`, tag: i.tag }))
+  // A trade's own photos only. The shared generic set (a shopkeeper at a shop door, men in aprons, a packing bench) stands
+  // in for a trade that has none: offered beside a trade's own, the AI builder put the shop door on a lawn-care site's
+  // "Leaf removal" card and the aprons beside its call to action while three lawn photos went unused (2026-10-30).
+  const own = HERO_LIBRARY[group] || []
+  const from = own.length ? group : 'generic'
+  return (own.length ? own : HERO_LIBRARY.generic || []).map(i => ({ url: `${base}/hero-library/${from}/${i.file}`, tag: i.tag }))
 }
 
 
