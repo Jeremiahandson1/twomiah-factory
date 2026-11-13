@@ -26,9 +26,9 @@
  *   · a verified totp / sms / email device  → CHALLENGE. There is something to type.
  *   · backup codes ALONE                    → let them in. Recovery codes are recovery FOR a second
  *     factor, not a second factor; they are not presented at sign-in because nobody carries them.
- *   · the policy requires MFA but the user has enrolled nothing → let them in, and say so. Switching
+ *   · the policy requires MFA but the user has enrolled nothing → let them SIGN IN, and say so. Switching
  *     a policy on must not lock out the people it applies to before they have had a chance to enrol.
- *     The flag lets a screen insist; it does not bar the door.
+ *     What that session may then reach is refuseUntilEnrolled's, below: its own account, until it enrols.
  *   · THE TABLES ARE NOT IN THIS VERTICAL'S SCHEMA → let them in. (T57)
  *     This is the new one, and it is why the port is safe to land everywhere at once: a template
  *     that has not added mfa_devices has nothing enrolled by definition, so the honest answer is
@@ -150,6 +150,47 @@ export async function mfaGateFor(db: any, companyId: string, userId: string, sco
     enrolmentRequired: policy && presentable.length === 0,
     hasRecoveryCodes,
   }
+}
+
+/**
+ * THE POLICY, ENFORCED (security review S1-6, 2026-11-12; the owner's decision the same day: block until set up).
+ *
+ * "Require two-factor" used to be advice: sign-in said `mfaEnrolmentRequired` and handed out a full session, so a login
+ * that never enrolled worked with a password alone for ever — in the browser, the phone app and curl. Sign-in still
+ * answers (nobody is locked OUT: there has to be a session to enrol with), but with the policy on, a login with no
+ * authenticator reaches only /api/auth — its own account: set up two-factor, change the password, sign out — and every
+ * other door answers 403 MFA_ENROLMENT_REQUIRED until a device is verified. The same shape as the account lock's open
+ * doors (accountLock.ts).
+ *
+ * Opt-in per app (createAuthMiddleware `enforceMfaPolicy`): the unified app turns it on. `userId` is the person really
+ * signed in — in a View As, the one viewing, not the one viewed.
+ */
+export const MFA_ENROLMENT_OPEN_PREFIX = '/api/auth'
+const POLICY_CACHE_MS = 15_000
+const policyCache = new Map<string, { at: number; on: boolean }>()
+const enrolledCache = new Map<string, number>()
+
+/** The policy or somebody's devices changed: read them again on the next request. */
+export function forgetMfaPolicy(): void { policyCache.clear(); enrolledCache.clear() }
+
+export async function refuseUntilEnrolled(c: any, db: any, companyId: string, userId: string, scope?: MfaScope): Promise<Response | null> {
+  const path = String(c.req.path || '')
+  if (path === MFA_ENROLMENT_OPEN_PREFIX || path.startsWith(MFA_ENROLMENT_OPEN_PREFIX + '/')) return null
+  const now = Date.now()
+  let policy = policyCache.get(companyId)
+  if (!policy || now - policy.at > POLICY_CACHE_MS) {
+    policy = { at: now, on: await policyRequires(db, scope?.singleCompanyId ?? companyId, scope) }
+    policyCache.set(companyId, policy)
+  }
+  if (!policy.on) return null
+  // With the policy on the last authenticator cannot be removed (mfaRoutes.ts), so "enrolled" holds for a while.
+  if (now - (enrolledCache.get(userId) ?? 0) <= POLICY_CACHE_MS) return null
+  const gate = await mfaGateFor(db, companyId, userId, scope)
+  if (!gate.enrolmentRequired) { enrolledCache.set(userId, now); return null }
+  return c.json({
+    error: 'This business requires two-factor sign-in. Set it up in the web app, under your name › Profile & Security, to keep working.',
+    code: 'MFA_ENROLMENT_REQUIRED',
+  }, 403)
 }
 
 /**

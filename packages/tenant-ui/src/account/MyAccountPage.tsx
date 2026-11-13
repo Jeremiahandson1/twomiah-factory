@@ -74,6 +74,14 @@ export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: 
         </p>
       </div>
 
+      {/* Sent here by the server's refusal (api/client.ts): the business requires two-factor and this login has none. */}
+      {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('twoFactor') === 'required' && (
+        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+          <p className="font-semibold">Set up two-factor to keep working</p>
+          <p className="mt-1">This business requires two-factor sign-in for everyone. Set it up below with an authenticator app. Once it is on, the rest of the app opens again.</p>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600 dark:text-slate-400">Signed in as</span>

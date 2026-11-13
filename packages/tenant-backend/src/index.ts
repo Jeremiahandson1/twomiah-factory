@@ -157,7 +157,7 @@ export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } 
  * two verifiers that can disagree. A vertical with no mfa_devices table gets "no second factor"
  * rather than an error, so shared auth can ask the question everywhere.
  */
-export { mfaGateFor, openLoginChallenge, verifyLoginChallenge, MAX_CODE_ATTEMPTS } from './auth/mfa'
+export { mfaGateFor, openLoginChallenge, verifyLoginChallenge, MAX_CODE_ATTEMPTS, refuseUntilEnrolled, forgetMfaPolicy } from './auth/mfa'
 export type { MfaGate, MfaCodeOutcome, MfaScope } from './auth/mfa'
 export { verifyTOTP, matchTOTPStep, generateTOTPCode, base32Encode, base32Decode } from './auth/totp'
 export { createMfaRoutes } from './auth/mfaRoutes'

@@ -224,3 +224,61 @@ describe('S1-7, S1-9, S1-12: the smaller doors', () => {
     expect((await r.json() as any).error).toBe('Invalid email or password')
   })
 })
+
+describe('S1-6: "Require two-factor for everyone" blocks a login with none until it sets one up', () => {
+  const login = async (email: string) => await (await t.call('/api/auth/login', { method: 'POST', json: { email, password: PASSWORD } })).json() as any
+  const policy = async () => ((await t.db.select().from(t.schema.company).limit(1))[0].settings as any)?.requireMfa
+  let adminTok = ''
+
+  beforeAll(async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    await t.db.update(t.schema.company).set({ settings: {} } as any).where(eq(t.schema.company.id, co.id))
+    for (const [email, role] of [['admin6@test.example', 'admin'], ['crew6@test.example', 'crew']]) {
+      await t.db.insert(t.schema.user).values({ email, passwordHash: await Bun.password.hash(PASSWORD, 'bcrypt'), firstName: role, lastName: 'Six', role, companyId: co.id })
+    }
+    adminTok = (await login('admin6@test.example')).accessToken
+  }, 60_000)
+
+  test('it is the owner’s switch, and goes on only once the owner has two-factor', async () => {
+    // An admin's save does not switch it on (nor off, below): what is stored stays.
+    expect((await bearer(adminTok)('/api/company', { method: 'PUT', json: { settings: { requireMfa: true } } })).status).toBe(200)
+    expect(await policy()).toBeUndefined()
+    // The owner without an authenticator is told to set up their own first.
+    await t.db.update(t.schema.mfaDevice).set({ isVerified: false }).where(eq(t.schema.mfaDevice.userId, ownerId))
+    const early = await bearer(access)('/api/company', { method: 'PUT', json: { settings: { requireMfa: true } } })
+    expect(early.status).toBe(409)
+    expect((await early.json() as any).code).toBe('mfa_enrol_first')
+    await t.db.update(t.schema.mfaDevice).set({ isVerified: true }).where(eq(t.schema.mfaDevice.userId, ownerId))
+    expect((await bearer(access)('/api/company', { method: 'PUT', json: { settings: { requireMfa: true } } })).status).toBe(200)
+    expect(await policy()).toBe(true)
+    expect((await bearer(adminTok)('/api/company', { method: 'PUT', json: { settings: { requireMfa: null } } })).status).toBe(403) // the admin is now blocked (below)
+    expect(await policy()).toBe(true)
+  })
+
+  test('a login with no authenticator signs in, reaches its own account, and nothing else until it enrols', async () => {
+    const signedIn = await login('admin6@test.example')
+    expect(signedIn.accessToken).toBeTruthy()
+    expect(signedIn.mfaEnrolmentRequired).toBe(true)
+    const admin = bearer(signedIn.accessToken)
+    const refused = await admin('/api/contacts')
+    expect(refused.status).toBe(403)
+    expect((await refused.json() as any).code).toBe('MFA_ENROLMENT_REQUIRED')
+    expect((await admin('/api/company/users')).status).toBe(403)
+    expect((await admin('/api/auth/me')).status).toBe(200)
+    // The owner, who has one, works as before.
+    expect((await bearer(access)('/api/contacts')).status).toBe(200)
+    // Setting it up opens everything again, on the same session.
+    const setup = await (await admin('/api/auth/mfa-devices/setup', { method: 'POST', json: {} })).json() as any
+    expect((await admin('/api/auth/mfa-devices/verify', { method: 'POST', json: { deviceId: setup.deviceId, code: codeNow(setup.secret) } })).status).toBe(200)
+    expect((await admin('/api/contacts')).status).toBe(200)
+  })
+
+  test('switched off by the owner, a login with none works again', async () => {
+    const crew = bearer((await login('crew6@test.example')).accessToken)
+    expect((await crew('/api/auth/me')).status).toBe(200)
+    expect((await crew('/api/jobs')).status).toBe(403)
+    expect((await bearer(access)('/api/company', { method: 'PUT', json: { settings: { requireMfa: null } } })).status).toBe(200)
+    expect(await policy()).toBeUndefined()
+    expect((await crew('/api/jobs')).status).toBe(200)
+  })
+})

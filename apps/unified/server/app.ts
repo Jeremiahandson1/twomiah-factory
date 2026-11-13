@@ -84,7 +84,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     roleWithheld: vertical.roleWithheld,
     roleExtra: vertical.roleExtra,
   })
-  const sharedAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
+  const sharedAuth = createAuthMiddleware({ db, tables: { user, company }, enforceMfaPolicy: true }).authenticate as MiddlewareHandler
   // View As, every vertical (core/viewAs.ts): the owner or an admin opens the app as one of their people. Home care
   // keeps its own on top — viewing as a caregiver is read-only, and signing out ends every session
   // (crm/homecare/office/signIn.ts) — inside, so Return from a View As is answered before it.

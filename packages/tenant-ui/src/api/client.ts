@@ -79,11 +79,15 @@ function transientError(message: string): ApiError {
  * paused, say) carries a different code and is left to its screen.
  */
 async function noticeAccountLock(response: Response): Promise<Response> {
-  if (response.status !== 402 || typeof window === 'undefined') return response
+  if ((response.status !== 402 && response.status !== 403) || typeof window === 'undefined') return response
   const body = await response.clone().json().catch(() => null)
-  if (body?.code === 'ACCOUNT_LOCKED' && !isTrialBypassPath(window.location.pathname)) window.location.assign('/crm/paywall')
+  if (response.status === 402 && body?.code === 'ACCOUNT_LOCKED' && !isTrialBypassPath(window.location.pathname)) window.location.assign('/crm/paywall')
+  // The business requires two-factor and this login has none yet (403 MFA_ENROLMENT_REQUIRED — tenant-backend auth/mfa.ts
+  // refuseUntilEnrolled): the one page it can use is its own account, where two-factor is set up.
+  if (response.status === 403 && body?.code === 'MFA_ENROLMENT_REQUIRED' && window.location.pathname !== MFA_SETUP_PATH) window.location.assign(`${MFA_SETUP_PATH}?twoFactor=required`)
   return response
 }
+const MFA_SETUP_PATH = '/crm/account'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 

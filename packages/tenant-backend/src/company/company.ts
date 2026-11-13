@@ -14,6 +14,7 @@ import { checkBusinessHours } from './businessHours'
 import { paymentTermsProblem } from '../invoicing/money'
 import { zipField } from '../address'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
+import { mfaGateFor, forgetMfaPolicy } from '../auth/mfa'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
@@ -435,6 +436,27 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       // 'canceled' locked the whole business — so they are left out of what a person saves, whatever value was sent; the
       // stored ones stay (security review S1-9, 2026-11-12). The screen posts the whole object back, so this is silent.
       for (const k of FACTORY_OWNED_SETTINGS) delete (data.settings as any)[k]
+      // "Require two-factor for everyone" is the OWNER's switch (security review S1-6, 2026-11-12): an admin could
+      // otherwise switch the requirement off for the whole business. And it goes on only once the owner's own login has
+      // an authenticator, so switching it on can never be the thing that stops the owner working.
+      {
+        // Read the way sign-in reads it (auth/mfa.ts policyRequires): the key itself, or under `security`.
+        const stored = (before?.settings as any) || {}, sent = data.settings as any
+        const on = (top: any, sec: any) => top === true || sec?.requireMfa === true
+        const was = on(stored.requireMfa, stored.security)
+        const wants = on('requireMfa' in sent ? sent.requireMfa : stored.requireMfa, 'security' in sent ? sent.security : stored.security)
+        if (wants !== was) {
+          if (currentUser.role !== 'owner') {
+            // Not refused: an admin's Settings form posts the whole object back, and one loaded before the owner flipped
+            // the switch would carry the old value. What is stored stays, as with the Factory's keys above.
+            if ('requireMfa' in sent) { if ('requireMfa' in stored) sent.requireMfa = stored.requireMfa; else delete sent.requireMfa }
+            if ('security' in sent) { if ('security' in stored) sent.security = stored.security; else delete sent.security }
+          } else if (wants) {
+            const gate = await mfaGateFor(db, currentUser.companyId, currentUser.userId)
+            if (!gate.required) return c.json({ error: 'Set up two-factor on your own login first (your name › Profile & Security), then require it for everyone.', code: 'mfa_enrol_first' }, 409)
+          }
+        }
+      }
       const merged: Record<string, unknown> = { ...((before?.settings as any) || {}), ...data.settings }
       /**
        * A UI ROUND-TRIP MUST NOT DELETE THE SHOP'S COMMERCIAL STATE. (T58k)
@@ -470,6 +492,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     }
     const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
+    forgetMfaPolicy() // the requirement may have just changed; the next request reads it fresh
     if (deps.onRenamed && before?.name && row.name && before.name !== row.name) {
       try { await deps.onRenamed(row.id, before.name, row.name) } catch (e: any) { console.warn('[Company] onRenamed failed:', e?.message || e) }
     }
