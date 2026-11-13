@@ -155,3 +155,53 @@ describe('S1-15: a seat that reads only its own work does not get everyone’s t
     expect(recent).not.toContain('Zebra project of the office')
   })
 })
+
+describe('S1-7, S1-9, S1-12: the smaller doors', () => {
+  test('S1-9: a settings save cannot replace the subscription’s facts; ordinary settings still save', async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    await t.db.update(t.schema.company).set({ settings: { seatLimit: 3, subscriptionStatus: 'active', plan: 'starter10' } } as any).where(eq(t.schema.company.id, co.id))
+    const r = await bearer(access)('/api/company', { method: 'PUT', json: { settings: { seatLimit: 0, subscriptionStatus: 'canceled', trialEndsAt: '2099-01-01', plan: 'business50', defaultTaxRate: 5 } } })
+    expect(r.status).toBe(200)
+    const [after] = await t.db.select().from(t.schema.company).where(eq(t.schema.company.id, co.id)).limit(1)
+    const s = after.settings as any
+    expect(s.seatLimit).toBe(3)
+    expect(s.subscriptionStatus).toBe('active')
+    expect(s.plan).toBe('starter10')
+    expect(s.trialEndsAt).toBeUndefined()
+    expect(s.defaultTaxRate).toBe(5)
+  })
+
+  test('S1-12: switching a login off ends its sessions for good — switched back on, the old sign-in stays ended', async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    // no seat cap here: the test above left one, and switching a login back on spends a seat
+    await t.db.update(t.schema.company).set({ settings: {} } as any).where(eq(t.schema.company.id, co.id))
+    const [u] = await t.db.insert(t.schema.user).values({ email: 'offon@test.example', passwordHash: await Bun.password.hash(PASSWORD, 'bcrypt'), firstName: 'Off', lastName: 'On', role: 'field', companyId: co.id }).returning()
+    const s = await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'offon@test.example', password: PASSWORD } })).json() as any
+    await new Promise((r) => setTimeout(r, 1100))
+    expect((await bearer(access)(`/api/company/users/${u.id}`, { method: 'PUT', json: { isActive: false } })).status).toBe(200)
+    expect((await bearer(access)(`/api/company/users/${u.id}`, { method: 'PUT', json: { isActive: true } })).status).toBe(200)
+    expect((await bearer(s.accessToken)('/api/auth/me')).status).toBe(401)
+    expect((await t.call('/api/auth/refresh', { method: 'POST', json: { refreshToken: s.refreshToken } })).status).toBe(401)
+    // signing in again works
+    expect((await t.call('/api/auth/login', { method: 'POST', json: { email: 'offon@test.example', password: PASSWORD } })).status).toBe(200)
+  })
+
+  test('S1-7: wrong current passwords on a password change count, and lock the account at ten', async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    const [u] = await t.db.insert(t.schema.user).values({ email: 'guess@test.example', passwordHash: await Bun.password.hash(PASSWORD, 'bcrypt'), firstName: 'Guess', lastName: 'Me', role: 'field', companyId: co.id }).returning()
+    const s = await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'guess@test.example', password: PASSWORD } })).json() as any
+    const change = (currentPassword: string) => bearer(s.accessToken)('/api/auth/password', { method: 'PUT', json: { currentPassword, newPassword: 'Brand-new-pass-9' } })
+    for (let i = 0; i < 10; i++) expect((await change(`wrong-guess-${i}`)).status).toBe(400)
+    // locked: even the right current password is refused now
+    expect((await change(PASSWORD)).status).toBe(423)
+    await t.db.update(t.schema.user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(t.schema.user.id, u.id))
+    // the ordinary path
+    expect((await change(PASSWORD)).status).toBe(200)
+  })
+
+  test('S1-5: an email with no login is answered like a wrong password', async () => {
+    const r = await t.call('/api/auth/login', { method: 'POST', json: { email: 'nobody@test.example', password: 'whatever-1' } })
+    expect(r.status).toBe(401)
+    expect((await r.json() as any).error).toBe('Invalid email or password')
+  })
+})

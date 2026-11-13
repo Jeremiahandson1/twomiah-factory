@@ -45,8 +45,11 @@ export interface Gates {
 export const factoryOnly: MiddlewareHandler = async (c, next) => {
   const key = process.env.FACTORY_SYNC_KEY
   if (!key) return fail(c, 503, 'Sync not configured')
-  const got = String(c.req.header('X-Factory-Key') || '')
-  if (got.length !== key.length || !crypto.timingSafeEqual(Buffer.from(got), Buffer.from(key))) return fail(c, 401, 'Unauthorized')
+  // Compared as bytes, lengths included: a key of the right character count with a non-ASCII character made the two
+  // buffers differ in length and timingSafeEqual throw — a 500, not this 401 (security review S1-13, 2026-11-12).
+  const got = Buffer.from(String(c.req.header('X-Factory-Key') || ''))
+  const want = Buffer.from(key)
+  if (got.length !== want.length || !crypto.timingSafeEqual(got, want)) return fail(c, 401, 'Unauthorized')
   await next()
 }
 

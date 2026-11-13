@@ -107,6 +107,8 @@ export const passwordSchema = z.string()
  * ceiling on a leak rather than stopping it.
  */
 const MAX_SESSIONS_PER_USER = 50
+/** A bcrypt hash of a password nobody has: what sign-in checks against when the email has no login (see POST /login). */
+const NO_SUCH_LOGIN_HASH = '$2b$10$yWEneDgdb2QdfOw9wykPR.LOEG4eyAsTm4bJWj4K4aAGDjXzIB0S2'
 const ACCESS_TTL = '15m', REFRESH_TTL = '7d'
 
 export const generateTokens = (userId: string, companyId: string, email: string, role: string, web?: { via: string }) => {
@@ -320,7 +322,12 @@ export function createAuthRoutes(deps: AuthDeps) {
     const data = loginSchema.parse(loginBody)
 
     const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
-    if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
+    if (!foundUser) {
+      // The same work as a wrong password (one bcrypt check), so how long the answer takes does not say whether the email has
+      // a login here (security review S1-5, 2026-11-12).
+      await Bun.password.verify(data.password, NO_SUCH_LOGIN_HASH).catch(() => false)
+      return c.json({ error: 'Invalid email or password' }, 401)
+    }
     if (!foundUser.isActive) {
       // A revoked login trying to sign in is on the record, naming the account — the first thing anybody asks after
       // taking someone's access away is whether they tried to come back. (templates/crm-store routes/auth.ts, store T3:
@@ -637,8 +644,23 @@ export function createAuthRoutes(deps: AuthDeps) {
     const data = z.object({ currentPassword: z.string(), newPassword: passwordSchema }).parse(await c.req.json().catch(() => ({})))
     const [foundUser] = await db.select().from(user).where(eq(user.id, currentUser.userId)).limit(1)
     if (!foundUser) return c.json({ error: 'User not found' }, 404)
+    // Wrong CURRENT passwords count on the account's lock, as wrong sign-ins do: an open session could try the password
+    // 1,200 times every 15 minutes here with nothing counting (security review S1-7, 2026-11-12).
+    const changeLockedMs = foundUser.lockedUntil ? new Date(foundUser.lockedUntil).getTime() : 0
+    if (changeLockedMs > Date.now()) {
+      const mins = Math.max(1, Math.ceil((changeLockedMs - Date.now()) / 60000))
+      return c.json({ error: `Too many wrong passwords. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` }, 423)
+    }
     const valid = await Bun.password.verify(data.currentPassword, foundUser.passwordHash)
-    if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
+    if (!valid) {
+      if (user.failedLoginCount) {
+        const { fails, lock } = await countFailure(foundUser.id)
+        logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed', { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId },
+          lock ? 'Wrong current password on a password change; the account is now locked' : 'Wrong current password on a password change', { attempt: fails, locked: lock })
+      }
+      return c.json({ error: 'Current password is incorrect' }, 400)
+    }
+    if (user.failedLoginCount && (Number(foundUser.failedLoginCount) || 0) > 0) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id))
     const passwordHash = await Bun.password.hash(data.newPassword, 'bcrypt')
     /**
      * A PASSWORD CHANGE SIGNS OUT EVERY OTHER DEVICE, and keeps this one. (Owner, 2026-10-19: "do it the right way" —

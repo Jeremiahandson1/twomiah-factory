@@ -94,6 +94,9 @@ export interface CompanyDeps {
   heldBy?: (tx: any, userId: string) => Promise<string[]>
 }
 
+/** Settings the Factory writes (billing.ts SETTINGS_KEYS, and its Stripe ids): never taken from a person's save. */
+export const FACTORY_OWNED_SETTINGS = ['plan', 'planName', 'planId', 'product', 'subscriptionStatus', 'billingStatus', 'billingType', 'billingCycle', 'monthlyAmount', 'nextBillingDate', 'trialEndsAt', 'seatLimit', 'hasStripeCustomer', 'subscriptionSyncedAt', 'stripeCustomerId', 'stripeSubscriptionId'] as const
+
 /** How long an emailed invite link works. The teamInvite email says so: "This invitation expires in 7 days." */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -427,6 +430,11 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (data.settings && typeof data.settings === 'object') {
       // What redaction added on the way out (accountLock, …Configured) is not saved back.
       data.settings = withoutDisplayKeys(data.settings)
+      // Nor are the subscription's facts, which the Factory mirrors in (billing.ts applySubscriptionToCompany): the plan, its
+      // status, the trial's end, the seats. A save could REPLACE them — seatLimit 0 read as "no cap", subscriptionStatus
+      // 'canceled' locked the whole business — so they are left out of what a person saves, whatever value was sent; the
+      // stored ones stay (security review S1-9, 2026-11-12). The screen posts the whole object back, so this is silent.
+      for (const k of FACTORY_OWNED_SETTINGS) delete (data.settings as any)[k]
       const merged: Record<string, unknown> = { ...((before?.settings as any) || {}), ...data.settings }
       /**
        * A UI ROUND-TRIP MUST NOT DELETE THE SHOP'S COMMERCIAL STATE. (T58k)
@@ -859,7 +867,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         const full = companyRow ? await seatRefusal(tx, t, companyRow) : null
         if (full) return { full }
       }
-      const [updated] = await tx.update(t.user).set({ ...data, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
+      // Switched off: its sessions end for good, not only while it is off — the stored sign-ins came back to life when the
+      // login was switched on again, for up to a week (security review S1-12, 2026-11-12).
+      const endSessions = data.isActive === false ? { refreshToken: null, ...(t.user.sessionsValidFrom ? { sessionsValidFrom: new Date(Math.floor(Date.now() / 1000) * 1000) } : {}) } : {}
+      const [updated] = await tx.update(t.user).set({ ...data, ...endSessions, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
       return { row: updated }
     })
     if ((outcome as any).full) return c.json({ ...(outcome as any).full, code: 'seat_limit' }, 403)

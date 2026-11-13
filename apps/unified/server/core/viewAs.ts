@@ -121,7 +121,9 @@ export function createViewAs(deps: ViewAsDeps) {
 
   // Each View As's end is written once, however many requests notice it at the same moment.
   const endedOnce = new Set<string>()
-  const endKey = (d: any) => `${d?.impersonatorId}:${d?.userId}:${d?.iat}:${d?.exp}`
+  const endKey = (d: any) => `${d?.impersonatorId}:${d?.userId}:${d?.iat}:${d?.exp}:${d?.jti ?? ''}`
+  /** View As sessions ended by Return, by endKey → when the token would have run out (kept only until then). */
+  const returned = new Map<string, number>()
   async function recordEnd(c: any, decoded: any, why: string, reason: string) {
     const key = endKey(decoded)
     if (endedOnce.has(key)) return
@@ -189,11 +191,21 @@ export function createViewAs(deps: ViewAsDeps) {
       // nothing, so a late click can never sign the real user out); signing out of a View As is the same.
       if ((c.req.method === 'POST' && p === LOGOUT) || (c.req.method === 'DELETE' && p === START)) {
         if (viaCookie) clearViewAsCookie(c)
+        // Returned: this View As's token is refused from here on, until it would have run out anyway. Dropping the cookie
+        // alone left a copy of the token working for the rest of its two hours (security review S1-16, 2026-11-12).
+        const until = typeof decoded.exp === 'number' ? decoded.exp * 1000 : Date.now() + VIEW_AS_HOURS * 3600_000
+        for (const [k, exp] of returned) if (exp <= Date.now()) returned.delete(k)
+        returned.set(endKey(decoded), until)
         await recordEnd(c, decoded, 'Returned to their own account', 'returned')
         return one(c, { message: 'Logged out', viewAs: 'ended' })
       }
       if (c.req.method === 'POST' && (p === START || p.startsWith(START + '/'))) {
         return fail(c, 403, 'You are already viewing as someone. Return to your own account first.', 'view_as_nested')
+      }
+
+      if (returned.has(endKey(decoded))) {
+        if (viaCookie) clearViewAsCookie(c)
+        return fail(c, 401, VIEW_AS_ENDED, 'view_as_ended')
       }
 
       // The premise, again, on every request: both people as they are now, and the same rule as at the start.
@@ -284,7 +296,7 @@ export function createViewAs(deps: ViewAsDeps) {
       return fail(c, 500, 'Could not record the View As in the audit log — try again.')
     }
     const token = jwt.sign(
-      { userId: target.id, email: target.email, role: target.role, companyId: by.companyId, name, impersonatedBy: by.email, impersonatorId: by.id, impersonation: true },
+      { userId: target.id, email: target.email, role: target.role, companyId: by.companyId, name, impersonatedBy: by.email, impersonatorId: by.id, impersonation: true, jti: crypto.randomUUID() },
       process.env.JWT_SECRET!,
       { expiresIn: `${VIEW_AS_HOURS}h` },
     )
