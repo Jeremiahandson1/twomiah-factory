@@ -41,7 +41,10 @@ const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ej
   'sections/services/cards-grid.ejs', 'sections/services/alternating.ejs', 'sections/gallery/grid.ejs',
   // The financing calculator shows a payment, an APR and a term only with the lender's own disclosure under them (field service
   // parity item 11, 10/31: Wisetack's compliance rule, docs/parity/fieldservice-financing-needs.md row 5).
-  'sections/financing/calculator.ejs'])
+  'sections/financing/calculator.ejs',
+  // Package cards (2026-11-13, the first AI-built signup site reviewed): no "Standard" printed over a card with no tier,
+  // the season in words ("Spring to fall", not "spring-fall"), and "In season now" only when it tells cards apart.
+  'sections/packages/seasonal.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {
@@ -153,6 +156,13 @@ const siteAdditions = (html: string) => html
   .replace(/<a class="btn btn--primary call-now"[\s\S]*?<\/a>\s*<script>\(function\(\)\{\s*var a = document\.querySelector\('\[data-call-now\]'\)[\s\S]*?<\/script>/, '')
   .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/g, '')
 
+/**
+ * A phone link dials digits (2026-11-13): the number is now shown written out — ten bare digits as (715) 864-5052 — so
+ * the split call to action, the contact block and the footer strip their tel: link to digits, as the Call-now button
+ * and the bar's footer already did. Read on both sides as the digits; the number shown still has to match.
+ */
+const dialDigits = (html: string) => html.replace(/href="tel:([^"]*)"/g, (_m, n: string) => 'href="tel:' + n.replace(/[^\d+]/g, '') + '"')
+
 const sameAssetVersion = (html: string) => html.replace(/\/styles\/(main|fonts)\.css\?v=[^"]*/g, '/styles/$1.css?v=V')
 /** The contact form's one intended change: the message box posts as `message` (the server reads both). */
 const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
@@ -212,7 +222,7 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(firstDifference(squash(barFixes(sameAssetVersion(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine))))))), squash(barFixes(sameAssetVersion(siteAdditions(messageField(theirs))))))).toBe('')
+        expect(firstDifference(squash(dialDigits(barFixes(sameAssetVersion(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine)))))))), squash(dialDigits(barFixes(sameAssetVersion(siteAdditions(messageField(theirs)))))))).toBe('')
       })
     }
   }
@@ -226,7 +236,7 @@ describe('the contact form in each vertical\'s words', () => {
       const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], smsConsent: consentBoxHtml, ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
-      expect(squash(formReset(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine))))))).toBe(squash(siteAdditions(messageField(theirs))))
+      expect(squash(dialDigits(formReset(siteAdditions(trackingStandard(textingConsent(inlineFormMessages(mine)))))))).toBe(squash(dialDigits(siteAdditions(messageField(theirs)))))
       // …and the box is there, unticked
       expect(mine).toContain('<input type="checkbox" name="smsConsent" value="yes">')
       expect(mine).toContain('name="message"')
