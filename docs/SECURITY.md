@@ -112,6 +112,18 @@ bug bounty but credit researchers in this document.
 - Customer payment information never touches our servers — Stripe
   Checkout and Stripe Customer Portal handle PCI compliance.
 
+### Each business's secrets in the Factory's database
+
+The Factory keeps, for each business, the address and password of its database and the key it signs its instructions
+to that business with. Both are sealed (AES-256-GCM) before they are stored, and opened only inside the Factory's own
+server (`apps/api/src/lib/tenantSecrets.ts`). A copy of the Factory's database does not open any business's database.
+
+- The key is `FACTORY_SECRETS_KEY`, a secret on the Factory's own service. Until it is set, nothing is sealed.
+- **Once set, it must never be changed or removed.** Every sealed value is unreadable without it. (The businesses keep
+  running — each service holds its own copies — but the Factory could not reach them until each value was entered again.)
+  Keep a copy of the key somewhere other than the hosting account.
+- After setting it, an owner runs `POST /api/v1/factory/admin/seal-tenant-secrets` once to seal the rows already there.
+
 ## What we don't do (yet)
 
 We are honest about the gaps:
