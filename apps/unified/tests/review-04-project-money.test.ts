@@ -24,7 +24,7 @@ beforeAll(async () => {
   t = await bootTenant({ vertical: 'contractor' })
   const s = await seedOwner(t)
   companyId = s.company.id
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'projects', 'jobs', 'purchase_orders', 'vendor_bills', 'draw_schedules', 'time_tracking'], timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'projects', 'jobs', 'purchase_orders', 'vendor_bills', 'draw_schedules', 'time_tracking', 'rfis'], timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: s.owner.email, password: s.password } })).json() as any).accessToken
   const [v] = await t.db.insert(t.schema.contact).values({ companyId, name: 'Lumber Yard', type: 'vendor' } as any).returning()
   vendorId = v.id
@@ -97,5 +97,15 @@ describe('04-4: a time entry is paid on the day it was worked', () => {
     await t.db.insert(t.schema.timeEntry).values({ companyId, userId: (await t.db.select().from(t.schema.user).limit(1))[0].id, date: new Date('2026-11-04T01:00:00Z'), hours: '2' } as any)
     expect(await hoursOn('2026-11-03')).toBe(2)
     expect(await hoursOn('2026-11-04')).toBe(0)
+  })
+})
+
+describe('04-8: a site record’s number is never given twice', () => {
+  test('after the middle RFI is deleted, the next one takes a new number', async () => {
+    const make = async () => data((await json(await call('/api/rfis', { method: 'POST', json: { projectId, subject: 'Beam', question: 'Which size?' } }))).body)
+    const [a, b, c2] = [await make(), await make(), await make()]
+    expect([a.number, b.number, c2.number]).toEqual(['RFI-001', 'RFI-002', 'RFI-003'])
+    expect((await call(`/api/rfis/${b.id}`, { method: 'DELETE' })).status).toBeLessThan(300)
+    expect((await make()).number).toBe('RFI-004')
   })
 })
