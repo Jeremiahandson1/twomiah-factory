@@ -4,7 +4,7 @@ import { timeEntry, user, staffAccountEntry } from '../../db/schema.ts'
 import { eq, and, gte, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { companyTimeZone, createStaffBalanceStore, entryDay, entryDayWindow } from '../shared/index.ts'
+import { companyTimeZone, storeDayRange, createStaffBalanceStore } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -33,16 +33,13 @@ app.get('/summary', async (c) => {
 
   // The shop's own days, from the shared definition every vertical uses.
   const payTz = await companyTimeZone(db, currentUser.companyId)
-  // An entry's date is the DAY worked, kept as a day marker (midnight UTC of the shop's day), not an instant: compared with the
-  // shop's midnights every entry counted a day early west of Greenwich (code review 04-4, 2026-11-13). Fetched by the window
-  // that can hold them, kept by their own day (shared entryDay).
-  const payPeriod = entryDayWindow(payTz, startDate, endDate)
+  const payPeriod = { start: storeDayRange(payTz, startDate).start, end: storeDayRange(payTz, endDate).end }
 
   // `user` in this schema has first_name and last_name and NO `name` column, so `user.name` was
   // undefined and drizzle threw building the select — both handlers in this file answered 500
   // every single time they were called. Nothing has a screen for either, which is the only
   // reason it was never reported. Same two-column join the appointment book uses.
-  const fetchedEntries = await db.select({
+  const entries = await db.select({
     entry: timeEntry,
     userId: user.id,
     userFirstName: user.firstName,
@@ -62,7 +59,6 @@ app.get('/summary', async (c) => {
       lt(timeEntry.date, payPeriod.end),
     ))
 
-  const entries = fetchedEntries.filter((e: any) => { const day = entryDay(e.entry.date, payTz); return day >= startDate && day <= endDate })
   // Group by user
   const byUser: Record<string, any> = {}
   entries.forEach(e => {
