@@ -442,7 +442,8 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   /** What a session token carries of the password it was given for: a reset or a change ends every older session. */
   const passwordMark = (hash: string | null | undefined) => crypto.createHash('sha256').update(String(hash || '')).digest('hex').slice(0, 16)
   /** A bcrypt hash of a password nobody has, so an email with no account takes as long to refuse as a wrong password. */
-  const NO_SUCH_MEMBER_HASH = '$2b$10$yWEneDgdb2QdfOw9wykPR.LOEG4eyAsTm4bJWj4K4aAGDjXzIB0S2'
+  // …made at start-up from random text, never a literal in the source (a hash in a file reads as a leaked one).
+  const NO_SUCH_MEMBER_HASH: Promise<string> = Bun.password.hash(crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
 
   app.post('/login', createRateLimiter(15 * 60 * 1000, 20), async (c) => {
     const { email, password } = await c.req.json().catch(() => ({} as any))
@@ -450,7 +451,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     const who = normEmail(email)
     if (lockedOut(who)) return fail(c, 429, 'Too many wrong passwords. Try again in a few minutes, or use Forgot password.', 'too_many_attempts')
     const member = await familyMemberForLogin(db, who)
-    const valid = await Bun.password.verify(String(password), member?.passwordHash || NO_SUCH_MEMBER_HASH).catch(() => false)
+    const valid = await Bun.password.verify(String(password), member?.passwordHash || await NO_SUCH_MEMBER_HASH).catch(() => false)
     if (!member || !member.passwordHash || !valid) { failed(who); return fail(c, 401, 'Invalid credentials') }
     fails.delete(who)
     await db.update(familyMembers).set({ lastLoginAt: new Date() })
