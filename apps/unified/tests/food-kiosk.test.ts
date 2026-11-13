@@ -98,6 +98,10 @@ describe('an order at the kiosk', () => {
     expect([check.status, check.kind, check.label, check.payments[0].tender]).toEqual(['paid', 'kiosk', 'KIOSK · Sam', 'card_terminal'])
     expect((await tickets()).map((x) => x.label)).toEqual(['KIOSK · Sam'])
     expect(reader.simulated).toBe(true)
+    // The cook bumps its ticket — the last one of the order — and the order is ready, without a second person pressing Ready.
+    const bumped = await k.B('POST', '/api/grill/bump', { id: ((await tickets())[0] as any).id })
+    expect(bumped.json).toMatchObject({ ok: true, orderReady: true })
+    expect((await k.B('GET', `/api/food/kiosk/order/${r.json.order.id}`)).json.order.status).toBe('ready')
   })
 
   test('a declined card, then the guest walks away: the order is cancelled, nothing reaches a check or the grill', async () => {

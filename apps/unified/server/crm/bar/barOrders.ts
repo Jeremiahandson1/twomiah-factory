@@ -13,8 +13,8 @@
 // came back. "Order received" goes then; "Ready for pickup" when staff mark it ready — a text only to a number that
 // ticked "Text me about my order" and has not opted out, else an email.
 import Stripe from 'stripe'
-import { and, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
-import { barCheck, barOrder } from '../../db/schema/index.ts'
+import { and, desc, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { barCheck, barOrder, barKitchenTicket } from '../../db/schema/index.ts'
 import { checkTotals, formatMoney, taxRateBpsFrom } from './barCheckMoney.ts'
 import { company } from '../../db/schema/index.ts'
 import type { BarLive } from './barLive.ts'
@@ -333,6 +333,26 @@ export function createBarOrders(deps: {
     return orderView((await one(actor.companyId, o.id))!)
   }
 
-  return { price, kioskMenu, placeKiosk, paidInTx, afterPaid, cancelKiosk, one, orderView, kioskLabel, onlineLabel, availability, onlineMenu, placeOnline, confirmSession, sweep, notify, listOrders, markOrder }
+  /**
+   * THE KITCHEN'S BUMP FINISHES THE GUEST'S ORDER (live-test cleanup list #8, done 2026-11-13). A kiosk or website order
+   * waited at "received" until somebody opened the Orders page and pressed Ready — the cook bumping its ticket moved
+   * nothing, so the guest's screen (and the "ready for pickup" text) waited on a second person. When the LAST open
+   * ticket of an order's check is bumped, the order is ready, as the big kitchen screens do it. One conditional
+   * update, so the Ready button pressed at the same moment and this make one change and one text.
+   */
+  async function readyAfterBump(companyId: string, ticketId: string, byName: string | null): Promise<boolean> {
+    const [t] = await db.select({ checkId: barKitchenTicket.checkId }).from(barKitchenTicket).where(and(eq(barKitchenTicket.id, ticketId), eq(barKitchenTicket.companyId, companyId))).limit(1)
+    if (!t?.checkId) return false
+    const cooking = await db.select({ id: barKitchenTicket.id }).from(barKitchenTicket)
+      .where(and(eq(barKitchenTicket.companyId, companyId), eq(barKitchenTicket.checkId, t.checkId), isNull(barKitchenTicket.bumpedAt))).limit(1)
+    if (cooking.length) return false
+    const [row] = await db.update(barOrder).set({ status: 'ready', readyAt: new Date(), readyByName: byName, updatedAt: new Date() })
+      .where(and(eq(barOrder.companyId, companyId), eq(barOrder.checkId, t.checkId), eq(barOrder.status, 'received'))).returning()
+    if (!row) return false
+    if (row.channel === 'online') await notify(companyId, row.id, 'ready').catch(() => {})
+    return true
+  }
+
+  return { price, kioskMenu, placeKiosk, paidInTx, afterPaid, cancelKiosk, one, orderView, kioskLabel, onlineLabel, availability, onlineMenu, placeOnline, confirmSession, sweep, notify, listOrders, markOrder, readyAfterBump }
 }
 export type BarOrders = ReturnType<typeof createBarOrders>

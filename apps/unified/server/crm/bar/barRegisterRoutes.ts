@@ -39,7 +39,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
+import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { CheckError } from './barRegister.ts'
 import { PinError, type Actor } from './barManagers.ts'
 import { RotaError } from './barSchedule.ts'
@@ -94,10 +94,8 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   // (86 an item, the night's note) — every seat with the register has it, and so does a restaurant's Cook, who is
   // kept off the register itself (no payments, voids or close-out: restaurant re-check 11/09 opened it by address).
   // Whether this person works the register too (the clock page's Register button; a Cook does not).
-  const mayRegister = async (c: Ctx) => {
-    const u = c.get('user') as any
-    return d.permissions.hasPermission(u?.role, 'bar:register', await d.permissions.getExtraPermissions(u?.userId))
-  }
+  // The shared helper every other module asks (crm/deps.ts canSeeWith) — this was the same check written out by hand (cleanup list #4).
+  const mayRegister = async (c: Ctx) => { const u = c.get('user') as any; return canSeeWith(d.permissions)(u?.role, 'bar:register', u?.userId) }
   const kitchenRing = [requireEnabledFeature(FEATURE), requirePermission('bar:console')] as const
 
   registerRoutes.get('/state', ...ring, async (c) => {
@@ -344,7 +342,10 @@ export function createBarRegisterRoutes(d: CrmDeps, bar: BarServices) {
   kitchenRoutes.post('/bump', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
     if (!b.id) return fail(c, 400, 'Which ticket?')
-    return (await bumpTicket(actor.companyId, String(b.id), actor.name)) ? one(c, { ok: true }) : fail(c, 409, 'Already bumped.')
+    if (!(await bumpTicket(actor.companyId, String(b.id), actor.name))) return fail(c, 409, 'Already bumped.')
+    // The last ticket of a guest's own order makes the order ready (barOrders readyAfterBump). Never fails the bump.
+    const orderReady = await bar.orders.readyAfterBump(actor.companyId, String(b.id), actor.name).catch(() => false)
+    return one(c, { ok: true, ...(orderReady ? { orderReady: true } : {}) })
   })
   kitchenRoutes.post('/recall', ...kitchenRing, async (c) => {
     const actor = await actorOf(c); const b = await body(c)
