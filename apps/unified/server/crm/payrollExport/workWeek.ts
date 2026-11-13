@@ -3,7 +3,7 @@
 // file read the SAME rule from here, so they cannot disagree. Daily overtime (hours over 8 or 12 in a day) is not
 // calculated; a business in a state that has it is told so, on the pay run, rather than shown a guess.
 import { eq } from 'drizzle-orm'
-import { storeDateString } from '@twomiah/tenant-backend'
+import { entryDay } from '@twomiah/tenant-backend'
 import { company } from '../../db/schema/index.ts'
 
 /** FLSA: hours over this in a work week are overtime. */
@@ -57,7 +57,7 @@ export async function companyWorkWeek(db: any, companyId: string): Promise<{ sta
 export function splitByWorkWeek(entries: Array<{ date: Date | string; hours: number | string | null }>, tz: string, startDay: number, overtimeAfter = OT_WEEKLY_HOURS) {
   const weeks = new Map<string, number>()
   for (const e of entries) {
-    const week = workweekStartOn(storeDateString(new Date(e.date), tz), startDay)
+    const week = workweekStartOn(entryDay(e.date, tz), startDay)
     weeks.set(week, (weeks.get(week) ?? 0) + Number(e.hours || 0))
   }
   const cap = Math.round(overtimeAfter * 100)

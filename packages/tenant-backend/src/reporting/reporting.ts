@@ -12,7 +12,7 @@
 import { Hono } from 'hono'
 import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull, asc, type SQL } from 'drizzle-orm'
 import { overdueCutoff } from '../invoicing/money'
-import { companyTimeZone, storeDayRange, storeDayStart, storeDateString } from '../time/businessDay'
+import { companyTimeZone, storeDayRange, storeDayStart, storeDateString, entryDay, entryDayWindow } from '../time/businessDay'
 
 export interface ReportingTables {
   invoice: any
@@ -315,13 +315,34 @@ export function createReportingService(deps: ReportingDeps) {
 
   // ---------------------------------------------------------------- team
 
+  /**
+   * Hours per person in the range, by each entry's own DAY (entryDay — code review 04-4): the range is the business's
+   * midnight instants, and an entry's date is a day marker, so comparing the two counted every entry a day early.
+   */
+  async function hoursByPerson(companyId: string, range: DateRange): Promise<Array<{ userId: string; hours: number; count: number }>> {
+    const tz = await companyTimeZone(db, companyId)
+    const from = range.gte ? storeDateString(range.gte, tz) : null, to = range.lte ? storeDateString(range.lte, tz) : null
+    const conds: any[] = [eq(t.timeEntry.companyId, companyId)]
+    if (from) conds.push(gte(t.timeEntry.date, entryDayWindow(tz, from, from).start))
+    if (to) conds.push(lt(t.timeEntry.date, entryDayWindow(tz, to, to).end))
+    const rows = await db.select({ userId: t.timeEntry.userId, hours: t.timeEntry.hours, date: t.timeEntry.date }).from(t.timeEntry).where(and(...conds))
+    const by = new Map<string, { userId: string; hours: number; count: number }>()
+    for (const r of rows) {
+      const day = entryDay(r.date, tz)
+      if ((from && day < from) || (to && day > to)) continue
+      const e = by.get(r.userId) ?? { userId: r.userId, hours: 0, count: 0 }
+      e.hours += Number(r.hours || 0); e.count++
+      by.set(r.userId, e)
+    }
+    return [...by.values()]
+  }
+
   async function teamProductivity(companyId: string, range: DateRange) {
     // A vertical with no timesheets and no jobs — a salon, a vet — gets an empty panel from the work
     // below, for everyone, always. Those verticals supply their own measure. (Salon T28 M6)
     if (deps.options?.teamProductivity) return deps.options.teamProductivity(companyId, range)
     const [time, jobs] = await Promise.all([
-      db.select({ userId: t.timeEntry.userId, hours: sum(t.timeEntry.hours), count: count() }).from(t.timeEntry)
-        .where(and(eq(t.timeEntry.companyId, companyId), ...inRange(t.timeEntry.date, range))).groupBy(t.timeEntry.userId),
+      hoursByPerson(companyId, range),
       db.select({ assignedToId: t.job.assignedToId, count: count() }).from(t.job)
         .where(and(eq(t.job.companyId, companyId), eq(t.job.status, 'completed'), isNotNull(t.job.assignedToId), ...inRange(t.job.completedAt, range))).groupBy(t.job.assignedToId),
     ])

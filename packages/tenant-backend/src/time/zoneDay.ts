@@ -100,3 +100,28 @@ export function daysUntilMarker(marker: Date | string, tz: string, now: Date = n
   const today = storeDateString(now, tz)
   return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)
 }
+
+/**
+ * WHICH DAY A TIME ENTRY BELONGS TO (code review 04-4, 2026-11-13). `time_entry.date` is the day that was worked, kept as
+ * a day marker — midnight UTC of the business's own calendar day (clock-in and the timesheet write it so). Payroll, the
+ * Gusto file, the bar's pay run, the crew dashboard and the hour reports compared it with the business's midnight
+ * INSTANTS instead, so west of Greenwich every entry was counted on the day before: a pay period lost its first day
+ * and took the day after its last, and the overtime week was cut a day off. A few rows hold a real instant (the
+ * geofence clock-in wrote `now`); those are read on the business's clock. A marker is exactly midnight UTC; an instant
+ * practically never is.
+ */
+export function entryDay(date: Date | string, tz: string): string {
+  const d = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.getTime() % 86_400_000 === 0 ? markerDay(d) : storeDateString(d, tz)
+}
+
+/**
+ * The stored dates that can hold an entry whose day is `from`..`to` (both days included), whichever way its date was
+ * kept: fetch `date >= start AND date < end`, then keep the rows whose entryDay is in the days asked for.
+ */
+export function entryDayWindow(tz: string, from: string, to: string): { start: Date; end: Date } {
+  const zoneStart = storeDayRange(tz, from).start, zoneEnd = storeDayRange(tz, to).end
+  const markerStart = dayMarker(from), markerEnd = new Date(dayMarker(to).getTime() + 86_400_000)
+  return { start: zoneStart < markerStart ? zoneStart : markerStart, end: zoneEnd > markerEnd ? zoneEnd : markerEnd }
+}

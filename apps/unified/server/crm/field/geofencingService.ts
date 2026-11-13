@@ -4,6 +4,7 @@
 import { and, desc, eq, gte, isNotNull, isNull, lte } from 'drizzle-orm'
 import { geofence, geofenceEvent, timeEntry, locationLog, userSettings, job, project } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+import { companyTimeZone, dayMarker, storeDateString } from '@twomiah/tenant-backend'
 
 /** Default geofence radius in metres. */
 const DEFAULT_RADIUS = 100
@@ -97,7 +98,8 @@ export function createGeofencingService(d: CrmDeps) {
       jobId: fence.jobId ?? null,
       projectId: fence.projectId ?? null,
       clockIn: new Date(),
-      date: new Date(),
+      // The day worked, as the clock writes it (tenant-backend time.ts clockIn): a day marker, not this instant.
+      date: dayMarker(storeDateString(new Date(), await companyTimeZone(db, companyId))),
       hours: '0',
       isAutoClocked: true,
       clockSource: 'geofence',
