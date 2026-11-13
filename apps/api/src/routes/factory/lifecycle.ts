@@ -1211,7 +1211,7 @@ factory.post('/internal/renewal-check', async (c) => {
   // is left to a human admin (see /customers/:id/teardown below).
   const { data: overdue, error: teardownErr } = await supabase
     .from('tenants')
-    .select('id, name, email, admin_email, cloudflare_zone_id, sendgrid_domain_auth_id')
+    .select('id, name, slug, email, admin_email, cloudflare_zone_id, sendgrid_domain_auth_id')
     .not('offboard_grace_ends_at', 'is', null)
     .lt('offboard_grace_ends_at', now.toISOString())
     .neq('status', 'offboarded')
@@ -1226,7 +1226,16 @@ factory.post('/internal/renewal-check', async (c) => {
         const sg = await import('../../services/sendgrid')
         if (sg.isSendGridConfigured()) await sg.deleteDomainAuth(t.sendgrid_domain_auth_id).catch(e => console.warn('[Teardown] SG auth delete:', e.message))
       }
+      // The free <slug>.twomiah.app name goes with the business (owner 2026-11-13; security review S5-6). The service it
+      // points at is left for a person to delete, and a name still pointing at a deleted Render host is one somebody
+      // else can claim. An offboarded business cannot be restarted (services/subscriptionRestart.ts), so nothing needs
+      // it back. A no-op where that zone is not configured.
+      if (t.slug) {
+        const cf = await import('../../services/cloudflare')
+        await cf.detachTwomiahSubdomain(t.slug).catch(e => console.warn('[Teardown] twomiah.app name:', e.message))
+      }
       await supabase.from('tenants').update({ status: 'offboarded', cloudflare_zone_id: null, sendgrid_domain_auth_id: null }).eq('id', t.id)
+      await supabase.from('tenants').update({ twomiah_subdomain: null }).eq('id', t.id).then(() => {}, () => {})
       await notifyOffboardComplete(t as any).catch(() => {})
       results.teardowns++
     } catch (e: any) {
