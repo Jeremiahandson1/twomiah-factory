@@ -26,6 +26,7 @@ import { requestedLook } from '../../config/siteLooks'
 import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes, storeSignupPhoto, SIGNUP_PHOTO_FILE } from '../../services/signupSite'
 import { intakeAssetLink } from '../../services/factoryStorage'
 import { crmTemplateFor, deployProductsForVertical, startingFeaturesFor, verticalFor } from '../../config/industryRouting'
+import { signupEmail, signupProductList, signupFeatureList, signupSlug, SIGNUP_HEX_RE, SIGNUP_PLAN_RE, NOT_PASTED_AS_TYPED } from '../../services/signupBody'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
 import { allocateSlug, signupSlugCandidates, liveSlugLookups } from '../../services/resourceOwnership'
@@ -302,9 +303,11 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     if (!body.name || typeof body.name !== 'string' || body.name.trim().length < 2) {
       return c.json({ error: 'Company name is required (min 2 characters)' }, 400)
     }
-    if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+    const signupAddress = signupEmail(body.email)
+    if (!signupAddress) {
       return c.json({ error: 'Valid email is required' }, 400)
     }
+    body.email = signupAddress
     // The look they chose in the preview (foundry, heritage or studio); anything else is refused, nothing sent is the trade's own.
     const look = requestedLook(body.design)
     if (!look.ok) return c.json({ error: 'Unknown design.' }, 400)
@@ -315,13 +318,35 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       return c.json(r.body as any, r.status as any)
     }
 
+    // Every other answer, to its own shape (S5-7, above). From here on `body` holds only checked values.
+    body.name = body.name.trim().slice(0, 120)
+    if (body.admin_email != null && body.admin_email !== '') {
+      const adminAddress = signupEmail(body.admin_email)
+      if (!adminAddress) return c.json({ error: 'Valid email is required' }, 400)
+      body.admin_email = adminAddress
+    } else body.admin_email = undefined
+    if (body.plan != null && body.plan !== '' && !(typeof body.plan === 'string' && SIGNUP_PLAN_RE.test(body.plan))) return c.json({ error: 'Unknown plan.' }, 400)
+    if (body.admin_password != null && !(typeof body.admin_password === 'string' && body.admin_password.length <= 200)) return c.json({ error: 'That password is too long.' }, 400)
+    for (const [key, max] of [['slug', 60], ['phone', 40], ['industry', 80], ['address', 300], ['city', 120], ['state', 80], ['zip', 20], ['website_theme', 60], ['notes', 2000]] as const) body[key] = signupText(body[key], max)
+    body.primary_color = typeof body.primary_color === 'string' && SIGNUP_HEX_RE.test(body.primary_color.trim()) ? body.primary_color.trim() : undefined
+    body.deployment_model = body.deployment_model === 'owned' ? 'owned' : 'saas'
+    // Stripe's price for the plan is what is charged (factoryStripe.createSubscriptionCheckout) and what the paid webhook records;
+    // the form's own figure is only what the dashboard shows until then.
+    body.monthly_amount = typeof body.monthly_amount === 'number' && Number.isFinite(body.monthly_amount) && body.monthly_amount >= 0 && body.monthly_amount <= 100_000 ? body.monthly_amount : null
+    body.products = signupProductList(body.products)
+    body.features = signupFeatureList(body.features, body.industry)
+    // Only a domain the owner says they have, checked below; any other text sent as "domain" is nothing.
+    if (body.domainMode !== 'byod') body.domain = undefined
+
     // Going live per industry (unified/factory.ts signupRefusal): while UNIFIED_LIVE_VERTICALS is set, a real signup
     // for an industry not yet open is refused here, before anything is made, rather than started on the templates and
     // moved later. Unset (the default), nothing is refused.
     const refusal = signupRefusal({ industry: body.industry, email: body.email, admin_email: body.admin_email })
     if (refusal) return c.json({ error: refusal, code: 'INDUSTRY_NOT_OPEN' }, 422)
 
-    const baseSlug = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    // The slug names the repo, the services and the database: letters, digits and dashes only, whoever typed it (S5-7).
+    const baseSlug = signupSlug(body.slug) || signupSlug(body.name)
+    if (!baseSlug) return c.json({ error: 'Company name is required (min 2 characters)' }, 400)
 
     // Check for duplicate slug
     const { data: existing } = await supabase.from('tenants').select('id').eq('slug', baseSlug).maybeSingle()
@@ -358,6 +383,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       if (!d || !DOMAIN_RE.test(d)) return c.json({ error: 'Invalid domain format for BYOD' }, 400)
       resolvedDomain = d
       resolvedRegistrar = 'byod'
+      body.domain = d
     }
 
     // Pay-then-deploy: the tenant is created 'pending' / awaiting-payment.
@@ -377,6 +403,11 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // Which engine builds this business — decided once, here, from UNIFIED_SIGNUPS and UNIFIED_LIVE_VERTICALS
     // (unified/factory.ts). Off (the default): 'templates', and this signup runs exactly as it always has.
     const engine = engineForSignup({ industry: body.industry, email: body.email, admin_email: body.admin_email })
+    // The templates generator writes the owner's password into the site's first-run settings as typed (below), so there it
+    // may not hold a character that is code syntax. A unified signup's is hashed and may be anything. (S5-7)
+    if (engine !== 'unified' && typeof body.admin_password === 'string' && NOT_PASTED_AS_TYPED.test(body.admin_password)) {
+      return c.json({ error: 'Please choose a password without quotes, backslashes, brackets or a $ sign.' }, 400)
+    }
     const ownerPasswordHash = engine === 'unified' && typeof body.admin_password === 'string' && body.admin_password
       ? await (await import('bcryptjs')).default.hash(body.admin_password, 10) : null
     // A store on the unified app gets a site too: its home is its products (the built-in shop), with a contact page —

@@ -607,7 +607,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   // for accents on dark grounds and fills.
   const accentOnLight = ensureDark(b.accentColor || '#f59e0b', (0.943 + 0.05) / 4.5 - 0.05)
 
-  return {
+  return addressTokensChecked({
     '{{COMPANY_NAME}}': c.name || 'My Company',
     '{{COMPANY_LEGAL_NAME}}': c.legalName || (c.name || 'My Company') + ' LLC',
     '{{COMPANY_NAME_UPPER}}': (c.name || 'My Company').toUpperCase(),
@@ -626,8 +626,10 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ZIP}}': c.zip || '00000',
     '{{SERVICE_REGION}}': c.serviceRegion || (c.city ? c.city + ' area' : 'surrounding area'),
     '{{SERVICE_AREAS}}': serviceAreasText,
-    '{{SERVICE_AREA_LINKS}}': uniqueAreas.map((a) => `<li><a href="/service-area/${a}">${a}</a></li>`).join('\n'),
-    '{{SERVICE_AREA_ITEMS}}': uniqueAreas.map((a) => `<li>${a}</li>`).join('\n'),
+    // A city is the owner's free text and these two are pasted into page templates as markup: the name goes in as text that is
+    // never syntax (literalSafeText), and as a path segment in the link. (Security review S5-8: `<%` in a city ran as page code.)
+    '{{SERVICE_AREA_LINKS}}': uniqueAreas.map((a) => `<li><a href="/service-area/${encodeURIComponent(a)}">${literalSafeText(a)}</a></li>`).join('\n'),
+    '{{SERVICE_AREA_ITEMS}}': uniqueAreas.map((a) => `<li>${literalSafeText(a)}</li>`).join('\n'),
     // Real cities come from the manual intake field (company.nearbyCities).
     // Fall back to the real city (a live site must never show "Nearby City 1"),
     // so an empty slot repeats the home city: every template and the CMS
@@ -753,7 +755,23 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{SENTRY_DSN}}': (config.integrations?.sentry?.dsn || '').trim(),
     '{{NEARMAP_API_KEY}}': (config.integrations?.nearmap?.apiKey || '').trim(),
     '{{REPLICATE_API_TOKEN}}': (config.integrations?.replicate?.apiToken || '').trim(),
+  })
+}
+
+// Emails, phone numbers, domains, the site's addresses and colours are pasted into SOURCE CODE as they are (they are not free
+// text, so literalSafeText must not reword them). None of them ever legitimately holds a quote, a backtick, a backslash, a
+// bracket of a tag or an expression, or a line break — and one that does would end the literal it sits in and run as code in the
+// business's own app. Such a value stops the build, loudly, with the field named; nothing is generated from it. (S5-8)
+export const ADDRESS_TOKENS = [
+  '{{COMPANY_EMAIL}}', '{{ADMIN_EMAIL}}', '{{COMPANY_PHONE}}', '{{DOMAIN}}', '{{COMPANY_DOMAIN}}', '{{SITE_URL}}', '{{COMPANY_WEBSITE}}',
+  '{{PRIMARY_COLOR}}', '{{SECONDARY_COLOR}}', '{{ACCENT_COLOR}}',
+]
+const NOT_AN_ADDRESS = /['"`\\<>{}$\r\n]/
+export function addressTokensChecked(tokens: Record<string, string>): Record<string, string> {
+  for (const k of ADDRESS_TOKENS) {
+    if (NOT_AN_ADDRESS.test(String(tokens[k] ?? ''))) throw new Error('The value given for ' + k.replace(/[{}]/g, '') + ' holds a character that cannot be part of it (a quote, a bracket, a backslash, a $ or a line break). Correct it and build again.')
   }
+  return tokens
 }
 
 
