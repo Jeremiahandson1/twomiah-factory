@@ -10,6 +10,18 @@ import { SITE_LOOKS, siteLookOf, type SiteDesign } from '../../../unified/server
 
 export { SITE_LOOKS }
 
+/**
+ * The look a business of this unified vertical is drawn in, for the look a visitor chose. The three looks on twomiah.com
+ * were made for the trades; a bar's page opens on its live Tonight board, its taps and its menu, which only the bar's
+ * own looks draw (core/vertical.ts: Game day, Tavern, Taproom) — in Foundry, Heritage or Studio the board is bare text
+ * (visual audit, 2026-11-12). So each choice is the bar look nearest it; no choice stays the vertical's own default.
+ */
+const BAR_LOOKS: Partial<Record<SiteDesign, SiteDesign>> = { foundry: 'gameday', heritage: 'tavern', studio: 'taproom' }
+export function lookForVertical(vertical: string | null | undefined, design: SiteDesign | null): SiteDesign | null {
+  if (!design || vertical !== 'bar') return design
+  return BAR_LOOKS[design] ?? null
+}
+
 export function requestedLook(v: unknown): { ok: true; design: SiteDesign | null } | { ok: false } {
   if (v === undefined || v === null || v === '') return { ok: true, design: null }
   const design = siteLookOf(v)
