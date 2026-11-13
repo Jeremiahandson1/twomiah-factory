@@ -67,6 +67,9 @@ export function composeOnePage(input: ComposerInput, site: WebPresenceSite, opts
   const picked = new Map<string, { cap: Capability; s: Section }>()
   for (const s of allowed) {
     if (s.variant === 'split-form') continue   // the lead form is the contact section's
+    // A menu read live from the CRM (a food truck's home: instantComposer.ts) has nothing to read here — a one-page site's
+    // menu is the items its owner types, so it starts without one, as it always has.
+    if (s.type === 'menu' && s.variant === 'sections') continue
     const cap = capabilityOf(caps, s)
     // "Order ahead" is a link the owner gives: a banner with no https address is just words, so it is left for the editor.
     if (cap?.id === 'orderLink' && !/^https:\/\//i.test(String(s.data?.primaryCta?.href ?? ''))) continue

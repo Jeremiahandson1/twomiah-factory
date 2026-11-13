@@ -16,7 +16,7 @@ const BASE = 'https://factory.example'
 
 const TRADES: Array<[vertical: string, industry: string]> = [
   ['contractor', 'General Contractor'], ['roofing', 'Roofing'], ['homecare', 'Home Care'], ['salon', 'Hair Salon'],
-  ['restaurant', 'Restaurant'], ['basic', 'Consulting'], ['store', 'Online Store'], ['fieldservice', 'Plumbing'], ['landscaping', 'Landscaping'],
+  ['restaurant', 'Restaurant'], ['foodtruck', 'Food Truck'], ['basic', 'Consulting'], ['store', 'Online Store'], ['fieldservice', 'Plumbing'], ['landscaping', 'Landscaping'],
 ]
 const tenant = (industry: string) => ({ name: 'Acme Co', industry, city: 'Eau Claire', state: 'WI', primary_color: '#FF3D00', intake_data: {}, products: ['website'] })
 const homeOf = (industry: string): any[] => (provisionSite(tenant(industry)) as any).pages.find((p: any) => p.slug === 'home').sections
@@ -90,6 +90,75 @@ describe('sample sections carry a marker, and the preview has them', () => {
     ]
     const out = withPreviewSamples(real, 'contractor', BASE).sections
     expect(out.filter((s) => s.type === 'services')).toEqual([real[1]])
+  })
+})
+
+// 2026-11-12: a food truck's preview was a dining room's — "Private dining", "Tasting menus", "How many guests can you
+// seat?" — under a photo of a shopkeeper. A food truck runs as a restaurant, but its preview is a food truck's.
+describe('a food truck', () => {
+  const truck = (industry: string) => renderUnifiedPreview({ businessName: 'Acme Eats', businessType: industry, city: 'Eau Claire', state: 'WI', vertical: 'restaurant', design: 'studio' })
+
+  test('its preview shows a truck, a sample menu and a sample week — not a dining room — however the trade is spelled', async () => {
+    for (const industry of ['food_truck', 'Food Truck', 'food truck']) {
+      const html = await truck(industry)
+      expect(html).toContain('/hero-library/foodtruck/')
+      expect(html).toContain('Menu (sample)')
+      expect(html).toContain('Sample price')
+      expect(html).toContain('This week (sample)')
+      for (const dining of ['Private dining', 'Tasting menus', 'how many guests can you seat', 'Past events (sample)']) expect(html).not.toContain(dining)
+      expect(html).not.toContain('/hero-library/generic/')
+    }
+    // A restaurant keeps the samples it had.
+    const restaurant = await renderUnifiedPreview({ businessName: 'Acme Eats', businessType: 'restaurant', city: 'Eau Claire', state: 'WI', vertical: 'restaurant', design: 'studio' })
+    expect(restaurant).toContain('Private dining')
+    expect(restaurant).not.toContain('Menu (sample)')
+  })
+
+  test('the sample menu stands where the real site\'s live menu is, and states no price', () => {
+    const real = homeOf('food_truck')
+    const live = real.filter((s) => s.type === 'menu')
+    // The build's menu is the live one: no item, no price — the menu entered in the CRM fills it.
+    expect(live).toEqual([{ type: 'menu', variant: 'sections', data: { heading: 'Menu', hideWhenEmpty: true, showSignatureLinks: false } }])
+    const { sections } = withPreviewSamples(real, 'foodtruck', BASE)
+    const menus = sections.filter((s) => s.type === 'menu')
+    expect(menus.length).toBe(1)
+    expect(isSampleSection(menus[0])).toBe(true)
+    expect(sections.findIndex((s) => s.type === 'menu')).toBe(real.findIndex((s) => s.type === 'menu'))
+    const items = menus[0].data.sections.flatMap((s: any) => s.items)
+    expect(items.length).toBeGreaterThanOrEqual(4)
+    for (const it of items) { expect(it.priceLabel).toBe('Sample price'); expect(it.name).toMatch(/^Sample/); expect('priceCents' in it).toBe(false) }
+    for (const d of sections.find((s) => s.type === 'schedule').data.days) expect(d.location).toMatch(/^Sample/)
+  })
+
+  test('the real home page draws no menu until there is one, then draws the menu that was entered', async () => {
+    const { renderSitePreview } = await import('../../../apps/unified/server/site/signupPreview')
+    const draw = (sections: any[]) => renderSitePreview({ vertical: 'restaurant', design: 'studio', company: { name: 'Acme Eats', primaryColor: '#FF3D00' }, settings: {}, sections, features: [] })
+    const real = homeOf('food_truck')
+    const empty = await draw(real)
+    expect(empty).not.toContain('class="menu-full"')
+    expect(empty).not.toContain('being typed up')
+    expect(empty).not.toContain('(sample')
+    // The same section with a menu behind it (the page's fallback list stands in for the CRM's here).
+    const entered = real.map((s) => s.type === 'menu' ? { ...s, data: { ...s.data, sections: [{ slug: 'mains', name: 'Mains', items: [{ slug: 'pasty', name: 'Beef pasty', priceCents: 900 }] }] } } : s)
+    const filled = await draw(entered)
+    expect(filled).toContain('class="menu-full"')
+    expect(filled).toContain('Beef pasty')
+    expect(filled).toContain('$9')
+    // A menu PAGE (no hideWhenEmpty) still says so when the menu is empty: the bar's, unchanged.
+    expect(await draw([{ type: 'menu', variant: 'sections', data: { asHeading: true } }])).toContain('being typed up')
+  })
+
+  test('the one-page site (no CRM behind it) starts without the live menu, as before', async () => {
+    const { composeOnePage } = await import('../../../apps/api/src/webPresence/compose')
+    const pages = composeInstant({ businessName: 'Acme Eats', businessType: 'food_truck', city: 'Eau Claire', state: 'WI', email: 'o@acme.example' } as any).pages
+    expect(pages.home.some((s: any) => s.type === 'menu')).toBe(true)
+    expect(composeOnePage({ businessName: 'Acme Eats', businessType: 'food_truck', email: 'o@acme.example' } as any, { pages } as any, {}).model.sections.map((s) => s.type)).not.toContain('menu')
+  })
+
+  test('no other trade\'s home gains a menu', () => {
+    for (const industry of ['restaurant', 'Restaurant', 'cafe', 'bakery', 'catering', 'roofing', 'home_care', 'salon', 'Consulting', 'retail']) {
+      expect([industry, homeOf(industry).some((s) => s.type === 'menu')]).toEqual([industry, false])
+    }
   })
 })
 

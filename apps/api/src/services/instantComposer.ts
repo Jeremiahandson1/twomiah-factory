@@ -345,6 +345,10 @@ export function composeInstant(input: ComposerInput): SiteResult {
       primaryCta: kind === 'store' ? { label: 'Shop now', href: 'shop' } : contactCta,
     }),
     kind === 'homecare' ? { type: 'care', variant: 'finder', data: careFinder() } : null,
+    // A food truck's home answers "what do you serve": its menu, live from the menu entered in the CRM (the section the
+    // site's own /menu page is: site/routes.ts). Nothing is composed — no item, no price — and until a menu is entered
+    // the section draws nothing (hideWhenEmpty), so a new truck's home never says its menu is "being typed up".
+    kind === 'foodtruck' ? { type: 'menu', variant: 'sections', data: { heading: 'Menu', hideWhenEmpty: true, showSignatureLinks: false } } : null,
     // A store's home is its products, live from its catalogue (the site fills shop/grid; store live test, 2026-10-26).
     kind === 'store' ? { type: 'shop', variant: 'grid', data: {} } : null,
     bookingSection(),

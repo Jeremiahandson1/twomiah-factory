@@ -158,7 +158,10 @@ export const HERO_LIBRARY: Record<string, HeroImage[]> = {
 // Same businessType → group logic as the composer's recipe chain (kept in
 // sync manually, like the two recipe-selection chains already are).
 export function pickHeroGroup(businessType: string): string {
-  const t = (businessType || '').toLowerCase()
+  // A signup sends its trade as a stored value — 'food_truck', 'home_care' — and free text says "food truck": both are
+  // read as words. (Read raw, 'food_truck' and 'home_care' matched nothing below and took the generic shop photos — a
+  // food truck's and a home-care agency's hero was a shopkeeper at a shop door, 2026-11-12.)
+  const t = (businessType || '').toLowerCase().replace(/_+/g, ' ')
   const rx = (parts: string[]) => parts.some(p => t.includes(p))
   if (rx(['food truck', 'foodtruck', 'food cart', 'mobile food', 'mobile kitchen'])) return 'foodtruck'
   if (rx(['roof', 'gutter', 'siding'])) return 'roofing'

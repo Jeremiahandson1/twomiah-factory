@@ -7,6 +7,9 @@
   const S = (typeof site !== 'undefined' && site && Array.isArray(site.menu) && site.menu.length) ? site.menu : (Array.isArray(data.sections) ? data.sections : [])
   const kind = data.kind || 'all'
   const sections = S.filter(s => s && Array.isArray(s.items) && s.items.length && (kind === 'all' || (s.kind || 'food') === kind))
+  // On a home page (a food truck's: instantComposer.ts) the menu shows once there is one; with none it draws nothing,
+  // not the "being typed up" line a menu PAGE shows.
+  if (!sections.length && data.hideWhenEmpty) return
   const heading = data.heading || 'The menu'
   const intro = data.intro || ''
   const H = data.asHeading ? 'h1' : 'h2'

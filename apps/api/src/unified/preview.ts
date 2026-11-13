@@ -14,6 +14,7 @@
 import { engineForSignup, provisionSite, unifiedFeatures, unifiedVerticalFor } from './factory'
 import { SAMPLE_BANNER, withPreviewSamples } from '../config/previewSamples'
 import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
+import { verticalFor } from '../config/industryRouting'
 
 /** The colour a signup starts with when the form sends none (routes/factory/intake.ts POST /public/signup). */
 export const SIGNUP_DEFAULT_COLOUR = '#FF3D00'
@@ -33,7 +34,9 @@ export async function renderUnifiedPreview(i: { businessName: string; businessTy
   const site: any = provisionSite(tenant)
   const home = (site.pages as any[]).find((p) => p.slug === 'home')
   if (!home) throw new Error('the composer made no home page')
-  const samples = withPreviewSamples(home.sections, i.vertical)
+  // A food truck runs as a restaurant (unifiedVerticalFor) but is not one to look at: its samples are its own — a menu,
+  // this week's stops, the truck — not a dining room's private events.
+  const samples = withPreviewSamples(home.sections, verticalFor(i.businessType) === 'foodtruck' ? 'foodtruck' : i.vertical)
   // The self-hosted stock the samples use must be credited like anywhere else it is shown.
   const credits = heroCreditsForUrls(collectImageUrls(samples.imageUrls))
   const { renderSitePreview } = await import('../../../unified/server/site/signupPreview')
