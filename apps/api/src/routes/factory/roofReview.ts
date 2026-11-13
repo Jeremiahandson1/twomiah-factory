@@ -90,7 +90,7 @@ factory.get('/roof-review/:reportId/data', authenticate, async (c) => {
   if (!backendUrl || !syncKey) return c.json({ error: 'Tenant backend not configured' }, 400)
 
   // Fetch report data from tenant CRM
-  const res = await fetch(`${backendUrl}/api/internal/roof-reports/${encodeURIComponent(reportId)}`, {
+  const res = await fetch(`${backendUrl}/api/internal/roof-reports/${encodeURIComponent(String(reportId))}`, {
     headers: { 'X-Factory-Key': syncKey },
   })
   if (!res.ok) return c.json({ error: 'Failed to fetch from tenant' }, res.status as any)
@@ -119,7 +119,7 @@ factory.post('/roof-review/:reportId/approve', authenticate, async (c) => {
   if (!backendUrl || !syncKey) return c.json({ error: 'Tenant backend not configured' }, 400)
 
   // Send approval to tenant CRM
-  const res = await fetch(`${backendUrl}/api/internal/roof-reports/${encodeURIComponent(reportId)}/approve`, {
+  const res = await fetch(`${backendUrl}/api/internal/roof-reports/${encodeURIComponent(String(reportId))}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
     body: JSON.stringify({ edges, measurements }),

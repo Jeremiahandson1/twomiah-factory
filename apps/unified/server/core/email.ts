@@ -46,9 +46,31 @@ function createTransporter(provider: EmailProvider): Transporter | null {
   }
 }
 
-/** Text a person typed, made safe to put in an email's HTML. */
+/**
+ * Text a person typed, made safe to put in an email's HTML. Escaping twice changes nothing (an `&` that already begins one
+ * of these five is left), so a message that escapes a value `send` has already made safe (htmlSafeData) prints it once.
+ */
 export function escHtml(v: unknown): string {
-  return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  return String(v ?? '').replace(/&(?!(?:amp|lt|gt|quot|#39);)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+/**
+ * A message's data with every piece of text made safe for HTML, however deep it sits — what `send` hands a template to
+ * build the HTML part. The words in a message come from outside (a customer's name, what a visitor typed into a public
+ * form, a note), and the older messages pasted them into the HTML as they came: a visitor could put markup of their own
+ * into an email the business sends, to its staff or to a customer. One rule at the one door every registered message
+ * goes through, so a message that forgets to escape cannot paste markup. (Security review S4-5, 2026-11-13)
+ * Left as they are: numbers, dates and flags, and a field that IS the message's own markup (`html`, or a name ending Html).
+ */
+export function htmlSafeData<T>(value: T, depth = 0): T {
+  if (typeof value === 'string') return escHtml(value) as unknown as T
+  if (!value || typeof value !== 'object' || depth > 8) return value
+  if (Array.isArray(value)) return value.map((v) => htmlSafeData(v, depth + 1)) as unknown as T
+  const proto = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return value   // a Date, a Buffer, a number type: not text
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = k === 'html' || /Html$/.test(k) ? v : htmlSafeData(v, depth + 1)
+  return out as T
 }
 
 /** What a message needs to know about the company sending it. */
@@ -160,7 +182,10 @@ export function createEmailService(deps: { db: any; logger: Logger }) {
     const template = templates[templateName]
     if (!template) throw new Error(`Email template '${templateName}' not found`)
     const b = await brand()
-    const { subject, html: styledHtml, text } = template(data, b, appUrl())
+    // The subject and the plain-text part are built from the words as they are; the HTML part from the same words made
+    // safe for HTML (htmlSafeData) — the company's own name included.
+    const { subject, text } = template(data, b, appUrl())
+    const { html: styledHtml } = template(htmlSafeData(data), { ...b, companyName: escHtml(b.companyName) }, appUrl())
     const html = inlineButtonColours(styledHtml, b)
 
     // Without a provider, development logs the message; production refuses, because a clean return would let the

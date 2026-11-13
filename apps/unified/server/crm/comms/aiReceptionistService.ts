@@ -227,10 +227,10 @@ export function createAiReceptionistService(d: CrmDeps) {
     }
   }
 
-  /** Through the app's one email service. */
+  /** Through the app's one email service. The words in it are a caller's (their name, their message): text, never markup. */
   async function sendEmail(to: string, subject: string, body: string) {
     try {
-      const result: any = await d.services.emailService.sendRaw({ to, subject, html: `<pre style="font-family:inherit;white-space:pre-wrap">${body}</pre>` })
+      const result: any = await d.services.emailService.sendRaw({ to, subject, html: `<pre style="font-family:inherit;white-space:pre-wrap">${String(body ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))}</pre>` })
       if (!result?.success) logger.error('[AIReceptionist] Notification email failed')
     } catch (error: any) {
       logger.error('[AIReceptionist] Failed to send email', { error: error?.message })
