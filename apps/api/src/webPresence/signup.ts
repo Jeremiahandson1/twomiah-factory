@@ -3,6 +3,7 @@
 // and there is no CRM or Render build at all. Everything outside is injected so a test makes no live call.
 import { requireWebPresence, WEB_PRESENCE_PLAN_ID, WEB_PRESENCE_PRICE_USD } from './switch.ts'
 import { verticalFor } from '../config/industryRouting'
+import { signupSlug } from '../services/signupBody'
 
 export interface SignupDeps {
   db: any
@@ -34,7 +35,8 @@ export async function webPresenceRecord(body: any, d: Pick<SignupDeps, 'allocate
   if (name.length < 2) return { ok: false, result: { status: 400, body: { error: 'Company name is required (min 2 characters)' } } }
   if (!email.includes('@')) return { ok: false, result: { status: 400, body: { error: 'Valid email is required' } } }
 
-  const base = clean(body?.slug, 60) || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  // Letters, digits and dashes only, whoever typed it: the slug names the customer's site (security review S5-7).
+  const base = signupSlug(body?.slug) || signupSlug(name)
   if (!base) return { ok: false, result: { status: 400, body: { error: 'Company name is required (min 2 characters)' } } }
   const slug = await d.allocateSlug(base)
   if (!slug) return { ok: false, result: { status: 503, body: { error: 'We could not reserve a name for your account just now. Please try again in a few minutes.' } } }

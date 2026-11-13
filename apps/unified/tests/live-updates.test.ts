@@ -73,6 +73,22 @@ describe('live updates', () => {
     mine.ws.close()
   })
 
+  test('an event says WHICH record, never what is in it (security review, 2026-11-13)', async () => {
+    // Every signed-in person of the business hears every event, whatever they may read — so the record itself stays
+    // on the server, where each screen asks for it under that person's own permissions.
+    const mine = await open((await (await ticket()).json()).ticket)
+    const co = await t.services.companyId()
+    t.services.realtime.emitToCompany(co!, 'invoice:created', {
+      id: 'inv-1', number: 'INV-00042', total: '4250.00', contactId: 'c-9', notes: 'Kitchen, second draw',
+      contact: { name: 'Pat Client', email: 'pat@example.com' }, lineItems: [{ description: 'Cabinets', unitPrice: '4250.00' }],
+    })
+    expect(await until(() => mine.got.some((m) => m.event === 'invoice:created'))).toBe(true)
+    const heard = mine.got.find((m) => m.event === 'invoice:created')
+    expect(heard.data).toEqual({ id: 'inv-1', contactId: 'c-9' })
+    expect(JSON.stringify(mine.got)).not.toMatch(/4250|Pat Client|pat@example\.com|Cabinets|INV-00042/)
+    mine.ws.close()
+  })
+
   test("another company's events never arrive", async () => {
     const mine = await open((await (await ticket()).json()).ticket)
     t.services.realtime.emitToCompany('another-company', 'contact:created', { id: 'x' })

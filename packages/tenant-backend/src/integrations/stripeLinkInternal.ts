@@ -45,7 +45,8 @@ export function createStripeLinkInternalRoutes(deps: StripeLinkInternalDeps) {
     else if (pending.userId !== userId) refusal = { status: 403, error: 'This Stripe sign-in was started by someone else' }
     else if (accountId) {
       const [who] = await db.select({ role: t.user.role, isActive: t.user.isActive }).from(t.user).where(and(eq(t.user.id, userId), eq(t.user.companyId, row.id))).limit(1)
-      if (!who || who.isActive === false || !['owner', 'admin'].includes(who.role)) refusal = { status: 403, error: 'Only an owner or admin can link a Stripe account' }
+      // The owner, still the owner when the hand-over arrives (integrations.ts payoutOwnerOnly: where the money goes is the owner's to set).
+      if (!who || who.isActive === false || who.role !== 'owner') refusal = { status: 403, error: 'Only the owner can link a Stripe account' }
       else if (integrations.stripeAccountId) refusal = { status: 409, error: 'Stripe is already connected' }
     }
     if (!refusal && accountId) Object.assign(integrations, { stripeAccountId: accountId, stripeAccountSource: 'oauth' })

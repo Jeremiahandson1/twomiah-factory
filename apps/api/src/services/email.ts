@@ -4,6 +4,7 @@
  * Gracefully no-ops if RESEND_API_KEY is not configured.
  */
 
+import { withoutCredentials } from '../lib/redact'
 import { verticalFor, crmTemplateFor } from '../config/industryRouting'
 import { planFor } from '../config/planSeats'
 import { ownerFirstName } from './tenantOwner'
@@ -109,12 +110,21 @@ function wrap(title: string, body: string): string {
 }
 
 function btn(url: string, label: string): string {
-  return `<a href="${url}" style="display:inline-block;background:#f97316;color:#ffffff;padding:14px 30px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0 4px;">${label}</a>`
+  return `<a href="${escHtml(url)}" style="display:inline-block;background:#f97316;color:#ffffff;padding:14px 30px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0 4px;">${label}</a>`
 }
 
+// Every value in these emails that came from outside (a business's name, a visitor's message, an address typed into a public
+// form) is TEXT: kv escapes it. Markup the email itself builds (a link to an address we made) goes through kvHtml, with the
+// outside part escaped by the caller. (Security review S5-9: a public form's words were pasted in as HTML, so anyone could
+// have Twomiah send a page of their own design — to our staff, or to any address they named.)
 function kv(label: string, value: string): string {
-  return `<p style="margin:4px 0;color:#333;"><strong style="color:#666;">${label}:</strong> ${value}</p>`
+  return kvHtml(label, escHtml(value))
 }
+function kvHtml(label: string, html: string): string {
+  return `<p style="margin:4px 0;color:#333;"><strong style="color:#666;">${label}:</strong> ${html}</p>`
+}
+/** A link whose address and words are the same outside value. */
+const linkTo = (href: string) => `<a href="${escHtml(href)}">${escHtml(href)}</a>`
 
 // ─── Who the email is to, and what they bought ───────────────────────────────
 // Every vertical's welcome and ready email is built here, so these are rules for all of them (Run 3, 10/16: the home
@@ -185,7 +195,7 @@ export function buildWelcomeEmail(tenant: WelcomeTenant, ownerFirst: string | nu
   const first = firstNameOf(ownerFirst)
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Welcome aboard${first ? ', ' + escHtml(first) : ''}! Your <strong>Twomiah ${product}</strong> account for <strong>${tenant.name}</strong> has been created.</p>
+    <p style="color:#333;line-height:1.6;">Welcome aboard${first ? ', ' + escHtml(first) : ''}! Your <strong>Twomiah ${product}</strong> account for <strong>${escHtml(tenant.name)}</strong> has been created.</p>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
       ${kv('Company', tenant.name)}
       ${kv('Plan', planDisplayName(tenant.plan))}
@@ -211,13 +221,13 @@ export async function notifyProvisionFailure(
 ): Promise<boolean> {
   const to = process.env.STAFF_NOTIFY_EMAIL || 'support@twomiah.com'
   const body = `
-    <p style="color:#333;line-height:1.6;"><strong>${stage}</strong> failed for tenant <strong>${tenant.name || tenant.slug || tenant.id || 'unknown'}</strong>.</p>
+    <p style="color:#333;line-height:1.6;"><strong>${escHtml(stage)}</strong> failed for tenant <strong>${escHtml(tenant.name || tenant.slug || tenant.id || 'unknown')}</strong>.</p>
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
       ${kv('Tenant', `${tenant.name || '?'} (${tenant.slug || '?'})`)}
       ${kv('Tenant id', tenant.id || '?')}
       ${kv('Customer email', tenant.email || '?')}
       ${kv('Stage', stage)}
-      ${kv('Error', detail.slice(0, 500))}
+      ${kv('Error', withoutCredentials(detail).slice(0, 500))}
     </div>
     <p style="color:#333;line-height:1.6;">If this customer has paid, fix and redeploy from the platform console ASAP — they were told ~10&ndash;15 minutes.</p>`
   return sendEmail(to, `⚠ Provisioning failed: ${tenant.slug || tenant.id || 'tenant'} (${stage})`, wrap('Provisioning failure', body))
@@ -230,9 +240,9 @@ export async function notifyMessagingEnabled(
 ): Promise<boolean> {
   if (!tenant.email) return false
   const body = `
-    <p style="color:#333;line-height:1.6;"><strong>${label}</strong> is now enabled for <strong>${tenant.name || 'your account'}</strong>.</p>
+    <p style="color:#333;line-height:1.6;"><strong>${escHtml(label)}</strong> is now enabled for <strong>${escHtml(tenant.name || 'your account')}</strong>.</p>
     <p style="color:#333;line-height:1.6;">Usage (texts, AI, registration) is billed <strong>at cost</strong> from a prepaid wallet. Add funds and manage everything anytime:</p>
-    <p style="margin:20px 0;"><a href="${portalUrl}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Manage billing &amp; add funds &rarr;</a></p>`
+    <p style="margin:20px 0;"><a href="${escHtml(portalUrl)}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Manage billing &amp; add funds &rarr;</a></p>`
   return sendEmail(tenant.email, `${label} enabled — manage your usage wallet`, wrap(`${label} enabled`, body))
 }
 
@@ -247,7 +257,7 @@ export async function notifyMessagingLowBalance(
       ${kv('Current balance', bal)}
     </div>
     <p style="color:#333;line-height:1.6;">Top up now to keep your texts and AI sending — it takes a minute, and everything is billed at cost.</p>
-    <p style="margin:20px 0;"><a href="${portalUrl}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Top up your wallet &rarr;</a></p>`
+    <p style="margin:20px 0;"><a href="${escHtml(portalUrl)}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Top up your wallet &rarr;</a></p>`
   return sendEmail(tenant.email, 'Action needed: your messaging wallet is low', wrap('Top up your usage wallet', body))
 }
 
@@ -306,10 +316,10 @@ export function buildDeployCompleteEmail(tenant: ReadyTenant, urls: ReadyUrls, o
     : null
 
   const urlLines: string[] = []
-  if (urls.deployedUrl) urlLines.push(kv(isStore ? 'Store admin (products, orders, payments)' : 'CRM', `<a href="${urls.deployedUrl}">${urls.deployedUrl}</a>`))
-  if (friendlySiteUrl) urlLines.push(kv(isStore ? 'Storefront' : 'Website', `<a href="${friendlySiteUrl}">${friendlySiteUrl}</a>`))
-  if (websiteAdminUrl) urlLines.push(kv(isStore ? 'Storefront content editor' : 'Website admin', `<a href="${websiteAdminUrl}">${websiteAdminUrl}</a>`))
-  if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kv('API', `<a href="${urls.apiUrl}">${urls.apiUrl}</a>`))
+  if (urls.deployedUrl) urlLines.push(kvHtml(isStore ? 'Store admin (products, orders, payments)' : 'CRM', linkTo(urls.deployedUrl)))
+  if (friendlySiteUrl) urlLines.push(kvHtml(isStore ? 'Storefront' : 'Website', linkTo(friendlySiteUrl)))
+  if (websiteAdminUrl) urlLines.push(kvHtml(isStore ? 'Storefront content editor' : 'Website admin', linkTo(websiteAdminUrl)))
+  if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kvHtml('API', linkTo(urls.apiUrl)))
 
   // NEVER put a password in email (plaintext at rest in the recipient's inbox,
   // forwarded threads, compromised accounts). Signup collects the password; if
@@ -318,7 +328,7 @@ export function buildDeployCompleteEmail(tenant: ReadyTenant, urls: ReadyUrls, o
   const passwordLine = `<p style="color:#333;line-height:1.6;">Log in with the email and password you chose at signup.<br><span style="color:#666;font-size:13px;">Didn&rsquo;t set one, or forgot it? Click <strong>Forgot password</strong> on the login page and we&rsquo;ll email you a secure link to set it.</span></p>`
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Great news${first ? ', ' + escHtml(first) : ''}! Your <strong>Twomiah ${isStore ? 'store' : product + ' CRM'}</strong> for <strong>${tenant.name}</strong> is ready to use.</p>
+    <p style="color:#333;line-height:1.6;">Great news${first ? ', ' + escHtml(first) : ''}! Your <strong>Twomiah ${isStore ? 'store' : product + ' CRM'}</strong> for <strong>${escHtml(tenant.name)}</strong> is ready to use.</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;color:#166534;font-weight:600;">&#10003; Your ${isStore ? 'store' : 'CRM'} is live</p>
       ${urlLines.join('\n      ')}
@@ -382,15 +392,16 @@ export async function notifyDeployFailed(
   notifyProvisionFailure(tenant, 'Deploy', error).catch(() => {})
   if (!tenant.email) return false
 
+  // The customer is told what it means for THEM, never the internal error: that text is staff's (above), and it can name
+  // internal addresses or hold a credential (security review S5-10).
   const body = `
-    <p style="color:#333;line-height:1.6;">The deployment for <strong>${tenant.name}</strong> (<code>${tenant.slug}</code>) has failed.</p>
-    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
-      <p style="margin:0 0 8px;color:#991b1b;font-weight:600;">&#10007; Deployment Failed</p>
-      <p style="margin:0;color:#991b1b;font-family:monospace;font-size:13px;word-break:break-all;">${error}</p>
+    <p style="color:#333;line-height:1.6;">We hit a problem while setting up <strong>${escHtml(tenant.name)}</strong>, so it is not ready yet.</p>
+    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0;color:#92400e;">Our team has been told and is working on it. You do not need to do anything, and we will email you as soon as it is ready.</p>
     </div>
-    <p style="color:#666;font-size:14px;">Check the Factory dashboard for details or retry the deployment.</p>`
+    <p style="color:#666;font-size:14px;">Questions? Just reply to this email.</p>`
 
-  return sendEmail(tenant.email, 'Deployment Failed: ' + tenant.name, wrap('Deployment Failed', body))
+  return sendEmail(tenant.email, 'We are still setting up ' + tenant.name, wrap('Your setup is taking longer', body))
 }
 
 export async function notifyNewTicket(
@@ -408,7 +419,7 @@ export async function notifyNewTicket(
       ${kv('Priority', ticket.priority)}
       ${ticket.category ? kv('Category', ticket.category) : ''}
     </div>
-    ${ticket.description ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Description:</strong><br>${ticket.description.substring(0, 500)}</p>` : ''}
+    ${ticket.description ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Description:</strong><br>${escHtml(ticket.description.substring(0, 500))}</p>` : ''}
     <p style="color:#666;font-size:14px;">Our team will respond as soon as possible.</p>`
 
   return sendEmail(to, 'Ticket Created: ' + ticket.number + ' — ' + ticket.subject, wrap('New Support Ticket', body))
@@ -425,13 +436,13 @@ export async function notifyTicketReply(
   const senderLabel = message.sender_name || (message.sender_type === 'agent' ? 'Support Agent' : 'Customer')
 
   const body = `
-    <p style="color:#333;line-height:1.6;">A new reply has been added to ticket <strong>${ticket.number}</strong>.</p>
+    <p style="color:#333;line-height:1.6;">A new reply has been added to ticket <strong>${escHtml(ticket.number)}</strong>.</p>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
       ${kv('Ticket', ticket.number + ' — ' + ticket.subject)}
       ${kv('From', senderLabel)}
     </div>
     <div style="background:#f8f8fa;border-radius:6px;padding:16px;margin:16px 0;">
-      <p style="margin:0;color:#333;line-height:1.6;white-space:pre-wrap;">${message.body.substring(0, 1000)}</p>
+      <p style="margin:0;color:#333;line-height:1.6;white-space:pre-wrap;">${escHtml(message.body.substring(0, 1000))}</p>
     </div>`
 
   return sendEmail(to, 'Reply on ' + ticket.number + ': ' + ticket.subject, wrap('Ticket Reply', body))
@@ -461,7 +472,7 @@ export async function notifyNewIntake(
   const to = process.env.INTAKE_NOTIFY_EMAIL || 'support@twomiah.com'
 
   const photoLinks = (data.photoUrls || [])
-    .map((u, i) => '<a href="' + u + '" target="_blank">Photo ' + (i + 1) + '</a>')
+    .map((u, i) => '<a href="' + escHtml(u) + '" target="_blank">Photo ' + (i + 1) + '</a>')
     .join(' &nbsp;Â·&nbsp; ')
 
   const body = `
@@ -469,14 +480,14 @@ export async function notifyNewIntake(
     <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:16px;margin:16px 0;">
       ${kv('Business', data.businessName)}
       ${kv('Type', data.businessType)}
-      ${kv('Email', '<a href="mailto:' + data.contactEmail + '">' + data.contactEmail + '</a>')}
+      ${kvHtml('Email', '<a href="mailto:' + escHtml(data.contactEmail) + '">' + escHtml(data.contactEmail) + '</a>')}
       ${data.contactPhone ? kv('Phone', data.contactPhone) : ''}
-      ${data.currentSite ? kv('Current site', '<a href="' + data.currentSite + '" target="_blank">' + data.currentSite + '</a>') : ''}
+      ${data.currentSite ? (/^https?:\/\//i.test(data.currentSite) ? kvHtml('Current site', linkTo(data.currentSite)) : kv('Current site', data.currentSite)) : ''}
       ${data.brandColors ? kv('Brand / colors', data.brandColors) : ''}
     </div>
-    ${data.logoUrl ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Logo:</strong> <a href="${data.logoUrl}" target="_blank">Download</a> &nbsp; <span style="color:#888;font-size:12px;">(link expires in 7 days; regenerate from platform if older)</span></p>` : ''}
+    ${data.logoUrl ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Logo:</strong> <a href="${escHtml(data.logoUrl)}" target="_blank">Download</a> &nbsp; <span style="color:#888;font-size:12px;">(link expires in 7 days; regenerate from platform if older)</span></p>` : ''}
     ${photoLinks ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Reference photos:</strong> ${photoLinks}</p>` : ''}
-    ${data.notes ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Notes:</strong><br>${data.notes.substring(0, 2000).replace(/\n/g, '<br>')}</p>` : ''}
+    ${data.notes ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Notes:</strong><br>${escHtml(data.notes.substring(0, 2000)).replace(/\n/g, '<br>')}</p>` : ''}
     ${data.intakeId ? btn('https://twomiah-factory-platform.onrender.com/tenants/' + data.intakeId, 'View in Factory Platform') : ''}`
 
   return sendEmail(to, 'New website intake: ' + data.businessName, wrap('New Local-Business Intake', body))
@@ -504,7 +515,7 @@ export async function notifyPreviewReady(
       ${gaps.map(g => `<p style="margin:0 0 8px;color:#1a1a1a;font-size:14px;line-height:1.5;"><strong>${esc(g.label)}</strong><br><span style="color:#555;">${esc(g.unlocks)}</span></p>`).join('')}
     </div>` : ''
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${data.businessName}</strong> website preview is ready.</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${escHtml(data.businessName)}</strong> website preview is ready.</p>
     <p style="color:#333;line-height:1.6;">This is a draft of what your site could look like, built from what you shared at sign-up. It's meant to show you the <em>shape</em> of the site — the structure, voice, and direction. The small details (the exact copy, the photos, the specific service descriptions) are yours to fine-tune once you're in.</p>
     ${btn(data.previewUrl, 'View your preview')}${gapsBlock}
     <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;"><strong>When the direction feels right,</strong> hit "Approve &amp; build my site" on the preview page. We'll deploy the live version within an hour of payment clearing, and you'll get login details to swap photos, edit copy, and add your own touches through a simple editor — no code, no design tools to learn.</p>
@@ -521,7 +532,7 @@ export async function notifyPostLaunchTips(
   data: { to: string; businessName: string; siteUrl: string; adminUrl: string }
 ): Promise<boolean> {
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — your <strong>${data.businessName}</strong> site has been live for a day. Here's what most owners do this week to make it work harder for them:</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — your <strong>${escHtml(data.businessName)}</strong> site has been live for a day. Here's what most owners do this week to make it work harder for them:</p>
     <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
       <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">1. Share the link with three customers who'd say nice things</p>
       <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">Their reactions are honest. Their feedback is gold. Their referrals are the cheapest marketing you'll ever pay for.</p>
@@ -545,7 +556,7 @@ export async function notifyPreviewFollowup(
   data: { to: string; businessName: string; previewUrl: string }
 ): Promise<boolean> {
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — just checking in on your <strong>${data.businessName}</strong> website preview.</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — just checking in on your <strong>${escHtml(data.businessName)}</strong> website preview.</p>
     <p style="color:#333;line-height:1.6;">You opened the draft yesterday. If anything wasn't right, hit the <strong>Request changes</strong> button on any page and we'll send you an updated version in 1–2 minutes. We can iterate as many times as you want — there's no charge to revise.</p>
     ${btn(data.previewUrl, 'Open your preview')}
     <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When you're happy, the <strong>Approve &amp; build my site</strong> button on the preview takes you to checkout. Live site within 10 minutes after that.</p>
@@ -566,10 +577,10 @@ export async function notifyIntakeFeedback(
 
   const escaped = data.message.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c))
   const body = `
-    <p style="color:#333;line-height:1.6;">New preview feedback from <strong>${data.businessName}</strong>${data.contactEmail ? ' (' + data.contactEmail + ')' : ''}:</p>
+    <p style="color:#333;line-height:1.6;">New preview feedback from <strong>${escHtml(data.businessName)}</strong>${data.contactEmail ? ' (' + escHtml(data.contactEmail) + ')' : ''}:</p>
     <div style="background:#f8f8fa;border-left:3px solid #f97316;padding:14px 18px;margin:16px 0;border-radius:4px;white-space:pre-wrap;color:#1a1a1a;line-height:1.55;">${escaped}</div>
     <p style="color:#666;font-size:14px;">Open Premium Review on the platform to see all feedback for this intake and trigger a recompose.</p>
-    <p style="color:#999;font-size:12px;">Intake: <code>${data.intakeId}</code></p>`
+    <p style="color:#999;font-size:12px;">Intake: <code>${escHtml(data.intakeId)}</code></p>`
   return sendEmail(to, `[Preview feedback] ${data.businessName}`, wrap('Preview feedback received', body))
 }
 
@@ -674,7 +685,7 @@ export async function notifyDomainRenewal(
   const body = `
     ${greeting(await ownerOf(tenant))}
     ${renewalBanner(daysRemaining, 'domain')}
-    <p style="color:#333;line-height:1.6;">We're reaching out ahead of the auto-renewal so there are no surprises. Your domain <strong>${tenant.domain || '(unnamed)'}</strong> is set to renew automatically.</p>
+    <p style="color:#333;line-height:1.6;">We're reaching out ahead of the auto-renewal so there are no surprises. Your domain <strong>${escHtml(tenant.domain || '(unnamed)')}</strong> is set to renew automatically.</p>
     <p style="color:#666;font-size:14px;">If your website, email, or CRM depend on this domain (they do), a lapsed renewal means downtime. Updating your payment method now avoids it.</p>
     ${cta}`
   return sendEmail(to, subject, wrap('Domain Renewal Coming Up', body))
@@ -692,7 +703,7 @@ export async function notifyDomainRenewalPaymentNeeded(
   const subject = `Action needed: renew ${tenant.domain || 'your domain'} before ${when}`
   const body = `
     ${greeting(await ownerOf(tenant))}
-    <p style="color:#333;line-height:1.6;">Your domain <strong>${tenant.domain || ''}</strong> is due to renew on <strong>${when}</strong>. We tried to charge the renewal (${amount} for one year) to your card on file and it did not go through.</p>
+    <p style="color:#333;line-height:1.6;">Your domain <strong>${escHtml(tenant.domain || '')}</strong> is due to renew on <strong>${when}</strong>. We tried to charge the renewal (${amount} for one year) to your card on file and it did not go through.</p>
     <p style="color:#333;line-height:1.6;">Pay it below and we will renew the domain straight away. If it is not paid by ${when}, the domain lapses — and your website and email on it stop working.</p>
     ${o.hostedUrl ? btn(o.hostedUrl, 'Pay ' + amount + ' and renew') : ''}`
   return sendEmail(to, subject, wrap('Domain Renewal Payment Needed', body))
@@ -742,7 +753,7 @@ export async function notifyOffboardStarted(
     </div>
     <ul style="color:#333;line-height:1.8;font-size:14px;padding-left:20px;">
       <li>Your subscription is cancelled at the end of the current billing period (no further charges).</li>
-      <li>Your domain ${tenant.domain ? '<strong>' + tenant.domain + '</strong>' : ''} has been unlocked for transfer — a separate email with the auth (EPP) code is on its way.</li>
+      <li>Your domain ${tenant.domain ? '<strong>' + escHtml(tenant.domain) + '</strong>' : ''} has been unlocked for transfer — a separate email with the auth (EPP) code is on its way.</li>
       <li>A data export (CSV + JSON) will be emailed to you shortly.</li>
       <li>After ${graceStr}, your Render services and Cloudflare zone are decommissioned.</li>
     </ul>
@@ -759,9 +770,9 @@ export async function notifyEppCode(
   if (!to) return false
   const body = `
     ${greeting(await ownerOf(tenant))}
-    <p style="color:#333;line-height:1.6;">Here's the EPP authorization code for transferring <strong>${tenant.domain || '(your domain)'}</strong> to another registrar.</p>
+    <p style="color:#333;line-height:1.6;">Here's the EPP authorization code for transferring <strong>${escHtml(tenant.domain || '(your domain)')}</strong> to another registrar.</p>
     <div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:16px;margin:16px 0;font-family:monospace;word-break:break-all;">
-      ${eppCode}
+      ${escHtml(eppCode)}
     </div>
     <p style="color:#333;line-height:1.6;font-size:14px;"><strong>How to use it:</strong></p>
     <ol style="color:#333;line-height:1.8;font-size:14px;padding-left:20px;">
@@ -801,10 +812,10 @@ export async function notifyLicenseHandover(
   const exp = o.export ? o.export.expiresAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
   const body = `
     ${greeting(await ownerOf(tenant))}
-    <p style="color:#333;line-height:1.6;">Thank you — your payment of <strong>${money}</strong> for ${tenant.name}'s own-it licence is in. Here is your handover.</p>
+    <p style="color:#333;line-height:1.6;">Thank you — your payment of <strong>${money}</strong> for ${escHtml(tenant.name)}'s own-it licence is in. Here is your handover.</p>
     <p style="color:#333;line-height:1.6;"><strong>Your code.</strong> ${o.repoInvited
-      ? `We invited the GitHub account <strong>${o.githubUsername}</strong> to <a href="${o.repoUrl}">${o.repoUrl.replace('https://github.com/', '')}</a>. Accept the invitation from GitHub (it is in that account's email and at github.com/notifications), then clone it. You have read access.`
-      : `We could not add the GitHub account <strong>${o.githubUsername}</strong> automatically — our team has been told and will do it by hand and write to you.`}</p>
+      ? `We invited the GitHub account <strong>${escHtml(o.githubUsername)}</strong> to <a href="${escHtml(o.repoUrl)}">${escHtml(o.repoUrl.replace('https://github.com/', ''))}</a>. Accept the invitation from GitHub (it is in that account's email and at github.com/notifications), then clone it. You have read access.`
+      : `We could not add the GitHub account <strong>${escHtml(o.githubUsername)}</strong> automatically — our team has been told and will do it by hand and write to you.`}</p>
     <p style="color:#333;line-height:1.6;"><strong>Your data.</strong> ${o.export
       ? `Every list your business has — each as a spreadsheet file — plus your website pages and media list, in one ZIP:`
       : `Your full data export is being prepared — our team has been told and you will get it by email.`}</p>
@@ -824,7 +835,7 @@ export async function notifyReactivated(
   const to = tenant.admin_email || tenant.email
   if (!to) return false
   const body = `
-    <p style="color:#333;line-height:1.6;">Welcome back${ownerFirst ? ', ' + ownerFirst : ''} — your ${tenant.name} account has been reactivated.</p>
+    <p style="color:#333;line-height:1.6;">Welcome back${ownerFirst ? ', ' + escHtml(ownerFirst) : ''} — your ${escHtml(tenant.name)} account has been reactivated.</p>
     <p style="color:#333;line-height:1.6;">Your subscription has been restored and the offboard timer has been cancelled. Nothing was deleted during the grace period, so everything picks up where you left off.</p>`
   return sendEmail(to, 'Your Twomiah account is reactivated', wrap('Welcome Back', body))
 }
@@ -846,7 +857,7 @@ export async function notifyBillingPastDue(
   if (!tenant.email) return false
 
   const body = `
-    <p style="color:#333;line-height:1.6;">The subscription payment for <strong>${tenant.name}</strong> has failed and the account is now <strong>past due</strong>.</p>
+    <p style="color:#333;line-height:1.6;">The subscription payment for <strong>${escHtml(tenant.name)}</strong> has failed and the account is now <strong>past due</strong>.</p>
     <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;color:#92400e;font-weight:600;">&#9888; Payment Past Due</p>
       <p style="margin:0;color:#92400e;">Please update the payment method to avoid service interruption.</p>

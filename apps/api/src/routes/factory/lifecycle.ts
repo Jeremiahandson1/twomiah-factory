@@ -16,6 +16,9 @@ import { ourPremiumSiteOrigin, ourSiteOrigin, mayReturnTo } from '../../services
 import { reconcileAliasesInBackground, ALIAS_TENANT_COLUMNS } from '../../services/emailAliasSync'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
+/** Names that are ours or our hosts': never a customer's own domain (the attach route refuses them and anything under them). */
+const OWN_DOMAINS = ['twomiah.com', 'twomiah.app', 'onrender.com', 'netlify.app']
+
 /** Does the business's own address answer over HTTPS yet? Any HTTP reply is yes; no reply (DNS, TLS, timeout) is no. */
 export async function siteOpens(domain: string, fetcher: typeof fetch = fetch): Promise<boolean> {
   try {
@@ -593,6 +596,14 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
         records: [],
       })
     }
+
+    // A domain belongs to one business. Refused here, BEFORE anything is saved: Cloudflare would refuse the second zone anyway,
+    // but only after this business's record already said the domain was theirs. Our own names are never a customer's to attach.
+    const bare = domain.replace(/^www\./, '')
+    if (OWN_DOMAINS.some((d) => bare === d || bare.endsWith('.' + d))) return c.json({ error: 'That domain cannot be connected here. Enter a domain you own.' }, 400)
+    const { data: held, error: heldErr } = await supabase.from('tenants').select('id').in('domain', [bare, 'www.' + bare]).neq('id', tenant.id).limit(1).maybeSingle()
+    if (heldErr) return c.json({ error: 'Could not check that domain just now. Nothing was changed. Please try again in a minute.' }, 502)
+    if (held) return c.json({ error: 'That domain is already connected to another account. If it is yours, contact support.' }, 409)
 
     // Find the tenant's Render service IDs so we can attach Render custom
     // domains too. Reuses the wireDomainInfrastructure path that signup uses.

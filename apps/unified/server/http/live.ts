@@ -23,6 +23,22 @@ export const LIVE_SOCKET_PATH = '/api/live-socket'
 
 interface Holder { userId: string; companyId: string; ws: WSContext; timer: ReturnType<typeof setTimeout> }
 
+/**
+ * WHAT GOES DOWN THE SOCKET IS A SIGNAL, NOT THE RECORD (security review, 2026-11-13). Every event was sent with all of
+ * its data to every signed-in person of the business: a new invoice with its lines and totals, a quote, a contact, a
+ * payment. The socket knows who is listening but not what they may read, so a crew seat that sees only its own work —
+ * or a seat kept from prices — was sent everything the office did, as it happened. The screens never used the data:
+ * each one hears the event and asks the server again, which answers by that person's own permissions. So the socket
+ * now carries the event and the ids that say WHICH record — nothing that says what is in it.
+ */
+const SIGNAL_KEYS = ['id', 'callId', 'entity', 'invoiceId', 'jobId', 'quoteId', 'contactId', 'leadId'] as const
+export function signalOf(data: unknown): Record<string, string> | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const out: Record<string, string> = {}
+  for (const k of SIGNAL_KEYS) { const v = (data as any)[k]; if (typeof v === 'string' && v.length <= 100) out[k] = v }
+  return out
+}
+
 export function createLive(deps: { realtime: Realtime; now?: () => number }) {
   const now = deps.now ?? Date.now
   const tickets = new Map<string, { userId: string; companyId: string; expires: number }>()
@@ -59,7 +75,7 @@ export function createLive(deps: { realtime: Realtime; now?: () => number }) {
 
   // Every announced change, to the sockets it is for: the company's, or one person's in it.
   deps.realtime.listen((companyId, event, data, userId) => {
-    const message = JSON.stringify({ event, data })
+    const message = JSON.stringify({ event, data: signalOf(data) })
     for (const h of open) {
       if (h.companyId !== companyId) continue
       if (userId && h.userId !== userId) continue

@@ -47,6 +47,7 @@ export {
 export type { FeatureDef } from './featureRegistry'
 
 // Invoices + quotes — one implementation for every CRM; the template injects its tables and services.
+export { csvFormulaSafe } from './csvSafe'
 export { createInvoiceRoutes, insertInvoice, retotalInvoice, lineForTotals, LATE_FEE_LINE, replaceInvoiceLines, recordInvoicePayment, recordInvoiceRefund, applyInvoiceCredit } from './invoicing/invoices'
 export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome, RecordRefundInput, RecordRefundOutcome } from './invoicing/invoices'
 // When a client is actually due back: their own rhythm once we have enough history, the menu's

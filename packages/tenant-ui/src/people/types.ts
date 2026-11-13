@@ -13,6 +13,8 @@ export interface TeamConfig {
   /** Column + field label for the roster role — "Job Title / Trade" (trades), "Role / Specialty" (salon / vet). */
   roleLabel?: string
   rolePlaceholder?: string
+  /** What this trade calls each login seat (the server's words — screens.roleLabels). Absent → the shared vocabulary. */
+  roleLabels?: Record<string, string>
   /** The template's feature check. With multi_location on, each person can be put at a branch. Absent → no branch field. */
   hasFeature?: (id: string) => boolean
   /**

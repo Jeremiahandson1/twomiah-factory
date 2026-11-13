@@ -1,6 +1,6 @@
 // Reports & Analytics — one page for every CRM. The period picker drives every number on the page;
 // balances (outstanding / overdue) are point-in-time and say so.
-import React, { useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, Download, FileText, Users } from 'lucide-react'
 import { StatusBadge, instantDay, inputCls, money, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
@@ -58,12 +58,18 @@ function useDownloaded(): [string, (name: string) => void] {
 }
 const Downloaded = ({ name }: { name: string }) => (name ? <span role="status" className="text-xs text-green-800 dark:text-green-300">Downloaded {name}</span> : null)
 
-/** Says a browser-made download happened, for the Audit Log (POST /api/audit/export). Set by ReportsPage; never blocks the file. */
-let noteExport: (what: string, period: string) => void = () => {}
+/**
+ * Says a browser-made download happened, for the Audit Log (POST /api/audit/export); never blocks the file. Handed down
+ * from ReportsPage through context — it was a module-level variable the page reassigned on every render (cleanup list #1),
+ * so two pages on one screen, or a render that was thrown away, left the cards calling the wrong page's client.
+ */
+type NoteExport = (what: string, period: string) => void
+const ExportNote = createContext<NoteExport>(() => {})
 
 function CardHead({ title, period, table }: { title: string; period: string; table?: () => CsvTable | Promise<CsvTable> }) {
   const [busy, setBusy] = useState(false)
   const [downloaded, setDownloaded] = useDownloaded()
+  const noteExport = useContext(ExportNote)
   const go = async () => {
     if (!table) return
     setBusy(true)
@@ -104,8 +110,13 @@ function ReportsLoading() {
   )
 }
 
-export function ReportsPage({ api, config }: ReportsPageProps) {
-  noteExport = (what, period) => { Promise.resolve(api.post('/api/audit/export', { what, period })).catch(() => {}) }
+export function ReportsPage(props: ReportsPageProps) {
+  const { api } = props
+  const noteExport = useCallback<NoteExport>((what, period) => { Promise.resolve(api.post('/api/audit/export', { what, period })).catch(() => {}) }, [api])
+  return <ExportNote.Provider value={noteExport}><ReportsPageBody {...props} noteExport={noteExport} /></ExportNote.Provider>
+}
+
+function ReportsPageBody({ api, config, noteExport }: ReportsPageProps & { noteExport: NoteExport }) {
   const cfg = resolveReportingConfig(config)
   const { hasFeature, can } = useAuth()
   // Reports a builder buys on (DepthReports.tsx): each only where the business has its feature and the seat reads reports.

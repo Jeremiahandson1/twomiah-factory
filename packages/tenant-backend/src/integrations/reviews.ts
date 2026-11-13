@@ -174,18 +174,20 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     return { messageId: result.sid, status: result.status }
   }
   async function sendReviewEmail(emailAddress: string, { contactName, companyName, jobTitle, reviewLink }: { contactName: string; companyName: string; jobTitle: string; reviewLink: string }) {
-    const jobLine = jobTitle ? `<p>We hope you're satisfied with the work we did on <strong>${jobTitle}</strong>.</p>` : ''
+    // A name and a job title are text someone typed: text in the email, never markup.
+    const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    const jobLine = jobTitle ? `<p>We hope you're satisfied with the work we did on <strong>${esc(jobTitle)}</strong>.</p>` : ''
     const color = deps.primaryColor || '{{PRIMARY_COLOR}}'
     const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Thank you, ${contactName}!</h2>
+      <h2 style="color: #333;">Thank you, ${esc(contactName)}!</h2>
       ${jobLine}
       <p>Your feedback helps us improve and helps other customers find quality service. Would you take a moment to share your experience?</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${reviewLink}" style="display: inline-block; padding: 15px 30px; background: ${color}; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Leave a Review</a>
+        <a href="${esc(reviewLink)}" style="display: inline-block; padding: 15px 30px; background: ${color}; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Leave a Review</a>
       </div>
       <p style="color: #666; font-size: 14px;">It only takes a minute and means the world to our team.</p>
-      <p>Thanks again for choosing ${companyName}!</p>
+      <p>Thanks again for choosing ${esc(companyName)}!</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
       <p style="color: #999; font-size: 12px;">If you have any concerns about your service, please reply to this email and we'll make it right.</p>
     </div>`
