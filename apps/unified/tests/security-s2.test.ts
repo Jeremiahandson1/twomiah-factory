@@ -139,3 +139,24 @@ describe('S2-5: the caller’s address is the edge’s, not what the caller type
     expect(own).toEqual([])
   })
 })
+
+describe('S2-12, S2-14: the click tracker and the estimator’s ceiling', () => {
+  test('a click link nobody signed shows where it goes instead of sending the reader there', async () => {
+    const r = await t.call('/api/marketing/track/click/anyone?url=' + encodeURIComponent('https://evil.example/login'))
+    expect(r.status).toBe(200)
+    expect(r.headers.get('location')).toBeNull()
+    const page = await r.text()
+    expect(page).toContain('You are leaving this site')
+    expect(page).toContain('https://evil.example/login')
+    // A made-up signature is no better.
+    const forged = await t.call('/api/marketing/track/click/anyone?s=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&url=' + encodeURIComponent('https://evil.example/login'))
+    expect(forged.status).toBe(200)
+  })
+
+  test('the estimator’s daily ceiling is 40 unless the business set its own', async () => {
+    const { estimatorDailyCeiling } = await import('../server/crm/roof/reports/estimator.ts')
+    expect(estimatorDailyCeiling({ settings: {} })).toBe(40)
+    expect(estimatorDailyCeiling({ settings: { estimator: { dailyCeiling: 5 } } })).toBe(5)
+    expect(estimatorDailyCeiling({ settings: { estimator: { dailyCeiling: -1 } } })).toBe(40)
+  })
+})

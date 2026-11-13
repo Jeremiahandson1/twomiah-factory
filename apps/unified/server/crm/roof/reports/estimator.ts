@@ -51,7 +51,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import sharp from 'sharp'
 import { createId } from '@paralleldrive/cuid2'
-import { and, desc, eq, gte, ilike, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, isNull, or } from 'drizzle-orm'
 import { geocodeAddress, getDataLayers, downloadGeoTiff, formatSolarDate } from '@twomiah/roof-core'
 import { measureRoof, type RoofMeasurement } from '@twomiah/roof-core/src/v2/index.ts'
 import { roofOutlines, outlineArea, outlineProblem, type OutlinePoint, type RoofOutlines, type SlopeMap } from '@twomiah/roof-core/src/v2/roofOutline.ts'
@@ -143,6 +143,15 @@ const settingsSchema = z.object({
   options: z.array(optionSchema).max(MAX_OPTIONS, `At most ${MAX_OPTIONS} options`).optional(),
   serviceRadiusMiles: z.union([z.null(), z.literal(''), z.coerce.number().int('Whole miles').min(1, 'At least 1 mile').max(500, 'At most 500 miles')]).optional(),
 })
+
+/** New houses the public estimator may measure (and spend a report on) in 24 hours: settings.estimator.dailyCeiling, else 40. */
+export const ESTIMATOR_DAILY_CEILING = 40
+export function estimatorDailyCeiling(comp: { settings?: unknown }): number {
+  let s: any = comp.settings
+  if (typeof s === 'string') { try { s = JSON.parse(s) } catch { s = {} } }
+  const n = Number(s?.estimator?.dailyCeiling)
+  return Number.isInteger(n) && n >= 1 && n <= 1000 ? n : ESTIMATOR_DAILY_CEILING
+}
 
 export function estimatorExtras(comp: { settings?: unknown }): EstimatorExtras {
   let s: any = comp.settings
@@ -331,6 +340,17 @@ export function createEstimatorRoutes(d: CrmDeps) {
 
     // One roof report for this house. None left (the last went while this visitor's page was open): the lead is kept
     // and the business follows up.
+    // A DAY'S CEILING (security review S2-14, 2026-11-13). Each new house spends one of the roofer's paid reports, and the
+    // only limit was three an hour per address: a list of addresses could empty the balance in an afternoon. Past the
+    // ceiling the visitor is still a lead (kept above) and the business follows up, exactly as when no reports are left.
+    const [spentToday] = await db.select({ n: count() }).from(measurementReport).where(and(
+      eq(measurementReport.companyId, comp.id), isNull(measurementReport.jobId), eq(measurementReport.provider, 'google_solar'),
+      gte(measurementReport.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+    ))
+    if (Number(spentToday?.n || 0) >= estimatorDailyCeiling(comp)) {
+      logger.warn('Instant estimate not priced', { slug, reason: 'the daily ceiling of estimator reports is reached' })
+      return notQuoted()
+    }
     if (!(await credits.spend(comp.id))) {
       logger.info('Instant estimate not priced', { slug, reason: 'no roof reports left' })
       return notQuoted()
