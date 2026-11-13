@@ -113,6 +113,14 @@ export const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATC
  */
 /** The caller's address, the way every limiter here keys it (see createRateLimiter). */
 export const clientKey = (c: Context): string => c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+/**
+ * The caller's address for a RECORD (a signature's "signed from", a consent, an audit note), or null when it is not
+ * known. The same reading as clientKey — the edge's own header first. Every module read `x-forwarded-for` for itself,
+ * left-most entry first; that entry is whatever the caller typed (the edge appends the real address after it), so six
+ * public limiters could be walked past and every signature could be made to say any address (security review S2-5,
+ * 2026-11-13, confirmed live). One reader now; no module reads the header itself.
+ */
+export const callerAddress = (c: Context): string | null => { const k = clientKey(c); return k === 'unknown' ? null : k.slice(0, 45) }
 
 export function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean): MiddlewareHandler {
   const hits = new Map<string, { count: number; resetAt: number }>()

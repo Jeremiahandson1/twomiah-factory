@@ -49,6 +49,7 @@ import { visitInvoiceOwed } from '../billing/stripe.ts'
 import { PORTAL_PREVIEW_READ_ONLY } from '../core/viewAsReadOnly.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 // The numbers the portal's sign-in rules run on.
 export const PORTAL_RULES = {
@@ -93,9 +94,7 @@ async function delivered(send: Promise<{ success: boolean; dev?: boolean }>): Pr
 const MAX_SIGNATURE_BYTES = 400_000
 
 function signerIp(c: Context): string | null {
-  const fwd = c.req.header('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim() || null
-  return c.req.header('x-real-ip') || null
+  return callerAddress(c)
 }
 
 function documentFingerprint(payload: unknown): string {

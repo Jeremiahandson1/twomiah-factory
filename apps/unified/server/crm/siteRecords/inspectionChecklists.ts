@@ -39,6 +39,7 @@ import { fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { recordPhotos } from './recordPhotos.ts'
+import { callerAddress } from '../../http/guards.ts'
 
 export const RESULTS = ['pending', 'pass', 'fail', 'na'] as const
 const RESULTABLE = ['scheduled', 'in_progress', 'rescheduled']
@@ -372,7 +373,7 @@ export function createInspectionChecklistRoutes(d: CrmDeps) {
     return c.body(null, 204)
   })
 
-  const signerIp = (c: any): string | null => { const fwd = c.req.header('x-forwarded-for'); if (fwd) return fwd.split(',')[0].trim() || null; return c.req.header('x-real-ip') || null }
+  const signerIp = (c: any): string | null => callerAddress(c)
 
   // The customer signs the checklist as it stands. Taken by a crew seat on the phone (or the office), once, with every line answered.
   app.post('/:id/sign', requireAnyPermission(['inspections:update', 'inspections:answer']), async (c) => {

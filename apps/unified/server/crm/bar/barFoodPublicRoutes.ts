@@ -12,6 +12,7 @@ import type { CrmDeps } from '../deps.ts'
 import { checkIdFromToken, RECEIPT_JS } from './barReceipts.ts'
 import { CheckError } from './barRegister.ts'
 import type { BarServices } from './services.ts'
+import { callerAddress } from '../../http/guards.ts'
 
 const NOT_FOUND = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Receipt not found</title></head><body style="font:16px system-ui,sans-serif;padding:24px;color:#111;background:#fff"><h1 style="font-size:20px">That receipt link does not work</h1><p>Ask the business to send it again.</p></body></html>'
 
@@ -48,7 +49,7 @@ export function createBarFoodPublicRoutes(d: CrmDeps, bar: BarServices) {
     if (!companyId || !(await d.features.isFeatureEnabled(companyId, 'online_ordering'))) return fail(c, 404, 'Not available')
     const b: Record<string, any> = await c.req.json().catch(() => ({}))
     try {
-      const ip = (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || null
+      const ip = callerAddress(c)
       return one(c, await bar.orders.placeOnline(companyId, { lines: b.lines, name: b.name, phone: b.phone, email: b.email, textOk: b.smsConsent ?? b.textOk, pickupAt: b.pickupAt }, siteOrigin(c), ip))
     } catch (e: any) {
       if (e instanceof CheckError) return fail(c, e.status as any, e.message)

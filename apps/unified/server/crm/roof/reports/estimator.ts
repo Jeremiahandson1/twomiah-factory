@@ -67,6 +67,7 @@ import { email as emailShape, optional } from '../validation.ts'
 import { recordConsent } from '../../../site/smsConsent.ts'
 import { createFinancingService, offerFor } from '../../financing/service.ts'
 import { createRoofCredits } from './roofCredits.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 const estimateSchema = z.object({
   address: z.string().min(1),
@@ -309,7 +310,7 @@ export function createEstimatorRoutes(d: CrmDeps) {
     } catch { /* the estimate still goes back */ }
     // The widget's "Text me about my estimate" (site/smsConsent.ts; the box is in site/public/scripts/estimator.ts).
     if (data.phone && body.smsConsent === true) {
-      await recordConsent(db, comp.id, { phone: data.phone, source: 'website_form', topic: 'estimate', page: c.req.header('referer') || null, ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || null })
+      await recordConsent(db, comp.id, { phone: data.phone, source: 'website_form', topic: 'estimate', page: c.req.header('referer') || null, ip: callerAddress(c) })
         .catch(() => { /* the estimate still goes back */ })
     }
 

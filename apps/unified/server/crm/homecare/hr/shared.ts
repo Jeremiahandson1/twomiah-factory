@@ -5,6 +5,7 @@ import { seatRefusal } from '@twomiah/tenant-backend'
 import { certificationRecords, company, user } from '../../../db/schema/index.ts'
 import { listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 /** The signed-in person. */
 export const me = (c: Context) => c.get('user' as never) as any
@@ -28,7 +29,7 @@ export const body = async (c: Context): Promise<any> => {
 export const dayOrNull = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
 
 /** The client's address, from the proxy's header (the template's clientIp). */
-export const clientIp = (c: Context) => (c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || '').split(',')[0].trim() || null
+export const clientIp = (c: Context) => callerAddress(c)
 
 /** Is this person, by id, one of the company's logins? Their id, or null. */
 export async function personInCompany(d: CrmDeps, companyId: string, id: string): Promise<string | null> {

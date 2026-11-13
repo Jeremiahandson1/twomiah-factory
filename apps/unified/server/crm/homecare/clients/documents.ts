@@ -39,6 +39,7 @@ import type { HomecareCore } from '../core/index.ts'
 import { uploadedForm } from '../core/upload.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
 import { body, who, whole, type ClientAccess } from './shared.ts'
+import { callerAddress } from '../../../http/guards.ts'
 
 const ENTITY_TYPES = ['client', 'caregiver', 'company']
 export const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif', '.txt']
@@ -170,7 +171,7 @@ export function createDocumentRoutes(core: HomecareCore, d: CrmDeps, access: Cli
     // care-clients:update (it was "not a caregiver" — a read-only seat could sign any of them, 2026-10-19).
     const mine = doc.entityType === 'company' || (doc.entityType === 'caregiver' && doc.entityId === me)
     if (!mine && !(await actsForAnyone(d, user, 'care-clients:update'))) return fail(c, 403, 'Not allowed to sign this document')
-    const ip = (c.req.header('x-forwarded-for')?.split(',')[0] || c.req.header('cf-connecting-ip') || '').trim().slice(0, 45) || null
+    const ip = callerAddress(c)
     const ua = (c.req.header('user-agent') || '').slice(0, 300) || null
     const typedName = b.typedName ? String(b.typedName).trim().slice(0, 200) : null
     const now = new Date()

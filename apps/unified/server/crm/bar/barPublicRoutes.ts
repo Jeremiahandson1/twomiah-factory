@@ -17,6 +17,7 @@ import type { CrmDeps } from '../deps.ts'
 import type { BarServices } from './services.ts'
 import { createBarPublic, type PublicRefusal } from './barSite.ts'
 import type { BarDb } from './db.ts'
+import { clientKey } from '../../http/guards.ts'
 
 export function createBarPublicRoutes(d: CrmDeps, bar: BarServices) {
   const { db } = d
@@ -68,7 +69,7 @@ export function createBarPublicRoutes(d: CrmDeps, bar: BarServices) {
   const tries = new Map<string, { n: number; resetAt: number }>()
   app.post('/speakeasy', async (c) => {
     const co = await gate(c, 'bar_tonight'); if (isResponse(co)) return co
-    const ip = (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || c.req.header('x-real-ip') || 'unknown'
+    const ip = clientKey(c)
     const now = Date.now()
     const t = tries.get(ip)
     if (t && t.resetAt > now && t.n >= 10) return fail(c, 429, 'Too many knocks. Try again later.')
