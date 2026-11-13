@@ -1,4 +1,5 @@
 import { supabase, requireRole } from '../../middleware/auth'
+import { sealingIsOn, isSealed } from '../../lib/tenantSecrets'
 import { isConfigured, addCustomDomain, findRenderServicesBySlug } from '../../services/deploy'
 import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate, getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
@@ -708,6 +709,26 @@ factory.get('/admin/db-health', requireRole('owner', 'admin'), async (c) => {
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
+})
+
+// Seal every tenant's database address and sync key that is still in plain text (lib/tenantSecrets.ts). Run once after
+// FACTORY_SECRETS_KEY is set on the Factory's service; safe to run again. Each row is read (opened by the client's
+// wrapper) and written back, which seals it; it answers how many it sealed and how many were sealed already.
+factory.post('/admin/seal-tenant-secrets', requireRole('owner'), async (c) => {
+  if (!sealingIsOn()) return c.json({ error: 'FACTORY_SECRETS_KEY is not set on the Factory service, so nothing can be sealed yet.' }, 400)
+  // The raw stored values, to count what is still plain: read through a column alias the wrapper does not open.
+  const { data: rows, error } = await supabase.from('tenants').select('id, db:database_url, key:factory_sync_key')
+  if (error) return c.json({ error: error.message }, 500)
+  let sealed = 0, already = 0, failed = 0
+  for (const r of (rows || []) as Array<{ id: string; db: string | null; key: string | null }>) {
+    const plain: Record<string, string> = {}
+    if (r.db && !isSealed(r.db)) plain.database_url = r.db
+    if (r.key && !isSealed(r.key)) plain.factory_sync_key = r.key
+    if (!Object.keys(plain).length) { already++; continue }
+    const { error: e } = await supabase.from('tenants').update(plain).eq('id', r.id)
+    if (e) failed++; else sealed++
+  }
+  return c.json({ sealed, alreadySealed: already, failed, tenants: (rows || []).length })
 })
 
 // Repair: manually set database_url for a tenant
