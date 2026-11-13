@@ -177,3 +177,18 @@ describe('home care — visits', () => {
     }
   })
 })
+
+// Security review S3-1 (2026-11-13): the caller's number is not a PIN, and wrong PINs run out.
+describe('the caregiver phone line asks for the PIN (security review S3-1)', () => {
+  test('a wrong PIN from a caregiver’s own number does not let the caller in; five wrong and the line hangs up', async () => {
+    const said = async (digits: string, from: string) => (await twilio('/api/ivr/verify-pin', { Digits: digits, From: from })).text()
+    expect(await said('0000', '+17155550101')).toContain('Invalid PIN')
+    expect(await said('', '+17155550101')).toContain('Invalid PIN')
+    for (let i = 0; i < 3; i++) await said('0001', '+17155550101')
+    const shut = await said('4321', '+17155550101')
+    expect(shut).toContain('Too many wrong PINs')
+    expect(shut).toContain('<Hangup/>')
+    // Another phone is not shut out by that one.
+    expect(await said('0000', '+17155550199')).toContain('Invalid PIN')
+  })
+})

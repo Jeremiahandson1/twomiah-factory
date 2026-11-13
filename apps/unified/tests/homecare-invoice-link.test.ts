@@ -23,7 +23,7 @@ const fakeStripe = {
   checkout: {
     sessions: {
       create: async (args: any, opts: any) => { stripeCalls.push({ what: 'checkout', args, opts }); return { id: 'cs_1', url: 'https://checkout.stripe.test/cs_1' } },
-      retrieve: async (id: string, opts: any) => { stripeCalls.push({ what: 'retrieve', id, opts }); return { payment_status: 'paid', amount_total: 4000, metadata: {}, customer_email: null } },
+      retrieve: async (id: string, opts: any) => { stripeCalls.push({ what: 'retrieve', id, opts }); return { payment_status: 'paid', amount_total: 4000, metadata: stripeCalls.filter((s) => s.what === 'checkout').at(-1)?.args?.metadata ?? {}, customer_email: null } }, // a session carries the metadata it was made with
     },
   },
   prices: { create: async (args: any, opts: any) => { stripeCalls.push({ what: 'price', args, opts }); return { id: 'price_1' } } },
@@ -134,6 +134,8 @@ describe("the agency's invoice email links the invoice's own page", () => {
     const verified = await json(await t.call(`/api/stripe/verify-payment/cs_1?doc=${token}`))
     expect(verified.success).toBe(true)
     expect(stripeCalls.find((s) => s.what === 'retrieve').opts).toEqual({ stripeAccount: 'acct_agency' })
+    // Without the invoice's own link there is nothing to ask about (security review S3-3).
+    expect((await t.call('/api/stripe/verify-payment/cs_1')).status).toBe(404)
 
     const event = { id: 'evt_1', type: 'checkout.session.completed', account: 'acct_agency', data: { object: { id: 'cs_1', amount_total: 4000, payment_intent: 'pi_live_1', metadata: { invoice_id: invoiceId } } } }
     expect((await t.call('/api/stripe/factory-event', { method: 'POST', json: { event } })).status).toBe(401)

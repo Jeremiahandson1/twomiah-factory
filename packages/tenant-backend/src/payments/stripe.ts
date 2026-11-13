@@ -13,6 +13,7 @@
  */
 
 import { Hono } from 'hono'
+import { verifyFactoryKey } from '../leads/leads'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { recordInvoicePayment, recordInvoiceRefund } from '../invoicing/invoices'
@@ -1351,9 +1352,10 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
   // forwards each one here over the signed Factory→tenant channel (same X-Factory-Key as
   // /api/internal/sync-subscription). A business on its own keys keeps its direct /webhook. (#154)
   app.post('/factory-event', async (c) => {
-    const syncKey = process.env.FACTORY_SYNC_KEY
-    if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
-    if ((c.req.header('X-Factory-Key') || '') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+    // The shared constant-time check, as every other Factory door (security review S3-2, 2026-11-13): this key is worth
+    // a payment marked paid, and it was compared with `!==`.
+    const fk = verifyFactoryKey(c)
+    if (!fk.ok) return c.json({ error: fk.status === 503 ? 'Sync not configured' : 'Unauthorized' }, fk.status)
     const body = await c.req.json().catch(() => null)
     const event = body?.event
     if (!event || typeof event !== 'object' || typeof event.type !== 'string' || !event.data?.object) {
