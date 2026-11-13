@@ -9,6 +9,11 @@
 import { Hono } from 'hono'
 import { and, desc, eq, gte, lte } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import crypto from 'node:crypto'
+import { storedResetToken } from '@twomiah/tenant-backend'
+
+/** How long a new caregiver's choose-a-password link works. */
+const SET_PASSWORD_DAYS = 7
 import { applications, applicationStatusHistory, user, caregiverProfiles } from '../../../db/schema/index.ts'
 import { appendedNote, applicationCounts, emailIs } from '../../../data/homecareHrRoutes.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -107,7 +112,7 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // POST /api/applications/:id/hire — the applicant becomes a caregiver: login, profile, onboarding packet
-  // (background-check consent), welcome email with the temporary password.
+  // (background-check consent), welcome email with the link to choose a password.
   app.post('/:id/hire', requirePermission('care-hr:create'), async (c) => {
     const companyId = companyOf(c)
     const id = c.req.param('id')
@@ -132,8 +137,12 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
       rate = n.toFixed(2)
     }
 
-    const tempPassword = b.password || `Welcome${a.lastName.charAt(0).toUpperCase()}${createId().slice(0, 6)}`
-    const passwordHash = await Bun.password.hash(String(tempPassword), 'bcrypt')
+    // THE NEW CAREGIVER CHOOSES THEIR OWN PASSWORD (security review S2-6's rule, applied here 2026-11-13). The office's
+    // screen made one up ("Welcome" + an initial + six characters), it went out in the welcome email in plain text, and
+    // came back to the office's screen when that email did not go. The account is made with a password nobody has and
+    // the email carries the app's own choose-a-password link (the reset link: single use, kept hashed; 7 days here).
+    // A password sent to this address is still set, and never shown or emailed.
+    const passwordHash = await Bun.password.hash(String(b.password || crypto.randomBytes(32).toString('base64url')), 'bcrypt')
 
     const certs = Array.isArray(a.certifications) ? (a.certifications as string[]) : []
     const certList = [...new Set([
@@ -157,12 +166,16 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
     }, { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, defaultPayRate: user.defaultPayRate })
     if ('refusal' in seated) return fail(c, 403, seated.refusal, 'seat_limit')
     const caregiver = seated.row
+    const firstToken = crypto.randomUUID()
+    await d.db.update(user).set({ resetToken: storedResetToken(firstToken), resetTokenExp: new Date(Date.now() + SET_PASSWORD_DAYS * 86_400_000) } as any)
+      .where(and(eq(user.id, caregiver.id), eq(user.companyId, companyId)))
+    const setPasswordUrl = `${(process.env.FRONTEND_URL || '').replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(firstToken)}`
 
     await d.db.insert(caregiverProfiles).values({ companyId, caregiverId: caregiver.id, notes: a.interviewNotes || a.notes })
     await d.db.update(applications).set({ status: 'hired', hiredUserId: caregiver.id, updatedAt: new Date() }).where(ours(companyId, id))
     await d.db.insert(applicationStatusHistory).values({
       companyId,
-      applicationId: id, status: 'hired', notes: 'Converted to caregiver. Temporary password was set.', changedById: actor?.userId || null,
+      applicationId: id, status: 'hired', notes: 'Converted to caregiver. They were sent a link to choose a password.', changedById: actor?.userId || null,
     })
 
     // The onboarding packet collects background-check consent and the deeper details. A failure here must not undo the
@@ -181,7 +194,7 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
     // did not go — a send that threw, or no email provider (sendRaw's dev mode sends nothing). (Run 3)
     let credentialsEmailed = false
     try {
-      const sent: any = await core.staffEmails.sendCaregiverWelcome(companyId, { to: email, firstName: a.firstName, tempPassword: String(tempPassword) })
+      const sent: any = await core.staffEmails.sendCaregiverWelcome(companyId, { to: email, firstName: a.firstName, setPasswordUrl })
       credentialsEmailed = !!sent?.success && !sent?.dev
     } catch (err: any) {
       d.logger.error('[Caregiver welcome email error]', { error: err?.message })
@@ -196,12 +209,13 @@ export function createApplicationsRoutes(core: HomecareCore, d: CrmDeps) {
       packetCreated,
       credentialsEmailed,
       emailedTo: email,
-      ...(credentialsEmailed ? {} : { tempPassword }),
+      // The link itself, for the office to hand over, ONLY when the email did not go. Never a password.
+      ...(credentialsEmailed ? {} : { setPasswordUrl }),
       message: credentialsEmailed
         ? (packetCreated
           ? `${who} is now a caregiver. Their login details were emailed to ${email}, and an onboarding packet email asks for background check consent.`
           : `${who} is now a caregiver. Their login details were emailed to ${email}.`)
-        : `${who} is now a caregiver, but the email with their login could not be sent to ${email}. Give them the temporary password below yourself.`,
+        : `${who} is now a caregiver, but the email with their login could not be sent to ${email}. Give them the link below yourself: it lets them choose their password (it works once, for ${SET_PASSWORD_DAYS} days).`,
     })
   })
 

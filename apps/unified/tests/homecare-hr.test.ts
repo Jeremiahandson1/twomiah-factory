@@ -283,16 +283,17 @@ const HC = path.resolve(import.meta.dir, '..', 'web', 'src', 'crm', 'pages', 'ho
 const screen = (p: string) => fs.readFileSync(path.join(HC, p), 'utf8').replace(/\r\n/g, '\n')
 
 describe("the hire's login on screen, and the public pages' tabs (the moved screens)", () => {
-  test('the hire dialog says "Login details emailed to" when the email went, and shows the password only when it did not', () => {
+  test('the hire dialog says "Login details emailed to" when the email went, and shows the choose-a-password LINK only when it did not — never a password', () => {
     const dash = screen('people/ApplicationsDashboard.tsx')
     expect(dash).toMatch(/hireResult\.credentialsEmailed \?/)
     expect(dash).toMatch(/Login details emailed to/)
-    expect(dash).toMatch(/\{hireResult\.tempPassword && <div[^>]*><strong>Temp Password:<\/strong>/)
-    expect(dash.match(/Temp Password:/g)).toHaveLength(1)
-    expect(dash.indexOf('Temp Password:')).toBeGreaterThan(dash.indexOf('Login details emailed to'))
+    expect(dash).toMatch(/\{hireResult\.setPasswordUrl && <div[^>]*><strong>Link to choose a password/)
+    expect(dash).not.toMatch(/tempPassword|Temp Password|Temporary Password/)
+    expect(dash.indexOf('Link to choose a password')).toBeGreaterThan(dash.indexOf('Login details emailed to'))
   })
-  test('the application page adds the password only when the email did not go', () => {
-    expect(screen('people/ApplicationDetail.tsx')).toMatch(/!data\.credentialsEmailed && data\.tempPassword/)
+  test('the application page adds the link only when the email did not go, and sends no made-up pay rate', () => {
+    expect(screen('people/ApplicationDetail.tsx')).toMatch(/!data\.credentialsEmailed && data\.setPasswordUrl/)
+    expect(screen('people/ApplicationDetail.tsx')).not.toMatch(/hourlyRate: 15/)
   })
   test('the careers page and the onboarding packet name their tab for the agency, not "<agency> · Admin"', () => {
     const careers = screen('people/CareersPage.tsx')

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { eq, and, gte, lte, count, desc, asc, sql, inArray } from 'drizzle-orm'
 import { checkFilter } from '../listFilter'
 import { hasHappened } from '../dateInput'
+import { companyTimeZone, storeDateString, dayMarker } from '../time/businessDay'
 import { createStaffBalanceStore, SETTLE_ROUTES, payrollDeductionsAllowed, PAYROLL_DEDUCTION_SETTING, type SettleRoute } from '../team/staffBalance'
 import { sniffType } from '../files/storage'
 import { partialOf } from '../partialOf'
@@ -455,7 +456,9 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
       ...data,
       amount: String(data.amount),
       taxAmount: data.taxAmount === undefined ? undefined : String(data.taxAmount),
-      date: data.date ? new Date(data.date) : new Date(),
+      // No date given: TODAY on the business's clock, as a day (code review 02-9) — `new Date()` kept the instant, which
+      // after 6 or 7 in the evening is already tomorrow in UTC, so the expense was filed on the next day.
+      date: data.date ? new Date(data.date) : dayMarker(storeDateString(new Date(), await companyTimeZone(db, currentUser.companyId))),
       // Who is claiming it. Everything about whose expense this is hangs off this one field.
       // (Salon RR6 E1/E7)
       submittedById: currentUser.userId,

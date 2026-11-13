@@ -42,7 +42,7 @@ check('the technician opens the customer', t.status === 200 && t.json?.name === 
 check('…and sees their jobs', (t.json?.jobs || []).some((j: any) => j.number === 'JOB-T62-1'), t.json?.jobs)
 check('…with NO quotes list (absent, not empty — no "Quotes 0")', !('quotes' in (t.json || {})), Object.keys(t.json || {}))
 check('…with NO invoices list', !('invoices' in (t.json || {})), Object.keys(t.json || {}))
-check('…and neither total anywhere in the payload', !/4545|6363/.test(t.text))
+check('…and neither total anywhere in the payload', !/\b(4545|6363)(\.00)?\b/.test(t.text)) // whole figures only: a random id holding "4545" failed this by chance (CI, 2026-11-13)
 
 for (const [who, label] of [[owner, 'the owner'], [manager, 'a manager'], [viewer, 'a viewer (sees revenue, not cost)']] as const) {
   const r = await read(who)

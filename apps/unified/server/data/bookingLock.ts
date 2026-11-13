@@ -21,3 +21,8 @@ export async function lockJobBook(tx: any, companyId: string): Promise<void> {
 export async function lockDrawSchedule(tx: any, scheduleId: string) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'draws:' + scheduleId}))`)
 }
+
+/** One new record at a time in a numbered series (RFI-004, INS-0031, EDI-00012): the next number is read, then written (code review 04-8). */
+export async function lockSeries(tx: any, key: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'series:' + key}))`)
+}

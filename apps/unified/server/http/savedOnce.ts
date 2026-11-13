@@ -33,13 +33,18 @@ export function savedOnce(db: any): MiddlewareHandler {
       if (!prior) return next() // let go between the two reads: this try is a fresh save
       if (prior.route !== route) return fail(c, 422, "This save's Idempotency-Key was already used for a different save.", 'key_reused')
       if (prior.status === null || prior.response === null) return fail(c, 503, 'This save is still being processed — it will be tried again.', 'in_progress')
+      // A save that answered with no body (204 — a delete) is replayed as that: no body.
+      if (prior.response === '') return c.body(null, prior.status as any, { 'Idempotent-Replay': 'true' })
       return c.body(prior.response, prior.status as any, { 'Content-Type': 'application/json', 'Idempotent-Replay': 'true' })
     }
     pruneSaved(db).catch(() => {})
     await next()
     const res = c.res
     const json = /application\/json/i.test(res?.headers.get('content-type') || '')
-    if (res && res.status >= 200 && res.status < 300 && json) await keepSaved(db, k, res.status, await res.clone().text())
+    // A 204 is a finished save too (code review 12-1): it kept nothing, so the phone's second try of a delete whose
+    // first answer was lost did the delete again, got "not found", and showed the person a failure for a thing that worked.
+    if (res && (res.status === 204 || res.status === 205)) await keepSaved(db, k, res.status, '')
+    else if (res && res.status >= 200 && res.status < 300 && json) await keepSaved(db, k, res.status, await res.clone().text())
     else await releaseSaved(db, k).catch(() => {})
   }
 }

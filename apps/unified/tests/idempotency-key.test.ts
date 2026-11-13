@@ -82,3 +82,15 @@ describe('a save sent twice with one key is made once', () => {
     expect(((await b.json()) as any).completedAt).toBe(a.completedAt)
   })
 })
+
+describe('a delete sent twice with one key (code review 12-1)', () => {
+  test('the repeat is answered as the first was — not "not found"', async () => {
+    const made = await (await as('/api/contacts', { method: 'POST', json: { name: 'Gone Once', type: 'lead' } })).json() as any
+    const send = () => as(`/api/contacts/${made.id}`, { method: 'DELETE', headers: { 'Idempotency-Key': 'phone-delete-0001-abc' } })
+    const first = await send()
+    const again = await send()
+    expect(first.status).toBeLessThan(300)
+    expect(again.status).toBe(first.status)
+    expect(again.headers.get('Idempotent-Replay')).toBe('true')
+  })
+})

@@ -109,3 +109,19 @@ describe('04-8: a site record’s number is never given twice', () => {
     expect((await make()).number).toBe('RFI-004')
   })
 })
+
+describe('04-8, 04-6: numbers under a lock; what is left to request on a loan', () => {
+  test('two RFIs made at the same instant take two numbers', async () => {
+    const make = () => call('/api/rfis', { method: 'POST', json: { projectId, subject: 'Joist', question: 'Spacing?' } })
+    const both = await Promise.all([make(), make()])
+    const numbers = await Promise.all(both.map(async (r) => data((await json(r)).body).number))
+    expect(new Set(numbers).size).toBe(2)
+  })
+
+  test('the list says what a new draw request may ask for', async () => {
+    const schedules = (await json(await call('/api/draw-schedules'))).body.data as any[]
+    const s = schedules.find((x) => x.projectId === projectId)
+    // 600 and 400 requested of 1,000 (above), none approved: nothing paid out, and nothing left to request.
+    expect(s).toMatchObject({ drawnAmount: 0, remainingAmount: 1000, leftToDraw: 0 })
+  })
+})

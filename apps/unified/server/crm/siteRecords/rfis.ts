@@ -6,6 +6,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { createActorName, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { rfi, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+import { lockSeries } from '../../data/bookingLock.ts'
 import { nextSeriesNumber } from './seriesNumber.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
@@ -84,14 +85,18 @@ export function createRfiRoutes(d: CrmDeps) {
     const currentUser = c.get('user') as any
     const data = rfiSchema.parse(await c.req.json())
 
-    const number = await nextSeriesNumber(db, rfi, and(eq(rfi.companyId, currentUser.companyId), eq(rfi.projectId, data.projectId)), 'RFI', 3)
+    // Numbered under a lock: two made at the same instant read the same "next" and took one number (code review 04-8).
+    const [newRfi] = await db.transaction(async (tx: any) => {
+    await lockSeries(tx, `rfi:${currentUser.companyId}:${data.projectId}`)
+    const number = await nextSeriesNumber(tx, rfi, and(eq(rfi.companyId, currentUser.companyId), eq(rfi.projectId, data.projectId)), 'RFI', 3)
 
-    const [newRfi] = await db.insert(rfi).values({
+    return tx.insert(rfi).values({
       ...data,
       number,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       companyId: currentUser.companyId,
     }).returning()
+    })
 
     return one(c, newRfi, 201)
   })

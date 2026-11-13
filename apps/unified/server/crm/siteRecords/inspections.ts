@@ -6,6 +6,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { createActorName, companyTimeZone, storeDateString, markerDay, withoutSigningEvidence } from '@twomiah/tenant-backend'
 import { inspection, inspectionItem, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+import { lockSeries } from '../../data/bookingLock.ts'
 import { nextSeriesNumber } from './seriesNumber.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
@@ -96,13 +97,17 @@ export function createInspectionRoutes(d: CrmDeps) {
   app.post('/', requirePermission('inspections:create'), async (c) => {
     const me = c.get('user') as any
     const data = schema.parse(await c.req.json())
-    const number = await nextSeriesNumber(db, inspection, eq(inspection.companyId, me.companyId), 'INS', 4)
-    const [item] = await db.insert(inspection).values({
+    // Numbered under a lock: two made at the same instant read the same "next" and took one number (code review 04-8).
+    const [item] = await db.transaction(async (tx: any) => {
+    await lockSeries(tx, `ins:${me.companyId}`)
+    const number = await nextSeriesNumber(tx, inspection, eq(inspection.companyId, me.companyId), 'INS', 4)
+    return tx.insert(inspection).values({
       ...data,
       number,
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
       companyId: me.companyId,
     }).returning()
+    })
     // With Automatic Inspection Checklists on, the right checklist is already on the new visit.
     const attached = await autoChecklist(d, me.companyId, item)
     return one(c, attached.length ? { ...withoutSigningEvidence(item), checklistAttached: attached } : withoutSigningEvidence(item), 201)
@@ -213,8 +218,11 @@ export function createInspectionRoutes(d: CrmDeps) {
 
     // One series for the business, as a new inspection takes (above): a re-inspection counted its own PROJECT's and could
     // be given a number another project's inspection already had.
-    const number = await nextSeriesNumber(db, inspection, eq(inspection.companyId, me.companyId), 'INS', 4)
-    const [made] = await db.insert(inspection).values({
+    // Numbered under a lock: two made at the same instant read the same "next" and took one number (code review 04-8).
+    const [made] = await db.transaction(async (tx: any) => {
+    await lockSeries(tx, `ins:${me.companyId}`)
+    const number = await nextSeriesNumber(tx, inspection, eq(inspection.companyId, me.companyId), 'INS', 4)
+    return tx.insert(inspection).values({
       companyId: me.companyId,
       projectId: existing.projectId,
       number,
@@ -226,6 +234,7 @@ export function createInspectionRoutes(d: CrmDeps) {
         .filter(Boolean).join('\n\n'),
       reinspectionOfId: existing.id,
     } as any).returning()
+    })
     // Checklist on: the re-visit checks exactly the lines that failed, starting unanswered.
     if (await checklistsOn(me.companyId)) {
       const failedLines = (await checklistLines(d, me.companyId, existing.id)).filter((l) => l.result === 'fail')
