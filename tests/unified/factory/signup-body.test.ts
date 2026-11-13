@@ -209,3 +209,9 @@ describe('money and the intake checkout (S5-13, S3-5)', () => {
     expect(billing).toMatch(/meta\.addon === 'messaging_wallet_topup' && session\.payment_status !== 'paid'/)
   })
 })
+
+test('a one-time checkout (a domain, a texting top-up) is paid by card: handed over at once, so paid at once', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'apps/api/src/services/factoryStripe.ts'), 'utf8')
+  const fn = src.slice(src.indexOf('export async function createOneTimeCheckoutSession('))
+  expect(fn.slice(0, fn.indexOf('return { url: session.url'))).toMatch(/mode: 'payment',[\s\S]{0,400}payment_method_types: \['card'\],/)
+})

@@ -694,6 +694,9 @@ export async function createOneTimeCheckoutSession(opts: {
   const session = await stripe.checkout.sessions.create({
     customer: opts.customerId,
     mode: 'payment',
+    // Cards only (Apple Pay and Google Pay are cards). What this sells — a domain, a texting top-up — is handed over at once,
+    // so it is paid by a method that says at once whether the money is in; a bank debit takes days and can come back.
+    payment_method_types: ['card'],
     line_items: [{
       price_data: {
         currency: (opts.currency || 'usd').toLowerCase(),
