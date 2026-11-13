@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { eq, desc, sql, asc } from 'drizzle-orm'
 // One numbering rule for every document in the product — locked, and only ever forwards.
-import { nextNumber, paymentTermsProblem } from '../invoicing/money'
+import { nextNumber, paymentTermsProblem, calcTotals, round2 } from '../invoicing/money'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -189,6 +189,37 @@ function calculateDueDate(invoiceDate: Date, terms: string): Date {
 }
 
 /** This period has already been billed by another caller, or the schedule stopped — nothing was written. */
+/** What the schedule was asked to bill cannot be billed (a line with no price, a discount larger than the work). */
+export class RecurringInvalid extends Error { code = 'invalid_schedule' }
+
+/**
+ * A SCHEDULE'S MONEY, WORKED THE WAY AN INVOICE'S IS (code review 02-3, 2026-11-13). This file had sums of its own:
+ * tax on the whole subtotal with the discount taken off afterwards, nothing rounded, and nothing refused. An invoice
+ * taxes what is left AFTER the discount (calcTotals), so a schedule of $100 with a $10 discount at 10% made invoices
+ * of $100.00 holding $10.00 of tax where the same invoice written by hand is $99.00 with $9.00 — and the first edit of
+ * the generated invoice changed its total. A discount larger than the work made a negative total.
+ */
+export function scheduleTotals(lineItems: unknown, taxRateIn: unknown, discountIn: unknown):
+  { error: string } | { processedItems: Array<{ description: string; quantity: number; unitPrice: number; total: number; sortOrder: number }>; subtotal: number; taxRate: number; taxAmount: number; discount: number; total: number } {
+  if (!Array.isArray(lineItems) || !lineItems.length) return { error: 'At least one line item is required' }
+  const taxRate = Number(taxRateIn ?? 0), discount = round2(Number(discountIn ?? 0))
+  if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) return { error: 'The tax rate must be between 0 and 100.' }
+  if (!Number.isFinite(discount) || discount < 0) return { error: 'Discount cannot be negative.' }
+  const processedItems: Array<{ description: string; quantity: number; unitPrice: number; total: number; sortOrder: number }> = []
+  for (const [index, item] of (lineItems as any[]).entries()) {
+    const description = String(item?.description ?? '').trim()
+    const quantity = item?.quantity === undefined || item?.quantity === null || item?.quantity === '' ? 1 : Number(item.quantity)
+    const unitPrice = round2(Number(item?.unitPrice ?? 0))
+    if (!description) return { error: 'Every line needs a description.' }
+    if (!Number.isFinite(quantity) || quantity <= 0) return { error: 'Quantity must be more than zero' }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return { error: 'Price cannot be negative' }
+    processedItems.push({ description, quantity, unitPrice, total: round2(quantity * unitPrice), sortOrder: index })
+  }
+  const totals = calcTotals(processedItems, taxRate, discount)
+  if (discount > totals.subtotal + 0.005) return { error: `Discount cannot exceed the subtotal (${totals.subtotal.toFixed(2)}).` }
+  return { processedItems, subtotal: totals.subtotal, taxRate, taxAmount: totals.taxAmount, discount: totals.effectiveDiscount, total: totals.total }
+}
+
 export class RecurringPeriodTaken extends Error {
   code = 'period_already_generated'
   constructor() { super('This period has already been invoiced, or the schedule is no longer active.') }
@@ -228,16 +259,9 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     // undefined companyId emitted an empty SQL value and produced "syntax error at or near ','".
     const companyId = companyIdArg ?? data.companyId
 
-    let subtotal = 0
-    const processedItems = (lineItems as any[]).map((item: any, index: number) => {
-      const total = (item.quantity || 1) * (item.unitPrice || 0)
-      subtotal += total
-      return { ...item, sortOrder: index, total }
-    })
-    const taxRate = data.taxRate || 0
-    const taxAmount = subtotal * (taxRate / 100)
-    const discount = data.discount || 0
-    const total = subtotal + taxAmount - discount
+    const worked = scheduleTotals(lineItems, data.taxRate, data.discount)
+    if ('error' in worked) throw new RecurringInvalid(worked.error)
+    const { processedItems, subtotal, taxRate, taxAmount, discount, total } = worked
 
     const [recurring] = rows(await db.execute(sql`
       INSERT INTO recurring_invoice (id, company_id, contact_id, project_id, frequency, start_date, end_date, next_run_date, terms, subtotal, tax_rate, tax_amount, discount, total, notes, auto_send, status)
@@ -347,7 +371,6 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     })
 
     if (recurring.auto_send && recurring.contact?.email) {
-      await db.update(invoice).set({ status: 'sent', sentAt: new Date() }).where(eq(invoice.id, newInvoice.id))
       try {
         // The same private link as an invoice sent by hand (invoices.ts send), so a recurring bill can be seen and paid. (2026-10-22)
         const token = await documentLinkToken(db, invoice, newInvoice.id)
@@ -361,8 +384,12 @@ export function createRecurringService(deps: RecurringServiceDeps) {
           companyEmail: recurring.company.email,
           documentPath: token ? documentLinkPath(token) : null,
         })
+        // Marked sent once it WAS sent, as an invoice sent by hand is (invoices.ts send). It used to be marked first,
+        // so an email that failed left a bill reading "sent" that the customer never got (code review 02-4).
+        await db.update(invoice).set({ status: 'sent', sentAt: new Date() }).where(eq(invoice.id, newInvoice.id))
+        newInvoice.status = 'sent'
       } catch (error) {
-        console.error('Failed to send recurring invoice email:', error)
+        console.error('Failed to send recurring invoice email — the invoice stays a draft:', error)
       }
     }
     return newInvoice
@@ -474,26 +501,26 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     `))
     if (!existing) return null
 
-    if (data.lineItems) {
-      await db.execute(sql`DELETE FROM recurring_line_item WHERE recurring_invoice_id = ${id}`)
-      let subtotal = 0
-      const processedItems = (data.lineItems as any[]).map((item: any, index: number) => {
-        const total = (item.quantity || 1) * (item.unitPrice || 0)
-        subtotal += total
-        return { description: item.description, quantity: item.quantity || 1, unitPrice: item.unitPrice || 0, total, sortOrder: index, recurringInvoiceId: id }
-      })
-      for (const item of processedItems) {
-        await db.execute(sql`
-          INSERT INTO recurring_line_item (id, recurring_invoice_id, description, quantity, unit_price, total, sort_order)
-          VALUES (${createId()}, ${id}, ${item.description}, ${item.quantity}, ${item.unitPrice}, ${item.total}, ${item.sortOrder})
-        `)
+    // A change to the lines, the tax rate OR the discount re-works the schedule's money (code review 02-3): the rate
+    // or the discount alone used to be saved beside the old tax amount and total, which every later invoice copied.
+    if (data.lineItems || data.taxRate !== undefined || data.discount !== undefined) {
+      const lines = data.lineItems || rows(await db.execute(sql`SELECT description, quantity, unit_price FROM recurring_line_item WHERE recurring_invoice_id = ${id} ORDER BY sort_order ASC`))
+        .map((l: any) => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unit_price) }))
+      const worked = scheduleTotals(lines, data.taxRate ?? existing.tax_rate, data.discount ?? existing.discount)
+      if ('error' in worked) throw new RecurringInvalid(worked.error)
+      if (data.lineItems) {
+        await db.transaction(async (tx: any) => {
+          await tx.execute(sql`DELETE FROM recurring_line_item WHERE recurring_invoice_id = ${id}`)
+          for (const item of worked.processedItems) {
+            await tx.execute(sql`
+              INSERT INTO recurring_line_item (id, recurring_invoice_id, description, quantity, unit_price, total, sort_order)
+              VALUES (${createId()}, ${id}, ${item.description}, ${item.quantity}, ${item.unitPrice}, ${item.total}, ${item.sortOrder})
+            `)
+          }
+        })
       }
-      const taxRate = data.taxRate ?? existing.tax_rate
-      const taxAmount = subtotal * (taxRate / 100)
-      const discount = data.discount ?? existing.discount
-      const total = subtotal + taxAmount - discount
       delete data.lineItems
-      Object.assign(data, { subtotal, taxRate, taxAmount, discount, total })
+      Object.assign(data, { subtotal: worked.subtotal, taxRate: worked.taxRate, taxAmount: worked.taxAmount, discount: worked.discount, total: worked.total })
     }
 
     // Parameterized SET clause (numbers coerced, so a string in a numeric field can't inject).
@@ -650,6 +677,8 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
     const t = recurringTerms(b)
     if ('error' in t) return c.json({ error: t.error, field: 'paymentTermsDays' }, 400)
     b.terms = t.terms
+    const bad = scheduleTotals(b.lineItems, b.taxRate, b.discount)
+    if ('error' in bad) return c.json({ error: bad.error }, 400)
     const recurring = await service.createRecurring({
       companyId: user.companyId,
       contactId: b.contactId, projectId: b.projectId, frequency: b.frequency,
@@ -667,7 +696,17 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
     const t = recurringTerms(b)
     if ('error' in t) return c.json({ error: t.error, field: 'paymentTermsDays' }, 400)
     b.terms = t.terms
-    const recurring = await service.updateRecurring(c.req.param('id'), user.companyId, b)
+    // A schedule is paused, resumed and cancelled by its own three doors (below), which set the next run with it.
+    // `status` in an edit went straight to the row: "active" on a schedule paused for months billed every missed
+    // period at the next run, and emailed each one (code review 02-3).
+    delete b.status
+    let recurring: any
+    try {
+      recurring = await service.updateRecurring(c.req.param('id'), user.companyId, b)
+    } catch (err: any) {
+      if (err instanceof RecurringInvalid) return c.json({ error: err.message, code: err.code }, 400)
+      throw err
+    }
     if (!recurring) return c.json({ error: 'Recurring invoice not found' }, 404)
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'recurring_invoice', entityId: recurring.id, userId: user.userId, companyId: user.companyId })
     return c.json(recurring)
