@@ -117,7 +117,9 @@ export default function DrawSchedulesPage() {
               <div className="mt-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">{money(Number(s.totalAmount))}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-700 dark:text-green-300">{money(Number(s.drawnAmount || 0))}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">{money(Number(s.remainingAmount || s.totalAmount))}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">{money(Number(s.remainingAmount ?? s.totalAmount))}</span></div>
+                {/* What a new request may ask for: draws waiting or submitted count against the loan too (the server's own sum). A loan drawn in full read its whole amount as "remaining": 0 fell through to the total. */}
+                {s.leftToDraw !== undefined && Number(s.leftToDraw) !== Number(s.remainingAmount) && <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Left to request</span><span className="font-mono">{money(Number(s.leftToDraw))}</span></div>}
               </div>
               <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">{s.drawCount || 0} draws</div>
             </button>

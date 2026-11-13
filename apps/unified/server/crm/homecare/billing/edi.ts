@@ -7,6 +7,7 @@
 //
 // Changes from the template: the company's rows only; the lists are { data, pagination }; a new batch's body can no
 // longer set its id, company or number (the template spread the body into the insert).
+import { lockSeries } from '../../../data/bookingLock.ts'
 import { Hono } from 'hono'
 import { and, eq, count, desc, asc, isNotNull } from 'drizzle-orm'
 import {
@@ -61,13 +62,17 @@ export function createEdiRoutes(_core: HomecareCore, d: CrmDeps) {
   app.post('/batches', create, async (c) => {
     const { companyId, userId } = who(c)
     const b = withoutOwnership(await body(c))
-    const [{ value: cnt }] = await db.select({ value: count() }).from(ediBatches).where(eq(ediBatches.companyId, companyId))
-    const [batch] = await db.insert(ediBatches).values({
-      ...b,
-      companyId,
-      batchNumber: `EDI-${String(cnt + 1).padStart(5, '0')}`,
-      createdById: userId,
-    }).returning()
+    // Numbered under a lock (code review 04-8): two batches made at the same instant counted the same and took one number.
+    const [batch] = await db.transaction(async (tx: any) => {
+      await lockSeries(tx, `edi:${companyId}`)
+      const [{ value: cnt }] = await tx.select({ value: count() }).from(ediBatches).where(eq(ediBatches.companyId, companyId))
+      return tx.insert(ediBatches).values({
+        ...b,
+        companyId,
+        batchNumber: `EDI-${String(Number(cnt) + 1).padStart(5, '0')}`,
+        createdById: userId,
+      }).returning()
+    })
     return one(c, batch, 201)
   })
 
