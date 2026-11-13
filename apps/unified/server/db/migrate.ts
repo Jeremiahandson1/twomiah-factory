@@ -10,13 +10,20 @@ import { createDb } from './client.ts'
 
 export const MIGRATIONS = path.join(import.meta.dir, 'migrations')
 
+/**
+ * A MIGRATION IS NOT A REQUEST (code review 03-1, 2026-11-13). The pool gives every statement 30 seconds, which is right
+ * for a page and wrong here: an index built or a column back-filled on a business's largest table can take longer, and
+ * a migration that ran out of time failed the same way at every boot — the service never came up. Fifteen minutes.
+ */
+export const MIGRATION_STATEMENT_MS = 15 * 60_000
+
 const CONNECTION = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|starting up|not yet accepting|terminating connection|Connection terminated|socket hang up/i
 
 export async function runMigrations(opts: { retries?: number; delayMs?: number } = {}) {
   const retries = opts.retries ?? 20
   const delayMs = opts.delayMs ?? 10_000
   for (let attempt = 1; ; attempt++) {
-    const { db, pool } = createDb()
+    const { db, pool } = createDb(undefined, { statementTimeoutMs: MIGRATION_STATEMENT_MS })
     try {
       await pgMigrate(db, { migrationsFolder: MIGRATIONS })
       console.log('[migrate] database is up to date')
