@@ -181,7 +181,20 @@ const invoiceSchema = z.object({
 // of the same idea: give the money back onto the client's account rather than onto their card.
 const PAYMENT_METHODS = ['card', 'cash', 'check', 'bank_transfer', 'stripe', 'account_balance', 'other'] as const
 
+/**
+ * A LATE FEE IS NOT TAXED (owner, 2026-11-13: "we do what the pros do" — code review 04-5). The automatic late fee is a
+ * line of its own (type 'late_fee', crm/billing/invoiceReminders.ts) and tax was worked on every line, so a $15.00 fee on
+ * an invoice taxed at 8% added $16.20. The fee is left out of the taxed sum wherever an invoice's lines are read back
+ * for a re-total, and an edit that sends the same line back keeps it a late fee.
+ */
+export const LATE_FEE_LINE = 'late_fee'
+export const lineForTotals = (li: any): InvoiceLine => ({
+  description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
+  ...(li.type === LATE_FEE_LINE ? { type: LATE_FEE_LINE, taxable: false } : {}),
+} as InvoiceLine)
+
 const toRow = (items: z.infer<typeof lineItemSchema>[], invoiceId: string) => items.map((item, i) => ({
+  ...((item as any).type === LATE_FEE_LINE ? { type: LATE_FEE_LINE } : {}),
   description: item.description,
   quantity: item.quantity.toString(),
   unitPrice: item.unitPrice.toString(),
@@ -504,7 +517,7 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     const balanceBefore = invoiceBalance(figures)
     if (balanceBefore <= 0.005) { outcome = { ok: false, status: 400, error: 'Nothing is owed on this invoice, so there is nothing to credit.' }; return }
     const current = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
-    const lines = current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
+    const lines = current.map(lineForTotals)
     const taxRate = Number(row.tax_rate) || 0
     const newDiscount = round2(Number(row.discount || 0) + amount)
     const subtotal = rawSubtotal(lines)
@@ -921,7 +934,15 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     let lines: z.infer<typeof lineItemSchema>[] | undefined = data.lineItems
     if (recompute && !lines) {
       const current = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
-      lines = current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
+      lines = current.map(lineForTotals)
+    } else if (recompute && lines && t.invoiceLineItem.type) {
+      // The screen sends lines as words, a quantity and a price. One that is the invoice's late fee, sent back as it
+      // was, stays a late fee (lineForTotals).
+      const fees = await db.select().from(t.invoiceLineItem).where(and(eq(t.invoiceLineItem.invoiceId, id), eq(t.invoiceLineItem.type, LATE_FEE_LINE)))
+      for (const fee of fees) {
+        const same = lines.find((l: any) => !l.type && l.description === fee.description && Math.abs(Number(l.unitPrice) * Number(l.quantity) - Number(fee.total)) < 0.005)
+        if (same) Object.assign(same, { type: LATE_FEE_LINE, taxable: false })
+      }
     }
     const update: Record<string, any> = { updatedAt: new Date() }
     for (const k of ['contactId', 'projectId', 'notes', 'terms'] as const) if (data[k] !== undefined) update[k] = data[k]
