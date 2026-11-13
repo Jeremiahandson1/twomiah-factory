@@ -1125,7 +1125,7 @@ export default function CustomerDetailPage() {
                     <CopyButton value={tenant.admin_email || tenant.email} />
                   </div>
                 </div>
-                {tenant.admin_password ? (
+                {tenant.admin_password && !/^\$2[aby]\$/.test(tenant.admin_password) ? (
                   // Only present briefly between signup and deploy completion —
                   // the deploy scrubs it once the CRM holds the bcrypt hash.
                   <PasswordField password={tenant.admin_password} />

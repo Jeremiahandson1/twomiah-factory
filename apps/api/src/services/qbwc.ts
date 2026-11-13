@@ -17,6 +17,7 @@
  *   QBWC_COMPANY_FILE — optional path to QB company file (blank = currently open)
  */
 
+import { timingSafeEqual } from 'node:crypto'
 import { supabase } from '../middleware/auth'
 import Stripe from 'stripe'
 import crypto from 'crypto'
@@ -201,7 +202,9 @@ export async function handleAuthenticate(username: string, password: string): Pr
     return { ticket: '', result: 'nvu' } // not valid user — password not configured
   }
 
-  if (username !== expectedUser || password !== expectedPass) {
+  // Compared in constant time (security review S5-4, 2026-11-13): this one password guards the books' sync.
+  const same = (x: string, y: string) => { const p = Buffer.from(String(x)), q = Buffer.from(String(y)); return p.length === q.length && timingSafeEqual(p, q) }
+  if (!same(username, expectedUser) || !same(password, expectedPass)) {
     return { ticket: '', result: 'nvu' }
   }
 
