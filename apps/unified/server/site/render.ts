@@ -122,7 +122,7 @@ export async function renderSections(ctx: SiteContext, all: any[], meta: PageMet
   // Each section gets its own data, the site's settings and words, and — for a vertical whose sections read live facts
   // — `site` and `live`; `md` renders an owner's markdown; `currentPath` is the page the form posts from.
   const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), {
-    homepage, settings: { ...effective, phone: shownPhone(effective.phone) }, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
+    homepage, settings: { ...effective, phone: shownPhone((effective as Record<string, any>).phone) }, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
     site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath, smsConsent: consentBoxHtml,
     // The lender's required disclosure (crm/financing/lender.ts): the financing calculator shows a payment and an APR, so it shows this with them.
     financingDisclosure: DISCLOSURE,
