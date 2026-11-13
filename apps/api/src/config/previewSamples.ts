@@ -27,6 +27,8 @@ export const SAMPLE_BANNER = 'Example content — your real site uses your own s
 
 export const isSampleSection = (s: unknown): boolean => !!s && typeof s === 'object' && (s as any)[SAMPLE_MARK] === true
 
+import { pickLayout } from '../services/instantComposer'
+
 type Section = { type: string; variant: string; data: Record<string, unknown>; sample?: true }
 const mark = (s: Section): Section => ({ ...s, [SAMPLE_MARK]: true })
 
@@ -37,7 +39,8 @@ const libraryImg = (base: string): Img => (group, file) => (base ? `${base}/hero
 
 /** One trade's samples: card photos [group, file] or an unsplash id, and the words. */
 interface TradeSample {
-  services: Array<{ title: string; description: string; photo?: [string, string] | string }>
+  /** None: the trade's page has no "What we do" (a bar's is its board, menu and taps). */
+  services?: Array<{ title: string; description: string; photo?: [string, string] | string }>
   gallery?: Array<{ photo: [string, string] | string; alt: string; caption: string }>
   galleryHeading?: string
   about: string[]
@@ -48,6 +51,10 @@ interface TradeSample {
   menu?: Array<{ name: string; items: Array<{ name: string; description: string }> }>
   /** A sample week (schedule/week-strip): where a truck might be, each stop marked a sample. */
   week?: Array<{ dayLabel: string; tag: string; location: string; hours?: string }>
+  weekHeading?: string
+  weekIntro?: string
+  /** The photo beside a bar's Tonight board in the preview (the board itself is the real section). */
+  boardArt?: Array<{ photo: [string, string]; alt: string }>
 }
 
 const REVIEWS = [
@@ -176,26 +183,229 @@ const SAMPLES: Record<string, TradeSample> = {
       { service: 'Finish', priceLabel: 'Sample price', includes: ['Sample: what the price includes'] },
     ],
   },
+  // A restaurant or café: what it serves, the room, and how to get a table — the menu first, as the best restaurant
+  // sites do (it used to be all private dining: visual audit, 2026-11-12).
   restaurant: {
     services: [
-      { title: 'Private dining', description: 'Sample card: a service with a photo and a short plain description.', photo: ['restaurant', 'restaurant-01.jpg'] },
-      { title: 'Celebrations', description: 'Sample card: weddings, birthdays and dinners, in your words.', photo: ['events', 'events-01.jpg'] },
-      { title: 'Tasting menus', description: 'Sample card: your own services and photos replace these.', photo: '1414235077428-338989a2e8c0' },
+      { title: 'Dine in', description: 'Sample card: what a meal with you is like, with a photo of your own.', photo: ['restaurant', 'restaurant-01.jpg'] },
+      { title: 'Takeout', description: 'Sample card: how people order to go, in your words.', photo: ['restaurant', 'restaurant-05.jpg'] },
+      { title: 'Private dining & events', description: 'Sample card: your own services and photos replace these.', photo: ['events', 'events-01.jpg'] },
+    ],
+    menu: [
+      { name: 'Sample menu — to start', items: [
+        { name: 'Sample starter one', description: 'Sample only: your own dish goes here, described in your words.' },
+        { name: 'Sample starter two', description: 'Sample only: your real menu comes from the menu you enter, with your prices.' },
+      ] },
+      { name: 'Sample menu — mains', items: [
+        { name: 'Sample main one', description: 'Sample only: a photo of the dish can sit beside it.' },
+        { name: 'Sample main two', description: 'Sample only: nothing here is on your menu.' },
+        { name: 'Sample main three', description: 'Sample only.' },
+      ] },
+      { name: 'Sample menu — to finish', items: [
+        { name: 'Sample dessert', description: 'Sample only.' },
+      ] },
     ],
     gallery: [
-      { photo: ['events', 'events-01.jpg'], alt: 'A table set with flowers and glasses', caption: 'Sample event — table setting' },
-      { photo: ['restaurant', 'restaurant-01.jpg'], alt: 'A long dining table in a restaurant', caption: 'Sample event — the room' },
-      { photo: '1467003909585-2f8a72700288', alt: 'A plated fish dish', caption: 'Sample event — the plate' },
-      { photo: ['restaurant', 'restaurant-02.jpg'], alt: 'A wine glass at the bar', caption: 'Sample event — the bar' },
-      { photo: ['events', 'events-02.jpg'], alt: 'Dried flowers and glassware on a table', caption: 'Sample event — florals' },
-      { photo: '1551024506-0bccd828d307', alt: 'A dessert with caramel', caption: 'Sample event — dessert' },
+      { photo: ['restaurant', 'restaurant-04.jpg'], alt: 'A chef finishing a dish', caption: 'Sample photo — the kitchen' },
+      { photo: ['restaurant', 'restaurant-01.jpg'], alt: 'A long dining table in a restaurant', caption: 'Sample photo — the room' },
+      { photo: '1467003909585-2f8a72700288', alt: 'A plated fish dish', caption: 'Sample photo — the plate' },
+      { photo: ['restaurant', 'restaurant-06.jpg'], alt: 'A guest eating bruschetta', caption: 'Sample photo — at the table' },
+      { photo: ['cafe', 'cafe-06.jpg'], alt: 'Baked goods on display', caption: 'Sample photo — the counter' },
+      { photo: '1551024506-0bccd828d307', alt: 'A dessert with caramel', caption: 'Sample photo — dessert' },
     ],
-    galleryHeading: 'Past events (sample)',
-    about: ['Sample about block: the people, the room and what a private event with you is like.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    galleryHeading: 'From the kitchen and the room (sample)',
+    about: ['Sample about block: who is cooking, what you serve and what a meal with you is like.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
     faq: [
-      { question: 'Sample question: how do I book an event?', answer: 'Sample answer. Your real site says how people reach you.' },
-      { question: 'Sample question: how many guests can you seat?', answer: 'Sample answer. Capacity is yours to state.' },
-      { question: 'Sample question: is a deposit needed?', answer: 'Sample answer. Your terms are yours to state.' },
+      { question: 'Sample question: do I need a reservation?', answer: 'Sample answer. Your real site says how people get a table.' },
+      { question: 'Sample question: can you cater for allergies?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: do you host private events?', answer: 'Sample answer. Your terms are yours to state.' },
+    ],
+  },
+  // A painter, a concrete or flooring contractor, an electrician and a heating-and-cooling company each have their own
+  // (they used to borrow the remodeler's kitchens or the plumber's pipes: visual audit, 2026-11-12).
+  painting: {
+    services: [
+      { title: 'Interior painting', description: 'Sample card: rooms, ceilings and trim, shown with a photo of your own work.', photo: ['painting', 'painting-01.jpg'] },
+      { title: 'Prep & repairs', description: 'Sample card: the taping, patching and prep you do before a brush touches the wall.', photo: ['painting', 'painting-04.jpg'] },
+      { title: 'Colour help', description: 'Sample card: how you help people choose, in your words.', photo: ['painting', 'painting-05.jpg'] },
+    ],
+    gallery: [
+      { photo: ['painting', 'painting-02.jpg'], alt: 'A painter rolling a white wall', caption: 'Sample project — walls' },
+      { photo: ['painting', 'painting-03.jpg'], alt: 'Two painters working in a hallway', caption: 'Sample project — hallway' },
+      { photo: ['painting', 'painting-06.jpg'], alt: 'A paint roller on a ladder', caption: 'Sample project — a colour change' },
+      { photo: ['painting', 'painting-04.jpg'], alt: 'Two people taping a wall before painting', caption: 'Sample project — prep' },
+      { photo: ['painting', 'painting-05.jpg'], alt: 'Colour swatches and a paint tray on a covered floor', caption: 'Sample project — choosing colours' },
+      { photo: ['painting', 'painting-01.jpg'], alt: 'A painter rolling paint onto a wall', caption: 'Sample project — a fresh coat' },
+    ],
+    galleryHeading: 'Recent paint jobs (sample)',
+    about: ['Sample about block: who you are, how you prep and paint, and what a customer can expect.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: how do I get a quote?', answer: 'Sample answer. Your real site says how people reach you and what you need to know.' },
+      { question: 'Sample question: do you paint inside and outside?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: how long does a room take?', answer: 'Sample answer. Timelines are yours to state.' },
+      { question: 'Sample question: what areas do you cover?', answer: 'Sample answer. Your real site lists the towns you serve.' },
+    ],
+  },
+  concrete: {
+    services: [
+      { title: 'Driveways & slabs', description: 'Sample card: a pour from start to finish, shown with a photo of your own work.', photo: ['concrete', 'concrete-01.jpg'] },
+      { title: 'Patios & walks', description: 'Sample card: the flatwork you do around a home, in your words.', photo: ['concrete', 'concrete-04.jpg'] },
+      { title: 'Brick & stone', description: 'Sample card: your own services replace these, each with your own photo.', photo: ['concrete', 'concrete-05.jpg'] },
+    ],
+    gallery: [
+      { photo: ['concrete', 'concrete-02.jpg'], alt: 'Hands levelling wet concrete', caption: 'Sample project — levelling' },
+      { photo: ['concrete', 'concrete-03.jpg'], alt: 'A screed levelling a new slab', caption: 'Sample project — a new slab' },
+      { photo: ['concrete', 'concrete-06.jpg'], alt: 'A mason setting stone steps', caption: 'Sample project — stone steps' },
+      { photo: ['concrete', 'concrete-07.jpg'], alt: 'A house with a long driveway', caption: 'Sample project — a driveway' },
+      { photo: ['concrete', 'concrete-01.jpg'], alt: 'A crew pouring a driveway', caption: 'Sample project — the pour' },
+      { photo: ['concrete', 'concrete-05.jpg'], alt: 'Laying brick with a trowel', caption: 'Sample project — brickwork' },
+    ],
+    galleryHeading: 'Recent pours (sample)',
+    about: ['Sample about block: who you are, the work you take on and how a job starts.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: how do I get a quote?', answer: 'Sample answer. Your real site says how people reach you and what you need to know.' },
+      { question: 'Sample question: when can I drive on it?', answer: 'Sample answer. Your advice is yours to give.' },
+      { question: 'Sample question: do you remove the old concrete?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: what areas do you cover?', answer: 'Sample answer. Your real site lists the towns you serve.' },
+    ],
+  },
+  flooring: {
+    services: [
+      { title: 'Hardwood', description: 'Sample card: new floors and refinishing, shown with a photo of your own work.', photo: ['flooring', 'flooring-02.jpg'] },
+      { title: 'Tile', description: 'Sample card: kitchens, baths and entries, in your words.', photo: ['flooring', 'flooring-04.jpg'] },
+      { title: 'Laminate & vinyl', description: 'Sample card: your own services replace these, each with your own photo.', photo: ['flooring', 'flooring-01.jpg'] },
+    ],
+    gallery: [
+      { photo: ['flooring', 'flooring-03.jpg'], alt: 'An empty room with a hardwood floor', caption: 'Sample project — hardwood' },
+      { photo: ['flooring', 'flooring-05.jpg'], alt: 'Wall tile being set', caption: 'Sample project — tile work' },
+      { photo: ['flooring', 'flooring-06.jpg'], alt: 'A black and cream checkered tile floor', caption: 'Sample project — checkered tile' },
+      { photo: ['flooring', 'flooring-07.jpg'], alt: 'A wide-plank wood floor', caption: 'Sample project — wide plank' },
+      { photo: ['flooring', 'flooring-01.jpg'], alt: 'A bright empty room with a dark wood floor', caption: 'Sample project — a finished room' },
+      { photo: ['flooring', 'flooring-02.jpg'], alt: 'An open living area with a hardwood floor', caption: 'Sample project — living area' },
+    ],
+    galleryHeading: 'Recent floors (sample)',
+    about: ['Sample about block: who you are, the floors you lay and how a job starts.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: how do I get a quote?', answer: 'Sample answer. Your real site says how people reach you and what you need to know.' },
+      { question: 'Sample question: do you move the furniture?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: how long before we can walk on it?', answer: 'Sample answer. Your advice is yours to give.' },
+      { question: 'Sample question: what areas do you cover?', answer: 'Sample answer. Your real site lists the towns you serve.' },
+    ],
+  },
+  electrical: {
+    services: [
+      { title: 'Repairs & troubleshooting', description: 'Sample card: a service with a photo and a short plain description.', photo: ['electrical', 'electrical-02.jpg'] },
+      { title: 'Lighting & fixtures', description: 'Sample card: your own services replace these, each with your own photo.', photo: ['electrical', 'electrical-01.jpg'] },
+      { title: 'Panels & wiring', description: 'Sample card: what you do and when people call.', photo: ['electrical', 'electrical-05.jpg'] },
+    ],
+    gallery: [
+      { photo: ['electrical', 'electrical-03.jpg'], alt: 'An electrician working at a wall panel', caption: 'Sample project — a panel' },
+      { photo: ['electrical', 'electrical-04.jpg'], alt: 'New wall boxes set in plaster', caption: 'Sample project — new outlets' },
+      { photo: ['electrical', 'electrical-06.jpg'], alt: 'A multimeter and hand tools', caption: 'Sample project — testing' },
+      { photo: ['electrical', 'electrical-01.jpg'], alt: 'Fitting a pendant light', caption: 'Sample project — lighting' },
+      { photo: ['electrical', 'electrical-05.jpg'], alt: 'A wired breaker panel', caption: 'Sample project — wiring' },
+      { photo: ['electrical', 'electrical-02.jpg'], alt: 'An electrician stripping a wire', caption: 'Sample project — a repair' },
+    ],
+    galleryHeading: 'Recent jobs (sample)',
+    about: ['Sample about block: who you are and how you work.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: how do I book a visit?', answer: 'Sample answer. Your real site says how people reach you.' },
+      { question: 'Sample question: do you take small jobs?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: do you work evenings?', answer: 'Sample answer. Your hours are yours to state.' },
+      { question: 'Sample question: what areas do you cover?', answer: 'Sample answer. Your real site lists the towns you serve.' },
+    ],
+  },
+  hvac: {
+    services: [
+      { title: 'Heating', description: 'Sample card: a service with a photo and a short plain description.', photo: ['hvac', 'hvac-01.jpg'] },
+      { title: 'Cooling', description: 'Sample card: your own services replace these, each with your own photo.', photo: ['hvac', 'hvac-06.jpg'] },
+      { title: 'Maintenance', description: 'Sample card: what you do and when people call.', photo: ['hvac', 'hvac-04.jpg'] },
+    ],
+    gallery: [
+      { photo: ['hvac', 'hvac-03.jpg'], alt: 'A technician servicing a boiler', caption: 'Sample project — a service visit' },
+      { photo: ['hvac', 'hvac-05.jpg'], alt: 'A supply air duct', caption: 'Sample project — ductwork' },
+      { photo: ['hvac', 'hvac-02.jpg'], alt: 'A technician at a wall control', caption: 'Sample project — controls' },
+      { photo: ['hvac', 'hvac-06.jpg'], alt: 'An outdoor cooling unit', caption: 'Sample project — cooling' },
+      { photo: ['hvac', 'hvac-04.jpg'], alt: 'A pump and gauge on heating pipework', caption: 'Sample project — heating' },
+      { photo: ['hvac', 'hvac-01.jpg'], alt: 'A technician working on a boiler', caption: 'Sample project — a repair' },
+    ],
+    galleryHeading: 'Recent jobs (sample)',
+    about: ['Sample about block: who you are and how you work.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: how do I book a visit?', answer: 'Sample answer. Your real site says how people reach you.' },
+      { question: 'Sample question: do you service every make?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: do you work evenings?', answer: 'Sample answer. Your hours are yours to state.' },
+      { question: 'Sample question: what areas do you cover?', answer: 'Sample answer. Your real site lists the towns you serve.' },
+    ],
+  },
+  // A gym or studio: classes, training and the week — not a shop (its samples were "Service one" over shop photos).
+  fitness: {
+    services: [
+      { title: 'Classes', description: 'Sample card: the classes you run, with a photo of your own.', photo: ['fitness', 'fitness-02.jpg'] },
+      { title: 'Personal training', description: 'Sample card: one-to-one coaching, in your words.', photo: ['fitness', 'fitness-05.jpg'] },
+      { title: 'Open gym', description: 'Sample card: your own services and photos replace these.', photo: ['fitness', 'fitness-01.jpg'] },
+    ],
+    week: [
+      { dayLabel: 'Mon', tag: 'Sample class', location: 'Sample class — a morning session', hours: 'Sample time' },
+      { dayLabel: 'Tue', tag: 'Sample class', location: 'Sample class — an evening session', hours: 'Sample time' },
+      { dayLabel: 'Wed', tag: 'Sample class', location: 'Sample class — a morning session', hours: 'Sample time' },
+      { dayLabel: 'Thu', tag: 'Sample class', location: 'Sample class — an evening session', hours: 'Sample time' },
+      { dayLabel: 'Fri', tag: 'Sample class', location: 'Sample class — a lunchtime session', hours: 'Sample time' },
+      { dayLabel: 'Sat', tag: 'Sample class', location: 'Sample class — a weekend session', hours: 'Sample time' },
+      { dayLabel: 'Sun', tag: 'Closed', location: 'Sample day off' },
+    ],
+    weekHeading: 'This week’s classes (sample)',
+    weekIntro: 'Sample classes — your real site shows your own timetable.',
+    gallery: [
+      { photo: ['fitness', 'fitness-03.jpg'], alt: 'A lifter about to pick up a barbell', caption: 'Sample photo — the floor' },
+      { photo: ['fitness', 'fitness-04.jpg'], alt: 'People in a yoga class', caption: 'Sample photo — a class' },
+      { photo: ['fitness', 'fitness-06.jpg'], alt: 'A group exercising together', caption: 'Sample photo — a group session' },
+      { photo: ['fitness', 'fitness-05.jpg'], alt: 'Two people training together', caption: 'Sample photo — training' },
+      { photo: ['fitness', 'fitness-01.jpg'], alt: 'A man lifting weights', caption: 'Sample photo — weights' },
+      { photo: ['fitness', 'fitness-02.jpg'], alt: 'A group class mid-workout', caption: 'Sample photo — mid-class' },
+    ],
+    galleryHeading: 'Inside the gym (sample)',
+    about: ['Sample about block: who coaches here, what the place is like and who it’s for.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: what is a first visit like?', answer: 'Sample answer. Your real site says how a new member starts.' },
+      { question: 'Sample question: how does membership work?', answer: 'Sample answer. Your terms and prices are yours to state.' },
+      { question: 'Sample question: when are you open?', answer: 'Sample answer. Your hours are yours to state.' },
+    ],
+  },
+  // A bar: its board (the real section, with a photo beside it), what is on the menu, the room — not a wedding venue (it
+  // used to borrow the restaurant's private-dining samples).
+  bar: {
+    boardArt: [
+      { photo: ['bar', 'bar-01.jpg'], alt: 'A warmly lit pub with stools at the bar' },
+      { photo: ['bar', 'bar-02.jpg'], alt: 'A wooden bar with glassware' },
+      { photo: ['bar', 'bar-03.jpg'], alt: 'A brick-walled pub interior' },
+      { photo: ['bar', 'bar-04.jpg'], alt: 'A bartender pouring at a wall of taps' },
+    ],
+    menu: [
+      { name: 'Sample menu — from the kitchen', items: [
+        { name: 'Sample item one', description: 'Sample only: your own dish goes here, described in your words.' },
+        { name: 'Sample item two', description: 'Sample only: your real menu comes from the menu you enter, with your prices.' },
+        { name: 'Sample item three', description: 'Sample only: a photo of the dish can sit beside it.' },
+      ] },
+      { name: 'Sample menu — on tap', items: [
+        { name: 'Sample beer one', description: 'Sample only: nothing here is on your taps.' },
+        { name: 'Sample beer two', description: 'Sample only.' },
+      ] },
+    ],
+    gallery: [
+      { photo: ['bar', 'bar-05.jpg'], alt: 'A beer being poured from the tap', caption: 'Sample photo — the pour' },
+      { photo: ['bar', 'bar-08.jpg'], alt: 'A burger, fries and a beer', caption: 'Sample photo — from the kitchen' },
+      { photo: ['bar', 'bar-02.jpg'], alt: 'A wooden bar with glassware', caption: 'Sample photo — the bar' },
+      { photo: ['bar', 'bar-06.jpg'], alt: 'A pint being handed across the bar', caption: 'Sample photo — a pint' },
+      { photo: ['bar', 'bar-07.jpg'], alt: 'Sliders and a beer on a table', caption: 'Sample photo — bar food' },
+      { photo: ['bar', 'bar-03.jpg'], alt: 'A brick-walled pub interior', caption: 'Sample photo — the room' },
+    ],
+    galleryHeading: 'Inside the bar (sample)',
+    about: ['Sample about block: the story of the place, who runs it and what a night here is like.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
+    faq: [
+      { question: 'Sample question: is the kitchen open late?', answer: 'Sample answer. Your real site shows your own hours, live.' },
+      { question: 'Sample question: do you show the game?', answer: 'Sample answer. What you offer is yours to state.' },
+      { question: 'Sample question: can I book a party?', answer: 'Sample answer. Your real site says how people book with you.' },
     ],
   },
   // A food truck: what it serves, where it is this week, and the events it takes — not a dining room (a food truck's
@@ -244,8 +454,8 @@ const SAMPLES: Record<string, TradeSample> = {
   },
   basic: {
     services: [
-      { title: 'Service one', description: 'Sample card: a service with a photo and a short plain description.', photo: ['generic', 'generic-01.jpg'] },
-      { title: 'Service two', description: 'Sample card: your own services and your own photos replace these.', photo: ['generic', 'generic-02.jpg'] },
+      { title: 'Service one', description: 'Sample card: a service with a photo and a short plain description.' },
+      { title: 'Service two', description: 'Sample card: your own services and your own photos replace these.' },
       { title: 'Service three', description: 'Sample card: say what you do, in your words.' },
     ],
     about: ['Sample about block: who you are, what you do and what customers can expect.', 'Your real site writes it from what you tell us — nothing here is about your business.'],
@@ -257,8 +467,19 @@ const SAMPLES: Record<string, TradeSample> = {
   },
 }
 
-/** A trade the unified app names the same as a sample set (a bar takes the restaurant's; a food truck has its own, asked for by name: unified/preview.ts). */
-const SET_OF: Record<string, string> = { bar: 'restaurant', rv: 'basic', vet: 'basic', store: 'store' }
+/** A unified vertical with no set of its own, and the set it takes. */
+const SET_OF: Record<string, string> = { rv: 'basic', vet: 'basic', store: 'store' }
+
+/**
+ * Which set a business's preview takes: the set of its trade's photo group when there is one (config/heroLibrary.ts
+ * pickHeroGroup — 'painting', 'hvac', 'foodtruck', 'fitness'…), else its unified vertical's, else the catch-all. A painter
+ * runs as field service and a gym as the basic CRM, but neither looks like a plumber or a shop.
+ */
+export function sampleSetFor(photoGroup: string, vertical: string): string {
+  if (Object.prototype.hasOwnProperty.call(SAMPLES, photoGroup)) return photoGroup
+  const set = SET_OF[vertical] ?? vertical
+  return set === 'store' || Object.prototype.hasOwnProperty.call(SAMPLES, set) ? set : 'basic'
+}
 
 const STORE_PRODUCTS: Array<{ slug: string; name: string; id: string; cents: number; was?: number; featured?: boolean }> = [
   { slug: 'mug', name: 'Stoneware mug', id: '1514228742587-6b1558fcca3d', cents: 2400, featured: true },
@@ -284,33 +505,46 @@ export interface PreviewSamples {
   imageUrls: string[]
 }
 
+const rotate = <T>(list: T[], by: number): T[] => (list.length ? [...list.slice(by % list.length), ...list.slice(0, by % list.length)] : list)
+
+/** Every image address inside the sample sections: the page credits the photos on it, not the ones it could have used. */
+const imagesIn = (v: unknown, out: string[] = []): string[] => {
+  if (typeof v === 'string') { if (/^https?:\/\//.test(v) && (/\/hero-library\//.test(v) || /^https:\/\/images\.unsplash\.com\//.test(v))) out.push(v) }
+  else if (Array.isArray(v)) v.forEach((x) => imagesIn(x, out))
+  else if (v && typeof v === 'object') Object.values(v).forEach((x) => imagesIn(x, out))
+  return out
+}
+
 /**
  * The preview's home sections with the samples in. The real hero and call to action stay as the composer made them; a
  * "What we do" holding only the stand-in card is replaced by the sample services (a real service list is never
  * replaced); the gallery, a review, an about block and an FAQ go in before the call to action.
+ *
+ * `seed` (the business's name, as the composer hashes it: instantComposer.ts nameSeed) varies what two businesses of one
+ * trade see — which card comes first, which photo opens the gallery, the layouts of the sample sections (the same
+ * compatibility table the composer picks from) and the order of the middle of the page — and is steady for one
+ * business. 0, the default: the plain order and layouts.
  */
-export function withPreviewSamples(real: any[], vertical: string, factoryBase = (process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || '').replace(/\/$/, '')): PreviewSamples {
+export function withPreviewSamples(real: any[], vertical: string, factoryBase = (process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || '').replace(/\/$/, ''), seed = 0): PreviewSamples {
   const lib = libraryImg(factoryBase)
-  const urls: string[] = []
-  const pic = (p: [string, string] | string | undefined): string | null => {
-    if (!p) return null
-    const u = typeof p === 'string' ? un(p) : lib(p[0], p[1])
-    if (u) urls.push(u)
-    return u
-  }
+  const pic = (p: [string, string] | string | undefined): string | null => (!p ? null : typeof p === 'string' ? un(p) : lib(p[0], p[1]))
+  const done = (sections: any[]): PreviewSamples => ({ sections, imageUrls: [...new Set(imagesIn(sections.filter(isSampleSection)))] })
 
   const set = SET_OF[vertical] ?? vertical
   if (set === 'store') {
-    const out = real.map((s) => (s?.type === 'shop'
+    return done(real.map((s) => (s?.type === 'shop'
       ? mark({ type: 'shop', variant: s.variant || 'grid', data: { ...(s.data || {}), heading: 'Shop (sample products)', intro: 'Sample products — your real shop sells your own, with your own photos and prices.', products: storeProducts() } })
-      : s))
-    storeProducts().forEach((p) => urls.push(p.images[0].url))
-    return { sections: out, imageUrls: urls }
+      : s)))
   }
 
   const t = SAMPLES[set] ?? SAMPLES.basic
-  const services = t.services.map((s) => { const image = pic(s.photo); return { title: s.title, description: s.description, ...(image ? { image } : {}) } })
-  const servicesSection = mark({ type: 'services', variant: 'cards-grid', data: { heading: 'What we do (sample services)', intro: 'Sample services — yours appear here with your own photos.', items: services } })
+  const layout = (type: string, fallback: string, data: Record<string, unknown>, among: string[], salt: number) => (seed ? pickLayout(type, fallback, data, seed, among, salt) : fallback)
+  const servicesSection = t.services
+    ? ((data) => mark({ type: 'services', variant: layout('services', 'cards-grid', data, ['list', 'tiles', 'featured'], 3), data }))({
+        heading: 'What we do (sample services)', intro: 'Sample services — yours appear here with your own photos.',
+        items: rotate(t.services, seed).map((s) => { const image = pic(s.photo); return { title: s.title, description: s.description, ...(image ? { image } : {}) } }),
+      })
+    : null
 
   // "Why choose us": sample reasons, marked — a real site carries only the reasons its owner gives (composerFacts.ts).
   const why = mark({ type: 'why_choose', variant: 'grid', data: { heading: 'Why choose us (sample)', intro: 'Sample reasons — your real site lists your own.', items: [
@@ -318,28 +552,38 @@ export function withPreviewSamples(real: any[], vertical: string, factoryBase = 
     { title: 'Sample reason two', description: 'Example only: nothing here is about your business.' },
     { title: 'Sample reason three', description: 'Example only.' },
   ] } })
-  const gallery = (t.gallery ?? []).map((g) => ({ url: pic(g.photo), alt: g.alt, caption: g.caption })).filter((g) => g.url)
-  const extras: Section[] = [why]
-  if (gallery.length >= 3) extras.push(mark({ type: 'gallery', variant: 'grid', data: { heading: t.galleryHeading || 'Recent work (sample)', intro: 'Sample photos — your real site shows your own work.', photos: gallery } }))
-  extras.push(mark({ type: 'about', variant: 'story', data: { eyebrow: 'Sample · About us', title: 'About us (sample)', paragraphs: t.about } }))
-  extras.push(mark({ type: 'testimonials', variant: 'quotes', data: { heading: 'What customers say (sample reviews)', items: REVIEWS } }))
-  if (t.week) extras.unshift(mark({ type: 'schedule', variant: 'week-strip', data: { heading: 'This week (sample)', intro: 'Sample stops — your real site shows where you tell it you’ll be.', days: t.week } }))
+  const photos = rotate(t.gallery ?? [], seed >>> 2).map((g) => ({ url: pic(g.photo), alt: g.alt, caption: g.caption })).filter((g) => g.url)
+  const gallery = photos.length >= 3
+    ? ((data) => mark({ type: 'gallery', variant: layout('gallery', 'grid', data, ['masonry'], 7), data }))({ heading: t.galleryHeading || 'Recent work (sample)', intro: 'Sample photos — your real site shows your own work.', photos })
+    : null
+  const about = mark({ type: 'about', variant: 'story', data: { eyebrow: 'Sample · About us', title: 'About us (sample)', paragraphs: t.about } })
+  const reviews = ((data) => mark({ type: 'testimonials', variant: layout('testimonials', 'quotes', data, ['wall', 'featured'], 5), data }))({ heading: 'What customers say (sample reviews)', items: REVIEWS })
+  // The middle of the page, in one of three orders (the plain one for seed 0); the price list and the questions close it.
+  const middle = ([[why, gallery, about, reviews], [gallery, why, reviews, about], [about, gallery, why, reviews]][(seed >>> 4) % 3] as Array<Section | null>).filter((s): s is Section => !!s)
+  const extras: Section[] = [...middle]
+  if (t.pricing) extras.push(mark({ type: 'pricing', variant: 'flat-rate-menu', data: { heading: 'Price list (sample)', intro: 'Sample prices — your real site shows the prices you set.', items: t.pricing, disclaimer: 'Sample only: these are not prices.' } }))
+  extras.push(mark({ type: 'faq', variant: 'accordion', data: { heading: 'Questions (sample)', items: t.faq } }))
+  if (t.week) extras.unshift(mark({ type: 'schedule', variant: 'week-strip', data: { heading: t.weekHeading || 'This week (sample)', intro: t.weekIntro || 'Sample stops — your real site shows where you tell it you’ll be.', days: t.week } }))
   // The sample menu, drawn by the section a real site's live menu is. It stands where the page's own live menu is (a food
-  // truck's home has one, empty until a menu is entered); a page with none gets it before the rest.
+  // truck's or a restaurant's home has one, empty until a menu is entered); a page with none gets it before the rest.
   const menuSection = t.menu ? mark({ type: 'menu', variant: 'sections', data: { heading: 'Menu (sample)', intro: 'A sample menu — yours comes from the menu you enter, with your own prices.', showSignatureLinks: false,
     sections: t.menu.map((s, si) => ({ slug: 'sample-' + (si + 1), name: s.name, kind: 'food', items: s.items.map((it, ii) => ({ slug: 'sample-' + (si + 1) + '-' + (ii + 1), name: it.name, description: it.description, priceLabel: 'Sample price' })) })) } }) : null
   const liveMenu = (s: any) => !!menuSection && s?.type === 'menu' && s.variant === 'sections' && !Array.isArray(s.data?.sections)
   if (menuSection && !real.some(liveMenu)) extras.unshift(menuSection)
-  if (t.pricing) extras.push(mark({ type: 'pricing', variant: 'flat-rate-menu', data: { heading: 'Price list (sample)', intro: 'Sample prices — your real site shows the prices you set.', items: t.pricing, disclaimer: 'Sample only: these are not prices.' } }))
-  extras.push(mark({ type: 'faq', variant: 'accordion', data: { heading: 'Questions (sample)', items: t.faq } }))
 
   const standIn = (s: any) => s?.type === 'services' && Array.isArray(s.data?.items) && s.data.items.length > 0 && s.data.items.every((i: any) => i?.standIn)
+  // A page with no "What we do" at all (a business that named no trade) still shows what one looks like.
+  if (servicesSection && !real.some((s) => s?.type === 'services')) extras.unshift(servicesSection)
+  // A bar's Tonight board is the real section; the preview stands a photo beside it (marked, as every sample is).
+  const art = t.boardArt?.length ? t.boardArt[seed % t.boardArt.length] : null
+  const board = (s: any) => { const url = art ? pic(art.photo) : null; return url ? mark({ ...s, data: { ...(s.data || {}), art: url, artAlt: art!.alt } }) : s }
+
   let placed = false
   const out: any[] = []
   for (const s of real) {
     if (!placed && s?.type === 'cta') { out.push(...extras); placed = true }
-    out.push(standIn(s) ? servicesSection : liveMenu(s) ? menuSection : s)
+    out.push(standIn(s) && servicesSection ? servicesSection : liveMenu(s) ? menuSection : s?.type === 'tonight' && s.variant === 'board' ? board(s) : s)
   }
   if (!placed) out.push(...extras)
-  return { sections: out, imageUrls: urls }
+  return done(out)
 }
