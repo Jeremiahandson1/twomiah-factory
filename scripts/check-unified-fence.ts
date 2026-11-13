@@ -37,10 +37,11 @@ const OLD_ROOF_ESTIMATOR = /^apps\/roof-estimator\//
 /**
  * The closed "see a preview first" website offer (owner, 2026-11-13: "I don't want this way anymore"; asked why its code
  * was being left in place, "why aren't we doing this?"). Its form page, its staff review screen, and the retry rule only
- * its previews used, with that rule's test. These files may be deleted — and only deleted. Its routes answer 410
- * (apps/api/src/routes/factory/closedIntake.ts).
+ * its previews used. These files may be deleted — and only deleted. Its routes answer 410
+ * (apps/api/src/routes/factory/closedIntake.ts). That rule's test, tests/shared/preview-retry.test.ts, stays (CI runs it
+ * by name): it now tests the same rule for a signup's own site.
  */
-const CLOSED_WEBSITE_OFFER = /^(apps\/platform\/src\/pages\/(PublicIntakePage|PremiumReviewPage)\.tsx|apps\/api\/src\/services\/previewRetry\.ts|tests\/shared\/preview-retry\.test\.ts)$/
+const CLOSED_WEBSITE_OFFER = /^(apps\/platform\/src\/pages\/(PublicIntakePage|PremiumReviewPage)\.tsx|apps\/api\/src\/services\/previewRetry\.ts)$/
 /** Existing files that may be deleted: the phone app's (owner, 2026-10-19 — it has no users yet) and the unified app's own. */
 const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN, ROOF_BENCH, OLD_ROOF_ESTIMATOR, CLOSED_WEBSITE_OFFER]
 // The Factory's checked photo library (apps/api/assets/hero-library) — NEW photos only, each one looked at before it is kept
