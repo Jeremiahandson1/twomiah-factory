@@ -5,7 +5,7 @@ import { eq, and, gte, lte, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { createStaffBalanceStore } from '../shared/index.ts'
-import { companyTimeZone, storeDayRange } from '../shared/index.ts'
+import { companyTimeZone, entryDay, entryDayWindow } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -34,13 +34,16 @@ app.get('/summary', async (c) => {
 
   // The shop's own days, from the shared definition every vertical uses.
   const payTz = await companyTimeZone(db, currentUser.companyId)
-  const payPeriod = { start: storeDayRange(payTz, startDate).start, end: storeDayRange(payTz, endDate).end }
+  // An entry's date is the DAY worked, kept as a day marker (midnight UTC of the shop's day), not an instant: compared with the
+  // shop's midnights every entry counted a day early west of Greenwich (code review 04-4, 2026-11-13). Fetched by the window
+  // that can hold them, kept by their own day (shared entryDay).
+  const payPeriod = entryDayWindow(payTz, startDate, endDate)
 
     // first_name + last_name, because this schema's user table has no `name` column.
     // `user.name` was undefined, drizzle threw building the select, and this handler answered 500
     // on every call it ever received — silently, because nothing had a screen for it until the Pay
     // run panel was built. (The salon hit the same thing in T46 N24.)
-  const entries = await db.select({
+  const fetchedEntries = await db.select({
     entry: timeEntry,
     userId: user.id,
     userFirstName: user.firstName,
@@ -60,6 +63,7 @@ app.get('/summary', async (c) => {
       lt(timeEntry.date, payPeriod.end),
     ))
 
+  const entries = fetchedEntries.filter((e: any) => { const day = entryDay(e.entry.date, payTz); return day >= startDate && day <= endDate })
   // Group by user
   const byUser: Record<string, any> = {}
   entries.forEach(e => {
