@@ -233,6 +233,11 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     },
   },
   salon: {
+    'payroll-period.test.ts': {
+      assertions: [/^…and the payroll summary now reports it, so the report is of something real/],
+      why: "On purpose (code review 04-4, 2026-11-13): the pay run counts a time entry on its own day. time_entry.date is a day marker (midnight UTC of the day worked); the template's pay run compares it with the business's midnight, which counts every entry a day early. This assertion posts an entry dated '2026-09-12T01:00:00.000Z' — the timesheet files it on the 12th (the date's first ten characters) — and asks the pay run for the 11th: the template's day-early reading lands it there, the unified app's does not. Still open: filing a date sent WITH a time on the business's day, which needs the templates' pay run fixed in the same change (outside this review's fence; asked 11/13).",
+      heldBy: "apps/unified/tests/review-04-project-money.test.ts ('a time entry is paid on the day it was worked': a day-marker entry and an instant entry, each counted on its own day, the day before and after empty)",
+    },
     'salon-n2-calendar-day.test.ts': {
       why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so every assertion about the shop's day reads the company's default clock instead — and which of them fail depends on the hour the file runs (Niue is a day behind UTC from 00:00Z to 10:59Z). The whole file is held by its adapted copy, which sets the zone on the company and pins the clock at two instants (Niue behind UTC, and on UTC's day), so every assertion runs at every hour.",
       heldBy: "tests/unified/salon/salon-n2-calendar-day.test.ts (the same file, the zone on the company, the clock pinned at 01:30Z and 12:00Z: every zone's start date, invoice line, renewal and patch test on the shop's day; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",

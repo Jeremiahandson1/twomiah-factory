@@ -4,7 +4,7 @@ import { timeEntry, user } from '../../db/schema.ts'
 import { eq, and, gte, lte, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { companyTimeZone, entryDay, entryDayWindow } from '../shared/index.ts'
+import { companyTimeZone, storeDayRange } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -29,16 +29,13 @@ app.get('/summary', async (c) => {
 
   // The shop's own days, from the shared definition every vertical uses.
   const payTz = await companyTimeZone(db, currentUser.companyId)
-  // An entry's date is the DAY worked, kept as a day marker (midnight UTC of the shop's day), not an instant: compared with the
-  // shop's midnights every entry counted a day early west of Greenwich (code review 04-4, 2026-11-13). Fetched by the window
-  // that can hold them, kept by their own day (shared entryDay).
-  const payPeriod = entryDayWindow(payTz, startDate, endDate)
+  const payPeriod = { start: storeDayRange(payTz, startDate).start, end: storeDayRange(payTz, endDate).end }
 
   // first_name + last_name, because this schema's user table has no `name` column.
   // `user.name` was undefined, so drizzle threw while BUILDING the select and this route answered 500
   // on every call it ever received — silently, because nothing in this template has a screen for it.
   // (Same defect as crm/crm-basic/crm-fieldservice/crm-landscaping, and the salon's T46 N24.)
-  const fetchedEntries = await db.select({
+  const entries = await db.select({
     entry: timeEntry,
     userId: user.id,
     userFirstName: user.firstName,
@@ -58,7 +55,6 @@ app.get('/summary', async (c) => {
       lt(timeEntry.date, payPeriod.end),
     ))
 
-  const entries = fetchedEntries.filter((e: any) => { const day = entryDay(e.entry.date, payTz); return day >= startDate && day <= endDate })
   // Group by user
   const byUser: Record<string, any> = {}
   entries.forEach(e => {
