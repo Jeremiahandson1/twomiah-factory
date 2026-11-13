@@ -1,7 +1,7 @@
 // Code review 02 (shared modules), 2026-11-13. Each test is one finding, shown fixed beside the ordinary path.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { and, eq, isNull } from 'drizzle-orm'
-import { retotalInvoice, scheduleTotals } from '@twomiah/tenant-backend'
+import { retotalInvoice, scheduleTotals, commissionFor } from '@twomiah/tenant-backend'
 import { bootTenant, seedOwner } from './harness.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
@@ -88,5 +88,14 @@ describe('02-5: one clock-in at a time', () => {
     expect(both.map((r) => r.status).sort()).toEqual([201, 409].sort())
     const open = await t.db.select().from(t.schema.timeEntry).where(and(eq(t.schema.timeEntry.companyId, companyId), isNull(t.schema.timeEntry.clockOut)))
     expect(open.length).toBe(1)
+  })
+})
+
+describe('02-6: an amount between two commission brackets', () => {
+  test('belongs to the lower bracket; past the last one the plan still does not say', () => {
+    const plan = { planType: 'tiered', tiers: [{ min: 0, max: 1000, rate: 5 }, { min: 1001, max: 5000, rate: 10 }] }
+    expect(commissionFor(plan, 1000.5)).toEqual({ amount: 50.03, rate: 5 })
+    expect(commissionFor(plan, 2000)).toEqual({ amount: 200, rate: 10 })
+    expect('error' in commissionFor(plan, 6000)).toBe(true)
   })
 })

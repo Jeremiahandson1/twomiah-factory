@@ -249,7 +249,12 @@ export function commissionFor(plan: { planType: string; flatRateAmount?: any; pe
   }
   if (plan.planType === 'tiered') {
     const tiers = (Array.isArray(plan.tiers) ? plan.tiers : []) as Array<{ min: number; max: number; rate: number }>
+    // An amount BETWEEN two brackets belongs to the lower one (code review 02-6, 2026-11-13): brackets written
+    // 0–1,000 and 1,001–5,000 left $1,000.50 in neither, and the sale earned nothing. Past the last bracket the plan
+    // still does not say.
+    const below = [...tiers].sort((x, y) => Number(x.min) - Number(y.min)).filter((t) => Number(t.min) <= base)
     const tier = tiers.find((t) => base >= Number(t.min) && base <= Number(t.max))
+      ?? (below.length && tiers.some((t) => Number(t.min) > base) ? below[below.length - 1] : undefined)
     if (!tier) return { error: 'That amount is outside every bracket on this plan, so the plan does not say what it earns' }
     return { amount: cents(base * Number(tier.rate) / 100), rate: Number(tier.rate) }
   }
