@@ -40,7 +40,7 @@ import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 // The same verifier enrolment uses. Passing it in as a parameter would have let sign-in be handed
 // a different one.
-import { verifyTOTP } from './totp.ts'
+import { matchTOTPStep } from './totp.ts'
 
 /** A factor a person can be asked for at sign-in. Backup codes are deliberately not one. */
 const PRESENTABLE = ['totp', 'sms', 'email'] as const
@@ -243,10 +243,21 @@ export async function verifyLoginChallenge(
 
   // An authenticator first — it is what the person is holding.
   for (const d of devices.filter((x) => String(x.type) === 'totp' && x.secret)) {
-    if (verifyTOTP(String(d.secret), given)) {
-      await spend(db, challengeId, d.id)
-      return { ok: true, userId, usedRecoveryCode: false }
+    const step = matchTOTPStep(String(d.secret), given)
+    if (step === null) continue
+    // A CODE SIGNS IN ONCE (security review S1-4, 2026-11-12). The same six digits are right for up to 90 seconds, so
+    // someone who saw them typed (a shared screen, a shoulder) and holds the password signed in with them too. The step
+    // each sign-in was accepted on is kept on its challenge row; a code from that step or an earlier one is refused,
+    // and the request stays open for the next code the app shows.
+    const used = { ok: false as const, error: 'That code has already been used. Wait for your authenticator to show a new one, then enter it.', code: 'code_already_used' }
+    if (await stepAlreadyUsed(db, userId, d.id, step, challengeId)) return used
+    await spend(db, challengeId, d.id, step)
+    // Two requests with the same code at the same moment both pass the look above; each then sees the other's row here.
+    if (await stepAlreadyUsed(db, userId, d.id, step, challengeId)) {
+      await db.execute(sql`UPDATE mfa_challenges SET status = 'failed' WHERE id = ${challengeId}`)
+      return used
     }
+    return { ok: true, userId, usedRecoveryCode: false }
   }
 
   // …then a recovery code, matched by hash and burned.
@@ -280,9 +291,21 @@ export async function verifyLoginChallenge(
   }
 }
 
-async function spend(db: any, challengeId: string, deviceId: string) {
+/** `step`: the authenticator step the sign-in was accepted on, kept in `code` (null for a sign-in challenge until now). */
+async function spend(db: any, challengeId: string, deviceId: string, step?: number) {
   await db.execute(sql`
-    UPDATE mfa_challenges SET status = 'verified', verified_at = NOW(), device_id = ${deviceId}
+    UPDATE mfa_challenges SET status = 'verified', verified_at = NOW(), device_id = ${deviceId}, code = ${step === undefined ? null : String(step)}
     WHERE id = ${challengeId}
   `)
+}
+
+/** Has ANOTHER sign-in already been accepted on this authenticator with a code from this step or a later one? */
+async function stepAlreadyUsed(db: any, userId: string, deviceId: string, step: number, challengeId: string): Promise<boolean> {
+  const rows: any = await db.execute(sql`
+    SELECT id FROM mfa_challenges
+    WHERE user_id = ${userId} AND device_id = ${deviceId} AND type = 'login' AND status = 'verified' AND id <> ${challengeId}
+      AND (CASE WHEN code ~ '^[0-9]+$' THEN code::bigint END) >= ${step}
+    LIMIT 1
+  `)
+  return !!((rows as any).rows || rows)[0]
 }

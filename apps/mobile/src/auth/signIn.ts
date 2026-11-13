@@ -90,7 +90,8 @@ export async function completeMfaSignIn(challengeId: string, code: string): Prom
     await saveTokens(d.accessToken, d.refreshToken)
     return { kind: 'signedIn', data: d, usedRecoveryCode: d?.usedRecoveryCode === true }
   }
-  if (res.status === 401 && res.data?.code === 'bad_code') return { kind: 'badCode', error: res.error || 'That code was not right. Try again.' }
+  // `code_already_used`: the right code, but one a sign-in was already accepted on — the next code the app shows works.
+  if (res.status === 401 && (res.data?.code === 'bad_code' || res.data?.code === 'code_already_used')) return { kind: 'badCode', error: res.error || 'That code was not right. Try again.' }
   // 400: expired / spent / unknown / too many tries. A 401 that is NOT bad_code is the account itself
   // ("Account is disabled" between the password and the code) — another code cannot fix either.
   if (res.status === 400 || res.status === 401) return { kind: 'restart', error: res.error || 'That sign-in request is no longer valid. Sign in again.' }

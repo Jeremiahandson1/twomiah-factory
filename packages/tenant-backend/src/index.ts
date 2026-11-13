@@ -159,7 +159,7 @@ export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } 
  */
 export { mfaGateFor, openLoginChallenge, verifyLoginChallenge, MAX_CODE_ATTEMPTS } from './auth/mfa'
 export type { MfaGate, MfaCodeOutcome, MfaScope } from './auth/mfa'
-export { verifyTOTP, generateTOTPCode, base32Encode, base32Decode } from './auth/totp'
+export { verifyTOTP, matchTOTPStep, generateTOTPCode, base32Encode, base32Decode } from './auth/totp'
 export { createMfaRoutes } from './auth/mfaRoutes'
 export type { MfaRoutesDeps } from './auth/mfaRoutes'
 export { createActorName } from './auth/actorName'

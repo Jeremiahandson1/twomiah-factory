@@ -446,7 +446,7 @@ export function createAuthRoutes(deps: AuthDeps) {
       }
       // 401 for a wrong code, 400 for a request that can no longer be completed — a screen shows the
       // first in the code field and sends the reader back to the start for the second.
-      return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
+      return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' || outcome.code === 'code_already_used' ? 401 : 400)
     }
 
     const [mfaUser] = await db.select().from(user).where(eq(user.id, outcome.userId)).limit(1)

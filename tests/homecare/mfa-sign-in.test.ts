@@ -49,7 +49,8 @@ const call = async (who: any, method: string, path: string, body?: unknown) => {
 }
 const login = (u: any) => call(null, 'POST', '/api/auth/login', { email: u.email, password: PASSWORD })
 const step = () => Math.floor(Math.floor(Date.now() / 1000) / 30)
-const codeFor = (secret: string) => generateTOTPCode(secret, step())
+// `ahead`: a sign-in code is taken once (security review S1-4), so a second sign-in in this file sends a later step's code.
+const codeFor = (secret: string, ahead = 0) => generateTOTPCode(secret, step() + ahead)
 /** Six digits no window the verifier accepts would produce — a WRONG code that cannot pass by luck. */
 const wrongFor = (secret: string) => {
   const live = new Set([-1, 0, 1].map((i) => generateTOTPCode(secret, step() + i)))
@@ -176,7 +177,7 @@ let deviceId = '', secret = '', recovery: string[] = []
 {
   const ch = await login(owner)
   await db.update(users).set({ isActive: false }).where(eq(users.id, owner.id))
-  const r = await call(null, 'POST', '/api/auth/mfa', { challengeId: ch.json?.challengeId, code: codeFor(secret) })
+  const r = await call(null, 'POST', '/api/auth/mfa', { challengeId: ch.json?.challengeId, code: codeFor(secret, 1) })
   check(`an account deactivated after the password does not get in on the code (${r.status})`, r.status === 401 && !hasTokens(r.json), r.json)
   await db.update(users).set({ isActive: true }).where(eq(users.id, owner.id))
 }

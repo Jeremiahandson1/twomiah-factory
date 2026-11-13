@@ -72,13 +72,22 @@ export function generateTOTPCode(secret: string, timeStep: number): string {
   return String(code % 1000000).padStart(6, '0')
 }
 
-/** The current window and one either side, so a clock a few seconds out still works. */
-export function verifyTOTP(secret: string, code: string): boolean {
+/**
+ * WHICH 30-second step a code belongs to — the current one or one either side, so a clock a few seconds out still works —
+ * or null when it is not a code this secret makes now. Sign-in keeps the step it accepted, so the same six digits are
+ * not taken twice (mfa.ts verifyLoginChallenge; security review S1-4, 2026-11-12).
+ */
+export function matchTOTPStep(secret: string, code: string): number | null {
   const given = String(code || '').trim()
-  if (!/^\d{6}$/.test(given)) return false
+  if (!/^\d{6}$/.test(given)) return null
   const timeStep = Math.floor(Math.floor(Date.now() / 1000) / 30)
   for (let i = -1; i <= 1; i++) {
-    if (generateTOTPCode(secret, timeStep + i) === given) return true
+    if (generateTOTPCode(secret, timeStep + i) === given) return timeStep + i
   }
-  return false
+  return null
+}
+
+/** The current window and one either side, so a clock a few seconds out still works. */
+export function verifyTOTP(secret: string, code: string): boolean {
+  return matchTOTPStep(secret, code) !== null
 }

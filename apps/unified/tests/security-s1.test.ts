@@ -88,6 +88,25 @@ describe('S1-1: wrong two-factor codes count against the account', () => {
     expect(Number((await userRow()).failedLoginCount) || 0).toBe(0)
     access = ok.body.accessToken
   })
+
+  test('S1-4: the code a sign-in was accepted on does not sign in a second time', async () => {
+    const code = codeNow(secret, 1) // a later step than the sign-in above used
+    const first = await signIn()
+    const ok = await sendCode(first.body.challengeId, code)
+    expect(ok.status).toBe(200)
+    // Someone who saw those six digits typed, and holds the password: a new request, the same code.
+    const second = await signIn()
+    expect(second.body.mfaRequired).toBe(true)
+    const replay = await sendCode(second.body.challengeId, code)
+    expect(replay.status).toBe(401)
+    expect(replay.body.code).toBe('code_already_used')
+    expect(replay.body.accessToken).toBeUndefined()
+    // The request stays open for the next code the app shows; nothing is counted against the account for a real code.
+    const [row] = await t.db.select().from(t.schema.mfaChallenge).where(eq(t.schema.mfaChallenge.id, second.body.challengeId))
+    expect(row.status).toBe('pending')
+    expect(Number((await userRow()).failedLoginCount) || 0).toBe(0)
+    access = ok.body.accessToken
+  })
 })
 
 describe('S1-2: adding an authenticator to an account that has one asks for a code from it', () => {
