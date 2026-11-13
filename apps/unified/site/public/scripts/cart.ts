@@ -484,9 +484,31 @@
 
   function loyaltyPanel() { return document.querySelector('[data-loyalty-panel]'); }
 
+  // Rewards belong to whoever can read the email's inbox: the shop asks for a code it emails there before it shows or
+  // spends them (server checkout/publicRoutes.ts). The same panel for every address.
+  var loyaltyCodeSent = false;
+  var loyaltyCodeNote = '';
+  function renderLoyaltyProof(kind) {
+    var panel = loyaltyPanel();
+    if (!panel) return;
+    loyaltySelectedRewardId = null;
+    if (kind !== 'code') { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+    panel.innerHTML = loyaltyCodeSent
+      ? '<div class="cart-summary__field"><label class="cart-summary__note" for="loyalty-code">Type the code we emailed you</label>' +
+        '<input id="loyalty-code" data-loyalty-code class="cart-summary__input" inputmode="numeric" autocomplete="one-time-code" maxlength="6">' +
+        '<button type="button" class="cart-summary__link" data-loyalty-verify>Use code</button></div>' +
+        (loyaltyCodeNote ? '<p class="cart-summary__note">' + esc(loyaltyCodeNote) + '</p>' : '')
+      : '<p class="cart-summary__note">Have rewards with us? <button type="button" class="cart-summary__link" data-loyalty-send>Email me a code</button> to see and use them.</p>';
+    panel.style.display = 'block';
+  }
+  function postLoyalty(path, body) {
+    return fetch('/api/public/loyalty/' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) });
+  }
+
   function renderLoyalty(quote) {
     var panel = loyaltyPanel();
     if (!panel) return;
+    if (quote && quote.proof) { renderLoyaltyProof(quote.proof); return; }
     var rewards = (quote && quote.rewards) || [];
     var card = (quote && quote.punchCard) || { enabled: false };
     var balance = (quote && quote.pointsBalance) || 0;
@@ -544,7 +566,7 @@
       return;
     }
     var subtotal = cartSubtotalCents(readCart());
-    fetch('/api/public/loyalty?email=' + encodeURIComponent(email) + '&subtotalCents=' + subtotal)
+    fetch('/api/public/loyalty?email=' + encodeURIComponent(email) + '&subtotalCents=' + subtotal, { credentials: 'same-origin' })
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (quote) { if (quote) renderLoyalty(quote); })
       .catch(function () { /* the cart keeps working without it */ });
@@ -562,6 +584,23 @@
       var sel = e.target.closest('[data-loyalty-reward]');
       if (!sel) return;
       loyaltySelectedRewardId = sel.value || null;
+    });
+    root.addEventListener('click', function (e) {
+      if (e.target.closest('[data-loyalty-send]')) {
+        loyaltyCodeSent = true; loyaltyCodeNote = 'If that address has rewards here, the code is on its way.';
+        postLoyalty('code', { email: loyaltyEmail }).catch(function () {});
+        renderLoyaltyProof('code');
+        return;
+      }
+      if (e.target.closest('[data-loyalty-verify]')) {
+        var box = root.querySelector('[data-loyalty-code]');
+        postLoyalty('verify', { email: loyaltyEmail, code: box ? String(box.value || '').trim() : '' })
+          .then(function (res) {
+            if (res.ok) { loyaltyCodeSent = false; loyaltyCodeNote = ''; refreshLoyalty(); return; }
+            return res.json().then(function (j) { loyaltyCodeNote = (j && j.error) || 'That code is not right.'; renderLoyaltyProof('code'); });
+          })
+          .catch(function () { loyaltyCodeNote = 'Could not check the code. Try again.'; renderLoyaltyProof('code'); });
+      }
     });
   }
 

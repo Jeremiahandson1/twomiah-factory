@@ -68,15 +68,19 @@ globalThis.fetch = (async (input: any, init?: any) => {
 
 const app = new Hono()
 app.route('/api/public', (await import('./src/routes/public.ts')).default)
-const call = async (method: string, path: string, body?: unknown) => {
-  const res = await app.request(path, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
+  const res = await app.request(path, { method, headers: { 'content-type': 'application/json', ...headers }, body: body === undefined ? undefined : JSON.stringify(body) })
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j, text: t }
 }
 const latestOrder = async () => (await db.select().from(orders)).sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt))[0]
+/* unified (security review S2-11, 2026-11-13): a reward is spent only by a shopper who has proved the email is theirs — the cookie the emailed code leaves (apps/unified/tests/store-checkout.test.ts walks the code itself). Signed here as the server signs it. */
+process.env.JWT_SECRET ||= 'a-signing-secret-for-this-suite-only'
+const [theShop] = await db.select().from(company)
+const adaProved = { cookie: `rewards_proof=${(await import('jsonwebtoken')).default.sign({ p: 'rewards', c: theShop.id, e: 'ada@example.com' }, process.env.JWT_SECRET!, { expiresIn: '2h' })}` }
 const checkout = async (extra: Record<string, unknown>, qty = 2) => {
   const before = pp
-  const r = await call('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: qty }], customerEmail: 'ada@example.com', origin: 'https://shop.test', ...extra })
+  const r = await call('POST', '/api/public/checkout', { items: [{ sku: 'MUG-1', quantity: qty }], customerEmail: 'ada@example.com', origin: 'https://shop.test', ...extra }, extra.loyaltyRewardId ? adaProved : {})
   const id = pp > before ? `PP-${pp}` : null
   const order = id ? (await db.select().from(orders).where(eq(orders.providerSessionId, id)))[0] : null
   return { r, id, order, sent: id ? charged.get(id)! : null }
