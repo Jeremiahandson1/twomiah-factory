@@ -8,6 +8,7 @@
 // largest-remainder rule, so the people's parts add back to the invoice exactly. Nothing is guessed: an invoice that reaches no job
 // is `no_job`, a job nobody is on is `unassigned`, and a split the crew no longer fits says so and falls back to equal shares.
 import { sql } from 'drizzle-orm'
+import { companyTimeZone, storeDateString, entryDay, entryDayWindow } from '@twomiah/tenant-backend'
 import { rowsOf, num, r2, at, between, namesFor, INVOICE_JOB, type Range, type Person } from './teamReports.ts'
 
 export type SplitMode = 'equal' | 'hours' | 'percent'
@@ -167,9 +168,22 @@ export async function revenueSlices(db: any, companyId: string, range: Range, f:
 
   // Billable hours in the period (by the entry's own day): all billable time entries, approved or not; with a customer filter,
   // only time on that customer's jobs. Roster-only crew have no login, so no time.
-  const hourRows = rowsOf(await db.execute(f.contactId
-    ? sql`SELECT te.user_id, COALESCE(SUM(te.hours::numeric), 0) AS h FROM time_entry te JOIN job j ON j.id = te.job_id WHERE te.company_id = ${companyId} AND te.billable AND j.contact_id = ${f.contactId} ${between(sql.raw('te.date'), range)} GROUP BY te.user_id`
-    : sql`SELECT te.user_id, COALESCE(SUM(te.hours::numeric), 0) AS h FROM time_entry te WHERE te.company_id = ${companyId} AND te.billable ${between(sql.raw('te.date'), range)} GROUP BY te.user_id`))
+  // "By the entry's own day" is entryDay's rule (code review 04-4): the range is the business's midnight instants and an
+  // entry's date is a day marker, so the two are not compared directly — rows are fetched by the window, kept by day.
+  const tz = await companyTimeZone(db, companyId)
+  const fromDay = range.gte ? storeDateString(range.gte, tz) : null, toDay = range.lte ? storeDateString(range.lte, tz) : null
+  const after = fromDay ? sql`AND te.date >= ${at(entryDayWindow(tz, fromDay, fromDay).start)}` : sql``
+  const before = toDay ? sql`AND te.date < ${at(entryDayWindow(tz, toDay, toDay).end)}` : sql``
+  const entryRows = rowsOf(await db.execute(f.contactId
+    ? sql`SELECT te.user_id, te.hours, te.date FROM time_entry te JOIN job j ON j.id = te.job_id WHERE te.company_id = ${companyId} AND te.billable AND j.contact_id = ${f.contactId} ${after} ${before}`
+    : sql`SELECT te.user_id, te.hours, te.date FROM time_entry te WHERE te.company_id = ${companyId} AND te.billable ${after} ${before}`))
+  const summed = new Map<string, number>()
+  for (const r of entryRows) {
+    const day = entryDay(typeof r.date === 'string' && !/[zZ]|[+-]\d\d:?\d\d$/.test(r.date) ? r.date.replace(' ', 'T') + 'Z' : r.date, tz)
+    if ((fromDay && day < fromDay) || (toDay && day > toDay)) continue
+    if (r.user_id) summed.set(r.user_id, (summed.get(r.user_id) ?? 0) + num(r.hours))
+  }
+  const hourRows = [...summed.entries()].map(([user_id, h]) => ({ user_id, h }))
   const hours = new Map<string, number>()
   for (const h of hourRows) if (h.user_id) hours.set(`u:${h.user_id}`, num(h.h))
   const hourNames = await namesFor(db, companyId, [...hours.keys()].map((k) => k.slice(2)), [])

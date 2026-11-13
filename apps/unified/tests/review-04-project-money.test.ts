@@ -24,7 +24,7 @@ beforeAll(async () => {
   t = await bootTenant({ vertical: 'contractor' })
   const s = await seedOwner(t)
   companyId = s.company.id
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'projects', 'jobs', 'purchase_orders', 'vendor_bills', 'draw_schedules'] } as any).where(eq(t.schema.company.id, companyId))
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'projects', 'jobs', 'purchase_orders', 'vendor_bills', 'draw_schedules', 'time_tracking'], timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: s.owner.email, password: s.password } })).json() as any).accessToken
   const [v] = await t.db.insert(t.schema.contact).values({ companyId, name: 'Lumber Yard', type: 'vendor' } as any).returning()
   vendorId = v.id
@@ -76,5 +76,26 @@ describe('04-3: draws on one loan are taken one at a time', () => {
     expect(next.status).toBe(201)
     expect(data(next.body).drawNumber).toBe(2)
     expect(data(next.body).netAmount).toBe('360.00')
+  })
+})
+
+describe('04-4: a time entry is paid on the day it was worked', () => {
+  test('payroll, the Gusto file and the overtime week read the entry’s own day', async () => {
+    // Monday 2 November 2026: 8 hours, entered on the timesheet (a day marker, as the clock writes too).
+    expect((await call('/api/time', { method: 'POST', json: { date: '2026-11-02', hours: 8 } })).status).toBe(201)
+    const hoursOn = async (d: string) => {
+      const r = data((await json(await call(`/api/payroll/summary?startDate=${d}&endDate=${d}`))).body)
+      return (r.users as any[]).reduce((n, u) => n + u.totalHours, 0)
+    }
+    expect(await hoursOn('2026-11-02')).toBe(8)
+    expect(await hoursOn('2026-11-01')).toBe(0)
+    expect(await hoursOn('2026-11-03')).toBe(0)
+    const csv = await (await call('/api/payroll/gusto-hours?startDate=2026-11-02&endDate=2026-11-02')).text()
+    expect(csv).toContain('8')
+    expect((await (await call('/api/payroll/gusto-hours?startDate=2026-11-01&endDate=2026-11-01')).text()).split('\n').filter((l) => /Owner|Olive/.test(l)).length).toBe(0)
+    // An entry kept as an instant (the geofence used to write one) is read on the business's clock: 7pm Central on the 3rd.
+    await t.db.insert(t.schema.timeEntry).values({ companyId, userId: (await t.db.select().from(t.schema.user).limit(1))[0].id, date: new Date('2026-11-04T01:00:00Z'), hours: '2' } as any)
+    expect(await hoursOn('2026-11-03')).toBe(2)
+    expect(await hoursOn('2026-11-04')).toBe(0)
   })
 })

@@ -10,7 +10,7 @@
 //     cash, so it still reaches the tax figure; the screen says which nights were never closed.
 //   · Nothing is sent anywhere: the file is a download. Neither Gusto nor ADP is reached by us.
 import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm'
-import { companyTimeZone, storeDayRange } from '@twomiah/tenant-backend'
+import { companyTimeZone, entryDay, entryDayWindow } from '@twomiah/tenant-backend'
 import { barCheck, barCheckPayment, company, timeEntry, user } from '../../db/schema/index.ts'
 import { businessDayOf, businessDayWindow } from './barLive.ts'
 import type { BarDb } from './db.ts'
@@ -105,16 +105,16 @@ export function createBarPayroll(deps: { db: BarDb; tips: BarTips }) {
     const early = workweekStartOn(from, startDay)
     const rows = await db.select({ userId: timeEntry.userId, date: timeEntry.date, hours: timeEntry.hours, clockIn: timeEntry.clockIn, clockOut: timeEntry.clockOut, approved: timeEntry.approved })
       .from(timeEntry)
-      .where(and(eq(timeEntry.companyId, companyId), gte(timeEntry.date, storeDayRange(tz, early).start), lt(timeEntry.date, storeDayRange(tz, to).end)))
+      .where(and(eq(timeEntry.companyId, companyId), gte(timeEntry.date, entryDayWindow(tz, early, to).start), lt(timeEntry.date, entryDayWindow(tz, early, to).end)))
       .orderBy(asc(timeEntry.date))
     const byUser = new Map<string, Array<{ date: Date; hours: string }>>()
     const unapproved = new Map<string, number>()
     const stillIn = new Set<string>()
-    const fromAt = storeDayRange(tz, from).start
+    const inPeriod = (date: Date) => { const day = entryDay(date, tz); return day >= from && day <= to }
     for (const r of rows) {
-      if (r.clockIn && !r.clockOut) { if (r.date >= fromAt) stillIn.add(r.userId); continue }
+      if (r.clockIn && !r.clockOut) { if (inPeriod(r.date)) stillIn.add(r.userId); continue }
       ;(byUser.get(r.userId) ?? byUser.set(r.userId, []).get(r.userId)!).push({ date: r.date, hours: r.hours })
-      if (!r.approved && r.date >= fromAt) unapproved.set(r.userId, (unapproved.get(r.userId) || 0) + 1)
+      if (!r.approved && inPeriod(r.date)) unapproved.set(r.userId, (unapproved.get(r.userId) || 0) + 1)
     }
 
     // ── Tips ──

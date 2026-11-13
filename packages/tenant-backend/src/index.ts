@@ -207,7 +207,7 @@ export { TEAM_ORDER_KEY, TEAM_ORDER_MAX, readTeamOrder, orderTeam } from './team
 export { resolveCustomer, VENDOR_NOT_CUSTOMER } from './contacts/customer'
 export type { TeamDeps, TeamTables } from './team/team'
 export { noteStamp } from './time/zoneDay'
-export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
+export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, entryDay, entryDayWindow, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
 export { createTimeRoutes, createTimeClock, getWeekStart } from './time/time'
 export type { TimeDeps, TimeTables, ClockResult } from './time/time'
 export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expenses'

@@ -9,7 +9,7 @@
  * Colorado require) is NOT calculated, and the screen says so. Gusto and ADP apply the overtime pay rate (1.5x) themselves:
  * the file carries hours, never wages.
  */
-import { storeDateString } from '@twomiah/tenant-backend'
+import { entryDay } from '@twomiah/tenant-backend'
 import { workweekStartOn } from '../payrollExport/workWeek.ts'
 
 export const DEFAULT_OVERTIME_AFTER = 40
@@ -26,7 +26,7 @@ export interface HourSplit { regularHours: number; overtimeHours: number; totalH
 export function splitHours(entries: HourEntry[], tz: string, startDay: number, overtimeAfter: number, from: string, to: string): HourSplit {
   const cap = Math.round(overtimeAfter * 100)
   const dated = entries
-    .map((e) => ({ at: new Date(e.date).getTime(), day: storeDateString(new Date(e.date), tz), n: Math.max(0, Math.round(Number(e.hours || 0) * 100)) }))
+    .map((e) => ({ at: new Date(e.date).getTime(), day: entryDay(e.date, tz), n: Math.max(0, Math.round(Number(e.hours || 0) * 100)) }))
     .sort((a, b) => a.at - b.at)
   const weekTotal = new Map<string, number>()
   let regular = 0, overtime = 0

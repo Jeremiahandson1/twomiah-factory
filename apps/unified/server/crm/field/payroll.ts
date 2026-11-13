@@ -5,7 +5,7 @@
 // (the template's T32 H1, on the mount). There is deliberately no GET /expenses (see the template).
 import { Hono } from 'hono'
 import { and, eq, gte, lt } from 'drizzle-orm'
-import { createStaffBalanceStore, companyTimeZone, storeDayRange } from '@twomiah/tenant-backend'
+import { createStaffBalanceStore, companyTimeZone, entryDay, entryDayWindow } from '@twomiah/tenant-backend'
 import { timeEntry, user, staffAccountEntry, teamMember } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -22,17 +22,20 @@ export function createPayrollRoutes(d: CrmDeps) {
   // The ledger the expense sheet writes; read here, never written (Salon RR9).
   const staffBalance = createStaffBalanceStore(staffAccountEntry)
 
+  const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
+
   app.get('/summary', async (c) => {
     const currentUser = c.get('user')
     const startDate = c.req.query('startDate')
     const endDate = c.req.query('endDate')
-    if (!startDate || !endDate) return fail(c, 400, 'startDate and endDate required')
+    if (!startDate || !endDate || !isDay(startDate) || !isDay(endDate)) return fail(c, 400, 'startDate and endDate required')
     // Whole days on the shop's clock, half-open (from the field-service copy, which had fixed it): the base CRM cut
     // at UTC midnight, paying an evening shift on the next day and dropping almost all of a period's last day.
     const payTz = await companyTimeZone(db, currentUser.companyId)
-    const payPeriod = { start: storeDayRange(payTz, startDate).start, end: storeDayRange(payTz, endDate).end }
+    // …and an entry's day is its own (entryDay): the entries are fetched by the window that can hold them, then kept by day.
+    const payPeriod = entryDayWindow(payTz, startDate, endDate)
 
-    const entries = await db.select({
+    const fetched = await db.select({
       entry: timeEntry,
       userId: user.id,
       userEmail: user.email,
@@ -46,6 +49,7 @@ export function createPayrollRoutes(d: CrmDeps) {
         gte(timeEntry.date, payPeriod.start),
         lt(timeEntry.date, payPeriod.end),
       ))
+    const entries = fetched.filter((e: any) => { const day = entryDay(e.entry.date, payTz); return day >= startDate && day <= endDate })
 
     // An entry's own rate wins (the rate when the work was done). One stored with none — clocked before the roster card had
     // a rate — is valued at the card's rate now, as the Time page's summary does (time.ts ratesByUserId). Restaurant
@@ -125,7 +129,6 @@ export function createPayrollRoutes(d: CrmDeps) {
   app.get('/gusto-hours', async (c) => {
     const me = c.get('user')
     const startDate = c.req.query('startDate'), endDate = c.req.query('endDate')
-    const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
     if (!isDay(startDate) || !isDay(endDate)) return fail(c, 400, 'startDate and endDate required')
     const tz = await companyTimeZone(db, me.companyId)
     const { startDay } = await companyWorkWeek(db, me.companyId)
@@ -137,12 +140,14 @@ export function createPayrollRoutes(d: CrmDeps) {
       .innerJoin(user, eq(timeEntry.userId, user.id))
       .where(and(
         eq(timeEntry.companyId, me.companyId),
-        gte(timeEntry.date, storeDayRange(tz, startDate!).start),
-        lt(timeEntry.date, storeDayRange(tz, endDate!).end),
+        gte(timeEntry.date, entryDayWindow(tz, startDate!, endDate!).start),
+        lt(timeEntry.date, entryDayWindow(tz, startDate!, endDate!).end),
       ))
     const people = new Map<string, { person: any; entries: any[] }>()
     for (const r of rows as any[]) {
       if (r.clockIn && !r.clockOut) continue
+      const day = entryDay(r.date, tz)
+      if (day < startDate! || day > endDate!) continue
       const p = people.get(r.userId) ?? { person: r, entries: [] }
       people.set(r.userId, p)
       p.entries.push(r)
