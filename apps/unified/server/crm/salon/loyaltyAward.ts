@@ -6,7 +6,7 @@
 // the chair and paid. Idempotent by construction: the earn row is keyed to the APPOINTMENT by a unique index
 // (member, type, appointment_id), so a second award for the same visit hits that index and is dropped.
 import { and, eq } from 'drizzle-orm'
-import { loyaltyConfig, pointsForSale, pointsForSaleAtTier, tierFor, visitQualifies, inBirthdayMonth } from '@twomiah/tenant-backend'
+import { loyaltyConfig, pointsForSale, pointsForSaleAtTier, tierFor, visitQualifies, inBirthdayMonth, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { loyaltyMember, loyaltyTransaction, company, serviceMenu, clientProfile } from '../../db/schema/index.ts'
 import { birthdayBonusThisYear, creditMember, debitMember } from '../../data/salonLoyalty.ts'
 import { tierReached } from './offers.ts'
@@ -104,12 +104,15 @@ export function createLoyaltyAward(db: any) {
         // A salon keeps the birthday on the client's PROFILE, as a plain 'YYYY-MM-DD'.
         const [prof] = await db.select({ birthday: clientProfile.birthday }).from(clientProfile)
           .where(and(eq(clientProfile.contactId, v.contactId), eq(clientProfile.companyId, v.companyId))).limit(1)
-        if (inBirthdayMonth(prof?.birthday) && !(await birthdayBonusThisYear(db, member.id))) {
+        // The month is the SALON's (code review 06-1): the server's month gave or withheld the bonus for the last evening
+        // of a month, when it is already next month in UTC. Noon on the salon's own day, read as a plain date.
+        const salonNow = new Date(`${storeDateString(new Date(), await companyTimeZone(db, v.companyId))}T12:00:00`)
+        if (inBirthdayMonth(prof?.birthday, salonNow) && !(await birthdayBonusThisYear(db, member.id))) {
           await db.insert(loyaltyTransaction).values({
             companyId: v.companyId, memberId: member.id, type: 'bonus',
             points: cfg.birthdayBonus,
             balanceAfter: member.pointsBalance + points + bonusPoints + cfg.birthdayBonus,
-            description: `Birthday bonus ${new Date().getFullYear()}`,
+            description: `Birthday bonus ${salonNow.getFullYear()}`,
             // Keyed to the visit, so a replayed completion hits the unique index instead of granting a second one.
             appointmentId: v.appointmentId, invoiceId: v.invoiceId || null,
           } as any)

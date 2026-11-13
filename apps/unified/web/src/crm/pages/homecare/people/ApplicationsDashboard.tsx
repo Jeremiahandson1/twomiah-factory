@@ -4,7 +4,7 @@
 //   GET  /api/applications          care-hr:read — { data }: the application rows (camelCase: firstName, hasCna,
 //                                   yearsExperience, desiredPayRate, certifications [json], createdAt …)
 //   POST /api/applications/:id/hire care-hr:create — { success, caregiverId, packetUrl, packetCreated, credentialsEmailed,
-//                                   emailedTo, tempPassword (only when the email did not go), message }; a plan's seat
+//                                   emailedTo, setPasswordUrl (only when the email did not go), message }; a plan's seat
 //                                   limit is a 403 with its sentence.
 import { useEffect, useState, type MouseEvent } from 'react'
 import { useToast } from '../../../../shared'
@@ -37,7 +37,7 @@ export interface ApplicationRow {
 interface HireResult {
   credentialsEmailed?: boolean
   emailedTo?: string
-  tempPassword?: string
+  setPasswordUrl?: string
   message?: string
   packetUrl?: string | null
 }
@@ -59,7 +59,7 @@ export default function ApplicationsDashboard() {
   const [selectedApp, setSelectedApp] = useState<ApplicationRow | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [hireModal, setHireModal] = useState<ApplicationRow | null>(null)
-  const [hireForm, setHireForm] = useState({ hourlyRate: '', email: '', password: '' })
+  const [hireForm, setHireForm] = useState({ hourlyRate: '', email: '' })
   const [hiring, setHiring] = useState(false)
   const [hireResult, setHireResult] = useState<HireResult | null>(null)
 
@@ -79,7 +79,7 @@ export default function ApplicationsDashboard() {
 
   const openHireModal = (app: ApplicationRow, e: MouseEvent) => {
     e.stopPropagation()
-    setHireForm({ hourlyRate: '', email: app.email || '', password: '' })
+    setHireForm({ hourlyRate: '', email: app.email || '' })
     setHireModal(app)
     setHireResult(null)
   }
@@ -96,7 +96,6 @@ export default function ApplicationsDashboard() {
       const data: HireResult = await api.post(`/api/applications/${hireModal.id}/hire`, {
         hourlyRate: String(hireForm.hourlyRate).trim() === '' ? undefined : Number(hireForm.hourlyRate),
         email: hireForm.email,
-        password: hireForm.password || undefined,
       })
       setHireResult(data)
       loadApplications()
@@ -255,10 +254,8 @@ export default function ApplicationsDashboard() {
                     <input value={hireForm.email} onChange={(e) => setHireForm((p) => ({ ...p, email: e.target.value }))} style={fieldInput} />
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
-                    <label style={fieldLabel}>Temporary Password</label>
-                    <input value={hireForm.password} onChange={(e) => setHireForm((p) => ({ ...p, password: e.target.value }))}
-                      placeholder="Leave blank to auto-generate" style={fieldInput} />
-                    <small style={{ color: 'var(--hc-muted)' }}>They'll use this to log in the first time</small>
+                    <label style={fieldLabel}>Password</label>
+                    <small style={{ color: 'var(--hc-muted)' }}>They choose their own: the welcome email has a link (it works once, for 7 days).</small>
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
                     <label style={fieldLabel}>Hourly Rate ($)</label>
@@ -299,7 +296,7 @@ export default function ApplicationsDashboard() {
                   <div style={{ padding: '1rem', background: 'var(--hc-warning-bg)', borderRadius: '8px', border: '1px solid var(--hc-warning-line)', textAlign: 'left', marginBottom: '1.5rem', color: 'var(--hc-warning-ink)' }}>
                     <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>⚠️ The login email could not be sent — give them these yourself</div>
                     <div style={{ fontSize: '0.9rem' }}><strong>Email:</strong> {hireResult.emailedTo || hireForm.email}</div>
-                    {hireResult.tempPassword && <div style={{ fontSize: '0.9rem' }}><strong>Temp Password:</strong> {hireResult.tempPassword}</div>}
+                    {hireResult.setPasswordUrl && <div style={{ fontSize: '0.9rem', wordBreak: 'break-all' }}><strong>Link to choose a password (works once, 7 days):</strong> {hireResult.setPasswordUrl}</div>}
                   </div>
                 )}
                 {hireResult.message && <p style={{ fontSize: '0.88rem', textAlign: 'left', marginBottom: '1rem' }}>{hireResult.message}</p>}

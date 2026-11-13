@@ -8,6 +8,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { submittal, project, user } from '../../db/schema/index.ts'
 import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
+import { lockSeries } from '../../data/bookingLock.ts'
 import { nextSeriesNumber } from './seriesNumber.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
@@ -99,10 +100,12 @@ export function createSubmittalRoutes(d: CrmDeps) {
     const data = submittalSchema.parse(await c.req.json())
 
     // Auto-assign the next submittal number for this project
-    const number = await nextSeriesNumber(db, submittal, and(eq(submittal.companyId, currentUser.companyId), eq(submittal.projectId, data.projectId)), 'SUB', 3)
+    // Numbered under a lock: two made at the same instant read the same "next" and took one number (code review 04-8).
+    const [created] = await db.transaction(async (tx: any) => {
+    await lockSeries(tx, `sub:${currentUser.companyId}:${data.projectId}`)
+    const number = await nextSeriesNumber(tx, submittal, and(eq(submittal.companyId, currentUser.companyId), eq(submittal.projectId, data.projectId)), 'SUB', 3)
 
-    const [created] = await db
-      .insert(submittal)
+    return tx.insert(submittal)
       .values({
         title: data.subject,
         projectId: data.projectId,
@@ -117,6 +120,7 @@ export function createSubmittalRoutes(d: CrmDeps) {
         companyId: currentUser.companyId,
       })
       .returning()
+    })
 
     return one(c, shape(created), 201)
   })

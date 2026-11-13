@@ -113,10 +113,12 @@ export default function ApplicationDetail({ applicationId, onBack }: Props) {
 
     setHiring(true)
     try {
-      const data: { message?: string; credentialsEmailed?: boolean; tempPassword?: string } =
-        await api.post(`/api/applications/${applicationId}/hire`, { hourlyRate: 15.0 })
-      // The login is emailed to the new caregiver; the password comes back (and is shown) only when that email did not go.
-      setMessage(`✓ ${data.message || 'Applicant hired and caregiver account created!'}${!data.credentialsEmailed && data.tempPassword ? ` Temporary password: ${data.tempPassword}` : ''}`)
+      // No pay rate is sent from here: this button used to send 15.00 for everyone, over the rate the applicant asked
+      // for. The server uses the application's own rate, and the pay run flags a caregiver who has none.
+      const data: { message?: string; credentialsEmailed?: boolean; setPasswordUrl?: string } =
+        await api.post(`/api/applications/${applicationId}/hire`, {})
+      // The caregiver is emailed a link to choose their password; the link comes back (and is shown) only when that email did not go.
+      setMessage(`✓ ${data.message || 'Applicant hired and caregiver account created!'}${!data.credentialsEmailed && data.setPasswordUrl ? ` Link to choose a password: ${data.setPasswordUrl}` : ''}`)
       loadApplication()
     } catch (error) {
       toast.error('Failed to hire: ' + errorMessage(error))

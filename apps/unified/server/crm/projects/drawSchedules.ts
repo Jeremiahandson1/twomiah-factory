@@ -60,12 +60,17 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
       const drawnAmount = reqs
         .filter((r) => ['approved', 'paid'].includes(r.status))
         .reduce((sum, r) => sum + Number(r.netAmount || r.grossAmount || 0), 0)
+      // What a new request may still ask for — the sum the server holds a request to (POST /requests): the loan less
+      // every draw not turned down, at its gross. The list showed only "remaining" (the loan less what was paid out),
+      // so a request under that figure could be refused with a smaller one (code review 04-6).
+      const requested = reqs.filter((r) => r.status !== 'rejected').reduce((sum, r) => sum + Number(r.grossAmount || 0), 0)
       return {
         ...s,
         totalAmount: Number(s.contractAmount) || 0, // alias for the screen
         drawCount: reqs.length,
         drawnAmount,
-        remainingAmount: (Number(s.contractAmount) || 0) - drawnAmount,
+        remainingAmount: Math.round(((Number(s.contractAmount) || 0) - drawnAmount) * 100) / 100,
+        leftToDraw: Math.max(0, Math.round(((Number(s.contractAmount) || 0) - requested) * 100) / 100),
       }
     })
 

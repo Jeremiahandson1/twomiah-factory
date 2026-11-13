@@ -150,17 +150,17 @@ If you would rather sign on paper, or have questions about anything in it, conta
         <div class="header"><h1 style="margin:0;">${escHtml(n)}</h1><p style="margin:4px 0 0;opacity:0.9;">Family Care Portal</p></div>
         <div class="content">
           <p>Hello ${escHtml(data.familyName)},</p>
-          <p>Your family portal password has been reset by an administrator.</p>
+          <p>Your family portal password has been reset by an administrator. Your old password no longer works.</p>
           <div class="highlight">
-            <p style="margin:0;"><strong>Your new credentials:</strong></p>
-            <p style="margin:4px 0 0;">Email: ${escHtml(data.email)}<br/>New Password: <code style="background:#e5e7eb;padding:2px 6px;border-radius:3px;">${escHtml(data.newPassword)}</code></p>
+            <p style="margin:0;">You sign in with: ${escHtml(data.email)}</p>
           </div>
-          <p style="text-align:center;"><a href="${escHtml(data.portalUrl)}" class="button">Sign In</a></p>
+          <p style="text-align:center;"><a href="${escHtml(data.setPasswordUrl)}" class="button">Choose a new password</a></p>
+          <p><small>The link works once, for 24 hours. Nobody at the agency knows your password.</small></p>
         </div>
         <div class="footer">${escHtml(n)} &mdash; HIPAA-compliant care portal</div>
       </div></body></html>
     `,
-      text: `Hello ${data.familyName}, your ${n} family portal password has been reset by an administrator. Email: ${data.email} | New password: ${data.newPassword} | Sign in: ${data.portalUrl}`,
+      text: `Hello ${data.familyName}, your ${n} family portal password has been reset by an administrator and your old one no longer works. You sign in with ${data.email}. Choose a new password here (works once, for 24 hours): ${data.setPasswordUrl}`,
     }
   },
 
@@ -330,10 +330,9 @@ If you would rather sign on paper, or have questions about anything in it, conta
           <div class="highlight">
             <p><strong>Your Login:</strong></p>
             <p style="margin:4px 0;">Email: ${escHtml(data.email)}</p>
-            <p style="margin:4px 0;">Temporary Password: <code style="background:#e5e7eb;padding:2px 6px;border-radius:3px;">${escHtml(data.tempPassword)}</code></p>
           </div>
-          <p style="text-align:center;"><a href="${escHtml(data.portalUrl)}" class="button">Log In to Portal</a></p>
-          <p><small>Please change your password after your first login. This link is confidential.</small></p>
+          <p style="text-align:center;"><a href="${escHtml(data.setPasswordUrl)}" class="button">Choose your password</a></p>
+          <p><small>The link works once, for 7 days, and is yours alone — nobody at the agency knows your password. After that, sign in at ${escHtml(data.portalUrl)}.</small></p>
         </div>
         <div class="footer">
           ${escHtml(n)} &mdash; HIPAA-compliant care portal<br>
@@ -341,7 +340,7 @@ If you would rather sign on paper, or have questions about anything in it, conta
         </div>
       </div></body></html>
     `,
-      text: `Welcome ${data.familyName}! Log in to the ${n} family portal for ${data.clientName}: ${data.portalUrl} | Email: ${data.email} | Temp password: ${data.tempPassword}`,
+      text: `Welcome ${data.familyName}! You have been given access to the ${n} family portal for ${data.clientName}. You sign in with ${data.email}. Choose your password here (works once, for 7 days): ${data.setPasswordUrl} — after that, sign in at ${data.portalUrl}`,
     }
   },
 

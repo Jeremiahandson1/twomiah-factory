@@ -25,7 +25,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth, usePermissions, usePrompt, useToast } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
-import { PasswordInput } from '../../../../shared'
 import { phoneText } from '../lib/phone'
 
 type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canViewVitals' | 'canViewDocuments' | 'canManagePayments' | 'canMessage'
@@ -277,15 +276,14 @@ export default function FamilyPortalAdmin() {
   }
 
   const resetPassword = async (memberId: string) => {
-    const newPassword = await prompt('Enter new password (min 8 characters):', { title: 'Reset password', confirmText: 'Reset' })
-    if (newPassword === null) return // backed out
-    if (newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters')
-      return
-    }
+    // The office does not choose a relative's password (security review S2-6): their old one stops working and they are
+    // emailed a link to choose a new one.
+    const sure = await prompt('Their password will stop working now, and they will be emailed a link to choose a new one. Type RESET to go ahead.', { title: 'Reset password', confirmText: 'Reset' })
+    if (sure === null) return // backed out
+    if (sure.trim().toUpperCase() !== 'RESET') { toast.error('Type RESET to confirm'); return }
     try {
-      await api.put(`/api/family-portal/admin/members/${memberId}/reset-password`, { password: newPassword })
-      toast.success('Password reset successfully')
+      await api.put(`/api/family-portal/admin/members/${memberId}/reset-password`, {})
+      toast.success('Password reset — they have been emailed a link to choose a new one')
     } catch (error) {
       toast.error('Failed: ' + errorMessage(error))
     }
@@ -634,12 +632,8 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!formData.clientId || !formData.firstName || !formData.email || !formData.password) {
-      toast.error('Client, name, email and password are required')
-      return
-    }
-    if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters')
+    if (!formData.clientId || !formData.firstName || !formData.email) {
+      toast.error('Client, name and email are required')
       return
     }
     // Feature off: the vitals and documents switches are not shown, so leave them out and the server keeps vitals with the medicines switch.
@@ -699,8 +693,8 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
           </select>
         </div>
         <div className="form-group">
-          <label>Password *</label>
-          <PasswordInput value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min 8 characters" required />
+          <label>Password</label>
+          <p style={{ margin: 0, fontSize: '0.85rem' }}>They choose their own: the welcome email has a link (it works once, for 7 days).</p>
         </div>
       </div>
       {addTextsOn && (

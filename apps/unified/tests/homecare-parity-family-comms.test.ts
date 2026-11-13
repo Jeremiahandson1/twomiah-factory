@@ -206,7 +206,29 @@ describe('the four portal emails, in the agency\'s words', () => {
     const mail = emails.find((m) => m.to === 'sam@family.example')
     expect(mail.subject).toBe('Hi from Test Care')
     expect(mail.html).toContain('Dear Sam Client, sign in at')
-    expect(mail.html).toContain('Family-pass-1')
+    // The password is never in an email (security review S2-6): where the agency's wording says {tempPassword}, the
+    // relative gets the link to choose their own.
+    expect(mail.html).not.toContain('Family-pass-1')
+    expect(mail.html).toContain('choose your own here:')
+    const token = /[?&]reset=([A-Za-z0-9._-]+)/.exec(String(mail.html).replace(/&amp;/g, '&'))![1].replace(/\.+$/, '') // the wording above ends its sentence right after the link
+    // The link sets a password, once — with no care_family_comms needed for the office's own link.
+    const chosen = await t.call('/api/family-portal/reset-password', { method: 'POST', json: { token, password: 'Chosen-by-sam-1' } })
+    expect(chosen.status).toBe(200)
+    expect((await t.call('/api/family-portal/login', { method: 'POST', json: { email: 'sam@family.example', password: 'Chosen-by-sam-1' } })).status).toBe(200)
+    expect((await t.call('/api/family-portal/reset-password', { method: 'POST', json: { token, password: 'Another-one-2' } })).status).toBe(400)
+    // The office resets it: the chosen password stops working, and the email carries a link, not a password.
+    // (this one is a named template: caught at the mail service's own send)
+    const named: Array<{ to: string; template: string; data: any }> = []
+    const mailer: any = t.services.crm.emailService
+    const realSend = mailer.send.bind(mailer)
+    mailer.send = async (to: string, template: string, data: any, ...rest: any[]) => { named.push({ to, template, data }); return realSend(to, template, data, ...rest) }
+    expect((await as('owner')(`/api/family-portal/admin/members/${ids.sam}/reset-password`, { method: 'PUT', json: {} })).status).toBe(200)
+    mailer.send = realSend
+    expect((await t.call('/api/family-portal/login', { method: 'POST', json: { email: 'sam@family.example', password: 'Chosen-by-sam-1' } })).status).toBe(401)
+    const resetMail = named.find((m) => m.to === 'sam@family.example')!
+    expect(resetMail.data.newPassword).toBeUndefined()
+    const again = /[?&]reset=([A-Za-z0-9._-]+)/.exec(String(resetMail.data.setPasswordUrl))![1]
+    expect((await t.call('/api/family-portal/reset-password', { method: 'POST', json: { token: again, password: 'Family-pass-1' } })).status).toBe(200)
     // revoke and grant: sent in the agency's words; switch revoke off and nothing goes
     emails.length = 0
     expect((await as('owner')(`/api/family-portal/admin/members/${ids.sam}/status`, { method: 'PUT', json: { isActive: false } })).status).toBe(200)

@@ -130,15 +130,29 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     return all(c, rows)
   })
 
+  /**
+   * The link the office's emails carry: opens the sign-in page's "choose a password" form (?reset=…). Signed, and tied to
+   * the password it replaces (its last characters), so it works once: choosing a password spends it.
+   */
+  const FAMILY_INVITE = 'family_invite', INVITE_LINK_DAYS = 7
+  const choosePasswordLink = (memberId: string, passwordHash: string, hours: number) =>
+    `${familyLoginUrl()}?reset=${jwt.sign({ purpose: FAMILY_INVITE, fid: memberId, v: String(passwordHash).slice(-12) }, process.env.JWT_SECRET!, { expiresIn: `${hours}h` })}`
+
   // POST /admin/members — a relative's login.
   app.post('/admin/members', ...staff('care-portal:create'), async (c) => {
     const me = c.get('user')
     const b = await c.req.json().catch(() => ({} as any))
     const name = composeName(b)
     const email = normEmail(b?.email)
+    // THE RELATIVE CHOOSES THEIR OWN PASSWORD (security review S2-6, finished 2026-11-13). The office used to type one and
+    // the welcome email carried it in plain text — a password two people knew, sitting in a mailbox, on a portal that
+    // shows a client's medicines. The office types none now: the account is made with a password nobody has, and the
+    // email carries a link to choose one (7 days, single use). A password sent to this address is still set — older
+    // callers and imports do — but it is never emailed.
     const password = typeof b?.password === 'string' ? b.password : ''
-    if (!b?.clientId || !name || !email || !password) return fail(c, 400, 'Client, name, email and password are required')
-    if (password.length < FAMILY_RULES.minPasswordLength) return fail(c, 400, 'Password must be at least 8 characters')
+    if (!b?.clientId || !name || !email) return fail(c, 400, 'Client, name and email are required')
+    if (password && password.length < FAMILY_RULES.minPasswordLength) return fail(c, 400, 'Password must be at least 8 characters')
+    const firstHash = await Bun.password.hash(password || crypto.randomBytes(32).toString('base64url'), 'bcrypt')
     const [client] = await db.select({ id: clients.id, firstName: clients.firstName, lastName: clients.lastName })
       .from(clients).where(and(eq(clients.id, String(b.clientId)), eq(clients.companyId, me.companyId))).limit(1)
     if (!client) return fail(c, 404, 'Client not found')
@@ -150,7 +164,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       email,
       phone: b.phone || null,
       relationship: b.relationship || null,
-      passwordHash: await Bun.password.hash(password, 'bcrypt'),
+      passwordHash: firstHash,
       canViewSchedule: b.canViewSchedule !== false,
       canViewCarePlan: b.canViewCarePlan !== false,
       canViewMedications: b.canViewMedications === true,
@@ -173,8 +187,10 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     }).returning(memberColumns)
     // Welcome email with the login. The account stands even if the email cannot go out.
     // care_family_comms: the agency's own wording for this email; without it (or switched off) the standard welcome goes.
+    const setPasswordUrl = choosePasswordLink(row.id, firstHash, INVITE_LINK_DAYS * 24)
     const own = await core.familyComms.sendPortalEmail(me.companyId, 'accountCreated', email, {
-      name, client: `${client.firstName} ${client.lastName}`, email, tempPassword: password, loginUrl: familyLoginUrl(),
+      // `tempPassword` is still a word an agency's own wording may use: it reads as the way to choose one.
+      name, client: `${client.firstName} ${client.lastName}`, email, tempPassword: `choose your own here: ${setPasswordUrl}`, setPasswordUrl, loginUrl: familyLoginUrl(),
     })
     if (!own) try {
       await core.email.sendFamilyPortalWelcome(email, {
@@ -182,7 +198,7 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
         clientName: `${client.firstName} ${client.lastName}`,
         companyName: await agencyName(me.companyId),
         email,
-        tempPassword: password,
+        setPasswordUrl,
         portalUrl: familyLoginUrl(),
       })
     } catch (err) {
@@ -213,20 +229,23 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
   // PUT /admin/members/:id/reset-password — the office sets it; the relative is emailed it.
   app.put('/admin/members/:id/reset-password', ...staff('care-portal:update'), async (c) => {
     const me = c.get('user')
+    // The office does not choose it (above): the old password stops working now, and the relative is emailed a link to
+    // choose a new one (24 hours, single use). A password sent here is still set, and never emailed.
     const { password } = await c.req.json().catch(() => ({} as any))
-    if (typeof password !== 'string' || password.length < FAMILY_RULES.minPasswordLength) return fail(c, 400, 'Password must be at least 8 characters')
+    if (password !== undefined && password !== null && password !== '' && (typeof password !== 'string' || password.length < FAMILY_RULES.minPasswordLength)) return fail(c, 400, 'Password must be at least 8 characters')
     const [member] = await db.select({ id: familyMembers.id, name: familyMembers.name, email: familyMembers.email })
       .from(familyMembers).where(and(eq(familyMembers.id, c.req.param('id')!), eq(familyMembers.companyId, me.companyId))).limit(1)
     if (!member) return fail(c, 404, 'Family member not found')
     if (!member.email) return fail(c, 400, 'No login email on this family member')
-    await db.update(familyMembers).set({ passwordHash: await Bun.password.hash(password, 'bcrypt'), updatedAt: new Date() })
+    const newHash = await Bun.password.hash(typeof password === 'string' && password ? password : crypto.randomBytes(32).toString('base64url'), 'bcrypt')
+    await db.update(familyMembers).set({ passwordHash: newHash, updatedAt: new Date() })
       .where(and(eq(familyMembers.id, member.id), eq(familyMembers.companyId, me.companyId)))
     try {
       await core.email.sendFamilyPasswordSetByAdmin(member.email, {
         familyName: member.name,
         companyName: await agencyName(me.companyId),
         email: member.email,
-        newPassword: password,
+        setPasswordUrl: choosePasswordLink(member.id, newHash, 24),
         portalUrl: familyLoginUrl(),
       })
     } catch (err) {
@@ -414,12 +433,13 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
     if (typeof password !== 'string' || password.length < FAMILY_RULES.minPasswordLength) return fail(c, 400, 'Password must be at least 8 characters', 'password_too_short')
     let claims: any
     try { claims = jwt.verify(String(token || ''), process.env.JWT_SECRET!) } catch { return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link') }
-    if (claims?.purpose !== 'family_reset' || !claims.fid) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
+    if (!['family_reset', FAMILY_INVITE].includes(claims?.purpose) || !claims.fid) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
     const [member] = await db.select({ id: familyMembers.id, companyId: familyMembers.companyId, passwordHash: familyMembers.passwordHash, isActive: familyMembers.isActive })
       .from(familyMembers).where(eq(familyMembers.id, String(claims.fid))).limit(1)
     // Single use: the link carries the tail of the password it replaces, so once the password changes the link is spent.
     if (!member || !member.isActive || !member.passwordHash || String(member.passwordHash).slice(-12) !== claims.v) return fail(c, 400, 'This link has already been used or has expired. Ask for a new one.', 'bad_reset_link')
-    if (!(await core.familyComms.enabled(member.companyId))) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
+    // "Forgot password" is the agency's switch (care_family_comms); the link the OFFICE sent — a new account, a reset — is not.
+    if (claims.purpose !== FAMILY_INVITE && !(await core.familyComms.enabled(member.companyId))) return fail(c, 400, 'This link has expired or is not valid. Ask for a new one.', 'bad_reset_link')
     await db.update(familyMembers).set({ passwordHash: await Bun.password.hash(password, 'bcrypt'), updatedAt: new Date() })
       .where(and(eq(familyMembers.id, member.id), eq(familyMembers.companyId, member.companyId)))
     return done(c, 'Your password has been changed. You can sign in now.')
