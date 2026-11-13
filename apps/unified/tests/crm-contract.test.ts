@@ -95,6 +95,8 @@ const OPEN = new RegExp([
   // card answers only once the salon opts in, and names no client.
   '^/api/client-app/',
   '/marketing/(track|unsubscribe)/', '/reviews/track/', '/(webhook|webhooks|callback)(/|$)', '/stripe/factory-event',
+  // What a visitor's browser reports of the website's strict script policy (http/guards.ts): it takes a report, keeps one log line, answers nothing.
+  '^/api/csp-report$',
 ].join('|'))
 // A declared refusal: an integration that isn't set up (503), or a service upstream that failed (502: the Factory, here
 // a stand-in that answers {}). Neither is the app crashing.

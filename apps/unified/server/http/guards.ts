@@ -1,5 +1,6 @@
 // The request guards every CRM template ran in front of its routes (the eight newer templates' index.ts): the
 // content security policy, the paging check and the rate limits.
+import crypto from 'node:crypto'
 import type { Context, MiddlewareHandler, Next } from 'hono'
 import { fail } from './reply.ts'
 
@@ -74,12 +75,64 @@ export const frameOptions: MiddlewareHandler = async (c, next) => {
   if (!/frame-ancestors[^;]*https:/.test(c.res.headers.get('Content-Security-Policy') || '')) c.res.headers.set('X-Frame-Options', 'SAMEORIGIN')
 }
 
-/** The website's pages get the website's policy (unless a page set its own, like the Visualizer). */
+/**
+ * THE WEBSITE'S STRICT SCRIPT POLICY (security review S4, 2026-11-13). SITE_CSP allows any inline script, so the only
+ * thing between a piece of text that reaches a page unescaped and script running on the app's own address is the
+ * escaping (S4-1 and S4-4 were two such pieces). The strict policy names the page's scripts by a nonce made for that one
+ * answer: a handler written into an attribute (`onmouseover=`) and a `javascript:` link do not run, whatever the text.
+ *
+ * Every `<script>` the page was built with is given the nonce here, as the page leaves. That is as far as this goes: a
+ * whole `<script>` tag in the page would be given it too — text reaches a page escaped for `<`, so it cannot make one.
+ *
+ * ROLLED OUT AS THE BROWSERS' OWN TWO STEPS. A policy that is wrong breaks a live site's menu, slider or tracking, and
+ * an owner's Tag Manager container can add inline script this code never sees. So the strict policy goes out as
+ * Content-Security-Policy-Report-Only beside SITE_CSP — nothing is blocked, and each thing it WOULD block is posted to
+ * /api/csp-report and logged — until SITE_CSP_ENFORCE=1 is set on the service; then it is the policy.
+ */
+const strictSitePolicy = (nonce: string, base: string) => base
+  .replace(/script-src 'self' 'unsafe-inline'/, `script-src 'self' 'nonce-${nonce}'`)
+  .concat("; object-src 'none'; report-uri /api/csp-report")
+// Inline scripts only: a script loaded from a file is allowed by where it comes from, and a JSON-LD block is data, not script.
+const NONCE_READY = /<script(?![^>]*\s(?:nonce|src)=)(?![^>]*application\/ld\+json)/gi
+// The layout's late stylesheets switch themselves on with an inline handler (`onload="this.media='all'"`), which the strict
+// policy does not run — the fonts would never apply. The same switch, as a script the nonce covers.
+const LATE_CSS = / media="print" onload="this\.media='all'">/g
+const LATE_CSS_ON = "<script>document.querySelectorAll('link[data-late-css]').forEach(function(l){function on(){l.media='all'}if(l.sheet)on();else l.addEventListener('load',on)})</script>"
+
+/** The website's pages get the website's policy (unless a page set its own, like the Visualizer), and their scripts a nonce. */
 export const sitePolicy: MiddlewareHandler = async (c, next) => {
   await next()
-  if (!c.res.headers.has('Content-Security-Policy') && (c.res.headers.get('content-type') || '').includes('text/html')) {
-    c.res.headers.set('Content-Security-Policy', SITE_CSP)
+  if (c.res.headers.has('Content-Security-Policy') || !(c.res.headers.get('content-type') || '').includes('text/html')) return
+  // An answer with no page in it (a HEAD, a 304, a redirect) has nothing to give a nonce to: today's policy, as before.
+  if (c.req.method === 'HEAD' || c.res.status === 304 || c.res.status === 204 || !c.res.body) { c.res.headers.set('Content-Security-Policy', SITE_CSP); return }
+  const nonce = crypto.randomBytes(16).toString('base64')
+  let html = await c.res.text()
+  if (LATE_CSS.test(html)) { LATE_CSS.lastIndex = 0; html = html.replace(LATE_CSS, ' media="print" data-late-css>').replace(/<\/head>/i, LATE_CSS_ON + '</head>') }
+  html = html.replace(NONCE_READY, `<script nonce="${nonce}"`)
+  const headers = new Headers(c.res.headers)
+  headers.delete('content-length')
+  if (process.env.SITE_CSP_ENFORCE === '1') headers.set('Content-Security-Policy', strictSitePolicy(nonce, SITE_CSP))
+  else {
+    headers.set('Content-Security-Policy', SITE_CSP)
+    headers.set('Content-Security-Policy-Report-Only', strictSitePolicy(nonce, SITE_CSP))
   }
+  c.res = new Response(html, { status: c.res.status, headers })
+}
+
+/**
+ * Where a browser posts what the strict policy blocked, or would have (report-uri above). Public by nature — a visitor's
+ * browser sends it — so it keeps nothing but one log line, of a few known fields cut short.
+ */
+export const cspReport = async (c: any) => {
+  try {
+    const raw = (await c.req.text()).slice(0, 4000)
+    const r = (JSON.parse(raw) || {})['csp-report'] || {}
+    const cut = (v: unknown) => String(v ?? '').slice(0, 200)
+    console.warn('[csp] the strict website policy ' + (r.disposition === 'enforce' ? 'blocked' : 'would block'), JSON.stringify({
+      page: cut(r['document-uri']), directive: cut(r['effective-directive'] || r['violated-directive']), blocked: cut(r['blocked-uri']), sample: cut(r['script-sample']), line: r['line-number'] ?? null,
+    }))
+  } catch { /* not a report */ }
+  return c.body(null, 204)
 }
 
 /** Sets the policy on any response that didn't set its own. */
