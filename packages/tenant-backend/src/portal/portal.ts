@@ -16,7 +16,7 @@ import { eq, and, or, inArray, count, sql, desc, asc, gte, lt, lte, max, notInAr
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
 import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { noteStamp } from '../time/zoneDay'
-import { isDocumentToken, readQuotePreviewToken, QUOTE_PREVIEW_FEATURE } from './documentLinks'
+import { isDocumentToken, readQuotePreviewToken, QUOTE_PREVIEW_FEATURE, bookPrefillCode, readBookPrefillCode } from './documentLinks'
 import { includedLines, notIncludedLines, depositAmount, chooseOptionalLine, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, proposalsLive, chosenLabel, offersOptions, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from '../invoicing/quoteOptions'
 import { customerLines } from '../invoicing/itemCodes'
 import { hasDocumentTables, loadDocument, loadMarks, documentForCustomer, cosignerRequired, checkInitials, pdfExtras, withLinePictures, INITIAL_FIRST_CODE } from '../invoicing/quoteDocument'
@@ -805,9 +805,23 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   // ---- book a visit online (field service, basic, landscaping — parity tier 2 #5)
   if (has.bookOnline) {
+    // What the booking form is filled in with, by the code the portal's button put in the booking page's address: the
+    // customer's own details and nothing else. No portal token is involved (security review S2-10).
+    app.get('/prefill/:code', async (c) => {
+      const named = readBookPrefillCode(c.req.param('code'))
+      const none = () => c.json({ error: 'Not found' }, 404)
+      if (!named) return none()
+      const [who] = await db.select({ name: t.contact.name, email: t.contact.email, phone: t.contact.phone, mobile: (t.contact as any).mobile ?? t.contact.phone, address: t.contact.address, city: t.contact.city, state: t.contact.state, zip: t.contact.zip, portalEnabled: t.contact.portalEnabled })
+        .from(t.contact).where(and(eq(t.contact.id, named.contactId), eq(t.contact.companyId, named.companyId))).limit(1)
+      if (!who || !who.portalEnabled || (await portalFeatureOff(named.companyId))) return none()
+      const v = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : '')
+      c.header('Cache-Control', 'no-store')
+      return c.json({ name: v(who.name), email: v(who.email), phone: v(who.mobile) || v(who.phone), address: v(who.address), city: v(who.city), state: v(who.state), zip: v(who.zip) })
+    })
     app.get('/p/:token/book-online', portalAuth, gate('bookOnline' as any), async (c) => {
       const { contact } = P(c)
-      return c.json({ bookUrl: deps.bookOnline!.bookUrl(c.req.param('token')), bookings: await deps.bookOnline!.list(contact.companyId, contact.id) })
+      // A fill-in code, never the portal's own token: the address it goes in is a website page's (documentLinks.ts).
+      return c.json({ bookUrl: deps.bookOnline!.bookUrl(bookPrefillCode(contact.companyId, contact.id)), bookings: await deps.bookOnline!.list(contact.companyId, contact.id) })
     })
     // What the booking form is filled in with (the site's scripts/book-flow.ts, which came here from the portal's link): the
     // customer's own details, to this portal's holder only — never a note, a price or anyone else's.

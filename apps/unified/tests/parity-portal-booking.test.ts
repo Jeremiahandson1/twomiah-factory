@@ -35,6 +35,8 @@ test('portal_booking is registered, not ready, for field service, basic and land
   expect([!!f.hidden, f.templates]).toEqual([false, ['crm-fieldservice', 'crm-basic', 'crm-landscaping']])
 })
 
+let CODE = ''
+
 test("Book a Visit: the booking pages' address for this customer, and their bookings still to come", async () => {
   const soon = new Date(Date.now() + 3 * DAY)
   await ins(t.schema.booking, { companyId, serviceId, contactId: hank, startAt: soon, endAt: new Date(soon.getTime() + 3_600_000), customerName: 'Hank Homeowner', customerEmail: 'hank@home.example', token: 'bk-soon', status: 'confirmed' })
@@ -42,21 +44,28 @@ test("Book a Visit: the booking pages' address for this customer, and their book
   await ins(t.schema.booking, { companyId, serviceId, contactId: hank, startAt: new Date(Date.now() + 5 * DAY), endAt: new Date(Date.now() + 5 * DAY + 3_600_000), customerName: 'Hank Homeowner', customerEmail: 'hank@home.example', token: 'bk-gone', status: 'cancelled' })
   const r = await json(await t.call(`/api/portal/p/${TOKEN}/book-online`))
   expect(r.status).toBe(200)
-  expect(r.body.bookUrl).toEndWith(`/book?portal=${TOKEN}`)
+  // A fill-in code in the address, never the portal's own key (security review S2-10).
+  expect(r.body.bookUrl).toMatch(/\/book\?portal=[A-Za-z0-9_-]{60,400}$/)
+  expect(r.body.bookUrl).not.toContain(TOKEN)
+  CODE = String(r.body.bookUrl).split('portal=')[1]
   expect(r.body.bookings.map((b: any) => [b.service, b.status, b.manageUrl?.endsWith('/booking/bk-soon')])).toEqual([['Furnace tune-up', 'confirmed', true]])
 })
 
 test("the booking form is filled from the portal — the customer's own details only", async () => {
-  const r = await json(await t.call(`/api/portal/p/${TOKEN}/book-online/prefill`))
+  const r = await json(await t.call(`/api/portal/prefill/${CODE}`))
   expect(r.body).toEqual({ name: 'Hank Homeowner', email: 'hank@home.example', phone: '715-555-0100', address: '12 Pine St', city: 'Chippewa Falls', state: 'WI', zip: '54729' })
-  expect((await t.call('/api/portal/p/not-a-real-portal/book-online/prefill')).status).toBeGreaterThanOrEqual(400)
+  expect((await t.call('/api/portal/prefill/not-a-real-code')).status).toBe(404)
+  // The code is not a portal key, and the portal key is not a code.
+  expect((await t.call(`/api/portal/p/${CODE}`)).status).toBe(401)
+  expect((await t.call(`/api/portal/prefill/${TOKEN}`)).status).toBe(404)
+  expect((await t.call(`/api/portal/prefill/${CODE.slice(0, -2)}xx`)).status).toBe(404)
   const script = readFileSync(new URL('../site/public/scripts/book-flow.ts', import.meta.url), 'utf8')
-  expect(script).toContain("'/book-online/prefill'")
+  expect(script).toContain("'/api/portal/prefill/'")
 })
 
 test('the /book list carries the customer\'s link to the service chosen', async () => {
-  const page = await (await t.call(`/book?portal=${TOKEN}`)).text()
-  expect(page).toContain(`/book/furnace-tune-up?portal=${TOKEN}`)
+  const page = await (await t.call(`/book?portal=${CODE}`)).text()
+  expect(page).toContain(`/book/furnace-tune-up?portal=${CODE}`)
   const plain = await (await t.call('/book')).text()
   expect(plain).not.toContain('portal=')
 })

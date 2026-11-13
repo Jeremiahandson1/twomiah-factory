@@ -68,3 +68,33 @@ export function readQuotePreviewToken(token: unknown, now = Date.now()): { compa
 
 /** The path the office opens (the app's address in front). */
 export const quotePreviewPath = (token: string) => `/v/${token}`
+
+// ---- "Book a visit" from the portal: a code for the booking form's fill-in, never the portal's own key ----
+//
+// The portal's Book a visit button opened the website's booking page as /book?portal=<the customer's portal token>, so
+// the key to the whole portal sat in a website address — in the browser's history, in analytics hits and in the Referer
+// of whatever the page loads (security review S2-10, 2026-11-13). The address now carries a CODE: a signed note naming
+// the customer and its end (two hours), good for one thing — reading back the name, email, phone and address the form
+// is filled in with (portal.ts GET /prefill/:code). It opens nothing else. Letters, digits, - and _ only, no separator
+// (the signature is the last 43 characters), so the booking pages carry it as they carried the token.
+const PREFILL_PURPOSE = 'book_prefill'
+export const PREFILL_MINUTES = 120
+const prefillSig = (body: string) => crypto.createHmac('sha256', `${process.env.JWT_SECRET || ''}:${PREFILL_PURPOSE}`).update(body).digest('base64url')
+
+export function bookPrefillCode(companyId: string, contactId: string, now = Date.now()): string {
+  const body = b64(JSON.stringify({ c: companyId, k: contactId, e: Math.floor(now / 1000) + PREFILL_MINUTES * 60 }))
+  return `${body}${prefillSig(body)}`
+}
+
+/** The customer a prefill code names, or null (tampered, run out, or not one). */
+export function readBookPrefillCode(code: unknown, now = Date.now()): { companyId: string; contactId: string } | null {
+  if (typeof code !== 'string' || !process.env.JWT_SECRET || !/^[A-Za-z0-9_-]{60,400}$/.test(code)) return null
+  const body = code.slice(0, -43), sig = code.slice(-43)
+  const want = Buffer.from(prefillSig(body)), got = Buffer.from(sig)
+  if (want.length !== got.length || !crypto.timingSafeEqual(want, got)) return null
+  try {
+    const v = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
+    if (typeof v?.c !== 'string' || typeof v?.k !== 'string' || typeof v?.e !== 'number' || v.e * 1000 < now) return null
+    return { companyId: v.c, contactId: v.k }
+  } catch { return null }
+}

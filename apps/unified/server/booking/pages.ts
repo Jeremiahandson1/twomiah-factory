@@ -70,7 +70,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   const embedded = (c: Context) => c.req.query('embed') === '1'
   const keep = (c: Context, sep: '?' | '&' = '?') => (embedded(c) ? sep + 'embed=1' : '')
   /** Came from the customer's portal (?portal=<their link>, parity tier 2 #5): carried to the service chosen, whose script fills the form in. */
-  const fromPortal = (c: Context, sep: '?' | '&') => { const t = String(c.req.query('portal') || ''); return /^[A-Za-z0-9_-]{8,200}$/.test(t) ? `${sep}portal=${encodeURIComponent(t)}` : '' }
+  const fromPortal = (c: Context, sep: '?' | '&') => { const t = String(c.req.query('portal') || ''); return /^[A-Za-z0-9_-]{8,400}$/.test(t) ? `${sep}portal=${encodeURIComponent(t)}` : '' }
   const top = (c: Context) => (embedded(c) ? ' target="_top"' : '')
 
   /**
