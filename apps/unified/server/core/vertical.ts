@@ -282,6 +282,11 @@ export interface CrmSettings {
    */
   roof?: boolean
   /**
+   * Roof reports without the rest of roofing (contractor, owner 11/12): measurements and roof reports
+   * (server/crm/roof/reports roofReportMounts), behind measurement_reports. A roofer has them through `roof`.
+   */
+  roofReports?: boolean
+  /**
    * The store add-on (server/crm/store; templates/crm-store; docs/UNIFIED_STORE_PLAN.md): the catalogue, orders and
    * refunds, the storefront's public API and checkout, the merchant's payment, shipping and supplier connections,
    * discount codes, product reviews and the store's loyalty over the shared programme. (store)

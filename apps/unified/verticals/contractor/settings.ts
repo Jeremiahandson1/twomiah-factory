@@ -1,5 +1,6 @@
 // General contractor (templates/crm, the base CRM). Its role names and permissions are the shared defaults.
 import { BASE_CRM, CREW_SCOPE_WITHHELD, type VerticalSettings } from '../../server/core/vertical.ts'
+import { BASE_STARTER } from '../../server/core/starter.ts'
 
 const contractor: VerticalSettings = {
   id: 'contractor',
@@ -25,7 +26,10 @@ const contractor: VerticalSettings = {
   // A new job is for a customer (packages/tenant-backend jobs.ts options.requireCustomer).
   // quoteSellerCommissions: the sales rep who sold the project earns a % of the contract as its invoices are paid (contractor live test 11/07).
   // team.roles: the seats a login may be given here, the shared ones and the contractor's Sales rep and Crew (roleMapping above).
-  crm: { ...BASE_CRM, jobs: { ...BASE_CRM.jobs, requireCustomer: true }, quoteSellerCommissions: true, team: { roles: ['admin', 'manager', 'sales_rep', 'crew', 'field', 'viewer'] } },
+  // roofReports: measurements and roof reports (measurement_reports), without the rest of roofing (owner 11/12).
+  crm: { ...BASE_CRM, jobs: { ...BASE_CRM.jobs, requireCustomer: true }, quoteSellerCommissions: true, roofReports: true, team: { roles: ['admin', 'manager', 'sales_rep', 'crew', 'field', 'viewer'] } },
+  // The base CRM's day one, and ten free roof reports, as a roofer starts with (owner 11/12: live with it right away).
+  starter: { ...BASE_STARTER, company: { reportCredits: 10 } },
   // templates/crm/frontend/src/*Config.ts
   screens: {
     // The menu's groups (web/src/navGroups.ts): a builder reads Sales, Projects, Field, Finance, then the website and bookings.
@@ -45,6 +49,8 @@ const contractor: VerticalSettings = {
       '/crm/quotes': 'Sales',
       '/crm/bids': 'Sales',
       '/crm/takeoffs': 'Sales',
+      '/crm/measurements': 'Sales',
+      '/crm/roof-reports': 'Sales',
       '/crm/visualizer': 'Sales',
       '/crm/pricebook': 'Sales',
       '/crm/agreements': 'Sales',

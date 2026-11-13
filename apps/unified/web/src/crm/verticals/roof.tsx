@@ -16,10 +16,19 @@ export const isRoofing = typeof home === 'string' && home === 'roofing'
 
 const GROUPS = [jobs, insurance, reports, field]
 
-/** Routes inside /crm, for a roofer only (one route per path: roofing's /crm/jobs is the page for its /api/jobs). */
-export const routes: ReactElement[] = isRoofing ? GROUPS.flatMap((g) => g.routes) : []
-/** Menu items, for a roofer only, each behind the feature and permission roofing's menu used. */
-export const nav: NavItem[] = isRoofing ? GROUPS.flatMap((g) => g.nav) : []
+/**
+ * Measurements and roof reports outside roofing (contractor, owner 11/12): their pages and menu items, behind
+ * measurement_reports, which only roofers and contractors are offered (featureRegistry.ts) — the server mounts them for a
+ * contractor by CrmSettings.roofReports.
+ */
+const REPORT_PATHS = ['measurements', 'roof-reports', 'roof-reports/:id']
+const REPORT_PAGES = ['/crm/measurements', '/crm/roof-reports']
+
+/** Routes inside /crm, for a roofer (one route per path: roofing's /crm/jobs is the page for its /api/jobs); elsewhere the report pages. */
+export const routes: ReactElement[] = isRoofing ? GROUPS.flatMap((g) => g.routes)
+  : reports.routes.filter((r) => REPORT_PATHS.includes((r.props as { path: string }).path))
+/** Menu items, each behind the feature and permission roofing's menu used: a roofer's all; elsewhere the report pages'. */
+export const nav: NavItem[] = isRoofing ? GROUPS.flatMap((g) => g.nav) : reports.nav.filter((i) => REPORT_PAGES.includes(i.to))
 /**
  * The shared menu items a roofer doesn't get, because roofing's own page is at that address (its pipeline is the home,
  * its jobs and reports pages are roofing's) — and the shared Reports item's `reports` feature and reports:read gate,

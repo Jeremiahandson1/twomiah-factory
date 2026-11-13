@@ -394,7 +394,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', category: 'Advanced', core: false, templates: [] /* offered to no industry: no screen in any industry's menu or pages (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22). The id stays because the server still gates its API on it. */ },
 
   // Roofing
-  { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  // Offered to contractors too (owner 11/12): a builder or exterior contractor measures roofs as a roofer does, with ten free to start.
+  { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof', 'crm'] },
   { id: 'tap_to_pay', name: 'Tap to Pay on the phone', description: "Take a customer's card by tapping it on your own phone, paid into your own Stripe account, and recorded on the invoice", category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof', 'crm-salon'], hidden: true, words: ['tap to pay', 'contactless'] },
   { id: 'quote_proposals', name: 'Good / Better / Best', description: 'One quote with two to six priced options, each with photos, a brand and a warranty: the customer picks one and signs, and the price and deposit follow their pick', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'], words: ['quote options', 'good better best', 'proposal options'] },
   // Not ready (roofing depth, gaps 6 and 10): the owner tests them first.

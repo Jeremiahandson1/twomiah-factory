@@ -22,6 +22,8 @@ export const MENU: Record<string, MenuRow[]> = {
     {"label":"Messages","path":"/crm/messages","group":"Sell","icon":"chatbubbles","permission":"sms:send","features":["two_way_texting"],"native":[{"route":"/(details)/texts"}]},
     {"label":"Lead Sources","path":"/crm/lead-sources","group":"Sell","icon":"link","permission":"leads:read","features":["lead_inbox"]},
     {"label":"Bids","path":"/crm/bids","group":"Sell","icon":"pricetag","permission":"bids:read","features":["bid_management"]},
+    {"label":"Measurements","path":"/crm/measurements","group":"Equipment & records","icon":"ellipse","features":["measurement_reports"]},
+    {"label":"Roof Reports","path":"/crm/roof-reports","group":"Sell","icon":"ellipse","features":["measurement_reports"]},
     {"label":"Jobs","path":"/crm/jobs","group":"Projects","icon":"hammer","permission":"jobs:read","features":["jobs"],"native":[{"route":"/(tabs)/jobs"}]},
     {"label":"Documents","path":"/crm/documents","group":"Projects","icon":"folder","features":["documents"]},
     {"label":"Warranties","path":"/crm/warranties","group":"Projects","icon":"shield-checkmark","features":["warranties"]},

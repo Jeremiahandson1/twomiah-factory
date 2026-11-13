@@ -17,11 +17,18 @@ import { createMeasurementRoutes } from './measurements.ts'
 import { createRoofReportRoutes, createRoofReportInternalRoutes } from './roofReports.ts'
 import { createEstimatorRoutes, createEstimatorSettingsRoutes } from './estimator.ts'
 
-export function reportsMounts(d: CrmDeps): Mount[] {
+/** Measurements and roof reports alone, for a vertical that has them without roofing (CrmSettings.roofReports: contractor). */
+export function roofReportMounts(d: CrmDeps): Mount[] {
   return [
     { path: '/api/measurements', access: 'user', feature: 'measurement_reports', router: createMeasurementRoutes(d) },
     { path: '/api/roof-reports', access: 'public', router: createRoofReportRoutes(d) },
     { path: '/api/internal/roof-reports', access: 'factory', router: createRoofReportInternalRoutes(d) },
+  ]
+}
+
+export function reportsMounts(d: CrmDeps): Mount[] {
+  return [
+    ...roofReportMounts(d),
     { path: '/api/estimator', access: 'public', feature: 'instant_estimator', router: createEstimatorRoutes(d) },
     { path: '/api/settings', access: 'user', router: createEstimatorSettingsRoutes(d) },
   ]
