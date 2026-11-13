@@ -4,7 +4,10 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
 import { one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
-import { createSearchService } from './searchService.ts'
+import { createSearchService, type OwnOnly } from './searchService.ts'
+import { eq, or } from 'drizzle-orm'
+import { quote } from '../../db/schema/index.ts'
+import { ownProjectsWhere } from '../ownWork.ts'
 
 // Search only shows what this tenant can open: a result type whose module is switched off — or that this CRM does
 // not have at all (false) — is left out of search, quick search and Recent, and cannot be asked for with ?types=.
@@ -71,6 +74,20 @@ export function createSearchRoutes(d: CrmDeps) {
     }
   }
 
+  /**
+   * What a seat that reads only its own quotes or projects is searched across: the quotes it wrote or sells (invoicing/quotes.ts
+   * ownQuotes) and its own projects (crm/ownWork.ts) — the same rows its lists show. The search box and Recent returned every
+   * rep's quotes and every project to the contractor's Sales rep (security review S1-15, 2026-11-12).
+   */
+  async function ownOnly(user: any): Promise<OwnOnly> {
+    const extra = await getExtraPermissions(user.userId)
+    const me = String(user.userId)
+    return {
+      ...(hasPermission(user.role, 'quotes:read-all', extra) ? {} : { quote: or(eq(quote.createdById, me), eq(quote.salespersonId, me)) }),
+      ...(hasPermission(user.role, 'projects:read-all', extra) ? {} : { project: ownProjectsWhere(d.db, me) }),
+    }
+  }
+
   /** A client opens on their chart where the business keeps charts (client_profiles; Salon T28 L7). */
   const clientChartOn = async (companyId: string) => (await d.features.enabledFeaturesFor(companyId)).includes('client_profiles')
 
@@ -83,6 +100,7 @@ export function createSearchRoutes(d: CrmDeps) {
       limit: Math.min(parseInt(limit), 50),
       types: (types ? types.split(',') : DEFAULT_TYPES).filter(shown),
       clientChart: await clientChartOn(user.companyId),
+      own: await ownOnly(user),
     })
     const results = result.results.filter((r: any) => shown(r.type))
     return one(c, { ...result, results, count: results.length })
@@ -93,7 +111,7 @@ export function createSearchRoutes(d: CrmDeps) {
     const limit = c.req.query('limit') || '10'
     const shown = await shownTypes(user.companyId, user)
     const results = (await search.quickSearch(user.companyId, c.req.query('q'), Math.min(parseInt(limit), 20), {
-      types: DEFAULT_TYPES.filter(shown), clientChart: await clientChartOn(user.companyId),
+      types: DEFAULT_TYPES.filter(shown), clientChart: await clientChartOn(user.companyId), own: await ownOnly(user),
     })).filter((r: any) => shown(r.type))
     return listAll(c, results)
   })
@@ -102,7 +120,7 @@ export function createSearchRoutes(d: CrmDeps) {
     const user = c.get('user')
     const limit = c.req.query('limit') || '10'
     const shown = await shownTypes(user.companyId, user)
-    const results = (await search.getRecentItems(user.companyId, Math.min(parseInt(limit), 20), await clientChartOn(user.companyId))).filter((r: any) => shown(r.type))
+    const results = (await search.getRecentItems(user.companyId, Math.min(parseInt(limit), 20), await clientChartOn(user.companyId), await ownOnly(user))).filter((r: any) => shown(r.type))
     return listAll(c, results)
   })
 

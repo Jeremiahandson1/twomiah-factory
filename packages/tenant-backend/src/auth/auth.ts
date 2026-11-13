@@ -12,13 +12,13 @@ import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from './mfa.ts'
 import crypto from 'crypto'
-import { eq, and, gt } from 'drizzle-orm'
+import { eq, and, gt, sql } from 'drizzle-orm'
 import { redactCompanySettings, isPrivilegedRole } from './redactSettings'
 import { companyRowTimeZone } from '../time/businessDay'
 // The same one-line heal GET /api/company uses — see company/logoAddress.ts for how the column came
 // to hold "https:///logo.svg" in the first place.
 import { healLogo } from '../company/logoAddress'
-import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies, accessCookie } from './cookieSession'
+import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies, accessCookie, requestToken } from './cookieSession'
 import { sessionEnded } from './middleware'
 
 export interface AuthTables { user: any; company: any }
@@ -201,6 +201,19 @@ export function createAuthRoutes(deps: AuthDeps) {
     } catch { /* see above */ }
   }
   const LOCK_AFTER = options.lockAfter ?? 10, LOCK_MS = options.lockMs ?? 15 * 60 * 1000
+  /**
+   * One more failed sign-in attempt (a wrong password, or a wrong two-factor code) against this account; at LOCK_AFTER the
+   * account locks for LOCK_MS and the count starts again. The count goes up in ONE statement: it was read from the row and
+   * written back, so attempts sent at the same moment all read the same number and a burst got far more than LOCK_AFTER
+   * guesses (security review S1-1 and S1-5, 2026-11-12).
+   */
+  async function countFailure(userId: string): Promise<{ fails: number; lock: boolean }> {
+    const [row] = await db.update(user).set({ failedLoginCount: sql`COALESCE(${user.failedLoginCount}, 0) + 1` }).where(eq(user.id, userId)).returning({ fails: user.failedLoginCount })
+    const fails = Number(row?.fails) || 1
+    const lock = fails >= LOCK_AFTER
+    if (lock) await db.update(user).set({ failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCK_MS) }).where(eq(user.id, userId))
+    return { fails, lock }
+  }
   const app = new Hono()
 
   // One company payload for login AND /me — the frontend's trial gate reads settings.trialEndsAt and falls
@@ -277,7 +290,10 @@ export function createAuthRoutes(deps: AuthDeps) {
     await db.update(user).set({ refreshToken: JSON.stringify(next), updatedAt: new Date(), ...extra }).where(eq(user.id, userId))
   }
   async function revokeRefreshToken(userId: string, token: string | null | undefined) {
-    if (!token) { await db.update(user).set({ refreshToken: null, updatedAt: new Date() }).where(eq(user.id, userId)); return }
+    // Every device: the refresh tokens go, and — where the table has it — the access tokens already handed out stop on their
+    // next request too (sessions_valid_from, as a password change does). They used to live out their 15 minutes, long enough
+    // to open a new session (security review S1-3, 2026-11-12).
+    if (!token) { await db.update(user).set({ refreshToken: null, updatedAt: new Date(), ...(user.sessionsValidFrom ? { sessionsValidFrom: new Date(Math.floor(Date.now() / 1000) * 1000) } : {}) }).where(eq(user.id, userId)); return }
     const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
     const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
     await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() }).where(eq(user.id, userId))
@@ -324,9 +340,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     }
     const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
     if (!valid) {
-      const fails = (Number(foundUser.failedLoginCount) || 0) + 1
-      const lock = fails >= LOCK_AFTER
-      await db.update(user).set({ failedLoginCount: lock ? 0 : fails, lockedUntil: lock ? new Date(Date.now() + LOCK_MS) : null }).where(eq(user.id, foundUser.id))
+      const { fails, lock } = await countFailure(foundUser.id)
       const mins = Math.round(LOCK_MS / 60000)
       // A run of these against one account is what an attack looks like from the log's side, so the
       // attempt NUMBER is recorded and the lock is called out when it trips.
@@ -335,7 +349,7 @@ export function createAuthRoutes(deps: AuthDeps) {
         lock ? 'Wrong password; the account is now locked' : 'Wrong password', { attempt: fails, locked: lock })
       return c.json({ error: lock ? `Too many failed sign-in attempts. Try again in ${mins} minutes.` : 'Invalid email or password' }, lock ? 423 : 401)
     }
-    if ((Number(foundUser.failedLoginCount) || 0) > 0 || lockedUntilMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id))
+    const clearFailures = async () => { if ((Number(foundUser.failedLoginCount) || 0) > 0 || lockedUntilMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id)) }
 
     const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
     if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
@@ -352,6 +366,10 @@ export function createAuthRoutes(deps: AuthDeps) {
      * landing this in shared auth safe for the templates that have not added one. See auth/mfa.ts.
      */
     const gate = await mfaGateFor(db, foundUser.companyId, foundUser.id)
+    // The failed-attempt count is cleared when the sign-in is COMPLETE. With a second factor to ask for it is not complete
+    // yet: clearing it here let a right password wipe the count before every round of code guesses, so wrong codes never
+    // added up to a lock (security review S1-1, 2026-11-12). POST /mfa clears it once the code is accepted.
+    if (!gate.required) await clearFailures()
     if (gate.required) {
       const { challengeId, expiresAt } = await openLoginChallenge(db, foundUser.companyId, foundUser.id)
       // No tokens. Nothing about the account beyond what is needed to finish signing in.
@@ -410,6 +428,15 @@ export function createAuthRoutes(deps: AuthDeps) {
 
     const outcome = await verifyLoginChallenge(db, parsed.data.challengeId, parsed.data.code)
     if (!outcome.ok) {
+      // A wrong code counts against the ACCOUNT, on the same count and lock as a wrong password: five tries per request
+      // alone left a person holding the password free to ask for request after request (security review S1-1).
+      if (outcome.userId && user.failedLoginCount) {
+        const { fails, lock } = await countFailure(outcome.userId)
+        const [who] = await db.select({ id: user.id, email: user.email, companyId: user.companyId }).from(user).where(eq(user.id, outcome.userId)).limit(1)
+        if (who) logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed', who,
+          lock ? 'Wrong two-factor code; the account is now locked' : 'Wrong two-factor code', { attempt: fails, locked: lock, secondFactor: true })
+        if (lock) return c.json({ error: `Too many failed sign-in attempts. Try again in ${Math.round(LOCK_MS / 60000)} minutes.` }, 423)
+      }
       // 401 for a wrong code, 400 for a request that can no longer be completed — a screen shows the
       // first in the code field and sends the reader back to the start for the second.
       return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
@@ -417,6 +444,13 @@ export function createAuthRoutes(deps: AuthDeps) {
 
     const [mfaUser] = await db.select().from(user).where(eq(user.id, outcome.userId)).limit(1)
     if (!mfaUser || !mfaUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+    // Locked since the code was asked for (wrong codes on other requests): the same refusal sign-in gives.
+    const mfaLockedMs = mfaUser.lockedUntil ? new Date(mfaUser.lockedUntil).getTime() : 0
+    if (mfaLockedMs > Date.now()) {
+      const mins = Math.max(1, Math.ceil((mfaLockedMs - Date.now()) / 60000))
+      return c.json({ error: `Too many failed sign-in attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` }, 423)
+    }
+    if ((Number(mfaUser.failedLoginCount) || 0) > 0 || mfaLockedMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, mfaUser.id))
     const [mfaCompany] = await db.select().from(company).where(eq(company.id, mfaUser.companyId)).limit(1)
     if (!mfaCompany) return c.json({ error: 'Company not found' }, 404)
 
@@ -474,6 +508,20 @@ export function createAuthRoutes(deps: AuthDeps) {
     // Which app sign-in is asking: a web session with no app sign-in behind it could never be ended by signing out, so it is refused.
     const deviceToken = typeof body?.refreshToken === 'string' && body.refreshToken ? body.refreshToken : null
     if (!deviceToken) return c.json({ error: 'The app sign-in is required' }, 400)
+    // …and it must BE an app sign-in (security review S1-3, 2026-11-12). Any string was taken, from any session: script
+    // injected into a signed-in page could ask for a code and send it out, and a 15-minute access token could be turned
+    // into web sessions for ever. So: asked with the Authorization header only (a browser's cookie session never mints
+    // one), and the token given must be one of this person's own live sign-ins — not itself a page opened from the app.
+    const presented = requestToken(c)
+    if (!presented || !('via' in presented) || presented.via !== 'header') return c.json({ error: 'The app sign-in is required', code: 'app_sign_in_required' }, 403)
+    let device: any = null
+    try { device = jwt.verify(deviceToken, process.env.JWT_REFRESH_SECRET!) } catch { /* not a sign-in of ours */ }
+    const [holder] = device?.userId === currentUser.userId && !device?.via
+      ? await db.select({ refreshToken: user.refreshToken, ...(user.sessionsValidFrom ? { sessionsValidFrom: user.sessionsValidFrom } : {}) }).from(user).where(eq(user.id, currentUser.userId)).limit(1)
+      : []
+    if (!holder || !parseTokenList(holder.refreshToken).includes(deviceToken) || sessionEnded((holder as any).sessionsValidFrom, device.iat)) {
+      return c.json({ error: 'The app sign-in is required', code: 'app_sign_in_required' }, 403)
+    }
     sweepHandoffs()
     const code = crypto.randomBytes(32).toString('base64url')
     handoffs.set(code, { userId: currentUser.userId, companyId: currentUser.companyId, next, deviceToken, expires: Date.now() + HANDOFF_MS })

@@ -170,7 +170,8 @@ export async function openLoginChallenge(db: any, companyId: string, userId: str
 
 export type MfaCodeOutcome =
   | { ok: true; userId: string; usedRecoveryCode: boolean }
-  | { ok: false; error: string; code: string }
+  /** `userId`: whose sign-in a WRONG code was sent for, so the caller can count it against the account (S1-1). */
+  | { ok: false; error: string; code: string; userId?: string }
 
 /**
  * Check a code against a pending sign-in challenge, and spend it.
@@ -207,6 +208,20 @@ export async function verifyLoginChallenge(
   }
 
   const userId = String(challenge.user_id)
+  // ONE TRY IS TAKEN BEFORE THE CODE IS LOOKED AT (security review S1-1, 2026-11-12). The count was read above and written
+  // after the check, so codes sent at the same moment all read the same count and one challenge took far more than five.
+  // The claim is one statement: it succeeds only while the challenge is pending and has a try left.
+  const claimed: any = await db.execute(sql`
+    UPDATE mfa_challenges SET attempts = COALESCE(attempts, 0) + 1
+    WHERE id = ${challengeId} AND status = 'pending' AND COALESCE(attempts, 0) < ${MAX_CODE_ATTEMPTS}
+    RETURNING attempts
+  `)
+  const claim = ((claimed as any).rows || claimed)[0]
+  if (!claim) {
+    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed' WHERE id = ${challengeId} AND status = 'pending'`)
+    return { ok: false, error: 'That sign-in request is no longer valid. Start again.', code: 'challenge_not_found' }
+  }
+  const spentAttempts = Number(claim.attempts)
   //
   // A scope that names another table is quoted with sql.identifier, never spliced: `user` is a reserved
   // word and an unquoted FROM user reads the function, not the table. A single-company scope has no
@@ -247,21 +262,21 @@ export async function verifyLoginChallenge(
     return { ok: true, userId, usedRecoveryCode: true }
   }
 
-  const spentAttempts = Number(challenge.attempts ?? 0) + 1
   if (spentAttempts >= MAX_CODE_ATTEMPTS) {
-    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed', attempts = ${spentAttempts} WHERE id = ${challengeId}`)
+    await db.execute(sql`UPDATE mfa_challenges SET status = 'failed' WHERE id = ${challengeId} AND status = 'pending'`)
     return {
       ok: false,
       error: `That code was not right, and this sign-in request has had ${MAX_CODE_ATTEMPTS} tries. Sign in again to get a new code.`,
       code: 'too_many_attempts',
+      userId,
     }
   }
-  await db.execute(sql`UPDATE mfa_challenges SET attempts = ${spentAttempts} WHERE id = ${challengeId}`)
   const left = MAX_CODE_ATTEMPTS - spentAttempts
   return {
     ok: false,
     error: `That code was not right. Try again, or use one of your recovery codes. ${left} ${left === 1 ? 'try' : 'tries'} left on this request.`,
     code: 'bad_code',
+    userId,
   }
 }
 

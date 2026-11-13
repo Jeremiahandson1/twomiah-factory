@@ -148,6 +148,10 @@ export function createViewAs(deps: ViewAsDeps) {
     const p = pathOf(c)
     if (p.startsWith('/api/auth/') && p !== LOGOUT) return true
     if (p === `/api/company/users/${viewedId}` || p.startsWith(`/api/company/users/${viewedId}/`)) return true
+    // Home care's own doors onto a login (crm/homecare/hr/caregivers.ts, mounted at both paths): its email, its password,
+    // whether it is on. They were not named here, so a View As could change the viewed person's sign-in through them
+    // (security review S1-14, 2026-11-12).
+    for (const door of ['/api/users', '/api/caregivers']) if (p === `${door}/${viewedId}` || p.startsWith(`${door}/${viewedId}/`)) return true
     if (p === '/api/company/transfer-ownership') return true
     if (p === '/api/push' || p.startsWith('/api/push/')) return true
     return false

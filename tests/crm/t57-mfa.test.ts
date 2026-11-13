@@ -175,7 +175,8 @@ console.log('\n══════════ 5 · turning it off ════�
    * tenant it tested, uncleanable.
    */
   {
-    const started = await api('POST', '/api/auth/mfa-devices/setup', {}, owner)
+    // Two-factor is on here, so starting another asks for a code from the one enrolled (security review S1-2, 2026-11-12).
+    const started = await api('POST', '/api/auth/mfa-devices/setup', { code: codeFor(secret) }, owner)
     const pendingId = started.json?.deviceId
     check('T41 a second enrolment can be started', started.status === 201 && !!pendingId, { status: started.status })
 
