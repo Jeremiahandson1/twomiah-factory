@@ -113,6 +113,9 @@ type SignupWho = { industry?: string | null; email?: string | null; admin_email?
  *   all   every signup whose industry has a unified vertical.
  * An industry with no unified vertical (dispensary) stays on the templates whatever the switch says.
  */
+/** Is this text a bcrypt hash (what a unified signup's row holds in admin_password), not a password as typed? */
+export const isBcryptHash = (v: unknown): boolean => typeof v === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(v)
+
 export function engineForSignup(s: SignupWho, mode: UnifiedSignups = unifiedSignupsMode(), live: Set<string> | null = unifiedLiveVerticals()): Engine {
   if (mode === 'off') return 'templates'
   const vertical = unifiedVerticalFor(s.industry)
@@ -504,8 +507,12 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
     const guessUrl = `https://${names.service}.onrender.com`
     // The temporary password: the one the owner chose at signup (or the build config's), else one nobody knows — the
     // owner then sets theirs through Forgot password, as the ready email says. Only its hash leaves this function.
-    const plain = tenant.admin_password || config?.company?.defaultPassword || crypto.randomBytes(24).toString('base64url')
-    const passwordHash = await deps.hashPassword(plain)
+    // A signup since 2026-11-13 stores the HASH of what the owner chose (routes/factory/intake.ts); an older row, or a
+    // build config, may still hold it as typed, and is hashed here.
+    const kept = String(tenant.admin_password || '')
+    const passwordHash = isBcryptHash(kept)
+      ? kept
+      : await deps.hashPassword(kept || config?.company?.defaultPassword || crypto.randomBytes(24).toString('base64url'))
     const provision = provisionBody(tenant, config, passwordHash)
     // The website: a signup's AI composition is settled (finished, redone after a restart, or given up on for the
     // template one stored at signup — services/signupSite.ts) while the database and service are made, and the provision

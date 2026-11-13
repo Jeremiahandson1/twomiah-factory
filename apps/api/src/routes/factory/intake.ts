@@ -377,6 +377,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // Which engine builds this business — decided once, here, from UNIFIED_SIGNUPS and UNIFIED_LIVE_VERTICALS
     // (unified/factory.ts). Off (the default): 'templates', and this signup runs exactly as it always has.
     const engine = engineForSignup({ industry: body.industry, email: body.email, admin_email: body.admin_email })
+    const ownerPasswordHash = engine === 'unified' && typeof body.admin_password === 'string' && body.admin_password
+      ? await (await import('bcryptjs')).default.hash(body.admin_password, 10) : null
     // A store on the unified app gets a site too: its home is its products (the built-in shop), with a contact page —
     // skipping it left a store's front door a "coming soon" with no way to the shop (store live test, 2026-10-26).
     const unifiedSite = engine === 'unified'
@@ -439,12 +441,18 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       // The zone the CRM will run on — its state's (config/stateTimezone.ts), not the form's Timezone select, which
       // starts on Eastern and reached us only as text in these notes (Run 4: a Wisconsin agency recorded as Eastern).
       notes: notesWithTimezone(body.notes, signupZone),
-      admin_password: body.admin_password || null,
+      // THE OWNER'S PASSWORD IS NEVER STORED AS TYPED (security review S5-1, 2026-11-13). It sat in this row in plain
+      // text from signup until the build finished — for ever on a signup that never built — and the row was readable
+      // with the dashboard's public key. A unified signup's is hashed here, now (bcrypt, what its app checks); the
+      // build hands the hash on as it is (unified/factory.ts). A templates signup still carries it as typed, because
+      // that generator writes it into the site's own first-run settings; it is scrubbed when the build ends.
+      admin_password: engine === 'unified' ? ownerPasswordHash : (body.admin_password || null),
       website_theme: body.website_theme || null,
       // Only a unified signup names its engine; every other row takes the column's default ('templates').
       ...(engine === 'unified' ? { engine } : {}),
     }
 
+    let builtUnified = engine === 'unified'
     let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
     // If a newer column (e.g. billing_status) hasn't been added to the live DB
     // yet, retry without it so the code can ship ahead of the migration.
@@ -453,6 +461,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       // engine too: a Factory DB without migrations/2026-10-20_tenants_engine.sql builds this business on the templates.
       if (tenantRecord.engine) console.error('[Signup] tenants.engine is missing (run migrations/2026-10-20_tenants_engine.sql) — this signup takes the templates')
       const { billing_status: _, engine: _engine, ...fallback } = tenantRecord
+      // …and the templates generator needs the password as typed (above).
+      builtUnified = false
+      fallback.admin_password = body.admin_password || null
       const retry = await supabase.from('tenants').insert(fallback).select().single()
       tenant = retry.data
       insertErr = retry.error
@@ -509,7 +520,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         domain: body.domain || undefined,
         industry: body.industry || undefined,
         plan: body.plan || 'starter10',
-        defaultPassword: body.admin_password || undefined,
+        // A unified build takes the hash from the tenant row; only the templates generator is handed the password.
+        defaultPassword: builtUnified ? undefined : (body.admin_password || undefined),
         // The owner's own name for their CRM login. Signup asked for it and only ever wrote it into `notes`
         // ("Admin: John Test"), so every owner was seeded as "Admin User". (E2E run 1, 10/14)
         ownerFirstName: signupText(body.owner_first_name),
