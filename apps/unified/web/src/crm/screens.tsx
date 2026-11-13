@@ -229,7 +229,7 @@ export function Expenses() {
 }
 export function Team() {
   const { hasFeature } = useAuth()
-  return <TeamPage api={client} toast={useToast()} config={{ ...v().team, hasFeature } as any} />
+  return <TeamPage api={client} toast={useToast()} config={{ ...v().team, hasFeature, roleLabels: verticalScreens().roleLabels } as any} />
 }
 export function Documents() {
   const { hasFeature } = useAuth()

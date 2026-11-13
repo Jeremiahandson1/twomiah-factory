@@ -5,7 +5,7 @@
 // (the template's T32 H1, on the mount). There is deliberately no GET /expenses (see the template).
 import { Hono } from 'hono'
 import { and, eq, gte, lt } from 'drizzle-orm'
-import { createStaffBalanceStore, companyTimeZone, entryDay, entryDayWindow } from '@twomiah/tenant-backend'
+import { createStaffBalanceStore, createTimeClock, companyTimeZone, entryDay, entryDayWindow } from '@twomiah/tenant-backend'
 import { timeEntry, user, staffAccountEntry, teamMember } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -21,6 +21,7 @@ export function createPayrollRoutes(d: CrmDeps) {
 
   // The ledger the expense sheet writes; read here, never written (Salon RR9).
   const staffBalance = createStaffBalanceStore(staffAccountEntry)
+  const rosterRates = createTimeClock({ db, tables: { timeEntry, user, teamMember } } as any)
 
   const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00Z').getTime())
 
@@ -54,12 +55,11 @@ export function createPayrollRoutes(d: CrmDeps) {
     // An entry's own rate wins (the rate when the work was done). One stored with none — clocked before the roster card had
     // a rate — is valued at the card's rate now, as the Time page's summary does (time.ts ratesByUserId). Restaurant
     // re-check 2026-11-09: a $15/hr server's clocked hours showed Earned $0.00.
-    const cardRate = new Map<string, number>()
-    if (entries.some((e: any) => e.entry.hourlyRate == null)) {
-      const roster = await db.select({ email: teamMember.email, rate: teamMember.hourlyRate }).from(teamMember).where(eq(teamMember.companyId, currentUser.companyId))
-      for (const m of roster) { const n = Number(m.rate); if (m.email && Number.isFinite(n) && n > 0) cardRate.set(String(m.email).toLowerCase(), n) }
-    }
-    const rateOf = (e: any) => (e.entry.hourlyRate != null ? Number(e.entry.hourlyRate) : cardRate.get(String(e.userEmail || '').toLowerCase()) ?? 0)
+    // The one roster-rate lookup (tenant-backend time.ts ratesByUserId) — this was a second copy of it (cleanup list #3).
+    const cardRates = entries.some((e: any) => e.entry.hourlyRate == null)
+      ? await rosterRates.ratesByUserId(currentUser.companyId, entries.filter((e: any) => e.entry.hourlyRate == null).map((e: any) => String(e.entry.userId)))
+      : {}
+    const rateOf = (e: any) => (e.entry.hourlyRate != null ? Number(e.entry.hourlyRate) : cardRates[String(e.entry.userId)] ?? 0)
 
     // Overtime is hours over 40 in each work week (the company's start day), the Gusto file's own split.
     const workWeek = await companyWorkWeek(db, currentUser.companyId)

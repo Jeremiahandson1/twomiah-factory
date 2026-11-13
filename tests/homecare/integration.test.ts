@@ -186,8 +186,12 @@ const evvCount = async (teId: string) => Number((await q1(sql`SELECT COUNT(*)::i
   const free = await mk('nopref'), off = await mk('pushoff'), noRem = await mk('noreminder'), quiet = await mk('quiet')
   await q(sql`INSERT INTO notification_preferences (id, user_id, push_enabled, sms_enabled) VALUES ('np1', ${off.id}, false, true)`)
   await q(sql`INSERT INTO notification_preferences (id, user_id, push_enabled, shift_reminder_alerts) VALUES ('np2', ${noRem.id}, true, false)`)
+  // The window used to be 00:01 to 00:00 — every minute but one, so a run during that minute failed (cleanup list #7). It is
+  // now eleven hours either side of this moment by UTC's clock, which holds "now" on any clock within eleven hours of UTC.
+  const hhmm = (ms: number) => new Date(ms).toISOString().slice(11, 16)
+  const quietFrom = hhmm(Date.now() - 11 * 3_600_000), quietTo = hhmm(Date.now() + 11 * 3_600_000)
   await q(sql`INSERT INTO notification_preferences (id, user_id, push_enabled, sms_enabled, quiet_hours_start, quiet_hours_end)
-    VALUES ('np3', ${quiet.id}, true, true, '00:01', '00:00')`) // quiet all day but one minute (wraps midnight)
+    VALUES ('np3', ${quiet.id}, true, true, ${quietFrom}, ${quietTo})`) // quiet for the 22 hours around now, whatever the agency's zone
   const send = (u: any, extra: any = {}) => notify.sendCaregiverAlert({ userId: u.id, alertType: 'shift_reminder', channel: 'push', body: 'Shift in 1 hour', ...extra })
   const before = pushes.length
   check('no preferences on file: the reminder goes out', (await send(free)) === true && pushes.length === before + 1)

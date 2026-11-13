@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { wipeReadCopies } from './signOutWipe'
 import { loadTokens, clearTokens, getApiUrl, getRefreshToken, post, get } from '../api/client'
 import { signInWithPassword, completeMfaSignIn, type MfaChallenge } from './signIn'
 import { stopTracking } from '../location/tracking'
@@ -139,6 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await post('/api/auth/logout', { refreshToken: getRefreshToken() }).catch(() => {})
     await clearTokens()
     await AsyncStorage.removeItem(PROFILE_KEY).catch(() => {})
+    // The copies kept for working offline leave the phone with the session (auth/signOutWipe.ts); unsent work stays.
+    await wipeReadCopies(AsyncStorage)
     setUser(null)
     setPermissions([])
     setCompany(null)

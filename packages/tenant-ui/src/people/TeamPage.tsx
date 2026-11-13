@@ -11,7 +11,10 @@ import type { Pagination } from '../invoicing/ui'
 import { ROLE_LABELS } from '../shell/types'
 
 /** A login's seat as a word: the fleet's rungs (Staff, Manager…), else a vertical's own seat by name (server → Server). */
-const seatWord = (v: unknown) => { const s = String(v || ''); return s ? ROLE_LABELS[s] || (s.charAt(0).toUpperCase() + s.slice(1)).replace(/_/g, ' ') : '' }
+// A seat in the business's own words: the trade's labels from the server when the page is given them (config.roleLabels),
+// then the shared vocabulary; only then is the stored name tidied up. It used to go straight to tidying the name
+// (cleanup list #5), so a trade that calls `field` "Caregiver" or "Stylist" read "Field" here.
+const seatWordIn = (v: unknown, own?: Record<string, string>) => { const s = String(v || ''); return s ? own?.[s] || ROLE_LABELS[s] || (s.charAt(0).toUpperCase() + s.slice(1)).replace(/_/g, ' ') : '' }
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 import { useMayWrite, usePermissions } from '../auth/PermissionsContext'
 import { money } from '../money'
@@ -25,6 +28,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const { user: signedIn } = useAuth()
   const canManageRoster = meetsRole((signedIn as any)?.role, 'admin')
   const roleLabel = config?.roleLabel || 'Job Title / Trade'
+  const seatWord = (v: unknown) => seatWordIn(v, config?.roleLabels)
   const rolePlaceholder = config?.rolePlaceholder || 'e.g. Lead Technician'
   // What the roster holds, in this vertical's words (TeamConfig): a department and an hourly rate unless it says it has none.
   const showDepartment = config?.department !== false
