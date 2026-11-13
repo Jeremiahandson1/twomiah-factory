@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArray, sql } from 'drizzle-orm'
-import { companyTimeZone, storeDateString, storeDayStart, dayMarker, entryDay } from './businessDay'
+import { companyTimeZone, storeDateString, storeDayStart, dayMarker } from './businessDay'
 import { hasHappened } from '../dateInput'
 import { partialOf } from '../partialOf'
 import { zmsg } from '../zodMessage'
@@ -603,10 +603,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     // A supplied date already names a day. An omitted one used to mean "now", which after 7pm is
     // tomorrow in UTC — so logging time at the end of a shift filed it on the next day. (T24 N1)
     const tz = await companyTimeZone(db, currentUser.companyId)
-    // A date sent WITH a time is a moment, and its day is the business's (entryDay): "2026-09-12T01:00Z" is the evening of
-    // the 11th in Ohio. Its first ten characters were taken as the day, which filed that evening on the 12th — and the
-    // pay run, a day off the other way, happened to put it back (code review 04-4).
-    const entryDate = data.date ? dayMarker(entryDay(String(data.date), tz)) : dayMarker(storeDateString(new Date(), tz))
+    const entryDate = data.date ? dayMarker(String(data.date)) : dayMarker(storeDateString(new Date(), tz))
     const derived = deriveHours(data, entryDate, tz)
     if ('error' in derived) return c.json({ error: derived.error }, 400)
     // Stamp the person's rate onto the entry when the caller did not name one. The screens do not ask for a
@@ -642,7 +639,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
     const updates: any = { updatedAt: new Date() }
-    if (data.date !== undefined && data.date) updates.date = dayMarker(entryDay(String(data.date), await companyTimeZone(db, currentUser.companyId)))
+    if (data.date !== undefined && data.date) updates.date = new Date(data.date)
     const entryDate = updates.date || existing.date
     if (data.hours !== undefined || (data.startTime && data.endTime)) {
       // The company's zone, for the same reason as on create: a start/end pair is wall time in the
