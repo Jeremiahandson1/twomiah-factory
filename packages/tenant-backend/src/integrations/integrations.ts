@@ -200,7 +200,17 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
   })
 
   // ── Stripe Connect (Standard account onboarding)
-  app.get('/stripe/connect-url', requireAdmin, async (c) => {
+  /**
+   * WHERE THE MONEY GOES IS THE OWNER'S TO SET (security review S3, 2026-11-13). Connecting, linking or disconnecting
+   * Stripe decides which account every customer's card payment lands in. Any admin could do it — so an admin could
+   * disconnect the business's account and link their own, and the next payments would be theirs. The owner only, as
+   * the payment companies themselves hold it; an admin still sees the status and runs everything else here.
+   */
+  const payoutOwnerOnly = async (c: any, next: any) => {
+    if (String(user(c)?.role || '') !== 'owner') return c.json({ error: 'Only the owner can connect, change or disconnect the account card payments are paid into.', code: 'OWNER_ONLY' }, 403)
+    await next()
+  }
+  app.get('/stripe/connect-url', requireAdmin, payoutOwnerOnly, async (c) => {
     // No STRIPE_SECRET_KEY on this CRM → used to crash with a 500 "null is not an object". (SALON-C5)
     if (!deps.stripe) return c.json({ error: 'Card payments are not set up for this CRM yet. Twomiah support can connect Stripe for your account — email support@twomiah.com.' }, 503)
     const u = user(c)
@@ -223,7 +233,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
    * redirect, so it signs the state; this app keeps a one-time nonce's HASH for this admin's press, which the Factory's
    * hand-over must present (createStripeLinkInternalRoutes). A second press replaces the first — only the latest works.
    */
-  app.get('/stripe/link-url', requireAdmin, async (c) => {
+  app.get('/stripe/link-url', requireAdmin, payoutOwnerOnly, async (c) => {
     if (!deps.stripe || !deps.factoryApiClient?.startStripeLink || !(await stripeLinkAvailable())) {
       // The provider's own "not set up" answer (code PROVIDER_NOT_CONFIGURED), as every unconfigured service gives it.
       return c.json({ error: 'Linking an existing Stripe account is not set up yet. Use "Create a new Stripe account", or email support@twomiah.com.', code: 'PROVIDER_NOT_CONFIGURED' }, 503)
@@ -246,7 +256,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
       return c.json({ error: 'Stripe sign-in could not be started. Please try again in a minute.' }, 502)
     }
   })
-  app.post('/stripe/disconnect', requireAdmin, async (c) => {
+  app.post('/stripe/disconnect', requireAdmin, payoutOwnerOnly, async (c) => {
     const u = user(c)
     const row = await loadCompany(u.companyId)
     const current = ((row?.integrations as any) || {}) as any

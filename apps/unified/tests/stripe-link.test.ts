@@ -147,15 +147,26 @@ describe("the Factory's hand-over", () => {
     expect((await x.integrations()).stripeAccountId).toBeUndefined()
   })
 
-  test('an admin demoted after pressing cannot link', async () => {
+  test('where the money goes is the owner\'s to set: an admin cannot connect, link or disconnect (security review S3, 2026-11-13)', async () => {
     await x.setIntegrations({})
-    const { nonce } = await x.press('admin')
-    await x.t.db.update(x.t.schema.user).set({ role: 'manager' } as any).where(eq(x.t.schema.user.id, x.admin.id))
+    for (const [path, method] of [['/api/integrations/stripe/link-url', 'GET'], ['/api/integrations/stripe/connect-url', 'GET'], ['/api/integrations/stripe/disconnect', 'POST']] as const) {
+      const r = await x.as('admin', path, { method })
+      expect({ path, status: r.status, code: ((await r.json()) as any).code }).toEqual({ path, status: 403, code: 'OWNER_ONLY' })
+    }
+    // …an admin still sees the status.
+    expect((await x.as('admin', '/api/integrations/status')).status).toBe(200)
+    expect((await x.integrations()).stripeLinkPending).toBeUndefined()
+  })
+
+  test('an owner demoted after pressing cannot link', async () => {
+    await x.setIntegrations({})
+    const { nonce } = await x.press('owner')
+    await x.t.db.update(x.t.schema.user).set({ role: 'admin' } as any).where(eq(x.t.schema.user.id, x.s.owner.id))
     try {
-      expect((await x.handOver({ nonce, userId: x.admin.id, accountId: 'acct_DEMOTED' })).status).toBe(403)
+      expect((await x.handOver({ nonce, userId: x.s.owner.id, accountId: 'acct_DEMOTED' })).status).toBe(403)
       expect((await x.integrations()).stripeAccountId).toBeUndefined()
     } finally {
-      await x.t.db.update(x.t.schema.user).set({ role: 'admin' } as any).where(eq(x.t.schema.user.id, x.admin.id))
+      await x.t.db.update(x.t.schema.user).set({ role: 'owner' } as any).where(eq(x.t.schema.user.id, x.s.owner.id))
     }
   })
 
