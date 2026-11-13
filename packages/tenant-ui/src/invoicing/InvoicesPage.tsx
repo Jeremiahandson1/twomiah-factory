@@ -112,7 +112,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
   const openCreate = (contactId = '') => { setEditing(null); setForm({ contactId, projectId: '', dueDate: defaultDueDate(), taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [blankLine()] }); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ contactId: item.contactId || '', projectId: item.projectId || '', dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [blankLine()] })
+    setForm({ contactId: item.contactId || '', projectId: item.projectId || '', dueDate: item.dueDate ? String(item.dueDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice), ...(li.type === 'late_fee' ? { taxable: false } : {}) })) : [blankLine()] })
     setModalOpen(true)
   }, [])
 
