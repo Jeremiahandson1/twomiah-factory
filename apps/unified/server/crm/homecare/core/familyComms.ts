@@ -42,7 +42,7 @@ export const EMAIL_LABELS: Record<EmailKind, string> = {
 }
 /** Which tags each email may use. */
 export const EMAIL_TAGS: Record<EmailKind, string[]> = {
-  accountCreated: ['name', 'client', 'agency', 'email', 'tempPassword', 'loginUrl'],
+  accountCreated: ['name', 'client', 'agency', 'email', 'tempPassword', 'setPasswordUrl', 'loginUrl'],
   forgotPassword: ['name', 'client', 'agency', 'resetUrl'],
   accessGranted: ['name', 'client', 'agency', 'loginUrl'],
   accessRevoked: ['name', 'client', 'agency'],
@@ -52,7 +52,7 @@ export const SWITCHABLE: EmailKind[] = ['accessGranted', 'accessRevoked']
 export const DEFAULT_EMAILS: Record<EmailKind, { subject: string; body: string }> = {
   accountCreated: {
     subject: 'Welcome to the {agency} family portal',
-    body: 'Hello {name},\n\n{agency} has given you access to the family portal for {client}.\n\nYour login:\nEmail: {email}\nTemporary password: {tempPassword}\n\nLog in here: {loginUrl}\n\nPlease change your password after you first sign in.',
+    body: 'Hello {name},\n\n{agency} has given you access to the family portal for {client}.\n\nYou sign in with: {email}\n\nChoose your password here (the link works once, for 7 days): {setPasswordUrl}\n\nAfter that, log in here: {loginUrl}',
   },
   forgotPassword: {
     subject: 'Reset your {agency} family portal password',
