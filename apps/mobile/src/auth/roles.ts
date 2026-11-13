@@ -22,6 +22,8 @@ export const isOfficeRole = (role: unknown) => ['manager', 'admin', 'owner'].inc
  */
 export function permits(permissions: readonly string[], permission: string): boolean {
   if (!permissions.length) return true
+  // A refusal the server sent beside a wildcard ("jobs:*" and "-jobs:delete"): read first, as the server reads it.
+  if (permissions.includes('-' + permission) && !permissions.includes('*')) return false
   if (permissions.includes('*') || permissions.includes(permission)) return true
   return permissions.includes(permission.split(':')[0] + ':*')
 }
