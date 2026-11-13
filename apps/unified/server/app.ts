@@ -160,6 +160,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
 
   // `commit` is the tenant repo's commit this instance runs (Render sets it): Update Code waits for the commit it
   // pushed, because Render reports a deploy live while the old instance still answers. `version` is the unified app's.
+  app.use('/api/csp-report', createRateLimiter(15 * 60 * 1000, 200))
   app.get('/health', (c) => one(c, {
     status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(),
     commit: process.env.RENDER_GIT_COMMIT || null, version: APP_VERSION,
