@@ -10,7 +10,7 @@ Phase: **A** daily field and office work · **B** projects, bids and the price b
 
 | Trade | Desktop items | Phone has today | A | B | C | D |
 |---|---:|---:|---:|---:|---:|---:|
-| Contractor | 69 | 18 | 12 | 9 | 27 | 21 |
+| Contractor | 71 | 18 | 12 | 9 | 27 | 23 |
 | Basic (general service business) | 55 | 17 | 12 | 3 | 20 | 20 |
 | Field service | 57 | 17 | 12 | 4 | 20 | 21 |
 | Landscaping | 61 | 18 | 13 | 4 | 26 | 18 |
@@ -57,6 +57,8 @@ The shared jobs dashboard (JobsDashboardPage.tsx): a tile is dropped when the se
 | Sales | Messages | `/crm/messages` | sms:send | two_way_texting (on by default) | owner, admin, manager | Texts (More): conversations (search, unread) + thread (reply, call, archive) + new text | A — texting customers |
 | Sales | Lead Sources | `/crm/lead-sources` | leads:read | lead_inbox (on by default) | owner, admin, manager | none | D — connecting lead sources is a set-up task |
 | Sales | Bids | `/crm/bids` | bids:read | bid_management (on by default) | owner, admin, manager, viewer | none | B — projects, bids and the price book |
+| Sales | Measurements | `/crm/measurements` | — | measurement_reports (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
+| Sales | Roof Reports | `/crm/roof-reports` | — | measurement_reports (on by default) | all | none | D — needs a large canvas (chart, plan or map) or is an add-on |
 | Projects | Jobs | `/crm/jobs` | jobs:read | jobs (on by default) | all | Jobs tab + job detail + new/edit job form | A — the day's work |
 | Projects | Documents | `/crm/documents` | — | documents (on by default) | all | none | C |
 | Projects | Warranties | `/crm/warranties` | — | warranties (on by default) | all | none | C |

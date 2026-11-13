@@ -109,6 +109,7 @@ import { homecareMounts } from '../crm/homecare/index.ts'
 import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
 import { syncJobValueFromProposal } from '../crm/roof/proposalValue.ts'
 import { roofMounts } from '../crm/roof/index.ts'
+import { roofReportMounts } from '../crm/roof/reports/index.ts'
 import { roofPortalJobFiles } from '../crm/roof/portalFiles/index.ts'
 import { createClientPortal } from '../crm/projects/clientPortal.ts'
 import { storeMounts } from '../crm/store/index.ts'
@@ -727,6 +728,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Home care's add-on (docs/UNIFIED_HOMECARE_PLAN.md).
     ...homecareMounts(own),
     ...roofMounts(own),
+    // Roof reports without the rest of roofing (contractor): a roofer has them in roofMounts above.
+    ...(v.roofReports && !v.roof ? roofReportMounts(own) : []),
     ...storeMounts(own),
     // Lost with a reason, site visits and the pipeline strip (crm/leads; all not ready).
     ...leadMounts(own),
