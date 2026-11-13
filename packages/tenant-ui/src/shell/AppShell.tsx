@@ -10,7 +10,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
-import { meetsRole, maySeeRoute, allowsPermission } from './types'
+import { meetsRole, maySeeRoute, allowsPermission, entriesAt } from './types'
 
 import { blockedRoute } from './routeGate'
 import { MenuNameContext } from './menuName'
@@ -179,8 +179,10 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     ]
     // Role first. Typing the URL of a page your role cannot open used to render it and let the API
     // answer — which is where "Failed to load: 403" and a Settings form that cannot be saved came from.
+    // Several trades can put a page at one address (the bar's and the salon's Gift Cards): the entries whose switch this business
+    // has on are the ones that apply (types.ts entriesAt), and the page opens when any of them allows this person.
     const roleOf = (to: string) =>
-      config.routeRoles?.[to] ?? config.nav.find((i) => i.to === to)?.minRole
+      config.routeRoles?.[to] ?? entriesAt(config.nav, to, hasFeature).find((i) => meetsRole(user?.role, i.minRole))?.minRole ?? entriesAt(config.nav, to, hasFeature)[0]?.minRole
     const roleBlocked = [...config.nav.filter((i) => !i.external).map((i) => i.to), ...Object.keys(config.routeRoles || {})]
       .filter((to) => path === to || path.startsWith(to + '/'))
       .sort((a, b) => b.length - a.length)
@@ -195,7 +197,10 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     // sits after the `if (!company) return null` above, so it never decides before /me lands — that
     // race redirected fifteen owned routes in roof M7. (T30 M-R1)
     const permissionOf = (to: string) =>
-      config.routePermissions?.[to] ?? config.nav.find((i) => i.to === to)?.permission
+      config.routePermissions?.[to] ?? (() => {
+        const entries = entriesAt(config.nav, to, hasFeature)
+        return (entries.find((i) => allowsPermission(can, i.permission)) ?? entries[0])?.permission
+      })()
     const permBlocked = [...config.nav.filter((i) => !i.external).map((i) => i.to), ...Object.keys(config.routePermissions || {})]
       .filter((to) => path === to || path.startsWith(to + '/'))
       .sort((a, b) => b.length - a.length)
