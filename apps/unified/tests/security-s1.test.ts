@@ -340,3 +340,30 @@ describe('S1-13: the server never signs with an empty key', () => {
     expect(ensureSigningSecrets(env as any)).toEqual([])
   })
 })
+
+describe('S1-5: a stranger cannot keep someone out by locking their account', () => {
+  const from = (ip: string, password: string) => t.call('/api/auth/login', { method: 'POST', json: { email: 'lockme@test.example', password }, headers: { 'cf-connecting-ip': ip } })
+  test('locked by wrong passwords from elsewhere, the right password still signs in from a place this login has signed in before', async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    const [u] = await t.db.insert(t.schema.user).values({ email: 'lockme@test.example', passwordHash: await Bun.password.hash(PASSWORD, 'bcrypt'), firstName: 'Lock', lastName: 'Me', role: 'manager', companyId: co.id }).returning()
+    // The office: one ordinary sign-in from it, on the record.
+    expect((await from('10.1.1.1', PASSWORD)).status).toBe(200)
+    for (let i = 0; i < 20 && !(await t.db.select().from(t.schema.auditLog).where(eq(t.schema.auditLog.entityId, u.id))).some((r: any) => r.action === 'login' && r.ipAddress === '10.1.1.1'); i++) await new Promise((r) => setTimeout(r, 50))
+    // A stranger, somewhere else: ten wrong passwords lock the account.
+    let last: any
+    for (let i = 0; i < 10; i++) last = await from('203.0.113.9', 'not-the-password')
+    expect(last.status).toBe(423)
+    // The lock holds there, and anywhere else this login has never signed in from — even with the right password.
+    expect((await from('203.0.113.9', PASSWORD)).status).toBe(423)
+    expect((await from('198.51.100.7', PASSWORD)).status).toBe(423)
+    // From the office the right password signs in; a wrong one gets the lock's own answer.
+    expect((await from('10.1.1.1', 'not-the-password')).status).toBe(423)
+    const ok = await from('10.1.1.1', PASSWORD)
+    expect(ok.status).toBe(200)
+    expect((await ok.json() as any).accessToken).toBeTruthy()
+    // …and the lock still stands for everywhere else.
+    expect((await from('203.0.113.9', PASSWORD)).status).toBe(423)
+    const [row] = await t.db.select().from(t.schema.user).where(eq(t.schema.user.id, u.id))
+    expect(new Date(row.lockedUntil as any).getTime()).toBeGreaterThan(Date.now())
+  })
+})

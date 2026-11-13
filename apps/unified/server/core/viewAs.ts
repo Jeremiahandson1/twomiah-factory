@@ -62,7 +62,7 @@ const tokenOf = (c: any): { token: string; via: string } | null => {
   return p && 'token' in p ? p : null
 }
 const verify = (token: string, opts?: jwt.VerifyOptions): any | null => {
-  try { return jwt.verify(token, process.env.JWT_SECRET!, opts) } catch { return null }
+  try { return jwt.verify(token, process.env.JWT_SECRET!, { ...opts, algorithms: ['HS256'] }) } catch { return null }
 }
 const pathOf = (c: any) => String(c.req.path).replace(/\/+$/, '')
 

@@ -24,6 +24,11 @@ import { storedResetToken, resetTokenIs } from './resetTokens'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
+  /**
+   * The address this sign-in comes from, when this login has signed in from it before; else null. Wired, a locked
+   * account still takes the RIGHT password from such a place (POST /login). Not wired, a lock is a lock for everyone.
+   */
+  knownSignInAddress?: (c: any, userId: string) => Promise<string | null>
   /** Reported as company.vertical to the frontend + mobile app (e.g. 'contractor', 'fieldservice', 'salon'). */
   vertical: string
   /** Exterior Visualizer URL reported as company.visionUrl — contractor/roofer only; omit elsewhere. */
@@ -132,7 +137,7 @@ const parseTokenList = (raw: string | null | undefined): string[] => {
   if (!raw) return []
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [raw] } catch { return [raw] }
 }
-const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_REFRESH_SECRET!); return true } catch { return false } }
+const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_REFRESH_SECRET!, { algorithms: ['HS256'] }); return true } catch { return false } }
 
 
 /**
@@ -215,6 +220,8 @@ export function createAuthRoutes(deps: AuthDeps) {
    * LOCK_MS. Null while there is nothing to say. Bounded: the map is emptied when it grows past a few thousand addresses.
    */
   const ghostFails = new Map<string, { n: number; until: number }>()
+  /** Wrong passwords sent to a LOCKED account from an address it has signed in from before (POST /login), per login and address. */
+  const knownPlaceTries = new Map<string, { n: number; until: number }>()
   function ghostFailure(email: string): { error: string; already: boolean } | null {
     const now = Date.now()
     if (ghostFails.size > 5000) ghostFails.clear()
@@ -357,11 +364,34 @@ export function createAuthRoutes(deps: AuthDeps) {
     // run that rotates addresses. Same message for a locked account whether or not the password is right,
     // so the lock leaks nothing.
     const lockedUntilMs = foundUser.lockedUntil ? new Date(foundUser.lockedUntil).getTime() : 0
-    if (lockedUntilMs > Date.now()) {
+    const locked = lockedUntilMs > Date.now()
+    if (locked) {
+      /**
+       * LOCKED — BUT NOT FOR THE PLACES THIS PERSON SIGNS IN FROM (security review S1-5, 2026-11-12). Ten wrong passwords
+       * from anywhere locked the account for everyone, so a stranger who knew the owner's email could keep the owner out
+       * for as long as they liked (40 requests an hour). The lock still stops every address that has never signed in
+       * to this login. From one that has (the office, the owner's home — read from the sign-in record), the right
+       * password still signs in; wrong ones there are counted per address, LOCK_AFTER and that address waits too.
+       * The answer to a wrong password is the lock's own, so it says nothing new.
+       */
       const mins = Math.max(1, Math.ceil((lockedUntilMs - Date.now()) / 60000))
-      return c.json({ error: `Too many failed sign-in attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` }, 423)
+      const refusal = () => c.json({ error: `Too many failed sign-in attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` }, 423)
+      const from = options.knownSignInAddress ? await options.knownSignInAddress(c, foundUser.id).catch(() => null) : null
+      if (!from) return refusal()
+      const key = `${foundUser.id}|${from}`
+      if (knownPlaceTries.size > 5000) knownPlaceTries.clear()
+      const tries = knownPlaceTries.get(key)
+      if (tries && tries.until > Date.now() && tries.n >= LOCK_AFTER) return refusal()
+      if (!(await Bun.password.verify(data.password, foundUser.passwordHash))) {
+        knownPlaceTries.set(key, { n: (tries && tries.until > Date.now() ? tries.n : 0) + 1, until: Date.now() + LOCK_MS })
+        logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed',
+          { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Wrong password while the account is locked', { locked: true })
+        return refusal()
+      }
+      knownPlaceTries.delete(key)
     }
-    const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
+    // (Locked, and here: the password was just checked and is right.)
+    const valid = locked || await Bun.password.verify(data.password, foundUser.passwordHash)
     if (!valid) {
       const { fails, lock } = await countFailure(foundUser.id)
       const mins = Math.round(LOCK_MS / 60000)
@@ -383,7 +413,8 @@ export function createAuthRoutes(deps: AuthDeps) {
         { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Sign-in refused — this login has been revoked')
       return c.json({ error: 'Account is disabled' }, 401)
     }
-    const clearFailures = async () => { if ((Number(foundUser.failedLoginCount) || 0) > 0 || lockedUntilMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id)) }
+    // A sign-in let through a lock (above) leaves the lock standing for everywhere else.
+    const clearFailures = async () => { if (!locked && ((Number(foundUser.failedLoginCount) || 0) > 0 || lockedUntilMs)) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id)) }
 
     const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
     if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
@@ -511,7 +542,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     if (!refreshToken || typeof refreshToken !== 'string') return c.json({ error: 'Refresh token required' }, 401)
 
     let decoded: any
-    try { decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) }
+    try { decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!, { algorithms: ['HS256'] }) }
     catch { return c.json({ error: 'Invalid refresh token' }, 401) }
 
     const [foundUser] = await db.select().from(user).where(eq(user.id, decoded.userId)).limit(1)
@@ -549,7 +580,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     const presented = requestToken(c)
     if (!presented || !('via' in presented) || presented.via !== 'header') return c.json({ error: 'The app sign-in is required', code: 'app_sign_in_required' }, 403)
     let device: any = null
-    try { device = jwt.verify(deviceToken, process.env.JWT_REFRESH_SECRET!) } catch { /* not a sign-in of ours */ }
+    try { device = jwt.verify(deviceToken, process.env.JWT_REFRESH_SECRET!, { algorithms: ['HS256'] }) } catch { /* not a sign-in of ours */ }
     const [holder] = device?.userId === currentUser.userId && !device?.via
       ? await db.select({ refreshToken: user.refreshToken, ...(user.sessionsValidFrom ? { sessionsValidFrom: user.sessionsValidFrom } : {}) }).from(user).where(eq(user.id, currentUser.userId)).limit(1)
       : []
@@ -578,7 +609,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     const existing = accessCookie(c)
     if (existing) {
       let who: any = null
-      try { who = jwt.verify(existing, process.env.JWT_SECRET!) } catch { /* an expired cookie is just replaced */ }
+      try { who = jwt.verify(existing, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) } catch { /* an expired cookie is just replaced */ }
       if (who && who.userId !== held.userId) return c.json({ error: 'Another person is signed in here. Sign out first.' }, 403)
     }
     const tokens = generateTokens(found.id, found.companyId, found.email, found.role, { via: deviceKey(held.deviceToken) })

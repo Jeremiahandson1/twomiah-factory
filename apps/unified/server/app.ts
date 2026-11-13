@@ -4,7 +4,7 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { createCommissionViewerGrants } from './crm/roof/commissionViewers.ts'
-import { asc } from 'drizzle-orm'
+import { and, asc, eq, gte } from 'drizzle-orm'
 import {
   createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes,
 } from '@twomiah/tenant-backend'
@@ -34,7 +34,7 @@ import { BASE_CRM, type VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
 import { savedOnce } from './http/savedOnce.ts'
 import { createAdminScreens, HOMECARE_PAGES } from './http/adminScreens.ts'
-import { contentSecurityPolicy, sitePolicy, frameOptions, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
+import { contentSecurityPolicy, sitePolicy, frameOptions, pagingGuard, createRateLimiter, isWrite, clientKey } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
 import { adminHostHandover } from './http/adminHost.ts'
 import { fail, one } from './http/reply.ts'
@@ -151,6 +151,11 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // Per address: a ceiling on a flood from one place. The per-person lock (10 failures) lives in shared auth.
   app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 150))
   app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
+  // The code step, the reset link and the session renewal had only the general write budget (1,200): each is a door a
+  // secret is guessed at (security review S1, question 5). Renewal is every signed-in browser's, every 15 minutes.
+  app.use('/api/auth/mfa', createRateLimiter(15 * 60 * 1000, 60))
+  app.use('/api/auth/reset-password', createRateLimiter(15 * 60 * 1000, 30))
+  app.use('/api/auth/refresh', createRateLimiter(15 * 60 * 1000, 300))
   app.use('/api/auth/web-handoff/*', createRateLimiter(15 * 60 * 1000, 60))
 
   // `commit` is the tenant repo's commit this instance runs (Render sets it): Update Code waits for the commit it
@@ -173,7 +178,18 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
           ROLE_HIERARCHY: permissions.ROLE_HIERARCHY, getExtraPermissions: permissions.getExtraPermissions,
         },
         emailService: email, logger, audit,
-        options: { vertical: vertical.id, visionUrl: vertical.visionUrl },
+        options: {
+          vertical: vertical.id, visionUrl: vertical.visionUrl,
+          // Has this login signed in from this address in the last 90 days (the audit log's sign-in rows)? A locked
+          // account still takes the right password from such a place (shared auth POST /login; security review S1-5).
+          knownSignInAddress: async (c, userId) => {
+            const from = clientKey(c)
+            if (!from || from === 'unknown') return null
+            const [seen] = await db.select({ id: schema.auditLog.id }).from(schema.auditLog)
+              .where(and(eq(schema.auditLog.action, 'login'), eq(schema.auditLog.entityId, userId), eq(schema.auditLog.ipAddress, from), gte(schema.auditLog.createdAt, new Date(Date.now() - 90 * 86_400_000)))).limit(1)
+            return seen ? from : null
+          },
+        },
       }),
     },
     // Live updates (http/live.ts): the one-time ticket behind sign-in; the socket takes the ticket instead.

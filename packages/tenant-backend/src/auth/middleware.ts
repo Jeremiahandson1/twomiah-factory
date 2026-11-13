@@ -52,7 +52,7 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
     const token = presented.token
     let decoded: any
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!)
+      decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] })
     } catch (error: any) {
       if (error?.name === 'TokenExpiredError') return c.json({ error: 'Token expired' }, 401)
       return c.json({ error: 'Invalid token' }, 401)
