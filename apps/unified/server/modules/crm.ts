@@ -23,7 +23,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore, documentLinkPath, readTeamOrder,
 } from '@twomiah/tenant-backend'
-import { and, asc, desc, eq, eq as eqCol, gte, inArray, notInArray } from 'drizzle-orm'
+import { and, asc, desc, eq, eq as eqCol, gte, inArray, isNotNull, notInArray, or } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -89,7 +89,7 @@ import { createJobConfirm } from '../crm/field/jobConfirm.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
 import { propertyHolders } from '../crm/landscaping/inUse.ts'
-import { ownContactsWhere, ownProjectsWhere } from '../crm/ownWork.ts'
+import { ownContactsWhere, ownJobsWhere, ownProjectsWhere } from '../crm/ownWork.ts'
 import { createQuoteSellerCommissions } from '../crm/billing/quoteSellerCommissions.ts'
 import { tipsOn } from '../crm/roof/cardSurcharge.ts'
 import { setProjectContract } from '../data/projects.ts'
@@ -153,6 +153,26 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const { requirePermission, requireRole } = permissions
   const canSee = async (role: string, permission: string, userId?: string) =>
     permissions.hasPermission(role, permission, await permissions.getExtraPermissions(userId))
+  /**
+   * The files a seat that reads only its own work reads (documents and photos; security review S1-15, 2026-11-12, and the
+   * owner the same day: "do what the pros do" — Jobber and Housecall Pro show a field seat the attachments of its own
+   * jobs and customers). A file is read through what it is filed under: a job, customer or project the seat can open
+   * (crm/ownWork.ts, the rule its lists use) — or it uploaded the file itself. A file filed under none of those is the
+   * office's. Undefined for a seat that holds all three whole-list verbs: nothing is narrowed.
+   */
+  const filesVisibleTo = async (u: { userId: string; role: string }) => {
+    const extra = await permissions.getExtraPermissions(u.userId)
+    const all = (verb: string) => permissions.hasPermission(u.role, verb, extra)
+    const jobs = all('jobs:read-all'), contacts = all('contacts:read-all'), projects = all('projects:read-all')
+    if (jobs && contacts && projects) return undefined
+    const me = String(u.userId)
+    return or(
+      eq(document.uploadedById, me),
+      and(isNotNull(document.jobId), jobs ? undefined : inArray(document.jobId, db.select({ id: job.id }).from(job).where(ownJobsWhere(db, me)))),
+      and(isNotNull(document.contactId), contacts ? undefined : inArray(document.contactId, db.select({ id: contact.id }).from(contact).where(ownContactsWhere(db, me)))),
+      and(isNotNull(document.projectId), projects ? undefined : inArray(document.projectId, db.select({ id: project.id }).from(project).where(ownProjectsWhere(db, me)))),
+    )
+  }
   const isAdmin = async (c: any, next: any) => {
     const u = c.get('user')
     if (!u || !['owner', 'admin'].includes(u.role)) return fail(c, 403, 'Insufficient permissions')
@@ -542,7 +562,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Tasks: a construction business's with projects (the base CRM's gate); a clinic's always (templates/crm-vet
     // mounted tasks ungated and put Tasks on every menu, and a clinic has no projects) — the union, on both sides.
     { path: '/api/tasks', access: 'user', feature: ['projects', 'patient_records'], router: createTasksRoutes({ service: s.tasks, authenticate, requirePermission } as any) },
-    { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job, jobPhotoFolder }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
+    { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job, jobPhotoFolder }, storage: s.storage, authenticate, requirePermission, visibleTo: filesVisibleTo, audit: fileAudit } as any) },
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: new Hono().use('/:id/complete-job', completionGate).route('/', createTechRoutes({
       // canSee: a job's money by the one rule (packages/tenant-backend jobs/jobMoney.ts); without it the module withholds all of it.
@@ -568,7 +588,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
 
       // planMarkup only where drawings are marked up (construction): the shared module registers /:id/markups only when
       // the table is passed.
-      db, tables: { document, documentVersion, project, contact, user, ...(v.documents?.markup ? { planMarkup } : {}) }, storage: s.storage, authenticate, requirePermission, audit: fileAudit,
+      db, tables: { document, documentVersion, project, contact, user, ...(v.documents?.markup ? { planMarkup } : {}) }, storage: s.storage, authenticate, requirePermission, visibleTo: filesVisibleTo, audit: fileAudit,
       options: {
         types: v.documents?.types ?? ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'],
         // A clinic files against the animal, not only the owner (templates/crm-vet routes/documents.ts T12 M6).

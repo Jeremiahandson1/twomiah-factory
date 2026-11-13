@@ -18,6 +18,13 @@ export interface PhotoDeps {
   storage: FileStorage
   authenticate: any
   requirePermission: (permission: string) => any
+  /**
+   * WHOSE FILES A SEAT READS (security review S1-15, 2026-11-12). A condition on the document table (a photo is a document row) for a seat that reads
+   * only its own work (a job trade's crew, the Sales rep), or undefined for a seat that reads the whole business. These
+   * doors were company-wide: a crew login listed and downloaded the files of customers and jobs it cannot open. Every
+   * door that reads or changes one row, and the list, takes it. Not wired, nothing is narrowed (the templates).
+   */
+  visibleTo?: (user: { userId: string; role: string }) => Promise<any | undefined> | any | undefined
   audit?: (event: string, actor: { userId: string; companyId: string }, meta: Record<string, unknown>) => void
 }
 
@@ -30,7 +37,9 @@ export function createPhotoRoutes(deps: PhotoDeps) {
   const audit = deps.audit || (() => {})
   const app = new Hono()
   app.use('*', authenticate)
-  const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId } }
+  const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId, role: u.role } }
+  /** The narrowing for the person asking (deps.visibleTo), or undefined: `and()` drops an undefined condition. */
+  const seenBy = async (c: any) => (deps.visibleTo ? await deps.visibleTo(actor(c)) : undefined)
   const thumbKey = (mainKey: string) => mainKey.replace(/\.jpg$/i, '_thumb.jpg')
 
   const withRelations = (where: any) => db.select().from(t.document)
@@ -44,8 +53,8 @@ export function createPhotoRoutes(deps: PhotoDeps) {
     project: r.project ? { name: r.project.name, number: r.project.number } : null,
     job: r.job ? { title: r.job.title, number: r.job.number } : null,
   })
-  const getPhoto = async (id: string, companyId: string) => {
-    const [r] = await withRelations(and(eq(t.document.id, id), eq(t.document.companyId, companyId))).limit(1)
+  const getPhoto = async (id: string, companyId: string, seen?: any) => {
+    const [r] = await withRelations(and(eq(t.document.id, id), eq(t.document.companyId, companyId), seen)).limit(1)
     return r ? shape(r) : null
   }
 
@@ -109,7 +118,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
     const q = c.req.query()
     const page = Math.max(1, parseInt(q.page || '1') || 1)
     const limit = Math.min(200, Math.max(1, parseInt(q.limit || '50') || 50))
-    const conditions: any[] = [eq(t.document.companyId, companyId), eq(t.document.mimeType, 'image/jpeg')]
+    const conditions: any[] = [eq(t.document.companyId, companyId), eq(t.document.mimeType, 'image/jpeg'), await seenBy(c)]
     if (q.projectId) conditions.push(eq(t.document.projectId, q.projectId))
     if (q.jobId) conditions.push(eq(t.document.jobId, q.jobId))
     if (q.category) conditions.push(eq(t.document.type, q.category))
@@ -176,12 +185,12 @@ export function createPhotoRoutes(deps: PhotoDeps) {
   }
 
   app.get('/:id', requirePermission('documents:read'), async (c) => {
-    const photo = await getPhoto(c.req.param('id'), actor(c).companyId)
+    const photo = await getPhoto(c.req.param('id'), actor(c).companyId, await seenBy(c))
     return photo ? c.json(photo) : c.json({ error: 'Photo not found' }, 404)
   })
 
   app.get('/:id/file', requirePermission('documents:read'), async (c) => {
-    const photo = await getPhoto(c.req.param('id'), actor(c).companyId)
+    const photo = await getPhoto(c.req.param('id'), actor(c).companyId, await seenBy(c))
     if (!photo) return c.json({ error: 'Photo not found' }, 404)
     const obj = photo.path ? await storage.getObject(photo.path) : null
     if (!obj) return c.json({ error: 'Photo file not found' }, 404)
@@ -189,7 +198,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
   })
 
   app.get('/:id/thumbnail', requirePermission('documents:read'), async (c) => {
-    const photo = await getPhoto(c.req.param('id'), actor(c).companyId)
+    const photo = await getPhoto(c.req.param('id'), actor(c).companyId, await seenBy(c))
     if (!photo) return c.json({ error: 'Photo not found' }, 404)
     const obj = photo.path ? (await storage.getObject(thumbKey(photo.path))) || (await storage.getObject(photo.path)) : null
     if (!obj) return c.json({ error: 'Thumbnail not found' }, 404)
@@ -230,7 +239,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
 
   app.put('/:id', requirePermission('documents:update'), async (c) => {
     const { companyId } = actor(c)
-    const photo = await getPhoto(c.req.param('id'), companyId)
+    const photo = await getPhoto(c.req.param('id'), companyId, await seenBy(c))
     if (!photo) return c.json({ error: 'Photo not found' }, 404)
     const body = (await c.req.json().catch(() => null)) ?? {}
     const u: Record<string, unknown> = { updatedAt: new Date() }
@@ -250,7 +259,7 @@ export function createPhotoRoutes(deps: PhotoDeps) {
 
   app.delete('/:id', requirePermission('documents:delete'), async (c) => {
     const { userId, companyId } = actor(c)
-    const photo = await getPhoto(c.req.param('id'), companyId)
+    const photo = await getPhoto(c.req.param('id'), companyId, await seenBy(c))
     if (!photo) return c.json({ error: 'Photo not found' }, 404)
     if (photo.path) { storage.deleteFile(photo.path); storage.deleteFile(thumbKey(photo.path)) }
     await db.delete(t.document).where(eq(t.document.id, photo.id))

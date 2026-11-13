@@ -173,6 +173,37 @@ describe('S1-15: a seat that reads only its own work does not get everyone’s t
     const recent = ((await (await as('sales_rep')('/api/search/recent')).json() as any).data as any[]).map((r) => r.name)
     expect(recent).not.toContain('Zebra project of the office')
   })
+  test('documents and photos: a crew seat reads the files of its own jobs and its own uploads, not the rest of the business’s', async () => {
+    const [co] = await t.db.select().from(t.schema.company).limit(1)
+    await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'jobs', 'quotes', 'projects', 'documents', 'photo_capture'] }).where(eq(t.schema.company.id, co.id))
+    t.services.features.forgetFeatures()
+    const [mine] = await t.db.insert(t.schema.job).values({ companyId: co.id, number: 'J-CREW', title: 'The crew’s job', assignedToId: ids.crew } as any).returning()
+    const [theirs] = await t.db.insert(t.schema.job).values({ companyId: co.id, number: 'J-OFFICE', title: 'Somebody else’s job' } as any).returning()
+    const file = (name: string, more: Record<string, unknown>) => ({ companyId: co.id, name, filename: `${name}.pdf`, originalName: `${name}.pdf`, mimeType: 'application/pdf', path: `${co.id}/documents/${name}.pdf`, url: `/api/documents/file/${co.id}/documents/${name}.pdf`, ...more })
+    const docs = await t.db.insert(t.schema.document).values([
+      file('on-my-job', { jobId: mine.id }),
+      file('on-their-job', { jobId: theirs.id }),
+      file('office-only', {}),
+      file('my-upload', { uploadedById: ids.crew }),
+      { ...file('photo-my-job', { jobId: mine.id }), mimeType: 'image/jpeg' },
+      { ...file('photo-their-job', { jobId: theirs.id }), mimeType: 'image/jpeg' },
+    ] as any).returning()
+    const id = (name: string) => docs.find((d: any) => d.name === name)!.id
+    const names = async (who: string, path: string) => ((await (await as(who)(path)).json() as any).data as any[]).map((d) => d.name).sort()
+
+    expect(await names('crew', '/api/documents?limit=100')).toEqual(['my-upload', 'on-my-job', 'photo-my-job'])
+    expect(await names('crew', `/api/documents?jobId=${theirs.id}`)).toEqual([])
+    expect((await as('crew')(`/api/documents/${id('on-their-job')}`)).status).toBe(404)
+    expect((await as('crew')(`/api/documents/${id('office-only')}/download`)).status).toBe(404)
+    expect((await as('crew')(`/api/documents/${id('on-my-job')}`)).status).toBe(200)
+    expect(await names('crew', '/api/photos')).toEqual(['photo-my-job'])
+    expect((await as('crew')(`/api/photos/${id('photo-their-job')}`)).status).toBe(404)
+    expect((await as('crew')(`/api/photos/${id('photo-their-job')}/file`)).status).toBe(404)
+    // The office reads all of them, as before.
+    expect(await names('manager', '/api/documents?limit=100')).toEqual(['my-upload', 'office-only', 'on-my-job', 'on-their-job', 'photo-my-job', 'photo-their-job'])
+    expect(await names('manager', '/api/photos')).toEqual(['photo-my-job', 'photo-their-job'])
+    expect((await as('manager')(`/api/documents/${id('on-their-job')}`)).status).toBe(200)
+  })
 })
 
 describe('S1-7, S1-9, S1-12: the smaller doors', () => {

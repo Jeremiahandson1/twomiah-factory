@@ -32,6 +32,13 @@ export interface DocumentDeps {
    * means one that forgets does not compile. (T30 debt)
    */
   requirePermission: (permission: string) => any
+  /**
+   * WHOSE FILES A SEAT READS (security review S1-15, 2026-11-12). A condition on the document table for a seat that reads
+   * only its own work (a job trade's crew, the Sales rep), or undefined for a seat that reads the whole business. These
+   * doors were company-wide: a crew login listed and downloaded the files of customers and jobs it cannot open. Every
+   * door that reads or changes one row, and the list, takes it. Not wired, nothing is narrowed (the templates).
+   */
+  visibleTo?: (user: { userId: string; role: string }) => Promise<any | undefined> | any | undefined
   /** audit hook: (event, actor, meta) */
   audit?: (event: string, actor: { userId: string; companyId: string }, meta: Record<string, unknown>) => void
   options?: {
@@ -117,6 +124,8 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     MANAGER_ROLES.has(u?.role) || markup?.createdById === u?.userId
   app.use('*', authenticate)
   const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId, role: u.role } }
+  /** The narrowing for the person asking (deps.visibleTo), or undefined: `and()` drops an undefined condition. */
+  const seenBy = async (c: any) => (deps.visibleTo ? await deps.visibleTo(actor(c)) : undefined)
 
   // Not every CRM has projects. The contractor lineage does; a roofing or salon CRM hangs a document
   // off a JOB instead, and passing `project: undefined` used to crash the first list request with
@@ -157,7 +166,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
 
   const owned = async (c: any) => {
     const { companyId } = actor(c)
-    const [doc] = await db.select().from(t.document).where(and(eq(t.document.id, c.req.param('id')), eq(t.document.companyId, companyId))).limit(1)
+    const [doc] = await db.select().from(t.document).where(and(eq(t.document.id, c.req.param('id')), eq(t.document.companyId, companyId), await seenBy(c))).limit(1)
     return doc || null
   }
 
@@ -195,7 +204,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     const q = c.req.query()
     const page = Math.max(1, parseInt(q.page || '1') || 1)
     const limit = Math.min(maxLimit, Math.max(1, parseInt(q.limit || '25') || 25))
-    const conditions: any[] = [eq(t.document.companyId, companyId)]
+    const conditions: any[] = [eq(t.document.companyId, companyId), await seenBy(c)]
     // `projectId` only exists where the template has projects — see hasProjects above.
     if (hasProjects && q.projectId) conditions.push(eq(t.document.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.document.contactId, q.contactId))
@@ -256,7 +265,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
 
   app.get('/:id', async (c) => {
     const { companyId } = actor(c)
-    const [row] = await withRelations(and(eq(t.document.id, c.req.param('id')), eq(t.document.companyId, companyId))).limit(1)
+    const [row] = await withRelations(and(eq(t.document.id, c.req.param('id')), eq(t.document.companyId, companyId), await seenBy(c))).limit(1)
     if (!row) return c.json({ error: 'Document not found' }, 404)
     return c.json(flat(row))
   })
