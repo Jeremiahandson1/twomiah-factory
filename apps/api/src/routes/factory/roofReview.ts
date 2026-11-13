@@ -1,3 +1,4 @@
+import { tenantBySyncKey } from '../../lib/tenantSecrets'
 import { authenticate, supabase } from '../../middleware/auth'
 import { type FactoryApp, checkFactoryKey } from './shared'
 
@@ -13,7 +14,8 @@ factory.post('/roof-review/notify', async (c) => {
   // belong to a real tenant or anyone could flood the review queue.
   const suppliedKey = c.req.header('X-Factory-Key') || ''
   if (!suppliedKey) return c.json({ error: 'Unauthorized' }, 401)
-  const { data: callerTenant } = await supabase.from('tenants').select('id, factory_sync_key').eq('factory_sync_key', suppliedKey).single()
+  // Found by reading and comparing: a sealed key cannot be looked up by its value (lib/tenantSecrets.ts).
+  const callerTenant = await tenantBySyncKey(supabase, suppliedKey)
   if (!checkFactoryKey(c, callerTenant)) return c.json({ error: 'Unauthorized' }, 401)
 
   const body = await c.req.json()
