@@ -47,9 +47,11 @@ const only = (process.env.ONLY || '').split(',').filter(Boolean)
 const want = (trade: string) => !only.length || only.includes(trade)
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
 const dayMarker = (s: string) => new Date(`${s}T00:00:00.000Z`)
-const TODAY = ymd(new Date())
-const TOMORROW = ymd(new Date(Date.now() + 86_400_000))
-const YESTERDAY = ymd(new Date(Date.now() - 86_400_000))
+// Read again as each group sets itself up, not once when the file loads: a run that began before midnight UTC and reached a
+// later group after it seeded "today" as yesterday (cleanup list #7, seen in CI 2026-11-10 00:00).
+let TODAY = '', TOMORROW = '', YESTERDAY = ''
+const days = () => { TODAY = ymd(new Date()); TOMORROW = ymd(new Date(Date.now() + 86_400_000)); YESTERDAY = ymd(new Date(Date.now() - 86_400_000)) }
+days()
 
 type Tenant = Awaited<ReturnType<typeof bootTenant>>
 interface Site { t: Tenant; url: string; stop: () => void; companyId: string; ownerId: string; ownerPassword: string; people: Record<string, { id: string; email: string }>; features: string[]; excluded: string[]; excludedOnly: Record<string, string[]> }
@@ -158,6 +160,7 @@ for (const trade of ['contractor', 'landscaping']) {
   describe(`${trade}: every tile opens exactly what it counts`, () => {
     let site: Site
     beforeAll(async () => {
+    days()
       site = await serve(trade, ['dashboard', 'contacts', 'jobs', 'quotes', 'invoices', 'projects', 'lead_inbox', 'photo_capture'], [['manager', 'manager'], ['field', 'field'], ['viewer', 'viewer']])
       await seedJobsFamily(site)
     }, 240_000)
@@ -199,6 +202,7 @@ for (const trade of ['contractor', 'landscaping']) {
 if (want('roofing')) describe('roofing: every tile and every pipeline stage opens exactly what it counts', () => {
   let site: Site
   beforeAll(async () => {
+    days()
     site = await serve('roofing', ['dashboard', 'contacts', 'jobs', 'quotes', 'invoices', 'lead_inbox', 'canvassing_tool'], [['manager', 'manager'], ['field', 'field']])
     const { t, companyId } = site
     const S = t.schema
@@ -263,6 +267,7 @@ if (want('roofing')) describe('roofing: every tile and every pipeline stage open
 if (want('rv')) describe('rv: every tile opens exactly what it counts', () => {
   let site: Site
   beforeAll(async () => {
+    days()
     site = await serve('rv', ['dashboard', 'contacts', 'unit_inventory', 'deal_pipeline', 'service_dept'], [['manager', 'manager'], ['field', 'field']])
     const { t, companyId } = site
     const S = t.schema
@@ -295,6 +300,7 @@ if (want('homecare')) describe('homecare: every office tile opens exactly what i
   let site: Site
   const monthStart = ymd(new Date(new Date().getFullYear(), new Date().getMonth(), 1) as any).slice(0, 8) + '01'
   beforeAll(async () => {
+    days()
     site = await serve('homecare', ['dashboard', 'reports'], [['admin', 'admin'], ['manager', 'manager'], ['viewer', 'viewer'], ['cg', 'caregiver']])
     const { t, companyId } = site
     const S = t.schema
