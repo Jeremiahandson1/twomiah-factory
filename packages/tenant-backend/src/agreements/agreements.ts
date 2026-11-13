@@ -14,7 +14,7 @@
  */
 import { Hono } from 'hono'
 import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm'
-import { nextNumber, businessToday } from '../invoicing/money'
+import { nextNumber, businessToday, calcTotals, defaultTaxRateFrom } from '../invoicing/money'
 import { companyTimeZone, markerDay, markerDayHasBegun, daysUntilMarker, dayMarker, storeDateString } from '../time/businessDay'
 import { seriesDays } from '../time/series'
 import { addDays } from '../booking/time'
@@ -1031,6 +1031,14 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
      * so an invoice that cannot be written leaves the period unbilled for the next run, and a crash between the two
      * cannot lose it. (2026-10-22; T41 is the race this shape exists for.)
      */
+    // THE BUSINESS'S OWN TAX RATE, AS EVERY OTHER INVOICE IT RAISES (code review 02-10, 2026-11-13). An agreement's bill was
+    // written with no tax at all — subtotal and total both the agreement's amount — while the same charge on an invoice
+    // made by hand, a recurring invoice, a route's monthly bill or a salon membership carries the rate in Settings. A
+    // business that charges tax under-collected it on every agreement, with nobody at the keyboard to notice. No rate
+    // set, no tax: nothing changes for a business that does not charge it.
+    const [co] = company ? await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1) : []
+    const taxRate = defaultTaxRateFrom(co?.settings)
+    const totals = calcTotals([{ quantity: 1, unitPrice: Number(agreement.amount) || 0 }], taxRate, 0)
     const billedAt = new Date()
     const sameBillDate = (a: unknown, b: unknown) => (a == null || b == null) ? a == null && b == null : new Date(a as any).getTime() === new Date(b as any).getTime()
     const inv = await db.transaction(async (tx: any) => {
@@ -1050,8 +1058,10 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         status: 'sent',
         issueDate: today,
         dueDate: new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000),
-        subtotal: String(agreement.amount),
-        total: String(agreement.amount),
+        subtotal: totals.subtotal.toFixed(2),
+        taxRate: String(taxRate),
+        taxAmount: totals.taxAmount.toFixed(2),
+        total: totals.total.toFixed(2),
         ...('serviceAgreementId' in invoice ? { serviceAgreementId: agreementId } : {}),
       }).returning()
       await tx.insert(invoiceLineItem).values({
