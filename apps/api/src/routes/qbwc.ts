@@ -9,13 +9,15 @@
 
 import { Hono } from 'hono'
 import { authenticate, requireRole } from '../middleware/auth'
+import { rateLimit } from './factory/shared'
 import { handleSoapRequest, generateQwcFile } from '../services/qbwc'
 
 const qbwc = new Hono()
 
 // ── SOAP Endpoint (no auth — QBWC authenticates via username/password in SOAP body) ──
 
-qbwc.post('/soap', async (c) => {
+// Limited per address: the sign-in inside the SOAP body could be tried without end (security review S5-4).
+qbwc.post('/soap', rateLimit(15 * 60 * 1000, 120), async (c) => {
   const rawXml = await c.req.text()
 
   if (!rawXml || !rawXml.includes('Envelope')) {
