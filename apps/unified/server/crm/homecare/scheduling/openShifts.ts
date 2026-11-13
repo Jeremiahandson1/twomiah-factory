@@ -20,7 +20,7 @@ import { hms, shiftHours, DATE_RE } from '../core/scheduleOccurrences.ts'
 import {
   openShiftById, openShiftWithClient, caregiversForSlot, availableOpenShifts, openShiftBoard, insertOpenShift, scheduleForPosting,
   occurrenceOn, livePostingFor, payerCurrentRate, hasOverlap, claimOpenShift, insertClaim, personName, clientName, markFilled,
-  approveClaims, reopenShift, cancelPosting, eligibleForShift, personPhone, recordShiftNotice,
+  approveClaims, reopenShift, cancelPosting, takeForFill, undoFill, eligibleForShift, personPhone, recordShiftNotice,
   markNotified, claimsForShift, caregiversForSuggestions, clientForSuggestions,
 } from '../../../data/homecareScheduling.ts'
 import { seriesPostings } from '../../../data/homecareOpenOffers.ts'
@@ -245,7 +245,10 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     if (!s) return fail(c, 404, 'Shift not found')
     if (!s.claimedById) return fail(c, 400, 'No claim to approve')
     const warnings = await authWarnings(companyId, s)
+    // Once (data takeForFill): a second press, or a second person, finds it taken.
+    if (!(await takeForFill(db, companyId, s.id, 'claimed'))) return fail(c, 409, s.status === 'filled' ? 'This shift is already filled.' : `This shift is ${s.status}; there is no claim waiting to approve.`, 'not_claimed')
     try { await shared.assignShift(companyId, s, s.claimedById, me) } catch (e: any) {
+      await undoFill(db, companyId, s.id, 'claimed')
       return fail(c, e instanceof HttpError ? e.status as any : 500, e.message)
     }
     await markFilled(db, companyId, s.id, me)
@@ -260,7 +263,8 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     const s = await openShiftById(db, companyId, c.req.param('id'))
     if (!s) return fail(c, 404, 'Shift not found')
     const { reason } = await c.req.json().catch(() => ({})) as any
-    await reopenShift(db, companyId, s.id, reason || null)
+    // Only a claim that is still waiting can be turned down: a filled posting has its visit on the schedule.
+    if (!(await reopenShift(db, companyId, s.id, reason || null))) return fail(c, 409, s.status === 'filled' ? 'This shift is already filled. Change the visit on the schedule instead.' : `This shift is ${s.status}; there is no claim to turn down.`, 'not_claimed')
     return done(c)
   })
 
@@ -290,7 +294,9 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     if (!s) return fail(c, 404, 'Open shift not found')
     if (s.status !== 'open') return fail(c, 409, `Shift is ${s.status}, not open`)
     const warnings = await authWarnings(companyId, s)
+    if (!(await takeForFill(db, companyId, s.id, 'open'))) return fail(c, 409, 'Someone just took this shift.', 'not_open')
     try { await shared.assignShift(companyId, s, caregiverId, me) } catch (e: any) {
+      await undoFill(db, companyId, s.id, 'open')
       return fail(c, e instanceof HttpError ? e.status as any : 500, e.message)
     }
     await markFilled(db, companyId, s.id, me, caregiverId)

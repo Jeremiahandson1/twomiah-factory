@@ -189,6 +189,12 @@ describe('home care — scheduling', () => {
     expect(s.caregiverId).toBe(ids.ann)
     const [claimRow] = await t.db.select().from(t.schema.openShiftClaims).where(eq(t.schema.openShiftClaims.openShiftId, posted.body.id))
     expect(claimRow).toMatchObject({ companyId, status: 'approved' })
+    // Filled once (code review 05-2): a second Approve does nothing, and a filled posting's claim cannot be turned down —
+    // that reopened the posting with its visit still on Ann's schedule.
+    expect((await as('owner')(`/api/open-shifts/${posted.body.id}/approve`, { method: 'POST', json: {} })).status).toBe(409)
+    expect((await as('owner')(`/api/open-shifts/${posted.body.id}/reject`, { method: 'POST', json: { reason: 'oops' } })).status).toBe(409)
+    const [still] = await t.db.select().from(t.schema.openShifts).where(eq(t.schema.openShifts.id, posted.body.id))
+    expect(still).toMatchObject({ status: 'filled', claimedById: ids.ann })
   })
 
   test('a self-service write: a caregiver files only their own', async () => {

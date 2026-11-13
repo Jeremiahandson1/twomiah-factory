@@ -716,10 +716,30 @@ export async function approveClaims(q: Q, companyId: string, openShiftId: string
   await q.execute(sql`UPDATE open_shift_claims SET status = 'approved' WHERE company_id = ${companyId} AND open_shift_id = ${openShiftId} AND caregiver_id = ${caregiverId}`)
 }
 
-/** Turn the claim down: the shift reopens and its pending claims are rejected with the reason. */
-export async function reopenShift(q: Q, companyId: string, id: string, reason: string | null): Promise<void> {
-  await q.execute(sql`UPDATE open_shifts SET status = 'open', claimed_by_id = NULL, claimed_at = NULL, updated_at = NOW() WHERE id = ${id} AND company_id = ${companyId}`)
+/**
+ * ONE FILL PER POSTING (code review 05-2, 2026-11-13). Filling a posting puts a visit on someone's schedule and then
+ * marks the posting filled — two steps, and the routes read the posting's status before the first. So "Approve" pressed
+ * twice (or by two people) made the visit twice; the office's Smart Fill racing a caregiver's own accept put two
+ * caregivers on one visit; and turning down a claim on a posting already FILLED reopened it with its visit still on
+ * the schedule. A fill now takes the posting first, in one conditional UPDATE — only one caller gets it — and gives it
+ * back if the visit cannot be made.
+ */
+export async function takeForFill(q: Q, companyId: string, id: string, from: 'open' | 'claimed'): Promise<boolean> {
+  return rowsOf(await q.execute(sql`UPDATE open_shifts SET status = 'filled', updated_at = NOW()
+    WHERE id = ${id} AND company_id = ${companyId} AND status = ${from} RETURNING id`)).length > 0
+}
+/** The visit could not be made: the posting is as it was before takeForFill. */
+export async function undoFill(q: Q, companyId: string, id: string, back: 'open' | 'claimed'): Promise<void> {
+  await q.execute(sql`UPDATE open_shifts SET status = ${back}, updated_at = NOW() WHERE id = ${id} AND company_id = ${companyId} AND status = 'filled'`)
+}
+
+/** Turn the claim down: the shift reopens and its pending claims are rejected with the reason. Only a CLAIMED posting (false otherwise). */
+export async function reopenShift(q: Q, companyId: string, id: string, reason: string | null): Promise<boolean> {
+  const reopened = rowsOf(await q.execute(sql`UPDATE open_shifts SET status = 'open', claimed_by_id = NULL, claimed_at = NULL, updated_at = NOW()
+    WHERE id = ${id} AND company_id = ${companyId} AND status = 'claimed' RETURNING id`)).length > 0
+  if (!reopened) return false
   await q.execute(sql`UPDATE open_shift_claims SET status = 'rejected', notes = ${reason} WHERE company_id = ${companyId} AND open_shift_id = ${id} AND status = 'pending'`)
+  return true
 }
 
 /** Take a posting down (only an open or claimed one). true when it was. */

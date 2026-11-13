@@ -35,7 +35,7 @@ import {
   hoursByCaregiver, maxHoursOf, activeCaregivers, weekOccurrences, occurrenceHours, caregiverCapacity, activeClientUnits,
   conflictHeatmapRows, caregiverOverlaps, personName, clientPosition, dayVisitsElsewhere, caregiverHoursSplit,
   clientForSuggestions, caregiversForSuggestions, visitCountsForClient, busyCaregiverIds, hasOverlap, insertSchedule,
-  openShiftsToFill, visitCountsByClient, markFilled,
+  openShiftsToFill, visitCountsByClient, markFilled, takeForFill, undoFill,
 } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, weekStartOf, who, type SchedulingShared } from './shared.ts'
 
@@ -400,10 +400,12 @@ export function createSchedulingHubRoutes(core: HomecareCore, d: CrmDeps, shared
       const label = { shiftId: sh.id, client: `${sh.clientFirst} ${sh.clientLast}`, date: sh.shiftDate, time: `${sh.startTime} - ${sh.endTime}` }
       if (best) {
         if (!dryRun) {
+          if (!(await takeForFill(db, companyId, sh.id, 'open'))) { results.push({ ...label, status: 'unfilled', reason: 'Someone just took this shift.' }); failed++; continue }
           try {
             await shared.assignShift(companyId, sh, best.id, me)
             await markFilled(db, companyId, sh.id, me, best.id)
           } catch (e: any) {
+            await undoFill(db, companyId, sh.id, 'open')
             results.push({ ...label, status: 'unfilled', reason: e.message }); failed++; continue
           }
         }
