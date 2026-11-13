@@ -114,7 +114,8 @@ export const passwordSchema = z.string()
  */
 const MAX_SESSIONS_PER_USER = 50
 /** A bcrypt hash of a password nobody has: what sign-in checks against when the email has no login (see POST /login). */
-const NO_SUCH_LOGIN_HASH = '$2b$10$yWEneDgdb2QdfOw9wykPR.LOEG4eyAsTm4bJWj4K4aAGDjXzIB0S2'
+// Made when the server starts, from random text (never a literal in the source: a hash in a file reads as a leaked one).
+const NO_SUCH_LOGIN_HASH: Promise<string> = Bun.password.hash(crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
 const ACCESS_TTL = '15m', REFRESH_TTL = '7d'
 
 export const generateTokens = (userId: string, companyId: string, email: string, role: string, web?: { via: string }) => {
@@ -356,7 +357,7 @@ export function createAuthRoutes(deps: AuthDeps) {
       // only for an email that has one.
       const ghostLock = ghostFailure(data.email)
       if (ghostLock?.already) return c.json({ error: ghostLock.error }, 423)
-      await Bun.password.verify(data.password, NO_SUCH_LOGIN_HASH).catch(() => false)
+      await Bun.password.verify(data.password, await NO_SUCH_LOGIN_HASH).catch(() => false)
       return ghostLock ? c.json({ error: ghostLock.error }, 423) : c.json({ error: 'Invalid email or password' }, 401)
     }
 
