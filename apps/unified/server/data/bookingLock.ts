@@ -16,3 +16,8 @@ export async function lockBookingDay(tx: any, companyId: string, date: string): 
 export async function lockJobBook(tx: any, companyId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':job'}))`)
 }
+
+/** One draw request at a time on one loan's schedule (crm/projects/drawSchedules.ts): its number and what is left are read, then written. */
+export async function lockDrawSchedule(tx: any, scheduleId: string) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'draws:' + scheduleId}))`)
+}

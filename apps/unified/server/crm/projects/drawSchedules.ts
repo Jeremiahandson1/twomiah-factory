@@ -8,6 +8,7 @@ import { scheduleOfValues, drawRequest, project } from '../../db/schema/index.ts
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
+import { lockDrawSchedule } from '../../data/bookingLock.ts'
 import { partialOf } from '@twomiah/tenant-backend'
 
 const drawScheduleSchema = z.object({
@@ -167,7 +168,7 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
     // The draw's number and the "is this much left?" check are read and then written: two requests at once took the
     // same number and could together draw more than the loan. One at a time per schedule (code review 04-3).
     const out: any = await db.transaction(async (tx: any) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'draws:' + data.scheduleOfValuesId}))`)
+    await lockDrawSchedule(tx, data.scheduleOfValuesId)
     const [{ value: cnt }] = await tx
       .select({ value: count() })
       .from(drawRequest)
