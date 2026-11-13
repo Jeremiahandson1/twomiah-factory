@@ -107,6 +107,15 @@ describe('home care — pay rules: the pay run', () => {
     expect((await send('owner', 'GET', '/api/pay-rules')).status).toBe(403)
   })
 
+  test('a caregiver with no pay rate is flagged, not quietly paid the fallback (code review 05-1)', async () => {
+    expect((await calc()).rateMissing).toBeUndefined()
+    await t.db.update(t.schema.user).set({ defaultPayRate: null } as any).where(eq(t.schema.user.id, ids.ann))
+    const line = await calc()
+    expect(line).toMatchObject({ rateMissing: true, baseRate: 15 })
+    await t.db.update(t.schema.user).set({ defaultPayRate: '20.00' } as any).where(eq(t.schema.user.id, ids.ann))
+    expect((await calc()).rateMissing).toBeUndefined()
+  })
+
   test('with the feature but the federal rule and no travel, the numbers do not move', async () => {
     await setFeatures([...BASE, 'care_payroll_rules'])
     const before = await calc()

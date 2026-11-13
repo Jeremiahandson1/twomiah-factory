@@ -6,6 +6,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { createActorName, companyTimeZone, storeDateString, markerDay, withoutSigningEvidence } from '@twomiah/tenant-backend'
 import { inspection, inspectionItem, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+import { nextSeriesNumber } from './seriesNumber.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
 import { partialOf } from '@twomiah/tenant-backend'
@@ -95,10 +96,10 @@ export function createInspectionRoutes(d: CrmDeps) {
   app.post('/', requirePermission('inspections:create'), async (c) => {
     const me = c.get('user') as any
     const data = schema.parse(await c.req.json())
-    const [{ value: countVal }] = await db.select({ value: count() }).from(inspection).where(eq(inspection.companyId, me.companyId))
+    const number = await nextSeriesNumber(db, inspection, eq(inspection.companyId, me.companyId), 'INS', 4)
     const [item] = await db.insert(inspection).values({
       ...data,
-      number: `INS-${String(countVal + 1).padStart(4, '0')}`,
+      number,
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
       companyId: me.companyId,
     }).returning()
@@ -210,12 +211,13 @@ export function createInspectionRoutes(d: CrmDeps) {
       return fail(c, 409, `${existing.number} has already been re-booked as ${existingRe.number}.`, 'reinspection_exists')
     }
 
-    const [{ value: cnt }] = await db.select({ value: count() }).from(inspection)
-      .where(and(eq(inspection.companyId, me.companyId), eq(inspection.projectId, existing.projectId)))
+    // One series for the business, as a new inspection takes (above): a re-inspection counted its own PROJECT's and could
+    // be given a number another project's inspection already had.
+    const number = await nextSeriesNumber(db, inspection, eq(inspection.companyId, me.companyId), 'INS', 4)
     const [made] = await db.insert(inspection).values({
       companyId: me.companyId,
       projectId: existing.projectId,
-      number: `INS-${String(Number(cnt) + 1).padStart(4, '0')}`,
+      number,
       type: existing.type,
       status: 'scheduled',
       scheduledDate: body?.scheduledDate ? new Date(body.scheduledDate) : null,

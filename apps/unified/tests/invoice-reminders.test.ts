@@ -185,6 +185,26 @@ describe('reminders', () => {
     await setRules(RULES)
   })
 
+  test('the late fee is not taxed — when added, after an edit that sends it back, and after a credit (owner 11/13)', async () => {
+    await setRules({ ...RULES, lateFee: { enabled: true, type: 'flat', amount: 15, afterDays: 30 } })
+    const inv = await invoiceFor(ann, 'INV-TAXED', '2026-09-20', 200)
+    await t.db.update(t.schema.invoice).set({ taxRate: '8', taxAmount: '16.00', total: '216.00', issueDate: new Date('2026-09-01T00:00:00Z') } as any).where(eq(t.schema.invoice.id, inv.id))
+    await run(chicago('2026-10-23T09:00:00'))
+    const figures = async () => { const [r] = await t.db.select().from(t.schema.invoice).where(eq(t.schema.invoice.id, inv.id)); return [r.subtotal, r.taxAmount, r.total] }
+    expect(await figures()).toEqual(['215.00', '16.00', '231.00'])
+    // The office saves the invoice with its lines as they are: the fee is still a late fee, still untaxed.
+    const lines = await t.db.select().from(t.schema.invoiceLineItem).where(eq(t.schema.invoiceLineItem.invoiceId, inv.id))
+    const put = await owner(`/api/invoices/${inv.id}`, { method: 'PUT', json: { lineItems: lines.map((l: any) => ({ description: l.description, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })) } })
+    expect(put.status).toBe(200)
+    expect(await figures()).toEqual(['215.00', '16.00', '231.00'])
+    const after = await t.db.select().from(t.schema.invoiceLineItem).where(eq(t.schema.invoiceLineItem.invoiceId, inv.id))
+    expect(after.filter((l: any) => l.type === 'late_fee').length).toBe(1)
+    // A $10 credit comes off the taxed work, not the fee: tax on 190.
+    expect((await owner(`/api/invoices/${inv.id}/credit`, { method: 'POST', json: { amount: 10, reason: 'Goodwill' } })).status).toBe(200)
+    expect(await figures()).toEqual(['215.00', '15.20', '220.20'])
+    await setRules(RULES)
+  })
+
   test('no late fee before its day, or with the fee off', async () => {
     await setRules({ ...RULES, lateFee: { enabled: true, type: 'flat', amount: 25, afterDays: 30 } })
     const early = await invoiceFor(ann, 'INV-EARLY', '2026-10-01')

@@ -9,7 +9,7 @@
 // An address is sent with the job (the crew goes there); the customer's phone and email are not. Nothing moves money.
 import { Hono } from 'hono'
 import { and, asc, eq, gte, ne, notInArray } from 'drizzle-orm'
-import { companyTimeZone, storeDayRange, storeDateString, jobsTodayCondition, round2 } from '@twomiah/tenant-backend'
+import { companyTimeZone, storeDayRange, storeDateString, jobsTodayCondition, round2, entryDay, entryDayWindow } from '@twomiah/tenant-backend'
 import { job, timeEntry, task, contact } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { one } from '../../http/reply.ts'
@@ -56,11 +56,14 @@ export function createCrewDashboardRoutes(d: CrmDeps) {
 
     if (features.includes('time_tracking') && await mayWith(me.role, 'time:read', me.userId)) {
       const { week } = periodStarts(tz, now)
-      const { start: dayStart, end: dayEnd } = storeDayRange(tz, now)
-      const entries = await db.select({ hours: timeEntry.hours, date: timeEntry.date }).from(timeEntry)
-        .where(and(eq(timeEntry.companyId, companyId), eq(timeEntry.userId, me.userId), gte(timeEntry.date, week)))
+      // By the entry's own day (entryDay): "today" compared a day marker with the business's midnight, so hours worked
+      // today read 0 and the week lost its first day (code review 04-4).
+      const todayDay = storeDayRange(tz, now).date, weekDay = storeDateString(week, tz)
+      const fetched = await db.select({ hours: timeEntry.hours, date: timeEntry.date }).from(timeEntry)
+        .where(and(eq(timeEntry.companyId, companyId), eq(timeEntry.userId, me.userId), gte(timeEntry.date, entryDayWindow(tz, weekDay, todayDay).start)))
+      const entries = fetched.filter((e: any) => entryDay(e.date, tz) >= weekDay)
       const sum = (rows: any[]) => round2(rows.reduce((s, r) => s + Number(r.hours || 0), 0))
-      out.hours = { today: sum(entries.filter((e: any) => new Date(e.date) >= dayStart && new Date(e.date) < dayEnd)), week: sum(entries) }
+      out.hours = { today: sum(entries.filter((e: any) => entryDay(e.date, tz) === todayDay)), week: sum(entries) }
     }
 
     // The Tasks page's own switch (/api/tasks is mounted on projects or patient_records, modules/crm.ts): there is no 'tasks' feature, so

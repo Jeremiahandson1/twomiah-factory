@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import * as schema from './schema/index.ts'
 
-export function createDb(connectionString = process.env.DATABASE_URL) {
+export function createDb(connectionString = process.env.DATABASE_URL, opts: { statementTimeoutMs?: number } = {}) {
   if (!connectionString) {
     console.error('[db] DATABASE_URL is not set')
     throw new Error('No database is configured for this service')
@@ -17,8 +17,9 @@ export function createDb(connectionString = process.env.DATABASE_URL) {
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
     keepAlive: true,
-    statement_timeout: 30_000,
-    query_timeout: 30_000,
+    // A request's limit. The migrations ask for a longer one (db/migrate.ts).
+    statement_timeout: opts.statementTimeoutMs ?? 30_000,
+    query_timeout: opts.statementTimeoutMs ?? 30_000,
     // Every session on UTC, so the database's own now() lands in a zone-less timestamp as UTC (RULEBOOK §2), whatever
     // the instance's default zone.
     options: '-c TimeZone=UTC',

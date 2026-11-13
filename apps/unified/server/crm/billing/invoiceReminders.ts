@@ -19,7 +19,7 @@
 //     (each needs a caregiver and hours) and most are billed to Medicaid and other payers; their reminders still go.
 import { and, eq, inArray, isNotNull, ne, asc } from 'drizzle-orm'
 import {
-  invoiceBalance, retotalInvoice, round2, money, documentLinkToken, documentLinkPath, companyRowTimeZone, storeDateString,
+  invoiceBalance, retotalInvoice, lineForTotals, round2, money, documentLinkToken, documentLinkPath, companyRowTimeZone, storeDateString,
   daysUntilMarker, markerDay,
 } from '@twomiah/tenant-backend'
 import { company, contact, invoice, invoiceLineItem, invoices, clients, reminderLog } from '../../db/schema/index.ts'
@@ -129,7 +129,8 @@ export function createInvoiceReminders(deps: ReminderDeps) {
       const description = cfg.lateFee.type === 'percent'
         ? `Late fee (${cfg.lateFee.amount}% of the ${money(balance)} overdue balance)`
         : 'Late fee'
-      const lines = [...current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })), { description, quantity: 1, unitPrice: fee }]
+      // The fee is not taxed (tenant-backend lineForTotals).
+      const lines = [...current.map(lineForTotals), { description, quantity: 1, unitPrice: fee, taxable: false } as any]
       const retotal = retotalInvoice(inv, lines, Number(inv.taxRate), Number(inv.discount))
       if ('error' in retotal) throw new Error(retotal.error)
       await tx.insert(invoiceLineItem).values({

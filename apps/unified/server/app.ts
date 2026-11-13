@@ -175,7 +175,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         permissions: {
           getPermissions: permissions.getPermissions, normalizeRole: permissions.normalizeRole,
           hasPermission: permissions.hasPermission, roleLabel: permissions.roleLabel,
-          ROLE_HIERARCHY: permissions.ROLE_HIERARCHY, getExtraPermissions: permissions.getExtraPermissions,
+          ROLE_HIERARCHY: permissions.ROLE_HIERARCHY, getExtraPermissions: permissions.getExtraPermissions, withheldFor: permissions.withheldFor,
         },
         emailService: email, logger, audit,
         options: {

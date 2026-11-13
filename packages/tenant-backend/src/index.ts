@@ -47,7 +47,7 @@ export {
 export type { FeatureDef } from './featureRegistry'
 
 // Invoices + quotes — one implementation for every CRM; the template injects its tables and services.
-export { createInvoiceRoutes, insertInvoice, retotalInvoice, replaceInvoiceLines, recordInvoicePayment, recordInvoiceRefund, applyInvoiceCredit } from './invoicing/invoices'
+export { createInvoiceRoutes, insertInvoice, retotalInvoice, lineForTotals, LATE_FEE_LINE, replaceInvoiceLines, recordInvoicePayment, recordInvoiceRefund, applyInvoiceCredit } from './invoicing/invoices'
 export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome, RecordRefundInput, RecordRefundOutcome } from './invoicing/invoices'
 // When a client is actually due back: their own rhythm once we have enough history, the menu's
 // interval until then.
@@ -207,7 +207,7 @@ export { TEAM_ORDER_KEY, TEAM_ORDER_MAX, readTeamOrder, orderTeam } from './team
 export { resolveCustomer, VENDOR_NOT_CUSTOMER } from './contacts/customer'
 export type { TeamDeps, TeamTables } from './team/team'
 export { noteStamp } from './time/zoneDay'
-export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
+export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, entryDay, entryDayWindow, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
 export { createTimeRoutes, createTimeClock, getWeekStart } from './time/time'
 export type { TimeDeps, TimeTables, ClockResult } from './time/time'
 export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expenses'
@@ -248,7 +248,7 @@ export type { AgreementsService, AgreementsServiceDeps, AgreementsRoutesDeps, Ag
 
 // Recurring invoices — templates that generate invoices on a schedule (crm, crm-fieldservice, crm-landscaping).
 // Parameterized raw SQL (recurring_invoice tables aren't in schema.ts); emailService injected via deps.
-export { createRecurringService, createRecurringRoutes, FREQUENCIES, calculateNextDate, RecurringPeriodTaken, nextRunAfterResume } from './recurring/recurring'
+export { createRecurringService, createRecurringRoutes, FREQUENCIES, calculateNextDate, RecurringPeriodTaken, RecurringInvalid, scheduleTotals, nextRunAfterResume } from './recurring/recurring'
 export type { RecurringService, RecurringServiceDeps, RecurringRoutesDeps, RecurringTables, RecurringEmail, RecurringAudit } from './recurring/recurring'
 
 // Fleet / vehicle tracking — vehicles, maintenance, fuel, stats (crm, crm-fieldservice, crm-landscaping).
