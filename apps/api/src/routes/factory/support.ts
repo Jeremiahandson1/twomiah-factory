@@ -1,6 +1,6 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { notifyNewTicket, notifyTicketReply } from '../../services/email'
-import { type FactoryApp, parseJsonBody, UUID_RE, checkFactoryKey } from './shared'
+import { type FactoryApp, parseJsonBody, UUID_RE, checkFactoryKey, rateLimit } from './shared'
 
 export function registerSupportRoutes(factory: FactoryApp) {
 // ─── Support Tickets (Level 1: CRM customers → Twomiah) ─────────────────────
@@ -306,7 +306,8 @@ factory.get('/customers/:id/support-tickets', async (c) => {
   return c.json({ data: data || [] })
 })
 
-factory.post('/public/support/tickets', async (c) => {
+// Limited per address: both were open to any number of calls (security review S5-3).
+factory.post('/public/support/tickets', rateLimit(60 * 60 * 1000, 10), async (c) => {
   const parsed = await parseJsonBody(c)
   if (parsed.error) return parsed.error
   const body = parsed.data
@@ -340,7 +341,7 @@ factory.post('/public/support/tickets', async (c) => {
 })
 
 // Customer view their tickets
-factory.get('/public/support/tickets', async (c) => {
+factory.get('/public/support/tickets', rateLimit(10 * 60 * 1000, 30), async (c) => {
   const tenantId = c.req.query('tenant_id')
   const email = c.req.query('email')
   if (!tenantId || !email) return c.json({ error: 'tenant_id and email are required' }, 400)
