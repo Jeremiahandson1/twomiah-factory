@@ -6,11 +6,14 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api'
 import { useAuth, money } from '../../shared'
+import { subscribeLive } from '../../live'
 
 interface Stage { id: string; label: string; count: number; value?: number }
 interface Waiting { id: string; number: string; name: string; status: string; total: number; contactName: string | null; daysWaiting: number; viewed: boolean; followUpsSent: number; expired: boolean }
 
 const STAGE_LINK: Record<string, string> = { new: '/crm/leads', contacted: '/crm/leads', site_visit: '/crm/leads', lost: '/crm/leads', quotes_out: '/crm/quotes', won: '/crm/quotes' }
+/** What moves a stage: a lead added or moved, a quote sent, answered or changed (core/realtime.ts EVENTS). */
+const PIPELINE_EVENTS = ['lead:created', 'lead:updated', 'quote:created', 'quote:sent', 'quote:approved', 'quote:updated'] as const
 const card = 'rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900'
 
 /** The strip, where Pipeline Strip is on and the seat reads leads. Nothing (not an empty box) where it is not. */
@@ -19,12 +22,20 @@ export function LeadPipelineStrip() {
   const on = hasFeature('lead_pipeline') && can('leads:read')
   const [stages, setStages] = useState<Stage[] | null>(null)
   const [days, setDays] = useState(30)
+  // Read again when a lead or quote changes anywhere (contractor final pass 11/14: a lead added in the inbox below showed on the
+  // strip only after a reload).
+  const [rev, setRev] = useState(0)
+  useEffect(() => {
+    if (!on) return
+    const stops = PIPELINE_EVENTS.map((e) => subscribeLive(e, () => setRev((n) => n + 1)))
+    return () => { for (const stop of stops) stop() }
+  }, [on])
   useEffect(() => {
     if (!on) return
     let live = true
     api.get('/api/lead-pipeline').then((r: { stages: Stage[]; days: number }) => { if (live) { setStages(r?.stages || []); setDays(r?.days || 30) } }).catch(() => { if (live) setStages(null) })
     return () => { live = false }
-  }, [on])
+  }, [on, rev])
   if (!on || !stages) return null
   return (
     <section aria-label="Pipeline" className={card} data-testid="lead-pipeline-strip">

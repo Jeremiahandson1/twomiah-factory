@@ -293,6 +293,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       if (!cfg.sites) delete payload.siteId
       if (!cfg.jobTypes || !payload.jobType) delete payload.jobType
       if (!tenantHasBranches) delete payload.locationId
+      // The time this form opened the job with: a save by someone else since then is refused, not overwritten (contractor B6).
+      if (editing && (editing as any).updatedAt) payload.expectedUpdatedAt = (editing as any).updatedAt
       if (editing) { const r: any = await api.put(`/api/jobs/${editing.id}`, payload); toast.success(`${cfg.labels.singular} updated`); if (r?.scheduleMoved) setMovedIds([editing.id]) }
       else if (repeating) {
         // Every visit is made now and is on the calendar; a day the person is already booked is listed back.

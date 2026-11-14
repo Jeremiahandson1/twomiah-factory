@@ -47,6 +47,8 @@ export interface AuthApi {
   getMe: () => Promise<any>
   forgotPassword: (email: string) => Promise<any>
   resetPassword: (token: string, password: string) => Promise<any>
+  /** Whose account a set-password link is for (POST /api/auth/reset-password/account); absent in an older client. */
+  resetPasswordAccount?: (token: string) => Promise<{ email: string; invite: boolean }>
   clearTokens: () => void
   /** Whether a session may exist to ask the server about (api/client.ts); absent = a stored token decides. */
   mayHaveSession?: () => boolean

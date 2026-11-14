@@ -22,6 +22,7 @@ import { cleanParameters, workOut, type Parameter } from './formulas'
 import { quoteHasFormulas, parametersFor, formulaRefusal, recalculateQuote } from './quoteFormulas'
 import { includedLines, notIncludedLines, depositProblem, chooseOptionalLine, retotalQuote, proposalView, proposalNeedsChoice, chooseProposalOption, chooseOptionUpgrade, hasProposalTables, proposalsLive, isPhotoAddress, optionBasis, UPGRADE, hasOptionDiscounts, lowestPrice, offersOptions, PROPOSAL_TIERS, MAX_PROPOSAL_OPTIONS, MAX_PROPOSAL_SETS, MAX_OPTION_PHOTOS, MAX_OPTION_UPGRADES, SET_KINDS, CHOOSE_FIRST, CHOOSE_FIRST_CODE } from './quoteOptions'
 import { partialOf } from '../partialOf'
+import { expectedUpdatedAt, changedSince, changedSinceOpened, ChangedSinceOpened } from '../staleEdit'
 import { hasDocumentTables, documentSchema, attachmentsSchema, loadDocument, saveDocument, loadMarks, documentForOffice, storeProposalFile, attachedPdfBytes, cosignerRequired, cosignStatus, pdfExtras, withLinePictures } from './quoteDocument'
 import { applyMarkups, sectionSummary } from './quoteSections'
 
@@ -665,11 +666,15 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const currentUser = c.get('user') as any
     const cid = currentUser.companyId
     const id = c.req.param('id')
-    const data = partialOf(quoteSchema).parse(await c.req.json()) as any
+    const raw = await c.req.json()
+    const data = partialOf(quoteSchema).parse(raw) as any
     // A text line is words only, whatever price was sent with it: one of nothing at no price, before any total is worked out.
     if (Array.isArray(data.lineItems)) data.lineItems = data.lineItems.map(asTextLine)
     const existing = await findOwn(cid, id)
     if (!existing) return c.json({ error: 'Quote not found' }, 404)
+    // Saved by someone else since this form opened it: refused, never silently overwritten (../staleEdit.ts).
+    const expected = expectedUpdatedAt(raw)
+    if (changedSince(expected, existing.updatedAt)) return c.json(changedSinceOpened('quote'), 409)
     // A seat that is not shown a line's cost sends its lines back without one, and the lines are replaced
     // wholesale — so saving would wipe every cost on the quote. Each line keeps the cost of the stored line it
     // came from (same catalogue item, else same description). Only reachable by a seat granted quotes:update
@@ -756,7 +761,13 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const withImages = await imagesOn(cid)
     const noText = await textRefused(cid, data.lineItems)
     if (noText) return c.json({ error: noText, fields: { lineItems: noText } }, 400)
-    const result = await db.transaction(async (tx: any) => {
+    let result: any
+    try { result = await db.transaction(async (tx: any) => {
+      // …and again under the row's lock, for two saves sent at the same moment.
+      if (expected !== null) {
+        const [now] = await tx.select({ updatedAt: t.quote.updatedAt }).from(t.quote).where(eq(t.quote.id, id)).limit(1).for('update')
+        if (changedSince(expected, now?.updatedAt)) throw new ChangedSinceOpened()
+      }
       const [updated] = await tx.update(t.quote).set(update).where(eq(t.quote.id, id)).returning()
       let items: any[]
       if (data.lineItems !== undefined) {
@@ -774,7 +785,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         if (again) return { ...again.quote, lineItems: again.lineItems }
       }
       return { ...updated, lineItems: items }
-    })
+    }) } catch (e) {
+      if (e instanceof ChangedSinceOpened) return c.json(changedSinceOpened('quote'), 409)
+      throw e
+    }
     // New parameters and no lines sent: the stored formula lines are worked out again (checked above, before the save).
     let final: any = result
     if (withFormulas && data.parameters !== undefined && data.lineItems === undefined) {

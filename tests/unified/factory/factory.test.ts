@@ -50,6 +50,13 @@ describe('UNIFIED_SIGNUPS', () => {
     expect(isOwnerTestEmail('twomiah145@gmail.com')).toBe(false)
   })
 
+  test('a signup with the test inbox is flagged a test site in its row, so it can be deleted cleanly (final pass 11/14)', () => {
+    const intake = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/intake.ts'), 'utf8')
+    const record = intake.slice(intake.indexOf('const tenantRecord'), intake.indexOf("supabase.from('tenants').insert(tenantRecord)"))
+    expect(record).toContain('isOwnerTestEmail(body.email) || isOwnerTestEmail(body.admin_email) ? { is_test_tenant: true } : {}')
+    expect(isOwnerTestEmail('twomiah14+finalgc@gmail.com')).toBe(true)
+  })
+
   test('all: every signup with a unified vertical; a dispensary stays on the templates whatever the switch says', () => {
     expect(engineForSignup(customer, 'all')).toBe('unified')
     expect(engineForSignup({ industry: 'dispensary', email: 'twomiah14@gmail.com' }, 'all')).toBe('templates')

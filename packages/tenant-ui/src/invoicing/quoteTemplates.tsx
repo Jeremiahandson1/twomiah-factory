@@ -36,6 +36,27 @@ export function formLines(lineItems: any[] | undefined, blank: () => LineItemInp
   }))
 }
 
+/**
+ * A quote's Good / Better / Best options as PUT /api/quotes/:id/proposal takes them, for "Create similar" (contractor final pass
+ * 11/14: the copy dropped the options, while a template kept them). The customer's pick is not copied. Null when it has none.
+ */
+export function proposalFromQuote(view: any): { sets: any[] } | null {
+  const sets = Array.isArray(view?.sets) ? view.sets : []
+  if (!sets.length) return null
+  const lines = (ls: any[] | undefined) => formLines(ls, () => ({} as LineItemInput)).filter((l: any) => l.description).map(({ optional: _o, selected: _s, ...rest }: any) => rest)
+  return {
+    sets: sets.map((st: any) => ({
+      name: st.name ?? null, kind: st.kind || 'one',
+      options: (st.options || []).map((o: any) => ({
+        name: o.name, tier: o.tier ?? null, brand: o.brand ?? null, warranty: o.warranty ?? null, description: o.description ?? null,
+        photos: Array.isArray(o.photos) ? o.photos : [], recommended: !!o.recommended, attachments: Array.isArray(o.attachments) ? o.attachments : [],
+        lines: lines(o.lines), upgrades: o.upgrades?.length ? lines(o.upgrades) : [],
+        discount: Number(o.discountCents) > 0 ? { type: 'amount', cents: Number(o.discountCents) } : Number(o.discountPercent) > 0 ? { type: 'percent', percent: Number(o.discountPercent) } : null,
+      })),
+    })),
+  }
+}
+
 /** "Save as a template": asks for a name, saves the quote's lines and wording, says so. */
 export function SaveTemplateModal({ api, toast, quote, onClose }: { api: Api; toast: Toast; quote: { id: string; name: string } | null; onClose: () => void }) {
   const [name, setName] = useState('')

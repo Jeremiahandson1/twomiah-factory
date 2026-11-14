@@ -17,7 +17,7 @@ import { buildPremiumNav, premiumSitePages, premiumServiceAreas } from '../../se
 import { composeInstant } from '../../services/instantComposer'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
-import { engineForSignup, isUnifiedTenant, signupRefusal } from '../../unified/factory'
+import { engineForSignup, isUnifiedTenant, isOwnerTestEmail, signupRefusal } from '../../unified/factory'
 import { renderUnifiedPreview, unifiedPreviewVertical } from '../../unified/preview'
 import { requestedLook } from '../../config/siteLooks'
 import { signupComposerInput, signupComposition, composeSignupSite, liveSignupSiteDeps, resumeSignupComposes, storeSignupPhoto, SIGNUP_PHOTO_FILE } from '../../services/signupSite'
@@ -478,6 +478,10 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       website_theme: body.website_theme || null,
       // Only a unified signup names its engine; every other row takes the column's default ('templates').
       ...(engine === 'unified' ? { engine } : {}),
+      // A signup with the owner's test inbox is a test site, flagged as one, so it can be deleted cleanly (testCleanup.ts refuses
+      // any row without the flag). It was routed as a test (unified/factory.ts isTestSignup) but left unflagged: the contractor
+      // final pass (11/14) had to be flagged by hand.
+      ...(isOwnerTestEmail(body.email) || isOwnerTestEmail(body.admin_email) ? { is_test_tenant: true } : {}),
     }
 
     let builtUnified = engine === 'unified'
