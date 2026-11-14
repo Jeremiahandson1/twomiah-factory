@@ -1,5 +1,5 @@
 import { tenantBySyncKey } from '../../lib/tenantSecrets'
-import { authenticate, supabase } from '../../middleware/auth'
+import { authenticate, requireRole, supabase } from '../../middleware/auth'
 import { type FactoryApp, checkFactoryKey } from './shared'
 
 export function registerRoofReviewRoutes(factory: FactoryApp) {
@@ -46,8 +46,10 @@ factory.post('/roof-review/notify', async (c) => {
   return c.json({ success: true })
 })
 
+// The review queue is the owner's and admins' (as the dashboard's page is): it opens a business's report and writes its
+// measurements back with that business's key. Any signed-in staff seat could call these. (Security review, 2026-11-14)
 // List pending reports
-factory.get('/roof-review/pending', authenticate, async (c) => {
+factory.get('/roof-review/pending', authenticate, requireRole('owner', 'admin'), async (c) => {
   const { data } = await supabase
     .from('roof_review_queue')
     .select('*')
@@ -72,7 +74,7 @@ factory.get('/roof-review/pending', authenticate, async (c) => {
 })
 
 // Proxy: fetch report data from tenant CRM for editing
-factory.get('/roof-review/:reportId/data', authenticate, async (c) => {
+factory.get('/roof-review/:reportId/data', authenticate, requireRole('owner', 'admin'), async (c) => {
   const reportId = c.req.param('reportId')
 
   const { data: queueItem } = await supabase
@@ -100,7 +102,7 @@ factory.get('/roof-review/:reportId/data', authenticate, async (c) => {
 })
 
 // Proxy: approve report on tenant CRM
-factory.post('/roof-review/:reportId/approve', authenticate, async (c) => {
+factory.post('/roof-review/:reportId/approve', authenticate, requireRole('owner', 'admin'), async (c) => {
   const reportId = c.req.param('reportId')
   const { edges, measurements } = await c.req.json()
 
