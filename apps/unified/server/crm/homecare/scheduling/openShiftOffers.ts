@@ -29,6 +29,14 @@ import { eligibleToTell } from './openShiftEligibility.ts'
 import { who } from './shared.ts'
 
 const CHANNELS: Channel[] = ['app', 'push', 'sms', 'email']
+
+/** The first day on or after `from` that falls on `dayOfWeek` (0 = Sunday); `from` itself for a schedule with no weekday. */
+export function firstOnWeekday(from: string, dayOfWeek: number | null | undefined): string {
+  const dow = Number(dayOfWeek)
+  if (dayOfWeek === null || dayOfWeek === undefined || !Number.isInteger(dow) || dow < 0 || dow > 6) return from
+  const at = new Date(`${from}T12:00:00Z`).getUTCDay()
+  return addDays(from, (dow - at + 7) % 7)
+}
 const MAX_WEEKS = 12
 
 export function createOpenShiftOffersRoutes(core: HomecareCore, d: CrmDeps) {
@@ -151,9 +159,12 @@ export function createOpenShiftOffersRoutes(core: HomecareCore, d: CrmDeps) {
     if ('problem' in deadline) return fail(c, 400, deadline.problem)
     const rate = sched.referredById ? await payerCurrentRate(d.db, companyId, sched.referredById) : null
     const visible = Array.isArray(b.visibleTo) && b.visibleTo.length ? b.visibleTo.map(String) : null
+    // The series starts on the visit's own weekday on or after "From": the form's From is today by default, and stepping a week at a
+    // time from a Saturday never lands on a Friday visit (final live pass 11/14, home care step 22).
+    const first = firstOnWeekday(b.from, sched.dayOfWeek)
     const posted: string[] = [], skipped: { date: string; reason: string }[] = []
     for (let i = 0; i < weeks; i++) {
-      const day = addDays(b.from, i * 7)
+      const day = addDays(first, i * 7)
       const occ = await occurrenceOn(d.db, companyId, scheduleId, day)
       if (!occ) { skipped.push({ date: day, reason: 'The visit does not happen that day.' }); continue }
       if (await livePostingFor(d.db, companyId, scheduleId, day)) { skipped.push({ date: day, reason: 'Already posted as an open shift.' }); continue }
@@ -165,7 +176,8 @@ export function createOpenShiftOffersRoutes(core: HomecareCore, d: CrmDeps) {
     if (posted.length < 2) {
       // A series of one is not a series: take back what was posted and say why.
       await deletePostings(d.db, companyId, posted)
-      return fail(c, 409, 'Fewer than two of those weeks have a visit to offer, so no series was posted.', 'series_too_short')
+      const why = skipped.length ? ` Left out: ${skipped.map((x) => `${x.date} (${x.reason.replace(/\.$/, '')})`).join('; ')}.` : ''
+      return fail(c, 409, `Fewer than two of those weeks have a visit to offer, so no series was posted.${why}`, 'series_too_short')
     }
     const seriesId = randomUUID()
     await setSeries(d.db, companyId, posted, seriesId)

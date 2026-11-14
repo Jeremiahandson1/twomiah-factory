@@ -52,7 +52,7 @@ export function createPortalVisitRoutes(core: HomecareCore, d: CrmDeps, clientPo
     const occ = await portalOccurrences(db, companyId, clientId, addDays(today, -28), addDays(today, 28), today, past)
     const expanded = occ.map((r: any) => ({
       id: `${r.scheduleId}-${r.scheduledDate}`, scheduledDate: r.scheduledDate, startTime: r.startTime, endTime: r.endTime,
-      status: 'scheduled', notes: r.notes, clientNotes: null, cancelledReason: null, caregiverId: r.caregiverId,
+      status: 'scheduled', clientNotes: null, cancelledReason: null, caregiverId: r.caregiverId,
       scheduleId: r.scheduleId, caregiverFirstName: r.caregiverFirstName, caregiverLastName: r.caregiverLastName,
       caregiverPhone: r.caregiverPhone, source: 'schedule',
     }))

@@ -17,6 +17,7 @@ import { useAuth, useConfirm, usePermissions, usePrompt, useToast } from '../../
 import { api, errorMessage, rows } from '../lib/http';
 import { ViewAsUserButton, roleWord } from '../../../viewAs';
 import { phoneText } from '../lib/phone'
+import { Link } from 'react-router-dom'
 
 interface Login {
   id: string;
@@ -142,8 +143,15 @@ export default function UserManagement() {
             {company?.name ? `${company.name} · ` : ''}Manage staff logins and access.
           </p>
         </div>
-        {mayAdd && <button type="button" className="hc-btn hc-btn-primary" onClick={() => setShowAdd(true)}>+ Add Office User</button>}
+        {mayAdd && <button type="button" className="hc-btn hc-btn-primary" onClick={() => setShowAdd(true)}>+ Add Admin</button>}
       </div>
+      {/* This page adds admins only (POST /api/users/admins). An owner looking for an office manager or a viewer was making
+          admins here (final live pass 11/14, home care step 11): the other seats are added under Settings › Users. */}
+      {mayAdd && (
+        <p style={{ margin: '0 0 1rem', color: 'var(--hc-muted)' }}>
+          Adding an office manager, a viewer or another seat? Use <Link to="/crm/settings?tab=users" className="underline">Settings › Users</Link>, where you pick the role. Caregivers are added under Caregivers.
+        </p>
+      )}
 
       {loading ? (
         <div className="loading"><div className="spinner"></div></div>
@@ -213,7 +221,7 @@ function AddOfficeUserModal({ onClose, onSaved }: AddOfficeUserProps) {
     try {
       // POST /api/users/admins: always an admin seat (the server never honours a role in the body).
       await api.post('/api/users/admins', form);
-      toast.success('Office user created.');
+      toast.success('Admin created.');
       onSaved();
     } catch (error) {
       toast.error(errorMessage(error, 'Failed to create user'));
@@ -226,10 +234,11 @@ function AddOfficeUserModal({ onClose, onSaved }: AddOfficeUserProps) {
     <div className="modal active" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Add Office User</h3>
+          <h3>Add Admin</h3>
           <button type="button" className="modal-close" onClick={onClose}>×</button>
         </div>
         <form onSubmit={submit} style={{ padding: '1rem' }}>
+          <p style={{ marginTop: 0, color: 'var(--hc-muted)' }}>An admin can manage the whole CRM. For an office manager or a viewer, use <Link to="/crm/settings?tab=users" className="underline">Settings › Users</Link> instead.</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label>First Name *</label>

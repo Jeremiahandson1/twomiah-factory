@@ -22,10 +22,10 @@
 //   · lists are { data, pagination } (RULEBOOK §3), the schedule's keys are camelCase.
 import { Hono, type Context, type Next } from 'hono'
 import jwt from 'jsonwebtoken'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { createActorName } from '@twomiah/tenant-backend'
 import {
-  clients, company, familyMembers, familyMessages, familyPushSubscription, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
+  clients, clientPortalAccounts, company, familyMembers, familyMessages, familyPushSubscription, carePlans, medications, timeEntries, user, portalMessageThreads, portalMessages,
 } from '../../../db/schema/index.ts'
 import { fail, one, done, listAll } from '../../../http/reply.ts'
 import crypto from 'node:crypto'
@@ -127,7 +127,18 @@ export function createFamilyPortalRoutes(core: HomecareCore, d: CrmDeps, clientP
       .innerJoin(clients, eq(familyMembers.clientId, clients.id))
       .where(and(...conditions))
       .orderBy(asc(clients.lastName), asc(clients.firstName), desc(familyMembers.isPrimaryContact))
-    return all(c, rows)
+    // A relative may sign in through the client portal with the same email (its own account, client_portal_accounts): that
+    // is a sign-in too, so "Last login" is the later of the two — Dana signed in there and this list said "Never" (final
+    // live pass 11/14, home care step 32).
+    const clientIds: string[] = Array.from(new Set<string>(rows.map((r: { clientId: string }) => String(r.clientId))))
+    const portal = clientIds.length ? await db.select({ clientId: clientPortalAccounts.clientId, email: clientPortalAccounts.email, lastLogin: clientPortalAccounts.lastLogin })
+      .from(clientPortalAccounts).where(and(eq(clientPortalAccounts.companyId, c.get('user').companyId), inArray(clientPortalAccounts.clientId, clientIds))) : []
+    const portalLogin = new Map<string, Date>(portal.filter((p: { lastLogin: Date | null }) => p.lastLogin).map((p: { clientId: string; email: string; lastLogin: Date | null }) => [`${p.clientId}|${String(p.email).toLowerCase()}`, p.lastLogin as Date] as [string, Date]))
+    return all(c, rows.map((r: { clientId: string; email?: string | null; lastLogin?: unknown }) => {
+      const other = portalLogin.get(`${r.clientId}|${String(r.email || '').toLowerCase()}`)
+      const own = r.lastLogin as Date | null
+      return other && (!own || other > own) ? { ...r, lastLogin: other } : r
+    }))
   })
 
   /**
