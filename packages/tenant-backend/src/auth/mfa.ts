@@ -334,6 +334,29 @@ export async function verifyLoginChallenge(
   }
 }
 
+/**
+ * A code from something this person has enrolled NOW — an authenticator's six digits, or a recovery code (spent on use) — for a
+ * change made inside a session that the second factor should stand behind (changing the password: live test S5, 2026-11-14).
+ */
+export async function presentsLiveCode(db: any, companyId: string, userId: string, given: string): Promise<boolean> {
+  const code = String(given || '').trim().toUpperCase().replace(/\s+/g, '')
+  if (!code) return false
+  const devRows: any = await db.execute(sql`
+    SELECT id, type, secret, backup_codes FROM mfa_devices
+    WHERE user_id = ${userId} AND company_id = ${companyId} AND COALESCE(is_verified, true) = true
+  `)
+  const devices = ((devRows as any).rows || devRows) as any[]
+  for (const d of devices) if (String(d.type) === 'totp' && d.secret && matchTOTPStep(String(d.secret), code) !== null) return true
+  const hash = crypto.createHash('sha256').update(code).digest('hex')
+  for (const d of devices.filter((x) => String(x.type) === 'backup_codes')) {
+    const stored: string[] = Array.isArray(d.backup_codes) ? d.backup_codes : (typeof d.backup_codes === 'string' ? JSON.parse(d.backup_codes || '[]') : [])
+    if (!stored.includes(hash)) continue
+    await db.execute(sql`UPDATE mfa_devices SET backup_codes = ${JSON.stringify(stored.filter((h) => h !== hash))}::jsonb, last_used_at = NOW() WHERE id = ${d.id}`)
+    return true
+  }
+  return false
+}
+
 /** `step`: the authenticator step the sign-in was accepted on, kept in `code` (null for a sign-in challenge until now). */
 async function spend(db: any, challengeId: string, deviceId: string, step?: number) {
   await db.execute(sql`

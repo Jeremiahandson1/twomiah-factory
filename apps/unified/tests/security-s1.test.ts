@@ -126,6 +126,31 @@ describe('S1-2: adding an authenticator to an account that has one asks for a co
   })
 })
 
+describe('live test S5: with two-factor on, the password changes only with a code', () => {
+  const change = (tok: string, body: Record<string, unknown>) => bearer(tok)('/api/auth/password', { method: 'PUT', json: body })
+  test('the current password alone is not enough, a wrong code is refused and counted, a live code changes it', async () => {
+    const NEXT = 'Brand-new-pass-9'
+    const none = await change(access, { currentPassword: PASSWORD, newPassword: NEXT })
+    expect(none.status).toBe(400)
+    expect((await none.json() as any).code).toBe('code_required')
+    const wrong = await change(access, { currentPassword: PASSWORD, newPassword: NEXT, code: wrongCode(secret) })
+    expect(wrong.status).toBe(400)
+    expect((await wrong.json() as any).code).toBe('bad_code')
+    expect(Number((await userRow()).failedLoginCount)).toBe(1)
+    // …and the password is still the old one
+    expect(await Bun.password.verify(PASSWORD, (await userRow()).passwordHash)).toBe(true)
+    const ok = await change(access, { currentPassword: PASSWORD, newPassword: NEXT, code: codeNow(secret) })
+    expect(ok.status).toBe(200)
+    expect(await Bun.password.verify(NEXT, (await userRow()).passwordHash)).toBe(true)
+    expect(Number((await userRow()).failedLoginCount)).toBe(0)
+    // put back for the tests below (this device keeps a session: the reply carries it)
+    access = (await ok.json() as any).accessToken || access
+    const back = await change(access, { currentPassword: NEXT, newPassword: PASSWORD, code: codeNow(secret) })
+    expect(back.status).toBe(200)
+    access = (await back.json() as any).accessToken || access
+  })
+})
+
 describe('S1-15: a seat that reads only its own work does not get everyone’s through the export or the search box', () => {
   const tokens: Record<string, string> = {}
   const ids: Record<string, string> = {}
