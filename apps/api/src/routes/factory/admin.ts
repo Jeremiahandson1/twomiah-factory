@@ -561,7 +561,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
     // save of that business read "Last sync FAILED — divergent feature list" although everything real had synced
     // (Higgs, 2026-11-13: route_optimization, service_dispatch, referral_program, custom_dashboards, map_view). Said, not hidden.
     const withdrawn = features.filter((f: any) => typeof f === 'string' && FEATURE_REGISTRY.find((d) => d.id === f)?.templates.length === 0)
-    const newFeatures: string[] = features.filter((f: any) => typeof f === 'string' && !notReady.includes(f) && !withdrawn.includes(f))
+    const newFeatures: string[] = features.filter((f: any) => typeof f === 'string' && !withdrawn.includes(f) && !notReady.includes(f))
 
     // Determine what changed
     const added = newFeatures.filter(f => !previousFeatures.includes(f))

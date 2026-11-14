@@ -24,7 +24,7 @@ test('the feature save drops withdrawn features before it stores and sends the l
   const admin = fs.readFileSync(path.join(ROOT, 'apps/api/src/routes/factory/admin.ts'), 'utf8')
   const save = admin.slice(admin.indexOf("factory.patch('/customers/:id/features'"), admin.indexOf("factory.get('/admin/db-health'"))
   expect(save).toMatch(/const withdrawn = features\.filter\(\(f: any\) => typeof f === 'string' && FEATURE_REGISTRY\.find\(\(d\) => d\.id === f\)\?\.templates\.length === 0\)/)
-  expect(save).toMatch(/!notReady\.includes\(f\) && !withdrawn\.includes\(f\)/)
+  expect(save).toMatch(/!withdrawn\.includes\(f\) && !notReady\.includes\(f\)/)
   expect(save.indexOf('const withdrawn')).toBeLessThan(save.indexOf(".update({ features: newFeatures })"))
   expect(save).toMatch(/withdrawn\.length \? \{ withdrawn \} : \{\}/)
 })
