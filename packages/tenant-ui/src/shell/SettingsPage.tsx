@@ -111,6 +111,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const [workWeekStart, setWorkWeekStart] = useState('0')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  // Asked for only when the server says this login has two-factor on (PUT /password answers `code_required`).
+  const [pwCode, setPwCode] = useState('')
+  const [pwNeedsCode, setPwNeedsCode] = useState(false)
   const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
   const [users, setUsers] = useState<any[]>([])
   // Blank is fine — it means "use the default". Anything else has to be a colour the portal header, the
@@ -243,10 +246,14 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     setSaving(true)
     try {
       // The server says what happened, e.g. that every other device was signed out (shared auth PUT /password).
-      const res: any = await api.put('/api/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword })
+      const res: any = await api.put('/api/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword, ...(pwCode.trim() ? { code: pwCode.trim() } : {}) })
       toast.success(typeof res?.message === 'string' && res.message ? res.message : 'Password changed')
-      setPw({ currentPassword: '', newPassword: '', confirmPassword: '' })
-    } catch (err) { toast.error(errMsg(err, 'Failed to change password')) } finally { setSaving(false) }
+      setPw({ currentPassword: '', newPassword: '', confirmPassword: '' }); setPwCode(''); setPwNeedsCode(false)
+    } catch (err) {
+      const why = (err as { data?: { code?: string } })?.data?.code
+      if (why === 'code_required' || why === 'bad_code') { setPwNeedsCode(true); setPwCode('') }
+      toast.error(errMsg(err, 'Failed to change password'))
+    } finally { setSaving(false) }
   }
 
   // Adding a teammate is what makes the seat-based plan real. The admin CHOOSES how they sign in the first time: a
@@ -575,6 +582,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
               <Field label="Current Password"><PasswordInput autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw((prev) => ({ ...prev, currentPassword: e.target.value }))} className={inputCls} /></Field>
               <Field label="New Password"><PasswordInput autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw((prev) => ({ ...prev, newPassword: e.target.value }))} className={inputCls} /></Field>
               <Field label="Confirm Password"><PasswordInput autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw((prev) => ({ ...prev, confirmPassword: e.target.value }))} className={inputCls} /></Field>
+              {pwNeedsCode && <Field label="Two-Factor Code"><input type="text" inputMode="numeric" autoComplete="one-time-code" value={pwCode} onChange={(e) => setPwCode(e.target.value)} placeholder="From your authenticator app, or a recovery code" className={inputCls} /></Field>}
               <Button onClick={changePassword} disabled={saving}>{saving ? 'Changing...' : 'Change Password'}</Button>
             </div>
           )}

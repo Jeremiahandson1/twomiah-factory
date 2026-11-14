@@ -1109,6 +1109,7 @@ function loadManifest(crmDir: string): any {
   return null
 }
 
+const CSS_COLOUR_RE = /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([0-9.,%\s/]+\))$/
 function injectCSSColors(websiteDir: string, branding: GenerateConfig['branding'], _industry: string) {
   const cssPaths = [
     path.join(websiteDir, 'build', 'styles', 'main.css'),
@@ -1118,8 +1119,9 @@ function injectCSSColors(websiteDir: string, branding: GenerateConfig['branding'
   for (const cssFile of cssPaths) {
     if (!fs.existsSync(cssFile)) continue
     let css = fs.readFileSync(cssFile, 'utf8')
-    if (branding.primaryColor) css = css.replace(/var\(--primary-color\)/g, branding.primaryColor)
-    if (branding.secondaryColor) css = css.replace(/var\(--secondary-color\)/g, branding.secondaryColor)
+    // Written into a stylesheet as it is, so it is used only when it IS a colour (a hex or an rgb()/hsl() value).
+    if (branding.primaryColor && CSS_COLOUR_RE.test(branding.primaryColor)) css = css.replace(/var\(--primary-color\)/g, branding.primaryColor)
+    if (branding.secondaryColor && CSS_COLOUR_RE.test(branding.secondaryColor)) css = css.replace(/var\(--secondary-color\)/g, branding.secondaryColor)
     fs.writeFileSync(cssFile, css, 'utf8')
   }
 }

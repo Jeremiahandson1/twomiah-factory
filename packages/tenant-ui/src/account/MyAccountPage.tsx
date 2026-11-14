@@ -31,6 +31,9 @@ import { PasswordInput } from '../ui/PasswordInput'
 export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: string) => void; error: (m: string) => void } }) {
   const { user, updateUser } = useAuth() as any
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  // Asked for only when the server says this login has two-factor on (PUT /password answers `code_required`).
+  const [pwCode, setPwCode] = useState('')
+  const [pwNeedsCode, setPwNeedsCode] = useState(false)
   const [saving, setSaving] = useState(false)
   const [profile, setProfile] = useState({ firstName: '', lastName: '', phone: '' })
   const [savingProfile, setSavingProfile] = useState(false)
@@ -57,10 +60,14 @@ export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: 
     setSaving(true)
     try {
       // The server says what happened, e.g. that every other device was signed out (shared auth PUT /password).
-      const res: any = await api.put('/api/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword })
+      const res: any = await api.put('/api/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword, ...(pwCode.trim() ? { code: pwCode.trim() } : {}) })
       toast.success(typeof res?.message === 'string' && res.message ? res.message : 'Password changed')
-      setPw({ currentPassword: '', newPassword: '', confirmPassword: '' })
-    } catch (err) { toast.error(errMsg(err, 'Failed to change password')) } finally { setSaving(false) }
+      setPw({ currentPassword: '', newPassword: '', confirmPassword: '' }); setPwCode(''); setPwNeedsCode(false)
+    } catch (err) {
+      const why = (err as { data?: { code?: string } })?.data?.code
+      if (why === 'code_required' || why === 'bad_code') { setPwNeedsCode(true); setPwCode('') }
+      toast.error(errMsg(err, 'Failed to change password'))
+    } finally { setSaving(false) }
   }
 
   return (
@@ -121,6 +128,7 @@ export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: 
         <Field label="Current password"><PasswordInput autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw((prev) => ({ ...prev, currentPassword: e.target.value }))} className={inputCls} /></Field>
         <Field label="New password"><PasswordInput autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw((prev) => ({ ...prev, newPassword: e.target.value }))} className={inputCls} /></Field>
         <Field label="Confirm new password"><PasswordInput autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw((prev) => ({ ...prev, confirmPassword: e.target.value }))} className={inputCls} /></Field>
+        {pwNeedsCode && <Field label="Two-factor code"><input type="text" inputMode="numeric" autoComplete="one-time-code" value={pwCode} onChange={(e) => setPwCode(e.target.value)} placeholder="From your authenticator app, or a recovery code" className={inputCls} /></Field>}
         <Button onClick={changePassword} disabled={saving}>{saving ? 'Changing…' : 'Change password'}</Button>
       </section>
     </div>

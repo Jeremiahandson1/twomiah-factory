@@ -93,7 +93,7 @@ export default function TextThread() {
                   <View style={{ backgroundColor: ours ? c.accentFill : c.surfaceAlt, borderRadius: radius.lg, paddingHorizontal: space[3], paddingVertical: space[2] }}>
                     {m.body ? <DText tone={ours ? 'onAccent' : 'text'}>{m.body}</DText> : null}
                     {(Array.isArray(m.media) ? m.media : []).map((p: any, i: number) => (
-                      <Pressable key={i} onPress={() => Linking.openURL(p.url)} accessibilityRole="link" accessibilityLabel="Open the picture">
+                      <Pressable key={i} onPress={() => { if (/^https:\/\//i.test(String(p?.url || ''))) Linking.openURL(p.url).catch(() => {}) }} accessibilityRole="link" accessibilityLabel="Open the picture">
                         <DText tone={ours ? 'onAccent' : 'accentText'} style={{ textDecorationLine: 'underline' }}>Picture {i + 1}</DText>
                       </Pressable>
                     ))}

@@ -10,7 +10,7 @@
 import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
-import { mfaGateFor, openLoginChallenge, verifyLoginChallenge } from './mfa.ts'
+import { mfaGateFor, openLoginChallenge, presentsLiveCode, verifyLoginChallenge } from './mfa.ts'
 import crypto from 'crypto'
 import { eq, and, gt, sql } from 'drizzle-orm'
 import { redactCompanySettings, isPrivilegedRole } from './redactSettings'
@@ -709,7 +709,7 @@ export function createAuthRoutes(deps: AuthDeps) {
 
   app.put('/password', authenticate, async (c) => {
     const currentUser = c.get('user') as any
-    const data = z.object({ currentPassword: z.string(), newPassword: passwordSchema }).parse(await c.req.json().catch(() => ({})))
+    const data = z.object({ currentPassword: z.string(), newPassword: passwordSchema, code: z.string().max(64).optional() }).parse(await c.req.json().catch(() => ({})))
     const [foundUser] = await db.select().from(user).where(eq(user.id, currentUser.userId)).limit(1)
     if (!foundUser) return c.json({ error: 'User not found' }, 404)
     // Wrong CURRENT passwords count on the account's lock, as wrong sign-ins do: an open session could try the password
@@ -727,6 +727,25 @@ export function createAuthRoutes(deps: AuthDeps) {
           lock ? 'Wrong current password on a password change; the account is now locked' : 'Wrong current password on a password change', { attempt: fails, locked: lock })
       }
       return c.json({ error: 'Current password is incorrect' }, 400)
+    }
+    /**
+     * WITH TWO-FACTOR ON, THE PASSWORD CHANGES ONLY WITH A CODE (contractor live test S5, 2026-11-14). The current password
+     * alone changed it, so a person holding an open session and the password (a shared computer, a stolen laptop) could take
+     * the account over without the second factor it was protected by. Asked only after the password is right, of a login
+     * that has an authenticator; a wrong code counts on the account's lock like a wrong password.
+     */
+    const pwGate = await mfaGateFor(db, foundUser.companyId, foundUser.id)
+    if (pwGate.required) {
+      const code = String(data.code ?? '').trim()
+      if (!code) return c.json({ error: 'Two-factor is on for your account. Enter a code from your authenticator (or a recovery code) to change your password.', code: 'code_required' }, 400)
+      if (!(await presentsLiveCode(db, foundUser.companyId, foundUser.id, code))) {
+        if (user.failedLoginCount) {
+          const { fails, lock } = await countFailure(foundUser.id)
+          logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed', { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId },
+            lock ? 'Wrong two-factor code on a password change; the account is now locked' : 'Wrong two-factor code on a password change', { attempt: fails, locked: lock, secondFactor: true })
+        }
+        return c.json({ error: 'That code was not right.', code: 'bad_code' }, 400)
+      }
     }
     if (user.failedLoginCount && (Number(foundUser.failedLoginCount) || 0) > 0) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null }).where(eq(user.id, foundUser.id))
     const passwordHash = await Bun.password.hash(data.newPassword, 'bcrypt')
