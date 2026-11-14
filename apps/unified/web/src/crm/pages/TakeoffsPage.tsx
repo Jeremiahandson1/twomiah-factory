@@ -273,6 +273,18 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
       console.error('Failed to load sheet:', error);
     }
   };
+  /**
+   * The sheet AND the list beside it: a measurement added, changed or removed changes the sheet's count in the list too
+   * (contractor final pass 11/14: the list said "0 items" next to a sheet with a measurement on it, until a reload).
+   */
+  const reloadSheet = async (sheetId: string) => {
+    await loadSheet(sheetId);
+    if (!projectId) return;
+    try {
+      const res = await api.get(`/api/takeoffs/project/${projectId}`);
+      setSheets(((res as { data?: SheetItem[] })?.data || []) as SheetItem[]);
+    } catch { /* the list keeps what it showed */ }
+  };
 
   if (!projectId && !propProjectId) {
     return (
@@ -405,7 +417,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
                     <TakeoffItemCard
                       key={item.id}
                       item={item}
-                      onUpdate={() => loadSheet(selectedSheet.id)}
+                      onUpdate={() => reloadSheet(selectedSheet.id)}
                     />
                   ))}
                 </div>
@@ -457,7 +469,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
           onAssemblies={async () => { const r = await api.get('/api/takeoffs/assemblies'); setAssemblies(((r as { data?: AssemblyItem[] })?.data || []) as AssemblyItem[]); }}
           onSave={() => {
             setShowAddItem(false);
-            loadSheet(selectedSheet.id);
+            reloadSheet(selectedSheet.id);
           }}
           onClose={() => setShowAddItem(false)}
         />

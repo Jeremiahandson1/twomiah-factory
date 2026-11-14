@@ -303,6 +303,7 @@ export class ApiClient {
   async getMe(): Promise<any> { return this.request('/api/auth/me') }
   async forgotPassword(email: string): Promise<any> { return this.request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }) }
   async resetPassword(token: string, password: string): Promise<any> { return this.request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }) }
+  async resetPasswordAccount(token: string): Promise<{ email: string; invite: boolean }> { return this.request('/api/auth/reset-password/account', { method: 'POST', body: JSON.stringify({ token }) }) }
 
   // ── Generic CRUD
   async get(endpoint: string, params: Record<string, string | number | boolean | undefined | null> = {}): Promise<any> {

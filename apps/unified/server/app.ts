@@ -155,6 +155,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // secret is guessed at (security review S1, question 5). Renewal is every signed-in browser's, every 15 minutes.
   app.use('/api/auth/mfa', createRateLimiter(15 * 60 * 1000, 60))
   app.use('/api/auth/reset-password', createRateLimiter(15 * 60 * 1000, 30))
+  app.use('/api/auth/reset-password/account', createRateLimiter(15 * 60 * 1000, 30))
   app.use('/api/auth/refresh', createRateLimiter(15 * 60 * 1000, 300))
   app.use('/api/auth/web-handoff/*', createRateLimiter(15 * 60 * 1000, 60))
 

@@ -154,9 +154,12 @@ export default function AiaFormsPage() {
                 <select value={form.formType} onChange={(e) => setForm({ ...form, formType: e.target.value })} className="border rounded-lg px-3 py-2"><option value="G702">G702 (App for Payment)</option><option value="G703">G703 (Continuation)</option></select>
                 <input type="number" placeholder="App #" value={form.applicationNumber} onChange={(e) => setForm({ ...form, applicationNumber: e.target.value })} className="border rounded-lg px-3 py-2" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              {/* G702 lines 1 and 2 side by side (contractor final pass 11/14: with only "Contract Sum" showing, the original sum read as if the
+                  change orders were left out, and was retyped to include them — counting them twice). */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div><label className="text-xs text-gray-500 dark:text-slate-400">Period To</label><input type="date" required value={form.periodTo} onChange={(e) => setForm({ ...form, periodTo: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Contract Sum</label><input type="number" step="0.01" value={form.contractSum} onChange={(e) => setForm({ ...form, contractSum: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Original contract sum (before change orders)</label><input type="number" step="0.01" value={form.contractSum} onChange={(e) => setForm({ ...form, contractSum: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Approved change orders</label><input type="number" step="0.01" value={form.netChangeByChangeOrders} onChange={(e) => setForm({ ...form, netChangeByChangeOrders: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
                 <div><label className="text-xs text-gray-500 dark:text-slate-400">Retainage %</label><input type="number" step="0.1" value={form.retainagePercent} onChange={(e) => setForm({ ...form, retainagePercent: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
               </div>
 

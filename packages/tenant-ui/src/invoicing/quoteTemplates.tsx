@@ -4,7 +4,6 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../auth/AuthContext'
 import { useMayWrite } from '../auth/PermissionsContext'
-import type { LineItemInput } from './types'
 import { Button, ConfirmModal, Field, Modal, errMsg, inputCls, money } from './ui'
 
 type Api = { get: (u: string, p?: any) => Promise<any>; post: (u: string, b?: any) => Promise<any>; delete: (u: string, id?: string) => Promise<any> }
@@ -16,25 +15,7 @@ export function useQuoteFeature(id: string): boolean {
   return !!auth?.hasFeature?.(id)
 }
 
-/** A quote's lines as the New Quote form takes them. PUT replaces every line, so the cost and estimating fields ride along. */
-export function formLines(lineItems: any[] | undefined, blank: () => LineItemInput): LineItemInput[] {
-  if (!lineItems?.length) return [blank()]
-  return lineItems.map((li: any) => ({
-    description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
-    ...(li.type ? { type: li.type } : {}),
-    ...(li.unitCost === null || li.unitCost === undefined ? {} : { unitCost: Number(li.unitCost) }),
-    ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
-    ...(li.optional ? { optional: true, selected: !!li.selected } : {}),
-    ...(li.section ? { section: li.section } : {}),
-    ...(li.markupPct === null || li.markupPct === undefined ? {} : { markupPct: Number(li.markupPct) }),
-    ...(li.allowance ? { allowance: true } : {}),
-    ...(li.costCode ? { costCode: li.costCode } : {}),
-    ...(li.imageUrl ? { imageUrl: li.imageUrl } : {}),
-    ...(li.formulaKey ? { formulaKey: li.formulaKey } : {}),
-    ...(li.quantityFormula ? { quantityFormula: li.quantityFormula } : {}),
-    ...(li.priceFormula ? { priceFormula: li.priceFormula } : {}),
-  }))
-}
+export { formLines, proposalFromQuote } from './quoteLines' // kept for any importer of the old place
 
 /** "Save as a template": asks for a name, saves the quote's lines and wording, says so. */
 export function SaveTemplateModal({ api, toast, quote, onClose }: { api: Api; toast: Toast; quote: { id: string; name: string } | null; onClose: () => void }) {

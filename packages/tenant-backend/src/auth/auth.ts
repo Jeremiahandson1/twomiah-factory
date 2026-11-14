@@ -798,6 +798,19 @@ export function createAuthRoutes(deps: AuthDeps) {
     return c.json({ message: 'If that email exists, a reset link has been sent.' })
   })
 
+  /**
+   * Whose account a set-password link is for, so the page can say so before the password is typed (contractor final pass
+   * 11/14: an invited person, or an owner opening an invite they sent, could not tell whose password they were setting). Only
+   * for a live token — whoever holds one was sent it at that address — and the same refusal as the reset for any other.
+   */
+  app.post('/reset-password/account', async (c) => {
+    const body = z.object({ token: z.string().min(1) }).safeParse(await c.req.json().catch(() => ({})))
+    if (!body.success) return c.json({ error: 'Invalid or expired reset token' }, 400)
+    const [found] = await db.select({ email: user.email, lastLogin: user.lastLogin }).from(user).where(and(resetTokenIs(user.resetToken, body.data.token), gt(user.resetTokenExp, new Date()))).limit(1)
+    if (!found) return c.json({ error: 'Invalid or expired reset token' }, 400)
+    return c.json({ email: found.email, invite: !found.lastLogin })
+  })
+
   app.post('/reset-password', async (c) => {
     const data = z.object({ token: z.string(), password: passwordSchema }).parse(await c.req.json().catch(() => ({})))
     const [foundUser] = await db.select().from(user).where(and(resetTokenIs(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)

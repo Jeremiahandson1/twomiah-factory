@@ -173,12 +173,13 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
     toast?.success('Marked lost')
   }, 'Failed to mark the enquiry lost')
   const reopenLost = (id: string) => act(`${id}:reopen`, async () => { await api.delete('/api/lead-lost', id); toast?.success('Enquiry reopened') }, 'Failed to reopen the enquiry')
-  const bookVisit = (id: string) => act(`${id}:visit`, async () => {
+  const bookVisit = (id: string, moving = false) => act(`${id}:visit`, async () => {
     const at = companyFromLocalInput(visitForm.when)
     if (!visitForm.when || Number.isNaN(at.getTime())) throw new Error('Pick the day and time of the visit')
     await api.post(`/api/lead-site-visit/${id}`, { start: at.toISOString(), minutes: Number(visitForm.minutes) || 60, ...(visitForm.notes.trim() ? { notes: visitForm.notes.trim() } : {}) })
     setPanel(null)
-    toast?.success('Site visit booked')
+    // A visit that was already booked was moved, and says so (contractor final pass 11/14: a move said "Site visit booked").
+    toast?.success(moving ? 'Site visit moved' : 'Site visit booked')
   }, 'Failed to book the site visit')
   const cancelVisit = (id: string) => act(`${id}:cancelvisit`, async () => { await api.delete('/api/lead-site-visit', id); toast?.success('Site visit cancelled') }, 'Failed to cancel the site visit')
   const convertToContact = (id: string) => act(`${id}:convert`, async () => {
@@ -495,7 +496,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                             style={{ display: 'block', marginTop: 4, padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text, width: '100%' }} />
                         </label>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button disabled={!visitForm.when || busy === `${lead.id}:visit`} onClick={() => bookVisit(lead.id)}
+                          <button disabled={!visitForm.when || busy === `${lead.id}:visit`} onClick={() => bookVisit(lead.id, !!lead.siteVisitAt)}
                             style={{ padding: '6px 14px', borderRadius: 6, background: c.activeBtn, color: c.text, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{lead.siteVisitAt ? 'Move visit' : 'Book visit'}</button>
                           <button onClick={() => setPanel(null)} style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: c.muted, border: `1px solid ${c.border}`, fontSize: 12, cursor: 'pointer' }}>Never mind</button>
                         </div>

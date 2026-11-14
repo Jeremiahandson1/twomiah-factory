@@ -11,7 +11,7 @@ import { PasswordInput } from '../ui/PasswordInput'
 
 const inputCls = 'w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 border-gray-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'
 
-export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'> }) {
+export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword' | 'resetPasswordAccount'> }) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const token = searchParams.get('token')
@@ -29,6 +29,14 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
   const [error, setError] = useState('')
 
   useEffect(() => { if (!token) setError('Invalid or missing reset token') }, [token])
+  // Whose account this link is for, said before the password is typed (contractor final pass 11/14). Nothing shown if it can't be read.
+  const [account, setAccount] = useState<{ email: string; invite: boolean } | null>(null)
+  useEffect(() => {
+    if (!token || !api.resetPasswordAccount) return
+    let live = true
+    api.resetPasswordAccount(token).then((r) => { if (live && r?.email) setAccount(r) }).catch(() => { /* the save says if the link is no good */ })
+    return () => { live = false }
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -83,6 +91,11 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
       <div className="max-w-md w-full">
         <div className="bg-white rounded-xl shadow-lg p-8 dark:bg-slate-900 dark:border dark:border-slate-800">
           <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Set your password</h1>
+          {account && (
+            <p className="text-gray-700 mb-2 dark:text-slate-200" data-testid="reset-account">
+              {account.invite ? 'You were invited as' : 'For the account'} <strong>{account.email}</strong>
+            </p>
+          )}
           <p className="text-gray-600 mb-6 dark:text-slate-400">Your password must be {PASSWORD_RULE_TEXT}.</p>
           {isAuthenticated && (
             <div className="mb-4 p-3 rounded-lg text-sm bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -95,6 +108,8 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* So a password manager saves the new password under the right login. */}
+            {account && <input type="email" name="username" autoComplete="username" value={account.email} readOnly hidden />}
             <div>
               <label htmlFor="reset-password" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">New Password</label>
               <div className="relative">

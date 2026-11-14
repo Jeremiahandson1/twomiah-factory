@@ -6,7 +6,8 @@ import { resolveConfig, countedLines } from './types'
 import { AreaPricedLine } from './AreaPricedLine'
 import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
-import { SaveTemplateModal, TemplatePickerModal, formLines, useQuoteFeature } from './quoteTemplates'
+import { SaveTemplateModal, TemplatePickerModal, useQuoteFeature } from './quoteTemplates'
+import { formLines, proposalFromQuote } from './quoteLines'
 import { ParametersPanel, applyLineFormulas, mergeParameters, type Parameter } from './formulasUi'
 import type { MarkupDefaults } from './markup'
 import { MarginSummary } from './MarginSummary'
@@ -157,10 +158,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Good / Better / Best options to put on the new quote once it is saved (from a template, or the quote copied).
+  const templateProposal = useRef<any>(null)
   /** A new quote filled in from an old one: same customer, project, lines and wording; nothing tied to the old job, and no expiry. */
   const createSimilar = useCallback(async (id: string) => {
     try {
       const item = await api.get(`/api/quotes/${id}`)
+      // Its Good / Better / Best options go on the copy once it is saved, as a template's do.
+      templateProposal.current = proposalFromQuote(item.proposal)
       setEditing(null)
       setForm({
         name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: '', siteId: '', equipmentId: '', expiryDate: '',
@@ -178,7 +183,6 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   /** A new quote filled in from a template: its lines and wording, and no customer until you pick one. */
   // The template's Good / Better / Best options, put on the new quote once it is saved (PUT /api/quotes/:id/proposal — the options are a
   // quote's own rows, made after the quote; contractor live test 11/07).
-  const templateProposal = useRef<any>(null)
   const fromTemplate = (body: any) => {
     templateProposal.current = Array.isArray(body?.proposal?.sets) && body.proposal.sets.length ? body.proposal : null
     setEditing(null)
@@ -282,14 +286,16 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       if (cfg.quoteSalesperson && team.length > 0 && form.salespersonId !== 'me') payload.salespersonId = form.salespersonId || null
       if (cfg.quoteDeposit) { payload.depositType = form.depositType || null; payload.depositValue = form.depositType ? form.depositValue : null }
       let saved: any
+      // The time this form opened the quote with: a save by someone else since then is refused, not overwritten (contractor B6).
+      if (editing && (editing as any).updatedAt) payload.expectedUpdatedAt = (editing as any).updatedAt
       if (editing) { saved = await api.put(`/api/quotes/${editing.id}`, payload); toast.success('Quote updated') }
       else {
         saved = await api.post('/api/quotes', payload)
         const proposal = templateProposal.current
         templateProposal.current = null
         if (proposal && saved?.id) {
-          try { await api.put(`/api/quotes/${saved.id}/proposal`, proposal); toast.success('Quote created with the template’s options') }
-          catch (e) { toast.error(`Quote created, but the template’s options were not added: ${errMsg(e, 'try adding them on the quote')}`) }
+          try { await api.put(`/api/quotes/${saved.id}/proposal`, proposal); toast.success('Quote created with its Good / Better / Best options') }
+          catch (e) { toast.error(`Quote created, but its options were not added: ${errMsg(e, 'try adding them on the quote')}`) }
         } else toast.success('Quote created')
       }
       if (sendAfter && saved?.id) { const sentQ = await api.post(`/api/quotes/${saved.id}/send`, {}); toast.success(quoteSentMessage(sentQ)) }

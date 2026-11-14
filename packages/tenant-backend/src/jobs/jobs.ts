@@ -33,6 +33,7 @@ import { onJob, ownJobScope } from './onJob'
 import { JOB_DISPATCH_PERMISSION, dispatchRefusal } from './dispatch'
 import { travelMinutes, type Place } from './travel'
 import { partialOf } from '../partialOf'
+import { expectedUpdatedAt, changedSince, changedSinceOpened, ChangedSinceOpened } from '../staleEdit'
 
 
 /** The folders a job's photos are filed in (job_photo.photo_type); 'general' is none. Roofing's own five are among them. */
@@ -1174,6 +1175,9 @@ export function createJobRoutes(deps: JobDeps) {
     }
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Job not found' }, 404)
+    // Saved by someone else since this form opened it: refused, never silently overwritten (../staleEdit.ts).
+    const expected = expectedUpdatedAt(raw)
+    if (changedSince(expected, existing.updatedAt)) return c.json(changedSinceOpened(jobWord.toLowerCase()), 409)
     const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
     if (badBranch) return c.json({ error: badBranch }, 400)
     if (data.projectId && t.project && !(await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, data.projectId), eq(t.project.companyId, currentUser.companyId))).limit(1))[0]) {
@@ -1299,8 +1303,14 @@ export function createJobRoutes(deps: JobDeps) {
     const here: Place = placeChanged ? { address: data.address ?? existing.address ?? null } : { lat: existing.lat ?? null, lng: existing.lng ?? null, address: existing.address ?? null }
     const bookAnyway = raw.bookAnyway === true
     let travel: any = null
-    const updated = await db.transaction(async (tx: any) => {
+    let updated: any
+    try { updated = await db.transaction(async (tx: any) => {
       await jobLock(tx, currentUser.companyId)
+      // …and again under the lock, for two saves sent at the same moment.
+      if (expected !== null) {
+        const [now] = await tx.select({ updatedAt: t.job.updatedAt }).from(t.job).where(eq(t.job.id, id)).limit(1)
+        if (changedSince(expected, now?.updatedAt)) throw new ChangedSinceOpened()
+      }
       clash = await assigneeConflict(currentUser.companyId, everyone, effDate, effTime, id, tx, effHours)
       if (clash) return null
       // Finished or cancelled work is not being booked: no travel warning on it (re-opening it is a new booking and is checked).
@@ -1327,7 +1337,10 @@ export function createJobRoutes(deps: JobDeps) {
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       return row
-    })
+    }) } catch (e) {
+      if (e instanceof ChangedSinceOpened) return c.json(changedSinceOpened(jobWord.toLowerCase()), 409)
+      throw e
+    }
     // Name the call AND when it starts: the clash is now an overlap, so "at this time" would be a lie
     // for a 09:30 call refused because an 09:00 two-hour one is already there. (FS T28 H1)
     if (clash) return c.json({ error: await clashSentence(currentUser.companyId, clash, everyone.length > 1), conflictId: clash.id }, 409)
