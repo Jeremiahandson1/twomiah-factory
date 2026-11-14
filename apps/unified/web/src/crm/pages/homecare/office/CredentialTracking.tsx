@@ -102,7 +102,7 @@ export default function CredentialTracking() {
   return (
     <div className="p-4 max-w-4xl mx-auto text-gray-900 dark:text-slate-100">
       <h1 className="text-xl font-bold mb-1">Credentials</h1>
-      <p className="text-sm mb-4 text-gray-600 dark:text-slate-400">Every caregiver&apos;s certifications and licences in one place, the credentials kept for clients, and when the agency is reminded. A caregiver&apos;s certificate is added on their record (Caregivers › the caregiver) or as a training with an expiry date under <a href="/crm/compliance" className="underline">Compliance › Training</a>; either shows here.</p>
+      <p className="text-sm mb-4 text-gray-600 dark:text-slate-400">Every caregiver&apos;s certifications and licences in one place, the credentials kept for clients, and when the agency is reminded. A caregiver&apos;s certificate is added on their Full Profile (Caregivers › the caregiver&apos;s Full Profile button › Certifications &amp; Credentials) or as a training with an expiry date under <a href="/crm/compliance" className="underline">Compliance › Training</a>; either shows here.</p>
       <div role="tablist" className="flex gap-2 mb-4">{tabBtn('search', 'Caregivers')}{tabBtn('clients', 'Clients')}{tabBtn('settings', 'Reminders')}</div>
 
       {tab === 'search' && (

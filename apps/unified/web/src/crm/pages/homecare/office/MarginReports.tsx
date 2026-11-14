@@ -199,7 +199,7 @@ export default function MarginReports() {
           ) : (
             <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
               <table className="w-full text-sm">
-                <thead><tr className="bg-gray-50 dark:bg-slate-800"><th className={TH}>Client</th><th className={TH}>Branch</th><th className={TH}>Payer</th><th className={TH}>Hours worked</th><th className={TH}>Hours invoiced</th><th className={TH}>Overtime hrs</th><th className={TH}>Bill rate</th><th className={TH}>Billed</th><th className={TH}>Cost</th><th className={TH}>Margin</th><th className={TH}>%</th></tr></thead>
+                <thead><tr className="bg-gray-50 dark:bg-slate-800"><th className={TH}>Client</th><th className={TH}>Branch</th><th className={TH}>Payer</th><th className={TH}>Hours worked</th><th className={TH}>Hours invoiced</th><th className={TH}>Overtime hrs</th><th className={TH}>Bill rate</th><th className={TH}>Billed (hours worked × rate)</th><th className={TH}>Cost</th><th className={TH}>Margin</th><th className={TH}>%</th></tr></thead>
                 <tbody>
                   {margin.clients.map((r) => (
                     <tr key={r.clientId} className="border-t border-gray-100 dark:border-slate-700">
@@ -223,7 +223,7 @@ export default function MarginReports() {
           </div>
           {margin[grouping].length > 0 && groupTable(margin[grouping], grouping === 'byReferralSource' ? 'Referral source' : grouping === 'byPayer' ? 'Payer' : grouping === 'byDepartment' ? 'Department' : 'Branch')}
           {grouping === 'byReferralSource' && margin.byReferralSource.length > 0 && <div className="mt-3"><BarChart title="Revenue by referral source" rows={margin.byReferralSource.map((g) => ({ label: g.name, value: g.billedCents, detail: `${g.clients} client(s)` }))} format={dollarsShort} /></div>}
-          <p className="text-xs mt-2 text-gray-600 dark:text-slate-400">Pay is the same figure payroll uses (overtime goes on the visits that went past 40 hours in a week). Paid travel time and double time are included when Pay rules are on. A department is the client&apos;s care type. Hours invoiced are what the invoices for these dates carry.</p>
+          <p className="text-xs mt-2 text-gray-600 dark:text-slate-400">Billed is the hours worked on approved visits times the client&apos;s bill rate — not the invoice totals, so an invoice made by hand with no visit worked behind it is not in it, and a visit not yet approved in Shift Reviews is not either. Pay is the same figure payroll uses (overtime goes on the visits that went past 40 hours in a week). Paid travel time and double time are included when Pay rules are on. A department is the client&apos;s care type. Hours invoiced are what the invoices for these dates carry.</p>
         </>
       )}
 

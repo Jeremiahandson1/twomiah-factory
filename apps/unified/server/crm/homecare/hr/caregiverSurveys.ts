@@ -57,7 +57,7 @@ export function createCaregiverSurveyRoutes(core: HomecareCore, d: CrmDeps) {
     if (!ids.length) return fail(c, 400, 'Pick at least one caregiver.', 'bad_ask', { caregiverIds: 'Pick someone' })
     const r = await cs.askNow(me(c).companyId, c.req.param('id'), ids)
     if ('problem' in r) return fail(c, 404, r.problem, 'not_found')
-    return one(c, { success: true, sent: r.sent, message: r.sent ? `Asked ${r.sent} caregiver${r.sent === 1 ? '' : 's'}.` : 'Everyone picked was already asked today.' })
+    return one(c, { success: true, sent: r.sent, message: r.sent ? `Asked ${r.sent} caregiver${r.sent === 1 ? '' : 's'}. They answer it in the caregiver phone app, under More › How is it going?` : 'Everyone picked was already asked today.' })
   })
   app.get('/outstanding', perm('care-hr:read'), async (c) => listAll(c, await cs.outstanding(me(c).companyId)))
 

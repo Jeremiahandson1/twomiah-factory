@@ -652,8 +652,8 @@ export async function insertOpenShift(q: Q, companyId: string, v: {
 }
 
 /** A schedule row about to be posted: its client, its own date, the client's payer. */
-export async function scheduleForPosting(q: Q, companyId: string, id: string): Promise<{ id: string; clientId: string; date: string | null; referredById: string | null } | null> {
-  return camelFirst(await q.execute(sql`SELECT s.id, s.client_id, to_char(s.date, 'YYYY-MM-DD') AS date, cl.referred_by_id
+export async function scheduleForPosting(q: Q, companyId: string, id: string): Promise<{ id: string; clientId: string; date: string | null; dayOfWeek: number | null; referredById: string | null } | null> {
+  return camelFirst(await q.execute(sql`SELECT s.id, s.client_id, to_char(s.date, 'YYYY-MM-DD') AS date, s.day_of_week, cl.referred_by_id
     FROM schedules s JOIN clients cl ON s.client_id = cl.id AND cl.company_id = ${companyId} WHERE s.id = ${id} AND s.company_id = ${companyId}`)) ?? null
 }
 

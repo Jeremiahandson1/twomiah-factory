@@ -274,11 +274,13 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
     }
   };
   /**
-   * The sheet AND the list beside it: a measurement added, changed or removed changes the sheet's count in the list too
+   * The sheet, its totals AND the list beside it: a measurement added, changed or removed changes the sheet's count in the list too
    * (contractor final pass 11/14: the list said "0 items" next to a sheet with a measurement on it, until a reload).
    */
   const reloadSheet = async (sheetId: string) => {
     await loadSheet(sheetId);
+    // …and the totals at the foot: TotalsFooter reads them once per key (contractor re-check 11/14: they stayed stale until a reload).
+    setTotalsVersion((n) => n + 1);
     if (!projectId) return;
     try {
       const res = await api.get(`/api/takeoffs/project/${projectId}`);

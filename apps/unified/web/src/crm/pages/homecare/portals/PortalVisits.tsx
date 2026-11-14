@@ -2,8 +2,8 @@
 // counter-offer. Moved from templates/crm-homecare/frontend/src/components/portal/PortalVisits.tsx.
 //
 // Server (server/crm/homecare/portals/portalVisits.ts, on /api/portal):
-//   GET  /visits                          a list of { id, scheduledDate, startTime, endTime ('HH:MM:SS'), status, notes,
-//                                         clientNotes, caregiverId, scheduleId, caregiverFirstName, caregiverLastName,
+//   GET  /visits                          a list of { id, scheduledDate, startTime, endTime ('HH:MM:SS'), status,
+//                                         clientNotes (never the office's visit notes), caregiverId, scheduleId, caregiverFirstName, caregiverLastName,
 //                                         caregiverPhone, source ('schedule' | 'scheduled_visit'), canChange }
 //   GET  /change-requests                 a list of open requests (VCR_COLS, camelCase: visitDate, originalStartTime,
 //                                         caregiverId, requestType, status, counterDate, counterStartTime, counterEndTime,
@@ -26,7 +26,6 @@ interface Visit {
   startTime: string
   endTime: string
   status: string
-  notes?: string | null
   clientNotes?: string | null
   caregiverId: string
   scheduleId?: string | null
@@ -380,12 +379,6 @@ export default function PortalVisits() {
                   )}
                 </div>
 
-                {/* Notes */}
-                {visit.notes && (
-                  <div style={{ marginTop: '12px', background: 'var(--hc-subtle)', borderRadius: '8px', padding: '10px 14px', fontSize: '0.85rem', color: 'var(--hc-ink-soft)' }}>
-                    {visit.notes}
-                  </div>
-                )}
                 {visit.clientNotes && (
                   <div style={{ marginTop: '8px', background: 'var(--hcp-tint)', borderRadius: '8px', padding: '10px 14px', fontSize: '0.85rem', color: 'var(--hcp-navy)' }}>
                     <span style={{ fontWeight: 600 }}>Your note:</span> {visit.clientNotes}

@@ -149,6 +149,9 @@ export async function familyMemberForLogin(q: Q, email: string): Promise<{ id: s
     WHERE lower(email) = ${email} AND is_active = true LIMIT 1`)) ?? null
 }
 
+// A visit's notes (schedules.notes, scheduled_visits.notes) are the office's: "Office edit during clock-in", a gate code, a word about
+// the family. None of the portal reads below selects them (final live pass 11/14, home care step 32). What the family wrote on a
+// visit (client_notes) is theirs and stays.
 /**
  * The client's visits from `from` through `to` through the one schedule engine: weekly and bi-weekly patterns and
  * one-time visits, cancelled days gone, the covering caregiver's name on the day they cover.
@@ -159,7 +162,7 @@ export async function familyScheduleRows(q: Q, companyId: string, clientId: stri
     SELECT occ.schedule_id || ':' || to_char(occ.occ_date, 'YYYY-MM-DD') AS id, occ.schedule_id,
            to_char(occ.occ_date, 'YYYY-MM-DD') AS date,
            to_char(occ.start_time, 'HH24:MI') AS start_time, to_char(occ.end_time, 'HH24:MI') AS end_time,
-           s.notes, u.first_name AS caregiver_first, u.last_name AS caregiver_last
+           u.first_name AS caregiver_first, u.last_name AS caregiver_last
       FROM occ
       JOIN schedules s ON s.id = occ.schedule_id
       LEFT JOIN "user" u ON u.id = occ.caregiver_id
@@ -187,7 +190,7 @@ export async function portalScheduledVisits(q: Q, companyId: string, clientId: s
   return camelRows(await q.execute(sql`
     SELECT sv.id, to_char(sv.scheduled_date, 'YYYY-MM-DD') AS scheduled_date,
            to_char(sv.start_time, 'HH24:MI:SS') AS start_time, to_char(sv.end_time, 'HH24:MI:SS') AS end_time,
-           sv.status, sv.notes, sv.client_notes, sv.cancelled_reason, sv.caregiver_id, sv.source_schedule_id AS schedule_id,
+           sv.status, sv.client_notes, sv.cancelled_reason, sv.caregiver_id, sv.source_schedule_id AS schedule_id,
            u.first_name AS caregiver_first_name, u.last_name AS caregiver_last_name, u.phone AS caregiver_phone,
            'scheduled_visit' AS source
       FROM scheduled_visits sv JOIN "user" u ON sv.caregiver_id = u.id
@@ -202,7 +205,7 @@ export async function portalOccurrences(q: Q, companyId: string, clientId: strin
     WITH ${occurrencesCte(companyId, from, to)}
     SELECT occ.schedule_id, occ.caregiver_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS scheduled_date,
            to_char(occ.start_time, 'HH24:MI:SS') AS start_time, to_char(occ.end_time, 'HH24:MI:SS') AS end_time,
-           s.notes, u.first_name AS caregiver_first_name, u.last_name AS caregiver_last_name, u.phone AS caregiver_phone
+           u.first_name AS caregiver_first_name, u.last_name AS caregiver_last_name, u.phone AS caregiver_phone
       FROM occ JOIN schedules s ON s.id = occ.schedule_id JOIN "user" u ON u.id = occ.caregiver_id
      WHERE occ.client_id = ${clientId} AND (s.status IS NULL OR s.status = 'active')
        AND ${past ? sql`occ.occ_date < ${today}::date` : sql`occ.occ_date >= ${today}::date`}

@@ -158,7 +158,11 @@ export default function VisitItems() {
                 <label className="text-sm">Type<br />
                   <select className={inp} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as Kind })}>
                     {kinds.map((k) => <option key={k} value={k}>{KIND[k]}</option>)}
-                  </select></label>
+                  </select>
+                  {/* Goals and interventions are one client's (an intervention serves that client's goal), so "Every visit" offers
+                      forms and tasks only — say so, rather than leave the title's interventions missing (final live pass 11/14, step 27). */}
+                  {!scope && <span className="block text-xs mt-1 text-gray-600 dark:text-slate-400">Goals and interventions belong to one client: pick the client above to add them.</span>}
+                </label>
                 {form.kind === 'form' ? (
                   <label className="text-sm">Form<br />
                     <select className={inp} value={form.formTemplateId} onChange={(e) => setForm({ ...form, formTemplateId: e.target.value })}>

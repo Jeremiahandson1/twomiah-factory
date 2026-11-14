@@ -301,10 +301,14 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
       })
       // Also save profile notes — and the NPI and EVV worker id, which the form edits and the route reads (the
       // template sent the three notes only, so those two never saved).
-      await api.patch(`/api/caregiver-profile/${caregiverId}`, {
-        notes: form.notes, capabilities: form.capabilities, limitations: form.limitations,
-        npiNumber: form.npiNumber, evvWorkerId: form.evvWorkerId,
-      }).catch(() => undefined)
+      // A refusal here (an NPI that is not ten digits) is said, and the form stays open; it used to be swallowed under
+      // "Saved successfully" (final live pass 11/14).
+      try {
+        await api.patch(`/api/caregiver-profile/${caregiverId}`, {
+          notes: form.notes, capabilities: form.capabilities, limitations: form.limitations,
+          npiNumber: form.npiNumber, evvWorkerId: form.evvWorkerId,
+        })
+      } catch (e) { toast.error(errorMessage(e, 'The professional details were not saved')); setSaving(false); return }
       toast.success('Saved successfully'); setEditing(false); load()
     } catch (e) {
       toast.error(errorMessage(e, 'Save failed'))

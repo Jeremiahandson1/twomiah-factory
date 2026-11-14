@@ -1,7 +1,7 @@
 // Settings: company info + billing defaults, profile, password, users (seat management), and links to
 // the feature / billing / email / integrations / import sub-pages. One implementation for every CRM.
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, ToggleLeft, AtSign, Globe, Inbox } from 'lucide-react'
 import { Button, Field, inputCls, errMsg } from '../invoicing/ui'
 import { meetsRole, DEFAULT_ROLES, ROLE_LABELS } from './types'
@@ -166,6 +166,15 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   useEffect(() => {
     if (user) setProfileForm({ firstName: user.firstName || '', lastName: user.lastName || '', phone: user.phone || '' })
   }, [user])
+
+  // ?tab=users opens the Users tab: home care's Users & Access sends an owner here to add a seat with a role other than
+  // admin (final live pass 11/14, home care step 11). Only a tab this person is offered is opened.
+  const [params] = useSearchParams()
+  const askedTab = params.get('tab')
+  useEffect(() => {
+    if (askedTab === 'users' && (canManageUsers || (user?.extraPermissions || []).includes('users:read'))) setTab('users')
+    else if (askedTab === 'profile' || askedTab === 'security') setTab(askedTab)
+  }, [askedTab, canManageUsers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUsers = async () => {
     // Asked only of a seat the roster answers — GET /api/company/users is users:read OR team:read. Staff hold

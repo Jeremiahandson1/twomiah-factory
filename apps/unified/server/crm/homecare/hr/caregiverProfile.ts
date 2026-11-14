@@ -68,6 +68,13 @@ export function createCaregiverProfileRoutes(_core: HomecareCore, d: CrmDeps) {
     const caregiverId = idOf(c)
     const b = await body(c)
     if (!(await personInCompany(d, companyId, caregiverId))) return fail(c, 404, 'Caregiver not found')
+    // An NPI is ten digits (CMS). A box that took any text stored a caregiver's skills as their NPI (final live pass 11/14,
+    // home care): the EVV and claim files send it, so a wrong one is refused here, naming the box.
+    if (typeof b.npiNumber === 'string' && b.npiNumber.trim()) {
+      const npi = b.npiNumber.replace(/[\s-]/g, '')
+      if (!/^\d{10}$/.test(npi)) return fail(c, 400, 'An NPI number is 10 digits. Leave it empty if the caregiver has none.', 'bad_npi', { npiNumber: 'Ten digits' })
+      b.npiNumber = npi
+    }
     const placement_ = await placement(d, companyId, b)
     if ('problem' in placement_) return fail(c, 400, placement_.problem, 'bad_placement', placement_.fields)
     const placed = placement_.placed

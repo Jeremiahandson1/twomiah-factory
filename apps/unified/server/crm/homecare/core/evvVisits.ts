@@ -110,9 +110,11 @@ export function createEvvVisits(d: CrmDeps, deps: { sandata: SandataClient; evvW
     try {
       const cfg = await sandata.getConfig(companyId)
       const te = await timeEntryForEvv(d.db, companyId, timeEntryId)
-      if (!te || !te.endTime) return null
+      // Each way out says why in the log: a closed visit on the live pass (11/14, home care step 31) got no EVV record and left
+      // no trace of the reason.
+      if (!te || !te.endTime) { d.logger.info('[EVV] no record: the visit is not closed', { timeEntryId, found: !!te }); return null }
       // EVV applies only to payer-funded services (core/payerFunding.ts): no record for private pay.
-      if (te.privatePay) return null
+      if (te.privatePay) { d.logger.info('[EVV] no record: private pay', { timeEntryId }); return null }
 
       // A raw `timestamp` comes back without a zone; it is UTC.
       const start = asUtc(te.startTime)
@@ -158,9 +160,10 @@ export function createEvvVisits(d: CrmDeps, deps: { sandata: SandataClient; evvW
       if (record && record.sandataStatus === 'ready' && record.autoSubmitEnabled !== false) {
         autoSubmit.enqueueVisit(companyId, record.id).catch((e: any) => d.logger.error('[EVV auto-submit] enqueue', { error: e?.message }))
       }
+      if (!record) d.logger.error('[EVV] no record: the write returned nothing', { timeEntryId })
       return record
     } catch (e: any) {
-      d.logger.error('[EVV] createEVVFromTimeEntry error', { error: e?.message })
+      d.logger.error('[EVV] createEVVFromTimeEntry error', { timeEntryId, error: e?.message })
       return null
     }
   }
