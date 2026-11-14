@@ -9,7 +9,7 @@ import { test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { storedResetToken } from '@twomiah/tenant-backend'
 import { bootTenant, seedOwner } from './harness.ts'
-import { proposalFromQuote } from '../../../packages/tenant-ui/src/invoicing/quoteTemplates.tsx'
+import { proposalFromQuote } from '../../../packages/tenant-ui/src/invoicing/quoteLines.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = '', token = '', contactId = ''
