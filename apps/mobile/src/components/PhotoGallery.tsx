@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../theme/ThemeContext'
 import { OVERLAY_INK } from '../theme/actions'
 import { get, upload, getApiUrl, getAccessToken } from '../api/client'
+import { isOwnAddress } from '../more/webTarget'
 import { useCamera } from '../hooks/useCamera'
 import { stampFields, type PhotoStamp } from '../photos/stamp'
 import { useToast } from './ToastProvider'
@@ -80,7 +81,9 @@ export function uploadJobPhoto(vertical: string, jobId: string, uri: string, sta
 export function photoSource(photo: JobPhoto, thumbnail = false) {
   const raw = (thumbnail && photo.thumbnailUrl) || photo.url || ''
   const uri = /^https?:\/\//.test(raw) ? raw : `${getApiUrl()}${raw.startsWith('/') ? '' : '/'}${raw}`
-  const token = getAccessToken()
+  // The sign-in goes ONLY to the business's own server: a photo row whose address is somewhere else is fetched without it
+  // (security review, phone app read, 2026-11-14 — the token used to ride along to whatever host the row named).
+  const token = isOwnAddress(uri, getApiUrl()) ? getAccessToken() : null
   return token ? { uri, headers: { Authorization: `Bearer ${token}` } } : { uri }
 }
 

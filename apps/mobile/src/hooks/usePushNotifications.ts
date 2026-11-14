@@ -84,7 +84,9 @@ export function usePushNotifications(opts: { registerWithServer?: boolean; fallb
       }
 
       const route = ROUTE_MAP[type]
-      if (route) {
+      // A record's id, and nothing else, goes on the end of the screen's address (a push carries whatever its sender wrote).
+      const isId = (v: unknown) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v)
+      if (route && isId(type === 'payment' ? (data.invoiceId || id) : id)) {
         const targetId = type === 'payment' ? (data.invoiceId || id) : id
         router.push(`${route}${targetId}` as any)
       } else {
